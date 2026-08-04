@@ -13,7 +13,7 @@ rust-check:
 
 # Build the Rust-hosted PocketPy runtime
 rust-build:
-    cargo build --release -p ucharm-runtime
+    cargo build --release --workspace
 
 # Run code through the Rust-hosted PocketPy runtime
 rust-run code:

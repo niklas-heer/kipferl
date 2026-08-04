@@ -320,3 +320,53 @@ pub fn calculateHash(self_file: std.fs.File, trailer: Trailer) ![8]u8 {
     // Return first 8 bytes
     return hash[0..8].*;
 }
+
+test "content hash matches shared Rust migration fixture" {
+    const runtime = @embedFile("fixtures/cache_runtime_v1.txt");
+    const python = @embedFile("fixtures/cache_python_v1.py");
+    const expected = try decodeHashFixture(@embedFile("fixtures/cache_hash_v1.hex"));
+
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+
+    var file = try temporary.dir.createFile("bundle", .{ .read = true });
+    defer file.close();
+    try file.writeAll(runtime);
+    try file.writeAll(python);
+
+    const trailer = Trailer{
+        .micropython_offset = 0,
+        .micropython_size = runtime.len,
+        .python_offset = runtime.len,
+        .python_size = python.len,
+    };
+    const actual = try calculateHash(file, trailer);
+    try std.testing.expectEqualSlices(u8, &expected, &actual);
+}
+
+fn decodeHashFixture(text: []const u8) ![8]u8 {
+    var bytes: [8]u8 = undefined;
+    var digit_index: usize = 0;
+
+    for (text) |char| {
+        if (std.ascii.isWhitespace(char)) continue;
+        if (digit_index >= bytes.len * 2) return error.InvalidHexLength;
+
+        const nibble: u8 = switch (char) {
+            '0'...'9' => char - '0',
+            'a'...'f' => char - 'a' + 10,
+            'A'...'F' => char - 'A' + 10,
+            else => return error.InvalidHex,
+        };
+        const byte_index = digit_index / 2;
+        if (digit_index % 2 == 0) {
+            bytes[byte_index] = nibble << 4;
+        } else {
+            bytes[byte_index] |= nibble;
+        }
+        digit_index += 1;
+    }
+
+    if (digit_index != bytes.len * 2) return error.InvalidHexLength;
+    return bytes;
+}

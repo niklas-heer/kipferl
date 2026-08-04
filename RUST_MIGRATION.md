@@ -150,8 +150,9 @@ status, stdout, and stderr.
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
 - Phase 2 is in progress: `ucharm-format` encodes and decodes the exact
-  `MCHARM01` wire format, validates payload ranges, and shares byte-level golden
-  vectors with the Zig loader tests.
+  `MCHARM01` wire format, and the Rust loader validates, atomically extracts,
+  caches, and executes Zig-packaged payloads. Zig and Rust share byte-level
+  trailer and cache-hash vectors.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.
