@@ -93,6 +93,11 @@ jobs:
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import logging, re, signal, subprocess; found = re.search(r"(item)-(\d+)", "prefix item-42"); assert found.groups() == ("item", "42"); assert re.sub(r"(\w+)", r"[\1]", "hello") == "[hello]"; logger = logging.getLogger("smoke.child"); assert logger is logging.getLogger("smoke.child"); signal.signal(signal.SIGUSR1, signal.SIG_IGN); assert signal.getsignal(signal.SIGUSR1) == signal.SIG_IGN; result = subprocess.run(["sh", "-c", "printf ucharm"], capture_output=True); assert result["returncode"] == 0 and result["stdout"] == b"ucharm"'
+      - name: Smoke-test Rust tooling-format wave
+        shell: bash
+        run: >-
+          target/${{ matrix.target }}/release/pocketpy-ucharm-rs
+          -c 'import argparse, configparser, contextlib, tomllib, unittest; from urllib.parse import quote, unquote; from xml.etree.ElementTree import fromstring, tostring; parser = argparse.ArgumentParser(); parser.add_argument("--count", type=int, required=True); assert parser.parse_args(["--count", "3"]).count == 3; config = configparser.ConfigParser(); config.read_string("[core]\nenabled=yes\n"); assert config.getboolean("core", "enabled"); assert unquote(quote("μ charm")) == "μ charm"; assert tomllib.loads("name=\"ucharm\"")["name"] == "ucharm"; xml = fromstring("<root><child>a &lt; b</child></root>"); assert "a &lt; b" in tostring(xml, "unicode"); case = unittest.TestCase(); case.assertEqual(2 + 2, 4); assert contextlib.nullcontext("ok").__enter__() == "ok"'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"

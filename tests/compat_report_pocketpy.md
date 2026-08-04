@@ -1,14 +1,14 @@
 # μcharm Compatibility Report
 
-Generated: 2026-08-04 19:16:48
+Generated: 2026-08-04 20:02:36
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,437/1,668 (86.2%)
-- **Modules at 100%**: 39/52
-- **Modules partial**: 5/52
+- **Tests passing**: 1,574/1,668 (94.4%)
+- **Modules at 100%**: 46/52
+- **Modules partial**: 3/52
 - **No baseline (host CPython)**: 1/52
 
 ### CPython Stdlib Coverage
@@ -20,11 +20,14 @@ Generated: 2026-08-04 19:16:48
 
 | Module | Category | CPython | μcharm | Parity | Notes |
 |--------|----------|---------|--------|--------|-------|
+| argparse | stdlib | 26/26 | 26/26 | 100% | ✅ Full |
 | array | stdlib | 69/69 | 69/69 | 100% | ✅ Full |
 | base64 | stdlib | 18/18 | 18/18 | 100% | ✅ Full |
 | binascii | stdlib | 55/55 | 55/55 | 100% | ✅ Full |
 | bisect | stdlib | 58/58 | 58/58 | 100% | ✅ Full |
 | collections | stdlib | 49/49 | 49/49 | 100% | ✅ Full |
+| configparser | stdlib | 26/26 | 26/26 | 100% | ✅ Full |
+| contextlib | stdlib | 10/10 | 10/10 | 100% | ✅ Full |
 | copy | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | csv | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
 | dataclasses | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
@@ -57,51 +60,29 @@ Generated: 2026-08-04 19:16:48
 | tempfile | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
 | textwrap | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
 | toml | stdlib | - | - | - | ✅ Full |
+| tomllib | stdlib | 0/1 | 1/1 | 100% | ✅ Full |
 | typing | stdlib | 43/43 | 43/43 | 100% | ✅ Full |
+| unittest | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
+| urllib_parse | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
 | uuid | stdlib | 18/18 | 18/18 | 100% | ✅ Full |
+| xml.etree.ElementTree | stdlib | 12/12 | 12/12 | 100% | ✅ Full |
 | zipfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
 | math | stdlib | 82/82 | 73/82 | 89% | 9 skipped |
 | time | stdlib | 42/42 | 22/42 | 52% | 6 skipped |
 | sys | stdlib | 58/58 | 3/58 | 5% | 1 failing |
-| urllib_parse | stdlib | 24/24 | 1/24 | 4% | 1 skipped |
-| configparser | stdlib | 26/26 | 1/26 | 4% | 1 skipped |
-| argparse | stdlib | 26/26 | 0/26 | 0% | 1 skipped |
-| contextlib | stdlib | 10/10 | 0/10 | 0% | 1 failing |
 | http.client | stdlib | 8/8 | 0/8 | 0% |  |
 | sqlite3 | stdlib | 2/2 | 0/2 | 0% |  |
-| tomllib | stdlib | 0/1 | 0/1 | 0% |  |
-| unittest | stdlib | 40/40 | 0/40 | 0% | 1 skipped |
-| xml.etree.ElementTree | stdlib | 12/12 | 0/12 | 0% |  |
 
 ## Failed Tests
-
-### argparse
-
-- `error: Python execution failed
-`
-
-### contextlib
-
-- `error: Python execution failed
-`
 
 ### sys
 
 - `FAIL: version_info exists`
 
-### unittest
-
-- `error: Python execution failed
-`
-
 
 ## Skipped Tests
 
 These tests require features not available in pocketpy-ucharm:
-
-### argparse
-
-- 1 tests skipped
 
 ### bisect
 
@@ -111,9 +92,9 @@ These tests require features not available in pocketpy-ucharm:
 
 - 4 tests skipped
 
-### configparser
+### contextlib
 
-- 1 tests skipped
+- 4 tests skipped
 
 ### enum
 
@@ -131,15 +112,7 @@ These tests require features not available in pocketpy-ucharm:
 
 - 6 tests skipped
 
-### urllib_parse
-
-- 1 tests skipped
-
 ### toml
-
-- 1 tests skipped
-
-### unittest
 
 - 1 tests skipped
 

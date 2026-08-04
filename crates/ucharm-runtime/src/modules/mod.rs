@@ -1,5 +1,6 @@
 mod ansi;
 mod ansi_core;
+mod argparse;
 mod args;
 mod array;
 mod base64;
@@ -9,6 +10,8 @@ mod bytes_methods;
 mod charm;
 mod charm_core;
 mod collections;
+mod configparser;
+mod contextlib;
 mod copy;
 mod csv;
 mod dataclasses;
@@ -50,14 +53,19 @@ mod term;
 mod term_core;
 mod textwrap;
 mod textwrap_core;
+mod tomllib;
 mod typing;
+mod unittest;
+mod urllib_parse;
 mod uuid;
+mod xml_etree;
 mod zipfile;
 
 use crate::native::{NativeModule, register_modules};
 
 const MODULES: &[NativeModule] = &[
     ansi::MODULE,
+    argparse::MODULE,
     struct_module::MODULE,
     array::MODULE,
     args::MODULE,
@@ -67,6 +75,8 @@ const MODULES: &[NativeModule] = &[
     copy::MODULE,
     typing::MODULE,
     collections::MODULE,
+    configparser::MODULE,
+    contextlib::MODULE,
     io::MODULE,
     csv::MODULE,
     dataclasses::MODULE,
@@ -97,8 +107,12 @@ const MODULES: &[NativeModule] = &[
     tempfile::MODULE,
     term::MODULE,
     textwrap::MODULE,
+    tomllib::MODULE,
     subprocess::MODULE,
+    unittest::MODULE,
+    urllib_parse::MODULE,
     uuid::MODULE,
+    xml_etree::MODULE,
     zipfile::MODULE,
 ];
 
