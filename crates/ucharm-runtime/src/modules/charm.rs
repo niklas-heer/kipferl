@@ -107,9 +107,11 @@ const INT_CONSTANTS: &[NativeIntConstant] = &[
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"charm",
+    kind: crate::native::NativeModuleKind::Create,
     functions: FUNCTIONS,
     signatures: SIGNATURES,
     int_constants: INT_CONSTANTS,
+    type_aliases: &[],
 };
 
 fn write_output(bytes: &[u8]) {

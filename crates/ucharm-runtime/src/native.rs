@@ -21,20 +21,43 @@ pub(crate) struct NativeIntConstant {
     pub value: i64,
 }
 
+pub(crate) struct NativeTypeAlias {
+    pub name: &'static CStr,
+    pub value_type: ffi::py_PredefinedType,
+}
+
+pub(crate) enum NativeModuleKind {
+    Create,
+    Extend,
+}
+
 pub(crate) struct NativeModule {
     pub name: &'static CStr,
+    pub kind: NativeModuleKind,
     pub functions: &'static [NativeFunction],
     pub signatures: &'static [NativeSignature],
     pub int_constants: &'static [NativeIntConstant],
+    pub type_aliases: &'static [NativeTypeAlias],
 }
 
 pub(crate) fn register_modules(modules: &[NativeModule]) {
     for module in modules {
         // SAFETY: registration runs while the uniquely owned VM is active.
-        // Module/function names have static storage and every callback uses
-        // PocketPy's required C ABI.
+        // Module, function, constant, and alias names have static storage;
+        // every callback uses PocketPy's required C ABI, and predefined type
+        // objects remain valid for the lifetime of the VM.
         unsafe {
-            let object = ffi::py_newmodule(module.name.as_ptr());
+            let object = match module.kind {
+                NativeModuleKind::Create => ffi::py_newmodule(module.name.as_ptr()),
+                NativeModuleKind::Extend => {
+                    let object = ffi::py_getmodule(module.name.as_ptr());
+                    assert!(
+                        !object.is_null(),
+                        "native module extension target is missing"
+                    );
+                    object
+                }
+            };
             for function in module.functions {
                 ffi::py_bindfunc(object, function.name.as_ptr(), Some(function.callback));
             }
@@ -46,6 +69,13 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
                 ffi::py_newint(value, constant.value);
                 ffi::py_setdict(object, ffi::py_name(constant.name.as_ptr()), value);
                 ffi::py_pop();
+            }
+            for alias in module.type_aliases {
+                ffi::py_setdict(
+                    object,
+                    ffi::py_name(alias.name.as_ptr()),
+                    ffi::py_tpobject(alias.value_type as ffi::py_Type),
+                );
             }
         }
     }
@@ -152,6 +182,23 @@ impl Value {
         // are represented as valid UTF-8 by PocketPy.
         let bytes = unsafe { slice::from_raw_parts(data.cast::<u8>(), length) };
         String::from_utf8(bytes.to_vec()).ok()
+    }
+
+    pub fn bytes(self) -> Option<Vec<u8>> {
+        if !self.is_type(ffi::py_PredefinedType_tp_bytes) {
+            return None;
+        }
+        let mut length = 0;
+        // SAFETY: the exact type check establishes bytes. The returned buffer
+        // remains valid until the next allocating VM operation, so copy it
+        // before returning to safe Rust.
+        let data = unsafe { ffi::py_tobytes(self.raw, &mut length) };
+        let length = usize::try_from(length).ok()?;
+        if length == 0 {
+            return Some(Vec::new());
+        }
+        // SAFETY: PocketPy returned `length` initialized bytes.
+        Some(unsafe { slice::from_raw_parts(data, length) }.to_vec())
     }
 
     pub fn truthy(self) -> bool {
@@ -290,6 +337,20 @@ impl RootFrame {
         Some(root)
     }
 
+    pub fn bytes(&mut self, value: &[u8]) -> Option<Value> {
+        let length = c_int::try_from(value.len()).ok()?;
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage and PocketPy reserves
+        // exactly `length` bytes.
+        let destination = unsafe { ffi::py_newbytes(root.raw, length) };
+        if !value.is_empty() {
+            // SAFETY: both buffers are valid for `value.len()` bytes and do
+            // not overlap.
+            unsafe { ptr::copy_nonoverlapping(value.as_ptr(), destination, value.len()) };
+        }
+        Some(root)
+    }
+
     pub fn integer(&mut self, value: i64) -> Value {
         let root = self.push();
         // SAFETY: `root` is writable VM stack storage.
@@ -389,6 +450,14 @@ pub(crate) fn return_string_bytes(value: &[u8]) -> bool {
         unsafe { ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len()) };
     }
     true
+}
+
+pub(crate) fn return_bytes(value: &[u8]) -> bool {
+    let mut roots = RootFrame::new();
+    let Some(value) = roots.bytes(value) else {
+        return value_error(c"return bytes are too large");
+    };
+    return_value(value)
 }
 
 pub(crate) fn type_error(message: &'static CStr) -> bool {

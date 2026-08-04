@@ -45,9 +45,11 @@ const FUNCTIONS: &[NativeFunction] = &[
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"args",
+    kind: crate::native::NativeModuleKind::Create,
     functions: FUNCTIONS,
     signatures: &[],
     int_constants: &[],
+    type_aliases: &[],
 };
 
 fn sys_argv() -> Option<Value> {

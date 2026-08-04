@@ -1,8 +1,11 @@
 mod ansi;
 mod ansi_core;
 mod args;
+mod base64;
+mod binascii;
 mod charm;
 mod charm_core;
+mod encoding_core;
 mod fnmatch;
 mod fnmatch_core;
 mod input;
@@ -14,6 +17,8 @@ use crate::native::{NativeModule, register_modules};
 const MODULES: &[NativeModule] = &[
     ansi::MODULE,
     args::MODULE,
+    base64::MODULE,
+    binascii::MODULE,
     charm::MODULE,
     fnmatch::MODULE,
     input::MODULE,

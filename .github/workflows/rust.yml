@@ -72,7 +72,7 @@ jobs:
         shell: bash
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
-          -c 'import ansi, args, charm, fnmatch, input, term; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert charm.BORDER_ROUNDED == 0; assert charm.visible_len(charm.style("界", fg="red")) == 2; assert fnmatch.filter(["alpha", "beta"], "a*") == ["alpha"]; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert len(term.size()) == 2; assert term.raw_mode(False) is None'
+          -c 'import ansi, args, base64, binascii, charm, fnmatch, input, term; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert base64.urlsafe_b64decode(base64.urlsafe_b64encode(b"\xfb\xfc")) == b"\xfb\xfc"; assert binascii.crc32(b"123456789") == 3421780262; assert charm.BORDER_ROUNDED == 0; assert charm.visible_len(charm.style("界", fg="red")) == 2; assert fnmatch.filter(["alpha", "beta"], "a*") == ["alpha"]; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert len(term.size()) == 2; assert term.raw_mode(False) is None'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"

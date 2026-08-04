@@ -172,13 +172,13 @@ status, stdout, and stderr.
   the embedded released runtime as a self-contained fallback.
 - Phase 4 is functionally complete: the generated PocketPy bindings now expose
   the small container, type-object, and temporary-rooting surface required by
-  native callbacks. Module registration is table-driven, including signature-based
-  functions with defaults and keyword arguments. The complete `ansi`, `args`,
-  `term`, interactive `input`, and `charm` presentation modules are ported with
-  Python-level behavior, error, allocation-stress, byte-stream, pseudo-terminal,
-  Unicode-width, and golden ANSI-output tests. The rooted Rust `args`
-  implementation fixes the legacy alias-key corruption and SIGSEGV exposed by
-  combined alias/default parsing. Rust owns raw terminal state and restores it
+  native callbacks. Module registration is table-driven, including
+  signature-based functions with defaults and keyword arguments. The complete
+  `ansi`, `args`, `term`, interactive `input`, and `charm` presentation modules
+  are ported with Python-level behavior, error, allocation-stress, byte-stream,
+  pseudo-terminal, Unicode-width, and golden ANSI-output tests. The rooted Rust
+  `args` implementation fixes the legacy alias-key corruption and SIGSEGV
+  exposed by combined alias/default parsing. Rust owns raw terminal state and restores it
   during VM teardown and after every interactive input path; exact selection,
   confirmation, editing, cancellation, and password screen bytes match Zig.
   The reusable Rust TUI core preserves the Zig runtime's byte-oriented width,
@@ -188,12 +188,17 @@ status, stdout, and stderr.
   tests enforce the one-owner VM lifecycle, and Linux CI instruments PocketPy C
   with AddressSanitizer, UndefinedBehaviorSanitizer, and leak detection. The
   original `_ucharm_rust` proof module has been retired.
-- Phase 5 is in progress: `fnmatch` is the first pure compatibility module on
-  the Rust runtime. Its four Python APIs pass the existing 55/55 compatibility
-  fixture with byte-for-byte Zig/Rust output parity, plus native error and
-  allocation-root tests. This raises the full Rust compatibility result from
-  456/1,668 to 511/1,668. `base64` and `binascii` are the next bounded slice so
-  their shared bytes conversion can cross the FFI boundary once.
+- Phase 5 is in progress: `fnmatch`, `base64`, and `binascii` are now on the
+  Rust runtime. The shared boundary copies PocketPy bytes into owned Rust
+  buffers before allocation and roots exact-size byte results in the VM. The
+  registrar can extend PocketPy's existing `base64` module and declare the
+  `binascii.Error` and `Incomplete` exception aliases without custom setup
+  code. The existing fixtures pass at 55/55, 18/18, and 55/55 respectively,
+  with byte-for-byte Zig/Rust output parity plus native error, size-boundary,
+  CRC, allocation-stress, and cross-target smoke tests. The full Rust
+  compatibility result has risen from 456/1,668 to 572/1,668. `statistics` is
+  the next dependency-light candidate; `copy` requires a broader object-call
+  and attribute-access boundary.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.
