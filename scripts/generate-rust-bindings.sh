@@ -4,8 +4,8 @@ set -euo pipefail
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 RUST_LOG=error bindgen "$project_root/pocketpy/vendor/pocketpy.h" \
-  --allowlist-function 'py_(initialize|finalize|exec|printexc|sys_setargv|newmodule|bindfunc|retval|newint|newstrn|istype|toint|tostrn|tobool|exception)' \
-  --allowlist-type 'py_(CompileMode|PredefinedType|TValue)' \
+  --allowlist-function 'py_(initialize|finalize|exec|printexc|sys_setargv|newmodule|getmodule|bindfunc|retval|newint|newbool|newnone|newstrn|newlist|list_len|list_getitem|list_append|newdict|dict_getitem|dict_setitem|dict_apply|tuple_len|tuple_getitem|name|getdict|pushtmp|pop|tpobject|isidentical|istype|toint|tostrn|tobool|exception)' \
+  --allowlist-type 'py_(CompileMode|PredefinedType|TValue|Name)' \
   --use-core \
   --no-layout-tests \
   --output "$project_root/crates/pocketpy-sys/src/bindings.rs" \

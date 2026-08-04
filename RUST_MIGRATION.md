@@ -171,12 +171,13 @@ status, stdout, and stderr.
   compatibility runner with the source-built runtime during development and
   the embedded released runtime as a self-contained fallback.
 - Phase 4 is in progress: the generated PocketPy bindings now expose the small
-  value-inspection surface required by native callbacks, module registration is
-  table-driven, and the `ansi` module is ported with Python-level behavior and
-  error parity tests. The safe, allocation-free argument parsing core is also
-  ported; registering the complete `args` Python module is the next container
-  and rooting-boundary slice. The `_ucharm_rust` probe remains temporarily as
-  an FFI smoke test while production modules cross the boundary.
+  container, type-object, and temporary-rooting surface required by native
+  callbacks. Module registration is table-driven, and the `ansi` and complete
+  `args` modules are ported with Python-level behavior, error, and allocation
+  stress tests. The rooted Rust `args` implementation also fixes the legacy
+  alias-key corruption and SIGSEGV exposed by combined alias/default parsing.
+  The `_ucharm_rust` probe remains temporarily as an FFI smoke test while
+  production modules cross the boundary; TUI and input core logic are next.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.
