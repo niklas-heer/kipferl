@@ -22,6 +22,7 @@ jobs:
           scripts/test_generate_stubs.py
           scripts/test_release.py
           scripts/test_release_notes.py
+          scripts/test_verify_pocketpy_patches.py
 
   ffi-sanitizers:
     name: PocketPy FFI sanitizers
@@ -229,7 +230,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Verify PocketPy vendor patchset
-        run: python3 scripts/verify-pocketpy-patches.py --check-upstream
+        run: >-
+          python3 scripts/verify-pocketpy-patches.py
+          --check-upstream
+          --report artifacts/pocketpy-patch-verification.json
       - name: Build canonical runtime
         run: cargo build --release -p ucharm-runtime
       - name: Run full compatibility report
@@ -237,10 +241,15 @@ jobs:
           python3 tests/compat_runner.py
           --runtime target/release/pocketpy-ucharm
           --report
-          --ci
       - name: Upload compatibility report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: compatibility-report
           path: tests/compat_report_pocketpy.md
+      - name: Upload PocketPy patch verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketpy-patch-verification
+          path: artifacts/pocketpy-patch-verification.json

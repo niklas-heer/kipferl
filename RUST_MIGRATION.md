@@ -491,10 +491,10 @@ artifacts meet the compatibility, startup, and size gates.
     explicitly as improvements.
 - Resume roadmap work in this order:
   1. Rust-native optimization and dependency review — complete;
-  2. README/website/docs refresh and the migration retrospective;
+  2. README/website/docs refresh and the migration retrospective — complete;
   3. canonical stub generation and CI drift checking — complete;
-  4. compatibility report and PocketPy patch verification artifacts;
-  5. cross-target build reliability;
+  4. compatibility report and PocketPy patch verification artifacts — complete;
+  5. cross-target build reliability — complete;
   6. tree-shaking/module selection for size;
   7. `ucharm dev` watch mode;
   8. remaining networking, format, concurrency, and database work;
