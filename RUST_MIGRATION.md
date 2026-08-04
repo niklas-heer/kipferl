@@ -149,10 +149,17 @@ status, stdout, and stderr.
 - Phase 1 is in progress: the Cargo workspace builds vendored PocketPy through
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
-- Phase 2 is in progress: `ucharm-format` encodes and decodes the exact
-  `MCHARM01` wire format, and the Rust loader validates, atomically extracts,
-  caches, and executes Zig-packaged payloads. Zig and Rust share byte-level
-  trailer and cache-hash vectors.
+- Phase 2 is functionally complete: `ucharm-format` encodes and decodes the
+  exact `MCHARM01` wire format, and the Rust loader validates, atomically
+  extracts, caches, and executes Zig-packaged payloads. Zig and Rust share
+  byte-level trailer and cache-hash vectors. The measured Rust loader adds
+  9.2% to a universal application while slightly improving warm startup; the
+  accepted size variance is recorded in `benchmarks/loader_migration_baseline.md`.
+- Phase 3 is in progress: the dependency-free `ucharm-cli` crate has the
+  production command dispatcher plus `new` and `init`. Valid command output,
+  generated files, file modes, embedded stubs, and assistant instructions have
+  byte-for-byte parity with the Zig CLI. `run`, `build`, and `test` remain
+  explicitly delegated to the production Zig CLI until their ports land.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

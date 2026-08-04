@@ -49,6 +49,9 @@ jobs:
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import _ucharm_rust; assert _ucharm_rust.answer() == 42'
+      - name: Smoke-test Rust CLI
+        shell: bash
+        run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"
       - name: Smoke-test bare loader diagnostics
         shell: bash
         run: |
@@ -72,4 +75,9 @@ jobs:
           loader_size = loader.stat().st_size
           print(f"{loader}: {loader_size:,} bytes")
           assert loader_size < 1_000_000, f"Rust loader exceeds 1 MB: {loader_size:,} bytes"
+
+          cli = Path("target/${{ matrix.target }}/release/ucharm-rs")
+          cli_size = cli.stat().st_size
+          print(f"{cli}: {cli_size:,} bytes")
+          assert cli_size < 1_500_000, f"Rust CLI exceeds 1.5 MB: {cli_size:,} bytes"
           PY
