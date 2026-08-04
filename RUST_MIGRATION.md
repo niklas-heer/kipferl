@@ -462,6 +462,11 @@ artifacts meet the compatibility, startup, and size gates.
   - keep an accept/reject decision record for every spike. Adoption requires no
     Python API, byte-output, error, compatibility, or target regression and a
     demonstrated overall benefit in the recorded matrix.
+- **Complete:** the bounded review is frozen in
+  `benchmarks/rust_optimization_baseline.md`, including the final startup,
+  memory, workload, PTY latency, section/dependency attribution, all four
+  release sizes, and the decision not to force the larger borrowed/rooted FFI
+  type redesign into the prerelease without evidence of a current defect.
 - After the Rust release is proven, complete a public documentation and
   communication pass before treating the migration as old news:
   - complete formal product-name clearance before refreshing public launch
@@ -478,7 +483,7 @@ artifacts meet the compatibility, startup, and size gates.
     final Zig tag and migration tracker, and report regressions and tradeoffs as
     explicitly as improvements.
 - Resume roadmap work in this order:
-  1. Rust-native optimization and dependency review;
+  1. Rust-native optimization and dependency review — complete;
   2. README/website/docs refresh and the migration retrospective;
   3. canonical stub generation and CI drift checking;
   4. compatibility report and PocketPy patch verification artifacts;

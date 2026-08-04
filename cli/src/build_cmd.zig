@@ -245,7 +245,7 @@ fn printHelp() void {
         \\    linux-aarch64          Linux on ARM64
         \\
         \\{s}MODES:{s}
-        \\    universal              Standalone binary (~900KB, no dependencies)
+        \\    universal              Standalone binary (~4-5MB, no dependencies)
         \\    executable             Shell wrapper (requires pocketpy-ucharm)
         \\    single                 Transformed .py file (requires pocketpy-ucharm)
         \\
@@ -474,7 +474,7 @@ fn buildUniversal(allocator: Allocator, script: []const u8, output: []const u8, 
     io.print(style.dim ++ "  Output:  " ++ style.reset ++ "{s}\n", .{output});
     io.print(style.dim ++ "  Target:  " ++ style.reset ++ "{s}\n", .{target.displayName()});
     io.print(style.dim ++ "  Size:    " ++ style.reset ++ "{d} KB " ++ style.dim ++ "(standalone, no dependencies)" ++ style.reset ++ "\n", .{total_kb});
-    io.print(style.dim ++ "  Startup: " ++ style.reset ++ "~6ms " ++ style.dim ++ "(instant)" ++ style.reset ++ "\n", .{});
+    io.print(style.dim ++ "  Startup: " ++ style.reset ++ "~8ms " ++ style.dim ++ "(instant)" ++ style.reset ++ "\n", .{});
     // Show run command - handle absolute vs relative paths
     if (output[0] == '/') {
         io.print("\n" ++ style.dim ++ "  Run with: " ++ style.reset ++ "{s}\n\n", .{output});

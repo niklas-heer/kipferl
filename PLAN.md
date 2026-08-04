@@ -54,8 +54,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## What to Focus on Next
 
-1. Complete the measured Rust-native optimization and safety review without
-   publishing a release.
+1. The measured Rust-native optimization and safety review is complete and
+   frozen in `benchmarks/rust_optimization_baseline.md`.
 2. When publication is approved, bake one Rust prerelease using the rebuilt
    CLI/runtime/loader assets; prereleases do not update stable Homebrew.
 3. Remove the archived Zig implementation after that release is proven, then
@@ -141,7 +141,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   “more Rust” or fewer local lines is not sufficient.
 - Exit gate: no Python API, byte-output, error, compatibility, or release-target
   regression; every accepted change has a measured benefit and the final
-  baseline is committed for the public retrospective.
+  baseline is committed for the public retrospective. **Complete:** the final
+  host baseline, four release sizes, dependency attribution, memory, PTY
+  latency, workload corpus, safety audit, and accept/reject decisions are
+  recorded in `benchmarks/rust_optimization_baseline.md`.
 
 ### Phase B: Migration documentation and public retrospective
 - Complete a formal product-name clearance review before the public launch

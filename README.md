@@ -94,7 +94,7 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 
 | | Python + Rich | Go TUI stack | Rust + Ratatui | **μcharm** |
 |---|:---:|:---:|:---:|:---:|
-| **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~ 3ms** |
+| **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~8ms** |
 | **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~4MB** |
 | **Easy to write** | Yes | Medium | Hard | **Yes** |
 | **Beautiful TUI** | Yes | Yes | Yes | **Yes** |
@@ -277,8 +277,8 @@ Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 - Rust runtime: 1,669/1,669 available tests passing (100%)
 - 52 targeted modules, with 51 at 100% parity, no partial modules, and one
   host-unavailable `toml` baseline
-- 6.986ms median / 8.024ms p95 native ARM64 startup and a 1,840,336-byte
-  stripped runtime in the latest 400-run migration sample
+- 7.044ms median / 7.980ms p95 native ARM64 startup and a 4,000,864-byte
+  stripped runtime in the final 1,200-run migration sample
 
 ## Showcase
 
@@ -300,7 +300,7 @@ ASCII-friendly spelling used for commands, packages, and repository paths.
 <details>
 <summary>Why is it so fast?</summary>
 
-The current native ARM64 median is 6.986ms. Fast startup comes from:
+The current native ARM64 median is 7.044ms. Fast startup comes from:
 
 1. No interpreter overhead (PocketPy embeds into one native binary)
 2. No import machinery (modules compiled into the binary)

@@ -103,7 +103,46 @@ The embedded runtime assets were refreshed after the `tui` interface rename:
 | Linux ARM64 (static musl) | 4,356,864 bytes |
 | Linux x86_64 (static musl) | 4,831,144 bytes |
 
+## Frozen post-cutover baseline
+
+The final optimization baseline was repeated on the same Apple Silicon host
+after the Ratatui adoption and the public `tui` namespace cutover. A 1,200-run
+startup sample after 20 warmups measured **7.044 ms median** and **7.980 ms
+p95**. The release artifacts on this host are:
+
+| Artifact | Size |
+| --- | ---: |
+| Runtime (`pocketpy-ucharm`) | 4,000,864 bytes |
+| CLI (`ucharm`, with compressed cross-target assets) | 4,796,384 bytes |
+| Universal loader | 336,864 bytes |
+| Minimal universal application | 4,321,388 bytes |
+
+The representative workload corpus was repeated for 60 runs after three
+warmups. Each number includes process startup and script loading:
+
+| Workload | Median | p95 |
+| --- | ---: | ---: |
+| recursive Fibonacci | 164.234 ms | 182.337 ms |
+| one-million-iteration loop | 40.779 ms | 55.533 ms |
+| 10,000 JSON parses | 64.476 ms | 70.889 ms |
+| 20,000 fully styled strings | 17.126 ms | 18.221 ms |
+
+These are the committed absolute values for the public retrospective, not a
+claim that every dependency made each interpreter workload faster. The earlier
+controlled profile and allocation comparisons remain the evidence for the
+accepted `O2` profile and `tui.style` optimization.
+
 ## Peak memory and interactive latency
+
+The final 4,000,864-byte runtime used a median **6,209,536 bytes** RSS for an
+empty process over 30 runs (6,291,456-byte p95). The 10,000-parse JSON workload
+used a median **15,564,800 bytes** over 15 runs (15,613,952-byte p95). A real
+80×24 PTY benchmark using the same cursor handshake, key injection, and cleanup
+path as the integration tests completed Ratatui selection in **9.100 ms median**
+and **10.186 ms p95** over 100 runs after five warmups.
+
+The following earlier measurements isolate the release-profile change from the
+later dependency additions:
 
 Peak resident memory was sampled with macOS `/usr/bin/time -l`. The empty
 process used a median 5,685,248 bytes under the `z` control and 5,718,016 bytes
@@ -141,12 +180,14 @@ throughput improvement with no artifact-size cost.
 - Every runtime dependency has default features disabled or an intentionally
   narrow feature set where the crate offers one. The SQLite dependency remains
   bundled and feature-minimal to preserve a standalone executable.
-- `cargo bloat --crates` attributes the 1.2 MiB control `.text` section mainly
-  to 630.7 KiB of C/unknown symbols (PocketPy and bundled SQLite), 247.0 KiB of
-  `std`, 110.8 KiB of μcharm runtime code, 69.8 KiB of Jiff, 26.7 KiB of
-  `regex-lite`, and 21.7 KiB attributed directly to `libsqlite3-sys`. These
-  estimates are directional because stripped C symbols cannot all be assigned
-  precisely.
+- The final `cargo bloat --crates` pass reports a 2.9 MiB `.text` section. Its
+  largest attributions are 1.1 MiB of C/unknown symbols (primarily PocketPy and
+  bundled SQLite), 451.6 KiB of `std`, 264.1 KiB of Rustls, 213.3 KiB of
+  μcharm runtime code, 182.3 KiB of the PocketPy system crate, 127.9 KiB of
+  Ring, 92.6 KiB of Ureq, and 82.7 KiB of Jiff. Ratatui core contributes
+  27.7 KiB and Crossterm 22.7 KiB. These estimates are directional because
+  stripped C symbols cannot all be assigned precisely. The normal stripped
+  release was rebuilt after instrumentation and remains 4,000,864 bytes.
 
 The database spike retains `rusqlite` with bundled SQLite. With identical
 `O2`/fat-LTO/overflow settings, a trivial control was 302,448 bytes, Rusqlite
@@ -258,3 +299,13 @@ types plus a higher-ranked callback wrapper that prevents borrowed values from
 escaping. That is deferred as its own compatibility-gated refactor rather than
 mixed into profile optimization; the immediate documented-unsafe enforcement
 is complete.
+
+The closing audit rechecked the VM owner, `RootFrame`, callback snapshots,
+terminal and cursor guards, subprocess pipe ownership, SQLite userdata
+destructors, and loader temporary-file cleanup. It found no additional defect
+that justified changing the shipping FFI types in this batch. The existing
+stress, sanitizer, PTY-restoration, concurrent-extraction, and compatibility
+tests exercise those boundaries. The separate borrowed/rooted type redesign
+remains worthwhile future hardening, but forcing it into the prerelease would
+increase migration risk without evidence of a current failure. This closes the
+bounded Rust-native optimization and safety phase.

@@ -252,7 +252,7 @@ fn targets_text() -> String {
 
 pub fn help() -> String {
     format!(
-        "{BOLD}μcharm build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    ucharm build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Standalone binary (~900KB, no dependencies)\n    executable             Shell wrapper (requires pocketpy-ucharm)\n    single                 Transformed .py file (requires pocketpy-ucharm)\n\n{DIM}EXAMPLES:{RESET}\n    ucharm build app.py -o app\n    ucharm build app.py -o app-linux --target linux-x86_64\n    ucharm build app.py -o app.py --mode single\n"
+        "{BOLD}μcharm build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    ucharm build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Standalone binary (~4-5MB, no dependencies)\n    executable             Shell wrapper (requires pocketpy-ucharm)\n    single                 Transformed .py file (requires pocketpy-ucharm)\n\n{DIM}EXAMPLES:{RESET}\n    ucharm build app.py -o app\n    ucharm build app.py -o app-linux --target linux-x86_64\n    ucharm build app.py -o app.py --mode single\n"
     )
 }
 
@@ -424,7 +424,7 @@ fn build_universal(
         stdout,
         "{DIM}  Size:    {RESET}{total_kb} KB {DIM}(standalone, no dependencies){RESET}"
     )?;
-    writeln!(stdout, "{DIM}  Startup: {RESET}~6ms {DIM}(instant){RESET}")?;
+    writeln!(stdout, "{DIM}  Startup: {RESET}~8ms {DIM}(instant){RESET}")?;
     write_run_hint(stdout, output_display, true)
 }
 

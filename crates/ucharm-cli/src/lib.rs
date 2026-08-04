@@ -418,7 +418,7 @@ mod tests {
                 "    linux-x86_64           Linux on x86_64\n",
                 "    linux-aarch64          Linux on ARM64\n\n",
                 "\x1b[2mMODES:\x1b[0m\n",
-                "    universal              Standalone binary (~900KB, no dependencies)\n",
+                "    universal              Standalone binary (~4-5MB, no dependencies)\n",
                 "    executable             Shell wrapper (requires pocketpy-ucharm)\n",
                 "    single                 Transformed .py file (requires pocketpy-ucharm)\n\n",
                 "\x1b[2mEXAMPLES:\x1b[0m\n",
