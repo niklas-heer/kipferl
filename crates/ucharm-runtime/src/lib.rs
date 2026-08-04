@@ -137,6 +137,23 @@ impl Vm {
         unsafe { ffi::py_sys_setargv(pointers.len() as i32, pointers.as_mut_ptr()) };
     }
 
+    pub fn set_file(&self, filename: &str) -> Result<(), NulError> {
+        let filename = CString::new(filename)?;
+        let bytes = filename.as_bytes();
+        let length = i32::try_from(bytes.len()).expect("script path fits PocketPy string length");
+        // SAFETY: the VM is active, `__main__` is a process-global module, and
+        // register zero is a stable VM root used synchronously for assignment.
+        unsafe {
+            let main = ffi::py_getmodule(c"__main__".as_ptr());
+            assert!(!main.is_null(), "PocketPy main module is missing");
+            let value = ffi::py_getreg(0);
+            let destination = ffi::py_newstrn(value, length);
+            ptr::copy_nonoverlapping(bytes.as_ptr(), destination.cast::<u8>(), bytes.len());
+            ffi::py_setdict(main, ffi::py_name(c"__file__".as_ptr()), value);
+        }
+        Ok(())
+    }
+
     pub fn print_exception(&self) {
         // SAFETY: `self` proves the VM is active. Call this only after an API
         // reports a pending Python exception.

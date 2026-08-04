@@ -270,9 +270,10 @@ ucharm/
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
-- Rust migration runtime: 1,185/1,668 tests passing (71.0%)
-- 52 targeted modules, with 30 at 100% parity on the Rust host
-- ~3ms startup, ~1-2MB universal binaries (sqlite enabled)
+- Rust migration runtime: 1,285/1,668 tests passing (77.0%)
+- 52 targeted modules, with 35 at 100% parity on the Rust host
+- 4.298ms median native ARM64 startup and an 851,888-byte stripped runtime in
+  the latest 400-run migration sample
 
 ## Showcase
 

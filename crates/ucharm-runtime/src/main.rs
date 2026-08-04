@@ -19,7 +19,7 @@ fn run() -> Result<(), String> {
     let arguments: Vec<String> = env::args().collect();
     let vm = Vm::initialize().map_err(|error| error.to_string())?;
 
-    let (source, filename, python_arguments) = match arguments.as_slice() {
+    let (source, filename, python_arguments, script_file) = match arguments.as_slice() {
         [program] => {
             return Err(format!("usage: {program} [-c code | script.py] [args...]"));
         }
@@ -29,7 +29,7 @@ fn run() -> Result<(), String> {
                 .chain(rest.iter().map(String::as_str))
                 .map(str::to_owned)
                 .collect();
-            (code.clone(), "<string>".to_owned(), argv)
+            (code.clone(), "<string>".to_owned(), argv, None)
         }
         [_, flag] if flag == "-c" => return Err("-c requires an argument".to_owned()),
         [_, script, rest @ ..] => {
@@ -38,7 +38,7 @@ fn run() -> Result<(), String> {
             let argv = std::iter::once(script.clone())
                 .chain(rest.iter().cloned())
                 .collect();
-            (source, script.clone(), argv)
+            (source, script.clone(), argv, Some(script.clone()))
         }
         _ => unreachable!("the no-argument case is handled above"),
     };
@@ -49,6 +49,10 @@ fn run() -> Result<(), String> {
         .collect::<Result<_, _>>()
         .map_err(|_| "an argument contains a NUL byte".to_owned())?;
     vm.set_argv(&python_arguments);
+    if let Some(script_file) = script_file {
+        vm.set_file(&script_file)
+            .map_err(|_| "script path contains a NUL byte".to_owned())?;
+    }
 
     match vm.execute_str(&source, &filename) {
         Ok(()) => Ok(()),

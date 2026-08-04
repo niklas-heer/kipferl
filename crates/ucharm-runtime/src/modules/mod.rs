@@ -15,9 +15,11 @@ mod dataclasses;
 mod datetime;
 mod encoding_core;
 mod errno;
+mod filesystem_core;
 mod fnmatch;
 mod fnmatch_core;
 mod functools;
+mod glob;
 mod gzip;
 mod hash_core;
 mod hashlib;
@@ -28,13 +30,18 @@ mod io;
 mod itertools;
 mod json;
 mod operator;
+mod os;
+mod os_path;
+mod pathlib;
 mod random;
 mod secrets;
+mod shutil;
 mod statistics;
 mod statistics_core;
 mod string_methods;
 mod struct_module;
 mod tarfile;
+mod tempfile;
 mod term;
 mod term_core;
 mod textwrap;
@@ -62,6 +69,10 @@ const MODULES: &[NativeModule] = &[
     datetime::MODULE,
     errno::MODULE,
     fnmatch::MODULE,
+    os::MODULE,
+    os_path::MODULE,
+    pathlib::MODULE,
+    glob::MODULE,
     functools::MODULE,
     gzip::MODULE,
     hashlib::MODULE,
@@ -74,7 +85,9 @@ const MODULES: &[NativeModule] = &[
     random::MODULE,
     secrets::MODULE,
     statistics::MODULE,
+    shutil::MODULE,
     tarfile::MODULE,
+    tempfile::MODULE,
     term::MODULE,
     textwrap::MODULE,
     uuid::MODULE,
