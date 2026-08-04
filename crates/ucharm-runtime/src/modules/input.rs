@@ -431,7 +431,7 @@ fn cursor_up(count: usize) {
 }
 
 unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(prompt) = arguments.get(0).and_then(display_text) else {
         return type_error(c"prompt must be a string");
@@ -518,7 +518,7 @@ fn render_multiselect(
 }
 
 unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(prompt) = arguments.get(0).and_then(display_text) else {
         return type_error(c"prompt must be a string");
@@ -606,7 +606,7 @@ unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn confirm(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(prompt) = arguments.get(0).and_then(display_text) else {
         return type_error(c"prompt must be a string");
@@ -646,7 +646,7 @@ unsafe extern "C" fn confirm(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn prompt(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(message) = arguments.get(0).and_then(display_text) else {
         return type_error(c"message must be a string");
@@ -705,7 +705,7 @@ unsafe extern "C" fn prompt(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn password(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;

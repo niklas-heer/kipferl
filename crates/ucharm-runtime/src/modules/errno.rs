@@ -114,7 +114,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn oserror_init(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 3) {
         return false;

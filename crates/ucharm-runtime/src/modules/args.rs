@@ -70,7 +70,7 @@ fn sys_argv() -> Option<Value> {
 }
 
 unsafe extern "C" fn raw(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -82,7 +82,7 @@ unsafe extern "C" fn raw(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn get(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 2) {
         return false;
@@ -111,7 +111,7 @@ unsafe extern "C" fn get(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn count(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -125,7 +125,7 @@ unsafe extern "C" fn count(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn has(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -180,7 +180,7 @@ fn find_value(argv: Value, flag: &str) -> Option<FoundValue> {
 }
 
 unsafe extern "C" fn value(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 2) {
         return false;
@@ -211,7 +211,7 @@ unsafe extern "C" fn value(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn int_value(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 2) {
         return false;
@@ -243,7 +243,7 @@ fn is_flag(value: &str) -> bool {
 }
 
 unsafe extern "C" fn positional(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -388,7 +388,7 @@ unsafe extern "C" fn collect_default(
 }
 
 unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;

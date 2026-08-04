@@ -60,7 +60,7 @@ unsafe extern "C" fn fill(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn dedent(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -72,7 +72,7 @@ unsafe extern "C" fn dedent(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn indent(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;
@@ -87,7 +87,7 @@ unsafe extern "C" fn indent(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn shorten(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;
@@ -102,7 +102,7 @@ unsafe extern "C" fn shorten(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn text_and_optional_width(argc: c_int, argv: ffi::py_StackRef) -> Option<(String, i64)> {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 2) {
         return None;

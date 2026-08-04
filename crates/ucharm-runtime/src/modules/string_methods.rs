@@ -46,7 +46,7 @@ fn return_bool(value: bool) -> bool {
 }
 
 fn string_argument(argc: c_int, argv: ffi::py_StackRef) -> Result<String, ()> {
-    // SAFETY: every native callback passes PocketPy's live argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return Err(());
@@ -152,7 +152,7 @@ unsafe extern "C" fn isascii(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn isupper(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -177,6 +177,7 @@ unsafe extern "C" fn isupper(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn rsplit(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(value) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"expected string");

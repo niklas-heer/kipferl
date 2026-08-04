@@ -100,6 +100,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn run(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let capture = arguments.get(1).and_then(Value::boolean).unwrap_or(false);
     let shell = arguments.get(2).and_then(Value::boolean).unwrap_or(false);

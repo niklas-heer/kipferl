@@ -40,6 +40,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
 };
 
 unsafe extern "C" fn gettempdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -48,6 +49,7 @@ unsafe extern "C" fn gettempdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn mktemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -63,6 +65,7 @@ unsafe extern "C" fn mktemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn mkstemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -87,6 +90,7 @@ unsafe extern "C" fn mkstemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn mkdtemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let prefix = match arguments.get(0) {
         None => filesystem_core::temporary_directory().join("tmp"),

@@ -96,7 +96,7 @@ pub(super) fn register() {
 
 unsafe extern "C" fn bytearray_new(argc: c_int, argv: ffi::py_StackRef) -> bool {
     // The signature binder supplies `cls` plus zero or one source arguments.
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 2) {
         return false;
@@ -154,7 +154,7 @@ unsafe extern "C" fn bytearray_new(argc: c_int, argv: ffi::py_StackRef) -> bool 
 }
 
 unsafe extern "C" fn bytearray_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from the registered bytearray method.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -171,7 +171,7 @@ unsafe extern "C" fn bytearray_len(argc: c_int, argv: ffi::py_StackRef) -> bool 
 }
 
 unsafe extern "C" fn bytearray_getitem(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from the registered bytearray method.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;
@@ -201,7 +201,7 @@ unsafe extern "C" fn bytearray_getitem(argc: c_int, argv: ffi::py_StackRef) -> b
 }
 
 unsafe extern "C" fn bytearray_setitem(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from the registered bytearray method.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(3, 3) {
         return false;
@@ -271,7 +271,7 @@ fn normalized_slice(key: Value, length: usize) -> Option<(usize, usize)> {
 }
 
 unsafe extern "C" fn bytearray_eq(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from the registered bytearray method.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;

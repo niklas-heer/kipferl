@@ -6,9 +6,9 @@
 keeping PocketPy as the embedded Python runtime.
 
 The runtime implementation reached 1,668/1,668 available compatibility checks
-on 2026-08-04. Phase 6 is now cutting CI, packaging, public binary names, and
-release assets over to the Rust implementation; v0.5.0 remains the final stable
-Zig release baseline.
+on 2026-08-04. The Cargo-first CI, packaging, public binary names, and release
+assets have been cut over to Rust; public prerelease publication is deliberately
+deferred. v0.5.0 remains the final stable Zig release baseline.
 
 This is a host-language and toolchain migration, not a product rewrite. The
 Python-facing API, PocketPy compatibility work, universal-binary behavior, and
@@ -136,10 +136,10 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. The stripped runtime remains below 2 MB on macOS and 2.5 MB on fully static
-   Linux. The Linux allowance is an explicit cutover exception; issue
-   [#41](https://github.com/ucharmdev/ucharm/issues/41) tracks recovery below
-   2 MB without sacrificing compatibility or standalone deployment.
+7. The stripped runtime remains below the 2.5 MB practical target on macOS and
+   the 3 MB regression ceiling on fully static Linux. Issue
+   [#41](https://github.com/ucharmdev/ucharm/issues/41) preserves the original
+   2 MB optimization investigation and the measured reason for relaxing it.
 8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
    release path.
 
@@ -151,9 +151,9 @@ status, stdout, and stderr.
 
 ### Implementation status
 
-- Phase 0 is in progress: the host baseline harness is available through
+- Phase 0 is complete: the host baseline harness is available through
   `just rust-baseline` and the legacy CI runner is pinned for reproducibility.
-- Phase 1 is in progress: the Cargo workspace builds vendored PocketPy through
+- Phase 1 is complete: the Cargo workspace builds vendored PocketPy through
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
 - Phase 2 is functionally complete: `ucharm-format` encodes and decodes the
@@ -195,7 +195,7 @@ status, stdout, and stderr.
   lifecycle, and Linux CI instruments PocketPy C with AddressSanitizer,
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
-- Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
+- Phase 5 is complete: `fnmatch`, `base64`, `binascii`, `statistics`,
   `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
   `operator` are now joined by the first data/model wave: `collections`, `csv`,
   `dataclasses`, `datetime`, `json`, `random`, and `uuid`; and the binary-
@@ -292,14 +292,15 @@ status, stdout, and stderr.
   baseline.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 1,840,336 bytes on ARM64 and 1,971,304
-  bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  The fully static Linux artifacts are 2,378,848 bytes on ARM64 and 2,449,232
-  bytes on x86_64. macOS remains below the 2 MB runtime gate; Linux uses the
-  approved 2.5 MB ceiling while issue #41 tracks recovery below 2 MB. On the
-  latest 400-run warm-start sample, native Rust measured 6.986 ms median and
-  8.024 ms p95. The native ARM64 host remains below the 10 ms gate; native
-  Intel CI remains the authoritative x86_64 execution environment.
+- The first cutover profile produced macOS runtimes of 1,840,336 bytes on
+  ARM64 and 1,971,304 bytes on x86_64, versus 2,313,264 bytes for the legacy
+  Zig ARM64 runtime. The accepted post-cutover `s` profile produces 2,131,168-
+  and 2,148,764-byte macOS runtimes, and a 2,378,840-byte static Linux ARM64
+  runtime. In exchange, its 400-run ARM64 sample improves median startup from
+  6.060 ms to 5.396 ms and materially improves representative interpreter
+  workloads. Native CI remains authoritative for the final Linux x86_64
+  artifact; full measurements are in
+  `benchmarks/rust_optimization_baseline.md`.
 
 ### Phase 0 — Freeze and baseline
 
@@ -422,6 +423,11 @@ artifacts meet the compatibility, startup, and size gates.
 - Update architecture documentation and contributor guidance.
 - Before the public migration wrap-up, run a bounded Rust-native optimization
   and dependency review against a frozen post-cutover baseline:
+  - accept `opt-level = "s"` with fat LTO as the first measured improvement:
+    it materially improves startup and representative interpreter workloads,
+    keeps macOS runtimes below 2.5 MB, and leaves static Linux ARM64 at
+    2,378,840 bytes; retain 3 MB as the Linux regression ceiling rather than
+    sacrificing performance to pursue the former strict 2 MB aspiration;
   - profile startup, allocations, peak memory, interactive latency, module
     throughput, binary sections, dependency contribution, and all four release
     artifacts;

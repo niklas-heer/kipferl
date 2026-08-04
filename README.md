@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (2 MB macOS / 2.5 MB static Linux runtime gates)
+- Tiny, portable binaries (2.5 MB practical runtime target; 3 MB Linux ceiling)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases

@@ -82,6 +82,7 @@ unsafe extern "C" fn exists(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn one_path(argc: c_int, argv: ffi::py_StackRef) -> Option<String> {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return None;
@@ -94,6 +95,7 @@ fn one_path(argc: c_int, argv: ffi::py_StackRef) -> Option<String> {
 }
 
 fn two_paths(argc: c_int, argv: ffi::py_StackRef) -> Option<(String, String)> {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return None;

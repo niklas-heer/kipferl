@@ -157,7 +157,7 @@ fn style_prefix(color: Option<&str>) -> (String, &'static str) {
 }
 
 unsafe extern "C" fn visible_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -174,7 +174,7 @@ unsafe extern "C" fn visible_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn style(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(text) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"text must be a string");
@@ -197,7 +197,7 @@ unsafe extern "C" fn style(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(content) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"content must be a string");
@@ -283,7 +283,7 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let title = optional_string(&arguments, 0, true);
     let character = optional_string(&arguments, 1, true).unwrap_or_else(|| "─".to_owned());
@@ -329,7 +329,7 @@ fn status_message(
     color: &'static str,
     symbol: &'static str,
 ) -> bool {
-    // SAFETY: called only from PocketPy callbacks with an active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -358,7 +358,7 @@ unsafe extern "C" fn info(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(current) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"current must be int");
@@ -403,7 +403,7 @@ unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn progress_done(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -413,7 +413,7 @@ unsafe extern "C" fn progress_done(argc: c_int, argv: ffi::py_StackRef) -> bool 
 }
 
 unsafe extern "C" fn spinner_frame(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -425,7 +425,7 @@ unsafe extern "C" fn spinner_frame(argc: c_int, argv: ffi::py_StackRef) -> bool 
 }
 
 unsafe extern "C" fn spinner(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(index) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"index must be int");
@@ -469,7 +469,7 @@ fn horizontal_line(
 }
 
 unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(rows) = arguments.get(0) else {
         return type_error(c"rows must be a list");

@@ -164,7 +164,7 @@ fn return_bool(value: bool) -> bool {
 }
 
 unsafe extern "C" fn size(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -199,7 +199,7 @@ unsafe extern "C" fn size(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn raw_mode(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -222,7 +222,7 @@ unsafe extern "C" fn raw_mode(argc: libc::c_int, argv: ffi::py_StackRef) -> bool
 }
 
 unsafe extern "C" fn read_key(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -237,7 +237,7 @@ unsafe extern "C" fn read_key(argc: libc::c_int, argv: ffi::py_StackRef) -> bool
 }
 
 unsafe extern "C" fn cursor_pos(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;
@@ -256,7 +256,7 @@ unsafe extern "C" fn cursor_pos(argc: libc::c_int, argv: ffi::py_StackRef) -> bo
 }
 
 fn move_cursor(argc: libc::c_int, argv: ffi::py_StackRef, direction: char) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 1) {
         return false;
@@ -289,7 +289,7 @@ unsafe extern "C" fn cursor_right(argc: libc::c_int, argv: ffi::py_StackRef) -> 
 }
 
 fn fixed_output(argc: libc::c_int, argv: ffi::py_StackRef, bytes: &'static [u8]) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -315,7 +315,7 @@ unsafe extern "C" fn show_cursor(argc: libc::c_int, argv: ffi::py_StackRef) -> b
 }
 
 unsafe extern "C" fn is_tty(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -324,7 +324,7 @@ unsafe extern "C" fn is_tty(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn write(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;

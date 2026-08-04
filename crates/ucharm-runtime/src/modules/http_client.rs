@@ -113,7 +113,7 @@ unsafe extern "C" fn collect_header(
 }
 
 unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(7, 7) {
         return false;

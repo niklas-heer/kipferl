@@ -86,7 +86,7 @@ unsafe extern "C" fn token_urlsafe(argc: c_int, argv: ffi::py_StackRef) -> bool 
 }
 
 unsafe extern "C" fn randbelow(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active callback stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -118,7 +118,7 @@ unsafe extern "C" fn randbelow(argc: c_int, argv: ffi::py_StackRef) -> bool {
 
 fn byte_length(argc: c_int, argv: ffi::py_StackRef) -> Option<usize> {
     // The signature binder supplies the default argument.
-    // SAFETY: called only from PocketPy callbacks with active argument stacks.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return None;

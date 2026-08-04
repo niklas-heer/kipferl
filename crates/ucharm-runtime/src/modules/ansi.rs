@@ -79,7 +79,7 @@ unsafe extern "C" fn background(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn color(argc: c_int, argv: ffi::py_StackRef, background: bool) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -114,7 +114,7 @@ fn color(argc: c_int, argv: ffi::py_StackRef, background: bool) -> bool {
 }
 
 unsafe extern "C" fn rgb(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(3, 4) {
         return false;
@@ -138,7 +138,7 @@ unsafe extern "C" fn rgb(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn no_argument_style(argc: c_int, argv: ffi::py_StackRef, code: &'static str) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     arguments.require_arity(0, 0) && return_string(code)
 }

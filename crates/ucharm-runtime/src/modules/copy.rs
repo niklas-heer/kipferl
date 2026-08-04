@@ -34,7 +34,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
 };
 
 unsafe extern "C" fn copy(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -92,6 +92,7 @@ unsafe extern "C" fn shallow_dict_item(
     let context = unsafe { &mut *context.cast::<ShallowDictContext>() };
     // SAFETY: both item refs remain valid because the source dictionary is not mutated.
     let key = unsafe { Value::from_raw(key) };
+    // SAFETY: `dict_apply` keeps this value entry alive for the callback.
     let value = unsafe { Value::from_raw(value) };
     context.destination.dict_set(key, value)
 }
@@ -111,7 +112,7 @@ fn shallow_dict(source: Value) -> bool {
 }
 
 unsafe extern "C" fn deepcopy(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 2) {
         return false;
@@ -251,6 +252,7 @@ unsafe extern "C" fn deep_dict_item(
     let context = unsafe { &mut *context.cast::<DeepDictContext<'_>>() };
     // SAFETY: source entries remain valid because only the destination is mutated.
     let key = unsafe { Value::from_raw(key) };
+    // SAFETY: `dict_apply` keeps this value entry alive for the callback.
     let value = unsafe { Value::from_raw(value) };
     let mut roots = RootFrame::new();
     let Ok(key) = deepcopy_value(key, context.memo, &mut roots) else {

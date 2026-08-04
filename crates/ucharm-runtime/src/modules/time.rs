@@ -63,6 +63,7 @@ fn timestamp(value: Option<Value>) -> Result<Timestamp, &'static CStr> {
 }
 
 unsafe extern "C" fn localtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let timestamp = match timestamp(arguments.get(0)) {
         Ok(value) => value,
@@ -75,6 +76,7 @@ unsafe extern "C" fn localtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn gmtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let timestamp = match timestamp(arguments.get(0)) {
         Ok(value) => value,
@@ -165,6 +167,7 @@ fn resolve_local(fields: &TimeFields) -> Result<Zoned, ()> {
 }
 
 unsafe extern "C" fn mktime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(value) = arguments.get(0) else {
         return type_error(c"mktime() requires a time tuple");
@@ -181,6 +184,7 @@ unsafe extern "C" fn mktime(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn strftime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(format) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"strftime() format must be a string");
@@ -202,6 +206,7 @@ unsafe extern "C" fn strftime(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn strptime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(input) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"strptime() input must be a string");

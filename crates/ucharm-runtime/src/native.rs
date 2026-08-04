@@ -133,9 +133,9 @@ pub(crate) fn create_type_with_destructor(
 }
 
 pub(crate) fn type_object(value_type: ffi::py_Type) -> Value {
-    // SAFETY: PocketPy type objects are process-global and remain valid for the
-    // lifetime of the active VM.
     Value {
+        // SAFETY: PocketPy type objects are process-global and remain valid for
+        // the lifetime of the active VM.
         raw: unsafe { ffi::py_tpobject(value_type) },
     }
 }
@@ -200,9 +200,9 @@ impl Arguments {
         if index >= self.count {
             return None;
         }
-        // SAFETY: `from_raw` establishes a stack containing `count` values,
-        // and the bounds check above keeps this pointer within that stack.
         Some(Value {
+            // SAFETY: `from_raw` establishes a stack containing `count` values,
+            // and the bounds check above keeps this pointer within that stack.
             raw: unsafe { self.values.add(index) },
         })
     }
@@ -289,10 +289,9 @@ impl Value {
     }
 
     pub fn snapshot(self) -> ValueSnapshot {
-        // SAFETY: `self.raw` points to one initialized value. The snapshot is
-        // not a VM root and must not cross an allocating call before being
-        // restored into a `RootFrame`.
         ValueSnapshot {
+            // SAFETY: `self.raw` points to one initialized value. The snapshot
+            // must not cross an allocating call before entering a `RootFrame`.
             raw: unsafe { *self.raw },
         }
     }
@@ -395,8 +394,8 @@ impl Value {
             return None;
         }
         let index = c_int::try_from(index).ok()?;
-        // SAFETY: the exact type and bounds checks establish a valid item.
         Some(Self {
+            // SAFETY: the exact type and bounds checks establish a valid item.
             raw: unsafe { ffi::py_list_getitem(self.raw, index) },
         })
     }
@@ -468,8 +467,8 @@ impl Value {
             return None;
         }
         let index = c_int::try_from(index).ok()?;
-        // SAFETY: the exact type and bounds checks establish a valid item.
         Some(Self {
+            // SAFETY: the exact type and bounds checks establish a valid item.
             raw: unsafe { ffi::py_tuple_getitem(self.raw, index) },
         })
     }
@@ -511,9 +510,9 @@ impl Value {
 
     pub fn slot(self, index: usize) -> Self {
         let index = c_int::try_from(index).expect("native object slot index fits c_int");
-        // SAFETY: callers use this only with native types and slot indices
-        // established when those objects were created.
         Self {
+            // SAFETY: callers use this only with native types and slot indices
+            // established when those objects were created.
             raw: unsafe { ffi::py_getslot(self.raw, index) },
         }
     }
@@ -561,6 +560,7 @@ pub(crate) fn global_list(index: c_int) -> Value {
     // SAFETY: the VM is active and its eight global scratch registers have
     // stable addresses. Replacing one with a list keeps that list GC-rooted.
     let raw = unsafe { ffi::py_getreg(index) };
+    // SAFETY: `raw` is the stable writable register obtained above.
     unsafe { ffi::py_newlist(raw) };
     Value { raw }
 }
@@ -571,6 +571,7 @@ pub(crate) fn global_tuple(index: c_int, length: usize) -> Option<Value> {
     // SAFETY: the VM is active, the register has a stable writable address,
     // and callers initialize every tuple slot before exposing the value.
     let raw = unsafe { ffi::py_getreg(index) };
+    // SAFETY: `raw` is writable and `length` was checked to fit PocketPy.
     unsafe { ffi::py_newtuple(raw, length) };
     Some(Value { raw })
 }
@@ -581,6 +582,7 @@ pub(crate) fn global_string_bytes(index: c_int, value: &[u8]) -> Option<Value> {
     // SAFETY: the register has a stable address and PocketPy reserves exactly
     // `length` bytes plus a trailing NUL for the new string.
     let raw = unsafe { ffi::py_getreg(index) };
+    // SAFETY: `raw` is the stable writable register obtained above.
     let destination = unsafe { ffi::py_newstrn(raw, length) };
     if !value.is_empty() {
         // SAFETY: both regions cover `value.len()` bytes and do not overlap.
@@ -594,6 +596,7 @@ pub(crate) fn global_integer(index: c_int, value: i64) -> Value {
     // SAFETY: the VM is active and the selected global register has a stable
     // writable address.
     let raw = unsafe { ffi::py_getreg(index) };
+    // SAFETY: `raw` is the stable writable register obtained above.
     unsafe { ffi::py_newint(raw, value) };
     Value { raw }
 }
@@ -603,6 +606,7 @@ pub(crate) fn global_number(index: c_int, value: f64) -> Value {
     // SAFETY: the VM is active and the selected global register has a stable
     // writable address.
     let raw = unsafe { ffi::py_getreg(index) };
+    // SAFETY: `raw` is the stable writable register obtained above.
     unsafe { ffi::py_newfloat(raw, value) };
     Value { raw }
 }
@@ -611,14 +615,16 @@ pub(crate) fn call_one_bool(function: Value, argument: Value) -> Result<bool, ()
     // Copy both values before PocketPy grows its stack for the call. Their
     // owning Python objects remain rooted by the active callback arguments or
     // containers, while these local trivial values give `py_call` stable refs.
+    // SAFETY: `function` points to an initialized, rooted value.
     let mut function = unsafe { *function.raw };
+    // SAFETY: `argument` points to an initialized, rooted value.
     let mut argument = unsafe { *argument.raw };
     // SAFETY: both local values are initialized and form a one-element argv.
     if !unsafe { ffi::py_call(&mut function, 1, &mut argument) } {
         return Err(());
     }
-    // SAFETY: a successful call initializes PocketPy's return register.
     let returned = Value {
+        // SAFETY: a successful call initializes PocketPy's return register.
         raw: unsafe { ffi::py_retval() },
     };
     let Some(value) = returned.boolean() else {
@@ -635,9 +641,11 @@ pub(crate) fn call(function: Value, arguments: &[Value]) -> bool {
     // Copy every trivial value before entering PocketPy. The original values
     // remain rooted by their callback stack or owning containers, and the
     // local contiguous array stays at a stable address for the call.
+    // SAFETY: `function` points to an initialized, rooted value.
     let mut function = unsafe { *function.raw };
     let mut copied = arguments
         .iter()
+        // SAFETY: every argument points to an initialized, rooted value.
         .map(|value| unsafe { *value.raw })
         .collect::<Vec<_>>();
     // SAFETY: `function` and all `count` argument values are initialized. An
@@ -651,6 +659,7 @@ pub(crate) fn call_type(value_type: ffi::py_Type, arguments: &[Value]) -> bool {
     };
     let mut copied = arguments
         .iter()
+        // SAFETY: every argument points to an initialized, rooted value.
         .map(|value| unsafe { *value.raw })
         .collect::<Vec<_>>();
     // SAFETY: `value_type` identifies a live type and the local contiguous
@@ -670,6 +679,7 @@ pub(crate) fn optional_attribute(
     }
     // Missing optional hooks are expected. Preserve every other exception,
     // including failures raised by a user-defined `__getattr__`.
+    // SAFETY: the VM has an active exception from the failed lookup above.
     if unsafe { ffi::py_matchexc(ffi::py_PredefinedType_tp_AttributeError as ffi::py_Type) } {
         // SAFETY: the matched AttributeError is intentionally discarded and
         // no stack unwinding point is required for `py_getattr`.
@@ -712,9 +722,9 @@ impl RootFrame {
         if self.count == 0 {
             return None;
         }
-        // SAFETY: this frame has at least one live root. Callers use `top`
-        // only when no later frame is active, so the frame's last root is TOS.
         Some(Value {
+            // SAFETY: this frame has a live root and no later frame is active,
+            // so the frame's last root remains at the top of the stack.
             raw: unsafe { ffi::py_peek(-1) },
         })
     }
@@ -722,6 +732,7 @@ impl RootFrame {
     pub fn copy_returned(&mut self) -> Value {
         // Copy the return register before any other PocketPy call can replace
         // it. The copied value is then installed in a VM-visible root.
+        // SAFETY: callers invoke this only after a successful VM operation.
         let returned = unsafe { *ffi::py_retval() };
         let root = self.push();
         // SAFETY: `root.raw` points to writable storage for one value.
@@ -732,6 +743,7 @@ impl RootFrame {
     pub fn copy(&mut self, value: Value) -> Value {
         // Copy before pushing because a VM stack growth could otherwise move
         // the source slot supplied by another temporary root.
+        // SAFETY: `value` points to an initialized, currently rooted value.
         let copied = unsafe { *value.raw };
         let root = self.push();
         // SAFETY: `root.raw` points to writable storage for one value.
@@ -922,13 +934,17 @@ pub(crate) fn return_string_list(values: &[String]) -> bool {
     // Global scratch registers have stable addresses and remain VM roots while
     // list appends allocate. This avoids retaining pointers into PocketPy's
     // movable value stack when a callback returns many strings.
+    // SAFETY: the VM is active and register zero exists for its lifetime.
     let list = unsafe { ffi::py_getreg(0) };
+    // SAFETY: the VM is active and register one exists for its lifetime.
     let item = unsafe { ffi::py_getreg(1) };
+    // SAFETY: `list` is a stable, writable global register.
     unsafe { ffi::py_newlist(list) };
     for value in values {
         let Ok(length) = c_int::try_from(value.len()) else {
             return type_error(c"return string is too large");
         };
+        // SAFETY: `item` is writable and `length` matches the source buffer.
         let destination = unsafe { ffi::py_newstrn(item, length) };
         if !value.is_empty() {
             // SAFETY: PocketPy reserved exactly `value.len()` writable bytes

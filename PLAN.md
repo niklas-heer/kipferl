@@ -5,7 +5,7 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, and 51 fully compatible stdlib targets are implemented. The release-path cutover is the remaining migration boundary.
+- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Public prerelease publication is intentionally deferred.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
 - Compatibility status: the Rust runtime passes 1,668/1,668 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
@@ -20,8 +20,10 @@ This is the single source of truth for priorities and next steps.
 ## Active Priority: Rust Migration
 
 - Phase 5 implementation is complete at 1,668/1,668 available checks.
-- Phase 6 cuts the canonical CI, release workflow, embedded assets, public
+- Phase 6 has cut the canonical CI, release workflow, embedded assets, public
   binary names, local commands, and contributor guidance over to Rust/Cargo.
+- The active local work is the measured Rust-native optimization and safety
+  review; no prerelease tag should be pushed until publication is approved.
 - Freeze new Zig feature work; accept only small correctness, security, and release-blocking fixes.
 - Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
 - Establish the Rust/PocketPy FFI and four-target build proof before translating the large runtime module surface.
@@ -50,16 +52,22 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## What to Focus on Next
 
-1. Merge the Rust-only CI/release cutover after its four native targets build,
-   execute universal applications, and satisfy static-link and size gates.
-2. Publish and bake one Rust prerelease using the rebuilt CLI/runtime/loader
-   assets and Homebrew path.
+1. Complete the measured Rust-native optimization and safety review without
+   publishing a release.
+2. When publication is approved, bake one Rust prerelease using the rebuilt
+   CLI/runtime/loader assets; prereleases do not update stable Homebrew.
 3. Remove the archived Zig implementation after that release is proven, then
    continue the product roadmap below.
 
 ## Product Roadmap After the Rust Cutover
 
 ### Phase A: Rust-native optimization and dependency review
+- The first profile review accepts `opt-level = "s"` with fat LTO. On Apple
+  Silicon it trades 290,832 bytes for roughly 11% faster startup, 49% faster
+  interpreter-heavy loop/Fibonacci workloads, and 21% faster JSON parsing.
+  Static Linux ARM64 remains 2,378,840 bytes. Keep 2.5 MB as the practical
+  runtime target and 3 MB as the Linux regression ceiling; do not optimize for
+  the former 2 MB aspiration at the expense of material runtime performance.
 - Freeze a reproducible post-cutover baseline before optimizing: compatibility,
   startup distributions, peak memory and allocations, interactive latency,
   representative module throughput, binary sections, dependency contribution,

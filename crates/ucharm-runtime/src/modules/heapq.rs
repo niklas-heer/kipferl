@@ -156,7 +156,7 @@ unsafe extern "C" fn nsmallest(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn select_extreme(argc: c_int, argv: ffi::py_StackRef, largest: bool) -> bool {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;
@@ -256,7 +256,7 @@ fn sift_up(list: Value, mut position: usize) -> Result<(), ()> {
 }
 
 fn list_argument(argc: c_int, argv: ffi::py_StackRef, arity: usize) -> Option<Value> {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(arity, arity) {
         return None;
@@ -270,7 +270,7 @@ fn list_argument(argc: c_int, argv: ffi::py_StackRef, arity: usize) -> Option<Va
 }
 
 fn list_and_item(argc: c_int, argv: ffi::py_StackRef) -> Option<(Value, Value)> {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return None;

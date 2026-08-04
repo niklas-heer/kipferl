@@ -110,6 +110,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn text(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(value) = arguments.get(0) else {
         return type_error(c"expected str or bytes");

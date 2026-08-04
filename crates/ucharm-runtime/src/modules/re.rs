@@ -154,6 +154,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
@@ -175,6 +176,7 @@ unsafe extern "C" fn captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn all_captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
@@ -197,6 +199,7 @@ unsafe extern "C" fn all_captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn substitute(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
@@ -231,6 +234,7 @@ unsafe extern "C" fn substitute(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn split(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");

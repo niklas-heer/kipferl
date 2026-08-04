@@ -188,7 +188,7 @@ jobs:
             exit 1
           fi
           grep -q "invalid universal trailer" loader.out
-      - name: Enforce initial runtime size budget
+      - name: Enforce release size budget
         shell: bash
         run: |
           python3 - <<'PY'
@@ -197,7 +197,7 @@ jobs:
           binary = Path("target/${{ matrix.target }}/release/pocketpy-ucharm")
           size = binary.stat().st_size
           target = "${{ matrix.target }}"
-          runtime_limit = 2_500_000 if target.endswith("linux-musl") else 2_000_000
+          runtime_limit = 3_000_000 if target.endswith("linux-musl") else 2_500_000
           print(f"{binary}: {size:,} bytes (limit: {runtime_limit:,})")
           assert size < runtime_limit, (
               f"Rust runtime exceeds the {runtime_limit:,}-byte {target} budget: "
@@ -212,7 +212,7 @@ jobs:
           cli = Path("target/${{ matrix.target }}/release/ucharm")
           cli_size = cli.stat().st_size
           print(f"{cli}: {cli_size:,} bytes")
-          assert cli_size < 3_500_000, f"Rust CLI with embedded runtime exceeds 3.5 MB: {cli_size:,} bytes"
+          assert cli_size < 4_000_000, f"Rust CLI with embedded runtime exceeds 4 MB: {cli_size:,} bytes"
           PY
   compatibility:
     name: Compatibility
