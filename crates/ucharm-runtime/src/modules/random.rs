@@ -92,16 +92,26 @@ unsafe extern "C" fn secure_word(argc: c_int, argv: ffi::py_StackRef) -> bool {
         return false;
     }
 
-    let mut bytes = [0_u8; 8];
-    // SAFETY: `bytes` is writable for its exact length. All supported macOS
-    // and Linux release targets provide `getentropy` and accept requests up
-    // to 256 bytes.
-    if unsafe { getentropy(bytes.as_mut_ptr().cast(), bytes.len()) } != 0 {
+    let Some(bytes) = secure_bytes(8) else {
         return runtime_error(c"OS random source failed");
-    }
+    };
 
-    let value = u64::from_le_bytes(bytes) & ((1_u64 << 62) - 1);
+    let value =
+        u64::from_le_bytes(bytes.try_into().expect("requested eight bytes")) & ((1_u64 << 62) - 1);
     let mut roots = RootFrame::new();
     let value = roots.integer(value as i64);
     return_value(value)
+}
+
+pub(super) fn secure_bytes(length: usize) -> Option<Vec<u8>> {
+    let mut bytes = vec![0_u8; length];
+    for chunk in bytes.chunks_mut(256) {
+        // SAFETY: every chunk is a distinct writable region no larger than
+        // getentropy's 256-byte request limit. All supported macOS and Linux
+        // release targets provide the function.
+        if unsafe { getentropy(chunk.as_mut_ptr().cast(), chunk.len()) } != 0 {
+            return None;
+        }
+    }
+    Some(bytes)
 }

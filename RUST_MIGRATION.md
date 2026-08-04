@@ -191,7 +191,8 @@ status, stdout, and stderr.
 - Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
   `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
   `operator` are now joined by the first data/model wave: `collections`, `csv`,
-  `dataclasses`, `datetime`, `json`, `random`, and `uuid`.
+  `dataclasses`, `datetime`, `json`, `random`, and `uuid`; and the binary-
+  container wave: `array`, `struct`, and `secrets`.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -225,15 +226,20 @@ status, stdout, and stderr.
   49/49, 24/24, 8/8, 21/21, 70/70, 46/46, and 18/18. It replaces fixed native
   result arrays with GC-owned model, iterator, parser, and formatting state,
   adds strict JSON errors/options, a minimal `StringIO` prerequisite for CSV,
-  OS-backed random helpers, and UUID parsing/generation. The full
-  Rust result is now 934/1,668 (56.0%), up from the original 456/1,668.
+  OS-backed random helpers, and UUID parsing/generation. The binary-container
+  batch adds 69/69 `array`, 68/68 `struct`, and 8/8 `secrets` checks in one
+  review cycle. Array values remain VM/GC-owned, while a narrow native format
+  core handles checked endian conversion, float packing, mutable `bytearray`
+  writes, and stable-register tuple construction. Secure tokens and unbiased
+  `randbelow` reuse the OS entropy boundary. The full Rust result is now
+  1,079/1,668 (64.7%), up from the original 456/1,668.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 734,560 bytes on ARM64 and 756,896
+- The current stripped macOS runtime is 734,688 bytes on ARM64 and 769,296
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  On the 400-run warm-start sample, native Rust measured 3.447 ms median and
-  4.324 ms p95, versus Zig's 3.353 ms median and 3.846 ms p95; x86_64 Rust
-  under Rosetta measured 9.081 ms median and 10.563 ms p95.
+  On the 400-run warm-start sample, native Rust measured 3.574 ms median and
+  3.738 ms p95, versus Zig's 3.378 ms median and 3.601 ms p95; x86_64 Rust
+  under Rosetta measured 9.484 ms median and 10.943 ms p95.
 
 ### Phase 0 — Freeze and baseline
 
