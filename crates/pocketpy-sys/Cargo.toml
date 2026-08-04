@@ -1,0 +1,15 @@
+[package]
+name = "ucharm-pocketpy-sys"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+links = "pocketpy"
+build = "build.rs"
+
+[build-dependencies]
+cc = "1.2"
+
+[lints]
+workspace = true

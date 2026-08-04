@@ -142,6 +142,17 @@ status, stdout, and stderr.
 
 ## Execution Plan
 
+### Implementation status
+
+- Phase 0 is in progress: the host baseline harness is available through
+  `just rust-baseline` and the legacy CI runner is pinned for reproducibility.
+- Phase 1 is in progress: the Cargo workspace builds vendored PocketPy through
+  `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
+  crosses the C callback boundary.
+- The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
+  native modules and external C dependencies are added. This is an early
+  feasibility signal, not a final size comparison.
+
 ### Phase 0 — Freeze and baseline
 
 - Tag or record the last Zig baseline commit and pin Zig 0.15.2 for maintenance.
