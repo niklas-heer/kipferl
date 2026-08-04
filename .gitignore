@@ -31,6 +31,7 @@ Thumbs.db
 # Zig build artifacts
 **/.zig-cache/
 **/zig-out/
+**/zig-pkg/
 
 # Native libraries (build outputs)
 *.dylib

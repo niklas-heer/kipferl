@@ -5,8 +5,9 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy + runtime Zig modules + Zig loader for universal binaries.
-- Compatibility status: `tests/compat_report_pocketpy.md` shows 50/52 targeted modules at 100% parity (2 have no baseline on older CPython versions). Refresh with `python3 tests/compat_runner.py --report`.
+- Runtime: PocketPy with a Zig host today; the native host, modules, CLI, and loader are migrating to stable Rust.
+- Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
+- Compatibility status: `tests/compat_report_pocketpy.md` shows 51/52 targeted modules at 100% parity (1 has no baseline on the host CPython version). Refresh with `python3 tests/compat_runner.py --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -16,15 +17,26 @@ This is the single source of truth for priorities and next steps.
 - Stubs exist in `stubs/` and `cli/src/stubs/`; there is a generator script in `scripts/generate_stubs.py`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
-## PocketPy Migration Plan
+## Active Priority: Rust Migration
+
+- Freeze new Zig feature work; accept only small correctness, security, and release-blocking fixes.
+- Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
+- Establish the Rust/PocketPy FFI and four-target build proof before translating the large runtime module surface.
+- Port in releasable slices: loader, CLI using existing assets, runtime foundation, then module waves.
+- Keep Zig and Rust differential tests until each component crosses its parity, size, startup, and target gates.
+- Do not retain Zig indirectly through `cargo-zigbuild` in the final release pipeline.
+
+The detailed inventory, architecture, acceptance gates, PR sequence, and risks are in `RUST_MIGRATION.md`.
+
+## Completed Runtime Decision: PocketPy
 
 ### Phase 1: Runtime switch + tooling (COMPLETE)
 - PocketPy is now the default and only runtime.
 - MicroPython has been removed from the project.
 - `tests/compat_runner.py` defaults to PocketPy.
 
-### Phase 2: Module parity + API surface
-- Keep Zig-only modules as the standard and avoid Python fallback modules.
+### Phase 2: Module parity + API surface (COMPLETE FOR CURRENT TARGET SET)
+- Native modules remain the standard during the Rust port; avoid introducing temporary Python fallbacks that change behavior.
 - Targeted stdlib parity is now at 100% for the current module set (see `tests/compat_report_pocketpy.md`).
 - Maintain parity by re-running `python3 tests/compat_runner.py --report` after runtime changes.
 
@@ -35,27 +47,27 @@ This is the single source of truth for priorities and next steps.
 
 ## What to Focus on Next
 
-1. Keep the compatibility story crisp: document what’s implemented vs intentionally missing, and keep `tests/compat_report_pocketpy.md` current.
-2. Only after module coverage feels good: consolidate stub generation and make it a predictable workflow (one command, single source of truth).
-3. Add CI targets for Vision + compatibility report generation.
-4. Keep cross-target builds working: ensure `ucharm build --target <target>` continues to fetch/run the correct `pocketpy-ucharm` runtime.
-   - In a source checkout, `ucharm build` can build missing target runtimes locally via Zig (no release assets required).
+1. Record the reproducible Zig baseline and add golden/differential fixtures.
+2. Prove Rust-hosted PocketPy and C dependency builds on all four release targets.
+3. Port the universal format/loader, then the CLI around existing runtime assets.
+4. Port the runtime and native modules without allowing compatibility to fall below the current baseline.
+5. Cut CI and releases to Rust, remove Zig, then continue the product roadmap below.
 
-## Plan (near-term)
+## Product Roadmap After the Rust Cutover
 
 ### Phase A: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface (`toml`/`tomllib`, `http.client`, `secrets`, `hmac`, `dataclasses`, `xml.etree`, `sqlite3`, and archive helpers).
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase B: Developer experience
-- Decide the canonical stub source (Zig annotations or `stubs/`) and wire `scripts/generate_stubs.py` or a CLI command to regenerate them.
+- Decide the canonical stub source (Rust registration metadata or `stubs/`) and wire `scripts/generate_stubs.py` or a CLI command to regenerate them.
 - Update templates and docs to reference the canonical stubs and correct import paths.
 
 ### Phase C: Packaging + release hygiene
 - Add a CI step that runs `python3 tests/compat_runner.py --report` and uploads the report as an artifact.
 - Add a CI step that runs `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 - Validate cross-target build support (`ucharm build --targets` and a sample `--target` build).
- - Consider producing all `pocketpy-ucharm` target runtimes from one host via Zig cross-compilation (may remove the need for a matrix).
+- Prefer native-architecture CI runners for C/Rust release builds; do not reintroduce Zig for cross-compilation.
 
 ## Backlog (ordered)
 
