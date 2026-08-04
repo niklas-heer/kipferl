@@ -5,6 +5,28 @@
 default:
     @just --list
 
+# Check the Rust migration workspace
+rust-check:
+    cargo fmt --all --check
+    cargo clippy --workspace --all-targets -- -D warnings
+    cargo test --workspace
+
+# Build the Rust-hosted PocketPy runtime
+rust-build:
+    cargo build --release -p ucharm-runtime
+
+# Run code through the Rust-hosted PocketPy runtime
+rust-run code:
+    cargo run -p ucharm-runtime --bin pocketpy-ucharm-rs -- -c {{ quote(code) }}
+
+# Regenerate the checked-in PocketPy FFI declarations
+rust-bindings:
+    ./scripts/generate-rust-bindings.sh
+
+# Compare the host Zig runtime and Rust migration spine
+rust-baseline runs="50":
+    python3 benchmarks/migration_baseline.py --runs {{ runs }}
+
 # Build the CLI in release mode
 build:
     cp VERSION cli/src/VERSION
