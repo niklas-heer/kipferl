@@ -5,9 +5,9 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, and 39 fully compatible stdlib targets are implemented while the remaining native modules migrate from Zig.
+- Runtime: PocketPy; the Rust host, loader, CLI, and 46 fully compatible stdlib targets are implemented while the remaining native modules migrate from Zig.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust migration runtime passes 1,437/1,668 checks (86.2%), with 39/52 targeted modules at 100% parity. Refresh with `python3 tests/compat_runner.py --runtime target/debug/pocketpy-ucharm-rs --report`.
+- Compatibility status: the Rust migration runtime passes 1,574/1,668 checks (94.4%), with 46/52 targeted modules at 100% parity. Refresh with `python3 tests/compat_runner.py --runtime target/debug/pocketpy-ucharm-rs --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
