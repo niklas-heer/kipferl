@@ -189,8 +189,8 @@ status, stdout, and stderr.
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
 - Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
-  `textwrap`, and `heapq` are now on the Rust runtime. The shared boundary
-  copies PocketPy bytes into owned Rust buffers before allocation, roots
+  `textwrap`, `heapq`, and `typing` are now on the Rust runtime. The shared
+  boundary copies PocketPy bytes into owned Rust buffers before allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
   mutates lists through checked slots, and constructs large string lists
   through stable global scratch registers. Removed heap values remain rooted
@@ -198,13 +198,15 @@ status, stdout, and stderr.
   module's unrooted static return storage. The registrar can extend PocketPy's
   existing `base64` module and declare the `binascii.Error` and `Incomplete`
   exception aliases without custom setup code. The existing fixtures pass at
-  55/55, 18/18, 55/55, 28/28, 24/24, and 42/42 respectively, with byte-for-byte
-  Zig/Rust output parity plus native error, bounds, CRC, identity,
-  allocation-stress, and cross-target smoke tests. The full Rust compatibility
-  result has risen from 456/1,668 to 634/1,668. `typing` is the next contained
-  candidate and will establish the type/object construction boundary needed by
-  later iterator and decorator modules. `copy` still requires the broader
-  object-call and attribute-access boundary.
+  55/55, 18/18, 55/55, 28/28, 24/24, 42/42, and 43/43 respectively, with
+  byte-for-byte Zig/Rust output parity plus native error, bounds, CRC, identity,
+  allocation-stress, and cross-target smoke tests. `typing` adds table-driven
+  module initialization plus native type, instance, method, and attribute
+  construction while preserving its placeholder aliases, sentinel identity,
+  `TypeVar` behavior, and identity decorators. The full Rust compatibility
+  result has risen from 456/1,668 to 654/1,668. `itertools` is the next contained
+  candidate and can build on this type/object construction boundary. `copy`
+  still requires the broader object-call and attribute-access boundary.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

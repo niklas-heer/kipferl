@@ -16,6 +16,7 @@ mod term;
 mod term_core;
 mod textwrap;
 mod textwrap_core;
+mod typing;
 
 use crate::native::{NativeModule, register_modules};
 
@@ -31,6 +32,7 @@ const MODULES: &[NativeModule] = &[
     statistics::MODULE,
     term::MODULE,
     textwrap::MODULE,
+    typing::MODULE,
 ];
 
 pub(crate) fn register_all() {

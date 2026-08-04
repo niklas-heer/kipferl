@@ -76,6 +76,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     signatures: &[],
     int_constants: &[],
     type_aliases: &[],
+    initializer: None,
 };
 
 #[derive(Default)]

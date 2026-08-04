@@ -45,6 +45,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     signatures: &[],
     int_constants: &[],
     type_aliases: &[],
+    initializer: None,
 };
 
 unsafe extern "C" fn heapify(argc: c_int, argv: ffi::py_StackRef) -> bool {

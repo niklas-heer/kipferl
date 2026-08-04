@@ -55,6 +55,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     signatures: SIGNATURES,
     int_constants: &[],
     type_aliases: &[],
+    initializer: None,
 };
 
 struct InputState {

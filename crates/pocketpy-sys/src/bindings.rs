@@ -13,6 +13,8 @@ pub type py_Type = i16;
 pub type py_i64 = i64;
 #[doc = " A 64-bit floating-point type. Corresponds to `float` in python."]
 pub type py_f64 = f64;
+#[doc = " A generic destructor function."]
+pub type py_Dtor = ::core::option::Option<unsafe extern "C" fn(arg1: *mut ::core::ffi::c_void)>;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct py_TValue {
@@ -95,12 +97,25 @@ unsafe extern "C" {
     pub fn py_newnone(arg1: py_OutRef);
 }
 unsafe extern "C" {
+    #[doc = " Create a new object.\n @param out output reference.\n @param type type of the object.\n @param slots number of slots. Use `-1` to create a `__dict__`.\n @param udsize size of your userdata.\n @return pointer to the userdata."]
+    pub fn py_newobject(
+        out: py_OutRef,
+        type_: py_Type,
+        slots: ::core::ffi::c_int,
+        udsize: ::core::ffi::c_int,
+    ) -> *mut ::core::ffi::c_void;
+}
+unsafe extern "C" {
     #[doc = " Convert a null-terminated string to a name."]
     pub fn py_name(arg1: *const ::core::ffi::c_char) -> py_Name;
 }
 unsafe extern "C" {
     #[doc = " Bind a function to the object via \"decl-based\" style.\n @param obj the target object.\n @param sig signature of the function. e.g. `add(x, y)`.\n @param f function to bind."]
     pub fn py_bind(obj: py_Ref, sig: *const ::core::ffi::c_char, f: py_CFunction);
+}
+unsafe extern "C" {
+    #[doc = " Bind a method to type via \"argc-based\" style.\n @param type the target type.\n @param name name of the method.\n @param f function to bind."]
+    pub fn py_bindmethod(type_: py_Type, name: *const ::core::ffi::c_char, f: py_CFunction);
 }
 unsafe extern "C" {
     #[doc = " Bind a function to the object via \"argc-based\" style.\n @param obj the target object.\n @param name name of the function.\n @param f function to bind."]
@@ -129,6 +144,15 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Convert a `bytes` object in python to char array."]
     pub fn py_tobytes(arg1: py_Ref, size: *mut ::core::ffi::c_int) -> *mut ::core::ffi::c_uchar;
+}
+unsafe extern "C" {
+    #[doc = " Create a new type.\n @param name name of the type.\n @param base base type.\n @param module module where the type is defined. Use `NULL` for built-in types.\n @param dtor destructor function. Use `NULL` if not needed."]
+    pub fn py_newtype(
+        name: *const ::core::ffi::c_char,
+        base: py_Type,
+        module: py_GlobalRef,
+        dtor: py_Dtor,
+    ) -> py_Type;
 }
 unsafe extern "C" {
     #[doc = " Check if the object is exactly the given type."]

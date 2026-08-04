@@ -38,6 +38,7 @@ pub(crate) struct NativeModule {
     pub signatures: &'static [NativeSignature],
     pub int_constants: &'static [NativeIntConstant],
     pub type_aliases: &'static [NativeTypeAlias],
+    pub initializer: Option<fn(Value)>,
 }
 
 pub(crate) fn register_modules(modules: &[NativeModule]) {
@@ -77,8 +78,54 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
                     ffi::py_tpobject(alias.value_type as ffi::py_Type),
                 );
             }
+            if let Some(initializer) = module.initializer {
+                initializer(Value { raw: object });
+            }
         }
     }
+}
+
+pub(crate) fn create_type(module: Value, name: &'static CStr) -> ffi::py_Type {
+    // SAFETY: `module` is the active module object, `name` has static storage,
+    // and the object base type and null destructor require no custom lifetime.
+    unsafe {
+        ffi::py_newtype(
+            name.as_ptr(),
+            ffi::py_PredefinedType_tp_object as ffi::py_Type,
+            module.raw,
+            None,
+        )
+    }
+}
+
+pub(crate) fn type_object(value_type: ffi::py_Type) -> Value {
+    // SAFETY: PocketPy type objects are process-global and remain valid for the
+    // lifetime of the active VM.
+    Value {
+        raw: unsafe { ffi::py_tpobject(value_type) },
+    }
+}
+
+pub(crate) fn bind_type_signature(
+    value_type: ffi::py_Type,
+    signature: &'static CStr,
+    callback: Callback,
+) {
+    // SAFETY: the type object is VM-global, the signature has static storage,
+    // and the callback uses PocketPy's C ABI.
+    unsafe {
+        ffi::py_bind(
+            ffi::py_tpobject(value_type),
+            signature.as_ptr(),
+            Some(callback),
+        )
+    };
+}
+
+pub(crate) fn bind_type_method(value_type: ffi::py_Type, name: &'static CStr, callback: Callback) {
+    // SAFETY: the type is active, the name has static storage, and the callback
+    // uses PocketPy's C ABI.
+    unsafe { ffi::py_bindmethod(value_type, name.as_ptr(), Some(callback)) };
 }
 
 pub(crate) struct Arguments {
@@ -380,6 +427,18 @@ impl Value {
         // the duration of the operation.
         unsafe { ffi::py_dict_setitem(self.raw, key.raw, value.raw) }
     }
+
+    pub fn attribute(self, name: &'static CStr) -> Option<Self> {
+        // SAFETY: `self` is initialized and `name` has static storage. The
+        // returned item remains valid until this object's dictionary changes.
+        let raw = unsafe { ffi::py_getdict(self.raw, ffi::py_name(name.as_ptr())) };
+        (!raw.is_null()).then_some(Self { raw })
+    }
+
+    pub fn set_attribute(self, name: &'static CStr, value: Self) {
+        // SAFETY: both values are initialized and `name` has static storage.
+        unsafe { ffi::py_setdict(self.raw, ffi::py_name(name.as_ptr()), value.raw) };
+    }
 }
 
 /// A LIFO frame for PocketPy temporary stack roots.
@@ -511,6 +570,14 @@ impl RootFrame {
         let root = self.push();
         // SAFETY: `root` is writable VM stack storage.
         unsafe { ffi::py_newdict(root.raw) };
+        root
+    }
+
+    pub fn object(&mut self, value_type: ffi::py_Type) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage. A slot count of -1 gives
+        // the object a normal attribute dictionary and no userdata is needed.
+        unsafe { ffi::py_newobject(root.raw, value_type, -1, 0) };
         root
     }
 
