@@ -19,6 +19,10 @@ rust-build:
 rust-run code:
     cargo run -p ucharm-runtime --bin pocketpy-ucharm-rs -- -c {{ quote(code) }}
 
+# Run the Rust CLI migration binary
+rust-cli *args:
+    cargo run -p ucharm-cli --bin ucharm-rs -- {{ args }}
+
 # Regenerate the checked-in PocketPy FFI declarations
 rust-bindings:
     ./scripts/generate-rust-bindings.sh

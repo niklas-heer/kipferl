@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/pocketpy-sys",
+    "crates/ucharm-cli",
     "crates/ucharm-format",
     "crates/ucharm-loader",
     "crates/ucharm-runtime",

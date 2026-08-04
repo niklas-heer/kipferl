@@ -1,0 +1,15 @@
+[package]
+name = "ucharm-cli"
+description = "Command-line interface for μcharm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "ucharm-rs"
+path = "src/main.rs"
+
+[lints]
+workspace = true
