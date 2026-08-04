@@ -53,7 +53,52 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## Product Roadmap After the Rust Cutover
 
-### Phase A: Migration documentation and public retrospective
+### Phase A: Rust-native optimization and dependency review
+- Freeze a reproducible post-cutover baseline before optimizing: compatibility,
+  startup distributions, peak memory and allocations, interactive latency,
+  representative module throughput, binary sections, dependency contribution,
+  and all four release artifacts. Use profiles and measurements rather than
+  line count or assumptions about whether custom code or a crate is faster.
+- Audit the Rust architecture for places where the type system can remove
+  runtime failure modes: narrower FFI lifetimes and ownership states, RAII
+  guards for VM/terminal/file cleanup, newtypes for validated handles and
+  offsets, exhaustive error enums, checked conversions, and APIs that make
+  unrooted PocketPy values or invalid state transitions hard to express.
+- Profile allocation, copying, module initialization, and embedded Python
+  execution. Evaluate borrowing, reusable buffers, lazy module initialization,
+  static data, and more compact representations only where the profiler shows
+  a meaningful gain and the PocketPy ownership rules remain explicit.
+- Audit Cargo features and duplicate dependencies with `cargo tree` and analyze
+  release contribution with
+  [`cargo-bloat`](https://github.com/RazrFalcon/cargo-bloat). Compare `z` versus
+  `s`, LTO choices, and profile-guided optimization using the same startup,
+  size, and throughput corpus; keep the existing size-oriented release profile
+  as the control.
+- Run isolated library spikes behind the existing Python API and golden tests:
+  - compare the current terminal/raw-mode/event code with a feature-minimal
+    [`Crossterm`](https://github.com/crossterm-rs/crossterm) substrate, and
+    compare selected layout/widget primitives with
+    [`Ratatui`](https://ratatui.rs/) rather than replacing μcharm's presentation
+    model wholesale;
+  - for `sqlite3`, compare mature
+    [`rusqlite`](https://github.com/rusqlite/rusqlite) with bundled SQLite
+    against the pure-Rust
+    [`Turso Database`](https://github.com/tursodatabase/turso). Recheck Turso's
+    maturity and SQLite-compatibility matrix at spike time, and keep database
+    support optional if its artifact cost conflicts with μcharm's tiny-binary
+    goal;
+  - inventory focused crates for remaining process, signal, regex, networking,
+    archive, and format modules, disabling default features and rejecting a
+    dependency when the standard library or current implementation is clearer.
+- Record each spike as an accept/reject decision with compatibility, safety,
+  maintenance, license, dependency, size, startup, memory, and throughput data.
+  A library is adopted only when it improves the overall engineering result;
+  “more Rust” or fewer local lines is not sufficient.
+- Exit gate: no Python API, byte-output, error, compatibility, or release-target
+  regression; every accepted change has a measured benefit and the final
+  baseline is committed for the public retrospective.
+
+### Phase B: Migration documentation and public retrospective
 - Revisit the README, website, and all user/contributor documentation once the
   Rust release is proven. Remove stale Zig architecture, commands, examples,
   screenshots, performance claims, and download instructions.
@@ -73,15 +118,15 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 - Preserve the migration issue, plan, final Zig tag, and major PRs as an
   engineering case study rather than erasing the project history.
 
-### Phase B: Close feature gap (Vision)
+### Phase C: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface; remaining gaps include `toml`/`tomllib`, `http.client`, `xml.etree`, and `sqlite3`.
 - Keep the suite honest by expanding tests when behavior changes.
 
-### Phase C: Developer experience
+### Phase D: Developer experience
 - Decide the canonical stub source (Rust registration metadata or `stubs/`) and wire `scripts/generate_stubs.py` or a CLI command to regenerate them.
 - Update templates and docs to reference the canonical stubs and correct import paths.
 
-### Phase D: Packaging + release hygiene
+### Phase E: Packaging + release hygiene
 - Add a CI step that runs `python3 tests/compat_runner.py --report` and uploads the report as an artifact.
 - Add a CI step that runs `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 - Validate cross-target build support (`ucharm build --targets` and a sample `--target` build).

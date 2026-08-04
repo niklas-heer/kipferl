@@ -356,12 +356,42 @@ the Rust runtime for every release target.
 Exit gate: the normal CI and release workflows contain no Zig setup and all
 artifacts meet the compatibility, startup, and size gates.
 
-### Phase 7 — Remove Zig and resume the roadmap
+### Phase 7 — Remove Zig, optimize the Rust implementation, and resume the roadmap
 
 - Delete Zig sources, build files, caches, and stale embedded binaries only
   after the Rust release is proven. Preserve the last Zig tag and migration
   notes for archaeology.
 - Update architecture documentation and contributor guidance.
+- Before the public migration wrap-up, run a bounded Rust-native optimization
+  and dependency review against a frozen post-cutover baseline:
+  - profile startup, allocations, peak memory, interactive latency, module
+    throughput, binary sections, dependency contribution, and all four release
+    artifacts;
+  - use Rust's ownership and type system to narrow FFI lifetimes, encode rooted
+    versus borrowed PocketPy values, introduce RAII cleanup guards, validate
+    handles/offsets with newtypes, and replace implicit state/error conventions
+    with checked transitions and exhaustive enums where that removes a real
+    failure mode;
+  - investigate measured allocation/copy hot spots, module initialization,
+    embedded Python execution, lazy loading, reusable buffers, and compact data
+    representations without weakening the explicit VM ownership boundary;
+  - audit duplicate crates and default features, attribute release size with
+    `cargo-bloat`, and compare release-profile/PGO variants using the same
+    compatibility, startup, size, memory, and throughput corpus;
+  - spike a feature-minimal Crossterm substrate and selected Ratatui primitives
+    behind the existing terminal and μcharm APIs; preserve exact golden output
+    and adopt neither wholesale merely to reduce local code;
+  - for future `sqlite3`, compare `rusqlite` with bundled SQLite against the
+    pure-Rust Turso Database. Recheck Turso's production maturity and published
+    compatibility gaps at evaluation time, and measure both as optional release
+    features because database engines may dominate the tiny runtime artifact;
+  - inventory focused crates for process, signals, regex, networking, archives,
+    and formats, preferring the standard library or existing code whenever a
+    dependency does not improve safety, correctness, maintenance, or measured
+    performance enough to justify its binary and supply-chain cost;
+  - keep an accept/reject decision record for every spike. Adoption requires no
+    Python API, byte-output, error, compatibility, or target regression and a
+    demonstrated overall benefit in the recorded matrix.
 - After the Rust release is proven, complete a public documentation and
   communication pass before treating the migration as old news:
   - audit the README, website, docs, templates, examples, installation paths,
@@ -375,14 +405,15 @@ artifacts meet the compatibility, startup, and size gates.
     final Zig tag and migration tracker, and report regressions and tradeoffs as
     explicitly as improvements.
 - Resume roadmap work in this order:
-  1. README/website/docs refresh and the migration retrospective;
-  2. canonical stub generation and CI drift checking;
-  3. compatibility report and PocketPy patch verification artifacts;
-  4. cross-target build reliability;
-  5. tree-shaking/module selection for size;
-  6. `ucharm dev` watch mode;
-  7. remaining networking, format, concurrency, and database work;
-  8. higher-level TUI features from `vision.md`.
+  1. Rust-native optimization and dependency review;
+  2. README/website/docs refresh and the migration retrospective;
+  3. canonical stub generation and CI drift checking;
+  4. compatibility report and PocketPy patch verification artifacts;
+  5. cross-target build reliability;
+  6. tree-shaking/module selection for size;
+  7. `ucharm dev` watch mode;
+  8. remaining networking, format, concurrency, and database work;
+  9. higher-level TUI features from `vision.md`.
 
 ## Suggested PR Sequence
 
