@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/pocketpy-sys",
+    "crates/ucharm-format",
     "crates/ucharm-runtime",
 ]
 resolver = "3"

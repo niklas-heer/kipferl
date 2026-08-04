@@ -38,11 +38,15 @@ build-debug:
     cd cli && zig build
 
 # Run all tests
-test: test-unit test-e2e
+test: test-unit test-loader test-e2e
 
 # Run unit tests
 test-unit:
     cd cli && zig build test
+
+# Run loader format and extraction unit tests
+test-loader:
+    cd loader && zig build test
 
 # Run end-to-end tests
 test-e2e:

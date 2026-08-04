@@ -94,6 +94,29 @@ test "trailer round-trip" {
     try std.testing.expectEqual(original.python_size, parsed.python_size);
 }
 
+test "trailer matches shared golden vectors" {
+    const standard = Trailer{
+        .micropython_offset = 50000,
+        .micropython_size = 668000,
+        .python_offset = 718000,
+        .python_size = 35000,
+    };
+    const small = Trailer{
+        .micropython_offset = 4096,
+        .micropython_size = 8192,
+        .python_offset = 12288,
+        .python_size = 17,
+    };
+
+    const standard_golden = try decodeHexFixture(@embedFile("fixtures/universal_trailer_v1_standard.hex"));
+    const small_golden = try decodeHexFixture(@embedFile("fixtures/universal_trailer_v1_small.hex"));
+
+    try std.testing.expectEqualSlices(u8, &standard_golden, &standard.toBytes());
+    try std.testing.expectEqualSlices(u8, &small_golden, &small.toBytes());
+    try std.testing.expectEqual(standard, try Trailer.parse(&standard_golden));
+    try std.testing.expectEqual(small, try Trailer.parse(&small_golden));
+}
+
 test "trailer magic validation" {
     var bad_buf: [48]u8 = undefined;
     @memset(&bad_buf, 0);
@@ -118,4 +141,35 @@ test "trailer isValid" {
         .python_size = 35000,
     };
     try std.testing.expect(!invalid_zero_mpy.isValid());
+}
+
+fn decodeHexFixture(text: []const u8) ![Trailer.SIZE]u8 {
+    var bytes: [Trailer.SIZE]u8 = undefined;
+    var digit_index: usize = 0;
+
+    for (text) |char| {
+        if (std.ascii.isWhitespace(char)) continue;
+        if (digit_index >= Trailer.SIZE * 2) return error.InvalidHexLength;
+
+        const nibble = try hexNibble(char);
+        const byte_index = digit_index / 2;
+        if (digit_index % 2 == 0) {
+            bytes[byte_index] = nibble << 4;
+        } else {
+            bytes[byte_index] |= nibble;
+        }
+        digit_index += 1;
+    }
+
+    if (digit_index != Trailer.SIZE * 2) return error.InvalidHexLength;
+    return bytes;
+}
+
+fn hexNibble(char: u8) !u8 {
+    return switch (char) {
+        '0'...'9' => char - '0',
+        'a'...'f' => char - 'a' + 10,
+        'A'...'F' => char - 'A' + 10,
+        else => error.InvalidHex,
+    };
 }

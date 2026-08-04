@@ -47,6 +47,10 @@ jobs:
           cp VERSION cli/src/VERSION
           cd cli && zig build -Doptimize=ReleaseSmall
 
+      - name: Test Loader
+        working-directory: loader
+        run: zig build test
+
       - name: Build Loader
         working-directory: loader
         run: zig build -Doptimize=ReleaseSmall
