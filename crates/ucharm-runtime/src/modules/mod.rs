@@ -3,8 +3,10 @@ mod ansi_core;
 mod args;
 mod base64;
 mod binascii;
+mod bytearray;
 mod charm;
 mod charm_core;
+mod copy;
 mod encoding_core;
 mod errno;
 mod fnmatch;
@@ -29,6 +31,7 @@ const MODULES: &[NativeModule] = &[
     base64::MODULE,
     binascii::MODULE,
     charm::MODULE,
+    copy::MODULE,
     errno::MODULE,
     fnmatch::MODULE,
     heapq::MODULE,
@@ -42,6 +45,7 @@ const MODULES: &[NativeModule] = &[
 
 pub(crate) fn register_all() {
     string_methods::register();
+    bytearray::register();
     register_modules(MODULES);
 }
 

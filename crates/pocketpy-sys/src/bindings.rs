@@ -167,6 +167,10 @@ unsafe extern "C" {
     pub fn py_istype(arg1: py_Ref, arg2: py_Type) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " Get the type of the object."]
+    pub fn py_typeof(self_: py_Ref) -> py_Type;
+}
+unsafe extern "C" {
     #[doc = " Check if the object is an instance of the given type."]
     pub fn py_isinstance(obj: py_Ref, type_: py_Type) -> bool;
 }
@@ -219,6 +223,10 @@ unsafe extern "C" {
     pub fn py_call(f: py_Ref, argc: ::core::ffi::c_int, argv: py_Ref) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " Call a type to create a new instance."]
+    pub fn py_tpcall(type_: py_Type, argc: ::core::ffi::c_int, argv: py_Ref) -> bool;
+}
+unsafe extern "C" {
     #[doc = " Python equivalent to `lhs is rhs`."]
     pub fn py_isidentical(arg1: py_Ref, arg2: py_Ref) -> bool;
 }
@@ -231,12 +239,24 @@ unsafe extern "C" {
     pub fn py_less(lhs: py_Ref, rhs: py_Ref) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
+    #[doc = " Python equivalent to `getattr(self, name)`."]
+    pub fn py_getattr(self_: py_Ref, name: py_Name) -> bool;
+}
+unsafe extern "C" {
     #[doc = " Get a module by path."]
     pub fn py_getmodule(path: *const ::core::ffi::c_char) -> py_GlobalRef;
 }
 unsafe extern "C" {
     #[doc = " Create a new module."]
     pub fn py_newmodule(path: *const ::core::ffi::c_char) -> py_GlobalRef;
+}
+unsafe extern "C" {
+    #[doc = " Check if the unhandled exception is an instance of the given type.\n If match, the exception will be stored in `py_retval()`."]
+    pub fn py_matchexc(type_: py_Type) -> bool;
+}
+unsafe extern "C" {
+    #[doc = " Clear the unhandled exception.\n @param p0 the unwinding point. Use `NULL` if not needed."]
+    pub fn py_clearexc(p0: py_StackRef);
 }
 unsafe extern "C" {
     #[doc = " Print the unhandled exception."]
