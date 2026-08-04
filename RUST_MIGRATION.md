@@ -155,15 +155,19 @@ status, stdout, and stderr.
   byte-level trailer and cache-hash vectors. The measured Rust loader adds
   9.2% to a universal application while slightly improving warm startup; the
   accepted size variance is recorded in `benchmarks/loader_migration_baseline.md`.
-- Phase 3 is in progress: the dependency-free `ucharm-cli` crate has the
-  production command dispatcher plus `new`, `init`, and `run`. Valid command
-  output, generated files, file modes, embedded stubs, assistant instructions,
-  script transformation, argument forwarding, and runtime exit codes have
-  parity with the Zig CLI. Unlike the legacy `run`, the Rust command embeds the
-  matching released runtime on all four targets and uses a private, atomic,
-  content-addressed cache. Its size and warm execution baseline is recorded in
-  `benchmarks/run_migration_baseline.md`. `build` and `test` remain explicitly
-  delegated to the production Zig CLI until their ports land.
+- Phase 3 is in progress: `ucharm-cli` has the production command dispatcher
+  plus `new`, `init`, `run`, and `build`. Valid command output, generated files,
+  file modes, embedded stubs, assistant instructions, script transformation,
+  argument forwarding, and runtime exit codes have parity with the Zig CLI.
+  Unlike the legacy `run`, the Rust command embeds the matching released
+  runtime on all four targets and uses a private, atomic, content-addressed
+  cache. Its size and warm execution baseline is recorded in
+  `benchmarks/run_migration_baseline.md`. The three Rust build modes produce
+  byte-identical host artifacts, and universal cross-builds use the released
+  loader/runtime pair with the shared trailer encoder. Missing cross-target
+  runtimes are resolved from the versioned cache or downloaded with SHA-256
+  verification. Only `test` remains explicitly delegated to the production Zig
+  CLI.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

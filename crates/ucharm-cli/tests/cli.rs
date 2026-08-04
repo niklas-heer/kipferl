@@ -22,9 +22,13 @@ fn reports_version_help_unknown_and_unmigrated_commands() {
     assert!(!unknown.status.success());
     assert!(text(&unknown.stderr).contains("Unknown command"));
 
-    let build = run(&temporary, &["build"]);
-    assert!(!build.status.success());
-    assert!(text(&build.stderr).contains("has not migrated to Rust yet"));
+    let build_help = run(&temporary, &["build", "--help"]);
+    assert!(build_help.status.success());
+    assert!(text(&build_help.stdout).contains("Build standalone binaries"));
+
+    let test_command = run(&temporary, &["test"]);
+    assert!(!test_command.status.success());
+    assert!(text(&test_command.stderr).contains("has not migrated to Rust yet"));
 
     let run_help = run(&temporary, &["run", "--help"]);
     assert!(run_help.status.success());
@@ -43,6 +47,116 @@ fn reports_version_help_unknown_and_unmigrated_commands() {
         text(&missing_script.stderr),
         "\x1b[31mError:\x1b[0m Script not found: missing.py\n"
     );
+}
+
+#[test]
+fn build_creates_all_three_modes_and_runs_a_universal_binary() {
+    let temporary = TestDirectory::new("build modes");
+    fs::write(
+        temporary.path.join("app.py"),
+        "from ucharm import success\nsuccess('built with Rust')\n",
+    )
+    .expect("write build fixture");
+
+    for (mode, output) in [
+        ("single", "app.single"),
+        ("executable", "app.wrapper"),
+        ("universal", "app.universal"),
+    ] {
+        let built = run(
+            &temporary,
+            &["build", "app.py", "-o", output, "--mode", mode],
+        );
+        assert!(built.status.success(), "{}", text(&built.stderr));
+        let output_path = temporary.path.join(output);
+        assert!(output_path.is_file());
+        assert_ne!(
+            fs::metadata(&output_path)
+                .expect("build metadata")
+                .permissions()
+                .mode()
+                & 0o111,
+            0
+        );
+    }
+
+    let single = fs::read_to_string(temporary.path.join("app.single")).expect("read single");
+    assert!(single.starts_with("#!/usr/bin/env pocketpy-ucharm\n"));
+    assert!(single.contains("from charm import"));
+    assert!(!single.contains("from ucharm import"));
+
+    let wrapper = fs::read_to_string(temporary.path.join("app.wrapper")).expect("read wrapper");
+    assert!(wrapper.starts_with("#!/bin/bash\n"));
+    assert!(wrapper.contains("base64 -d"));
+
+    let universal = fs::read(temporary.path.join("app.universal")).expect("read universal");
+    let trailer = ucharm_format::Trailer::decode_from_end(&universal).expect("decode trailer");
+    trailer
+        .validate_layout(universal.len() as u64)
+        .expect("validate universal layout");
+
+    // The released Zig Linux loader has a known child-wait defect. Linux stays
+    // covered by byte/layout checks until the Rust loader becomes the bundled
+    // release asset; the released macOS loader can execute this artifact.
+    #[cfg(target_os = "macos")]
+    {
+        let executed = Command::new(temporary.path.join("app.universal"))
+            .current_dir(&temporary.path)
+            .output()
+            .expect("run universal application");
+        assert!(executed.status.success(), "{}", text(&executed.stderr));
+        assert!(text(&executed.stdout).contains("built with Rust"));
+    }
+}
+
+#[test]
+fn build_packages_every_release_target_with_the_matching_assets() {
+    const TARGETS: &[(&str, &[u8], &[u8])] = &[
+        (
+            "macos-aarch64",
+            include_bytes!("../../../cli/src/stubs/loader-macos-aarch64"),
+            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-aarch64"),
+        ),
+        (
+            "macos-x86_64",
+            include_bytes!("../../../cli/src/stubs/loader-macos-x86_64"),
+            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-x86_64"),
+        ),
+        (
+            "linux-x86_64",
+            include_bytes!("../../../cli/src/stubs/loader-linux-x86_64"),
+            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-x86_64"),
+        ),
+        (
+            "linux-aarch64",
+            include_bytes!("../../../cli/src/stubs/loader-linux-aarch64"),
+            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-aarch64"),
+        ),
+    ];
+
+    let temporary = TestDirectory::new("cross targets");
+    fs::write(temporary.path.join("app.py"), "print('cross target')\n")
+        .expect("write build fixture");
+
+    for &(target, loader, runtime) in TARGETS {
+        let output = format!("app-{target}");
+        let built = run(
+            &temporary,
+            &["build", "app.py", "-o", &output, "--target", target],
+        );
+        assert!(built.status.success(), "{target}: {}", text(&built.stderr));
+
+        let artifact = fs::read(temporary.path.join(output)).expect("read artifact");
+        let trailer = ucharm_format::Trailer::decode_from_end(&artifact).expect("decode trailer");
+        assert_eq!(trailer.runtime_offset, loader.len() as u64);
+        assert_eq!(trailer.runtime_size, runtime.len() as u64);
+        assert_eq!(trailer.python_offset, (loader.len() + runtime.len()) as u64);
+        assert_eq!(&artifact[..loader.len()], loader);
+        assert_eq!(
+            &artifact[loader.len()..loader.len() + runtime.len()],
+            runtime
+        );
+    }
 }
 
 #[test]
