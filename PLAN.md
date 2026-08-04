@@ -5,9 +5,9 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy with a Zig host today; the native host, modules, CLI, and loader are migrating to stable Rust.
+- Runtime: PocketPy; the Rust host, loader, CLI, and 30 fully compatible stdlib targets are implemented while the remaining native modules migrate from Zig.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: `tests/compat_report_pocketpy.md` shows 51/52 targeted modules at 100% parity (1 has no baseline on the host CPython version). Refresh with `python3 tests/compat_runner.py --report`.
+- Compatibility status: the Rust migration runtime passes 1,185/1,668 checks (71.0%), with 30/52 targeted modules at 100% parity. Refresh with `python3 tests/compat_runner.py --runtime target/debug/pocketpy-ucharm-rs --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -47,16 +47,14 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## What to Focus on Next
 
-1. Record the reproducible Zig baseline and add golden/differential fixtures.
-2. Prove Rust-hosted PocketPy and C dependency builds on all four release targets.
-3. Port the universal format/loader, then the CLI around existing runtime assets.
-4. Port the runtime and native modules without allowing compatibility to fall below the current baseline.
-5. Cut CI and releases to Rust, remove Zig, then continue the product roadmap below.
+1. Finish the remaining Rust runtime module waves without regressing the 1,668-check baseline.
+2. Run a four-target release candidate and cut CI, packaging, and releases fully to Rust.
+3. Remove Zig after the Rust release is proven, then continue the product roadmap below.
 
 ## Product Roadmap After the Rust Cutover
 
 ### Phase A: Close feature gap (Vision)
-- Maintain the Vision “nice-to-have” surface (`toml`/`tomllib`, `http.client`, `secrets`, `hmac`, `dataclasses`, `xml.etree`, `sqlite3`, and archive helpers).
+- Maintain the Vision “nice-to-have” surface; remaining gaps include `toml`/`tomllib`, `http.client`, `xml.etree`, and `sqlite3`.
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase B: Developer experience
@@ -73,7 +71,6 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 - Tree-shaking or module selection for smaller binaries.
 - `ucharm dev` (watch mode / hot reload).
-- Networking and formats: `http.client`, `toml`, `yaml`, `gzip`, `zipfile`, `tarfile`.
-- Security: `secrets`, `hmac`.
+- Networking and formats: `http.client`, `toml`, `yaml`.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: `sqlite3` (likely large; consider an optional build flag / separate release flavor).

@@ -270,8 +270,8 @@ ucharm/
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
-- 1,646/1,646 tests passing (CLI-focused targeted modules)
-- 52 targeted modules (50/52 at 100% on host CPython; 2 have no baseline on older CPython versions)
+- Rust migration runtime: 1,185/1,668 tests passing (71.0%)
+- 52 targeted modules, with 30 at 100% parity on the Rust host
 - ~3ms startup, ~1-2MB universal binaries (sqlite enabled)
 
 ## Showcase

@@ -78,6 +78,11 @@ jobs:
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import array, secrets, struct; values = array.array("I", [0x12345678, 0x90ABCDEF]); encoded = values.tobytes(); assert struct.unpack("<2I", encoded) == (0x12345678, 0x90ABCDEF); buffer = bytearray(8); struct.pack_into(">I", buffer, 2, 0xAABBCCDD); assert struct.unpack_from(">I", buffer, 2) == (0xAABBCCDD,); assert len(secrets.token_bytes(8)) == 8; assert 0 <= secrets.randbelow(17) < 17'
+      - name: Smoke-test Rust crypto-compression wave
+        shell: bash
+        run: >-
+          target/${{ matrix.target }}/release/pocketpy-ucharm-rs
+          -c 'import gzip, hashlib, hmac, io, tarfile, zipfile; data = b"ucharm" * 256; assert hashlib.sha256(data).hexdigest() == "1dbf127f11e331f8adb707abb311daf83009edad8ae7964e88d41b86ebd2faca"; assert len(hmac.new(b"key", data, "sha256").digest()) == 32; assert gzip.decompress(gzip.compress(data)) == data; buffer = io.BytesIO(data); buffer.seek(6); assert buffer.read(6) == b"ucharm"; assert hasattr(zipfile, "ZipFile"); assert hasattr(tarfile, "TarFile")'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"
