@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicI16, Ordering};
 use ucharm_pocketpy_sys as ffi;
 
 use crate::native::{
-    Arguments, RootFrame, Value, bind_type_signature, create_type_with_destructor, return_value,
-    type_error, type_object, value_error,
+    Arguments, RootFrame, Value, bind_type_signature, create_type_with_destructor, index_error,
+    return_bytes, return_value, type_error, type_object, value_error,
 };
 
 static BYTEARRAY_TYPE: AtomicI16 = AtomicI16::new(0);
@@ -46,6 +46,15 @@ impl ByteArrayState {
         // PocketPy invokes `bytearray_destructor`.
         unsafe { slice::from_raw_parts(self.data, self.length) }
     }
+
+    fn as_mut_slice(&mut self) -> &mut [u8] {
+        if self.length == 0 {
+            return &mut [];
+        }
+        // SAFETY: non-empty states exclusively own exactly `length` writable
+        // bytes until PocketPy invokes `bytearray_destructor`.
+        unsafe { slice::from_raw_parts_mut(self.data, self.length) }
+    }
 }
 
 unsafe extern "C" fn bytearray_destructor(userdata: *mut c_void) {
@@ -75,6 +84,12 @@ pub(super) fn register() {
     BYTEARRAY_TYPE.store(value_type, Ordering::Release);
     bind_type_signature(value_type, c"__new__(cls, source=None)", bytearray_new);
     bind_type_signature(value_type, c"__len__(self)", bytearray_len);
+    bind_type_signature(value_type, c"__getitem__(self, key)", bytearray_getitem);
+    bind_type_signature(
+        value_type,
+        c"__setitem__(self, key, value)",
+        bytearray_setitem,
+    );
     bind_type_signature(value_type, c"__eq__(self, other)", bytearray_eq);
     builtins.set_attribute(c"bytearray", type_object(value_type));
 }
@@ -153,6 +168,106 @@ unsafe extern "C" fn bytearray_len(argc: c_int, argv: ffi::py_StackRef) -> bool 
     let mut roots = RootFrame::new();
     let length = roots.integer(length);
     return_value(length)
+}
+
+unsafe extern "C" fn bytearray_getitem(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: called only from the registered bytearray method.
+    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    if !arguments.require_arity(2, 2) {
+        return false;
+    }
+    let instance = arguments.get(0).expect("arity checked");
+    let key = arguments.get(1).expect("arity checked");
+    // SAFETY: method binding guarantees a bytearray receiver.
+    let state = unsafe { &*instance.userdata::<ByteArrayState>() };
+
+    if let Some(index) = key.integer() {
+        let Some(index) = normalize_index(index, state.length) else {
+            return index_error(c"bytearray index out of range");
+        };
+        let mut roots = RootFrame::new();
+        let value = roots.integer(i64::from(state.as_slice()[index]));
+        return return_value(value);
+    }
+
+    if key.is_type(ffi::py_PredefinedType_tp_slice) {
+        let Some((start, stop)) = normalized_slice(key, state.length) else {
+            return value_error(c"slice step not supported");
+        };
+        return return_bytes(&state.as_slice()[start..stop]);
+    }
+
+    type_error(c"bytearray indices must be integers or slices")
+}
+
+unsafe extern "C" fn bytearray_setitem(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: called only from the registered bytearray method.
+    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    if !arguments.require_arity(3, 3) {
+        return false;
+    }
+    let instance = arguments.get(0).expect("arity checked");
+    let Some(index) = arguments.get(1).and_then(Value::integer) else {
+        return type_error(c"bytearray indices must be integers");
+    };
+    let Some(value) = arguments.get(2).and_then(Value::integer) else {
+        return type_error(c"an integer is required");
+    };
+    let Ok(value) = u8::try_from(value) else {
+        return value_error(c"byte must be in range(0, 256)");
+    };
+    // SAFETY: method binding guarantees a bytearray receiver and callbacks are
+    // serialized by the uniquely owned VM.
+    let state = unsafe { &mut *instance.userdata::<ByteArrayState>() };
+    let Some(index) = normalize_index(index, state.length) else {
+        return index_error(c"bytearray index out of range");
+    };
+    state.as_mut_slice()[index] = value;
+    let mut roots = RootFrame::new();
+    let none = roots.none();
+    return_value(none)
+}
+
+fn normalize_index(index: i64, length: usize) -> Option<usize> {
+    let length = i64::try_from(length).ok()?;
+    let index = if index < 0 {
+        index.checked_add(length)?
+    } else {
+        index
+    };
+    (0..length)
+        .contains(&index)
+        .then(|| usize::try_from(index).expect("non-negative index fits usize"))
+}
+
+fn normalized_slice(key: Value, length: usize) -> Option<(usize, usize)> {
+    let length = i64::try_from(length).ok()?;
+    let read_bound = |slot: usize, fallback: i64| {
+        let value = key.slot(slot);
+        if value.is_none() {
+            Some(fallback)
+        } else {
+            value.integer()
+        }
+    };
+    let mut start = read_bound(0, 0)?;
+    let mut stop = read_bound(1, length)?;
+    let step = read_bound(2, 1)?;
+    if step != 1 {
+        return None;
+    }
+    if start < 0 {
+        start += length;
+    }
+    if stop < 0 {
+        stop += length;
+    }
+    start = start.clamp(0, length);
+    stop = stop.clamp(0, length);
+    if stop < start {
+        stop = start;
+    }
+    Some((usize::try_from(start).ok()?, usize::try_from(stop).ok()?))
 }
 
 unsafe extern "C" fn bytearray_eq(argc: c_int, argv: ffi::py_StackRef) -> bool {

@@ -565,6 +565,16 @@ pub(crate) fn global_list(index: c_int) -> Value {
     Value { raw }
 }
 
+pub(crate) fn global_tuple(index: c_int, length: usize) -> Option<Value> {
+    assert!((0..8).contains(&index), "PocketPy global register index");
+    let length = c_int::try_from(length).ok()?;
+    // SAFETY: the VM is active, the register has a stable writable address,
+    // and callers initialize every tuple slot before exposing the value.
+    let raw = unsafe { ffi::py_getreg(index) };
+    unsafe { ffi::py_newtuple(raw, length) };
+    Some(Value { raw })
+}
+
 pub(crate) fn global_string_bytes(index: c_int, value: &[u8]) -> Option<Value> {
     assert!((0..8).contains(&index), "PocketPy global register index");
     let length = c_int::try_from(value.len()).ok()?;
@@ -585,6 +595,15 @@ pub(crate) fn global_integer(index: c_int, value: i64) -> Value {
     // writable address.
     let raw = unsafe { ffi::py_getreg(index) };
     unsafe { ffi::py_newint(raw, value) };
+    Value { raw }
+}
+
+pub(crate) fn global_number(index: c_int, value: f64) -> Value {
+    assert!((0..8).contains(&index), "PocketPy global register index");
+    // SAFETY: the VM is active and the selected global register has a stable
+    // writable address.
+    let raw = unsafe { ffi::py_getreg(index) };
+    unsafe { ffi::py_newfloat(raw, value) };
     Value { raw }
 }
 

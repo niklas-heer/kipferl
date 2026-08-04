@@ -1,6 +1,7 @@
 mod ansi;
 mod ansi_core;
 mod args;
+mod array;
 mod base64;
 mod binascii;
 mod bytearray;
@@ -22,9 +23,11 @@ mod itertools;
 mod json;
 mod operator;
 mod random;
+mod secrets;
 mod statistics;
 mod statistics_core;
 mod string_methods;
+mod struct_module;
 mod term;
 mod term_core;
 mod textwrap;
@@ -36,6 +39,8 @@ use crate::native::{NativeModule, register_modules};
 
 const MODULES: &[NativeModule] = &[
     ansi::MODULE,
+    struct_module::MODULE,
+    array::MODULE,
     args::MODULE,
     base64::MODULE,
     binascii::MODULE,
@@ -55,6 +60,7 @@ const MODULES: &[NativeModule] = &[
     json::MODULE,
     operator::MODULE,
     random::MODULE,
+    secrets::MODULE,
     statistics::MODULE,
     term::MODULE,
     textwrap::MODULE,
