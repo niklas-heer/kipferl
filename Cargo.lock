@@ -1179,7 +1179,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "ucharm-cli"
-version = "0.5.0"
+version = "0.6.0-rc.1"
 dependencies = [
  "sha2",
  "ucharm-format",
@@ -1187,11 +1187,11 @@ dependencies = [
 
 [[package]]
 name = "ucharm-format"
-version = "0.5.0"
+version = "0.6.0-rc.1"
 
 [[package]]
 name = "ucharm-loader"
-version = "0.5.0"
+version = "0.6.0-rc.1"
 dependencies = [
  "md-5",
  "ucharm-format",
@@ -1199,14 +1199,14 @@ dependencies = [
 
 [[package]]
 name = "ucharm-pocketpy-sys"
-version = "0.5.0"
+version = "0.6.0-rc.1"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "ucharm-runtime"
-version = "0.5.0"
+version = "0.6.0-rc.1"
 dependencies = [
  "flate2",
  "jiff",
