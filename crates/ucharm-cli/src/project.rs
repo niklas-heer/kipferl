@@ -14,10 +14,7 @@ const STUBS: &[(&str, &str)] = &[
         "base64.pyi",
         include_str!("../../../cli/src/stubs/base64.pyi"),
     ),
-    (
-        "charm.pyi",
-        include_str!("../../../cli/src/stubs/charm.pyi"),
-    ),
+    ("tui.pyi", include_str!("../../../cli/src/stubs/tui.pyi")),
     ("copy.pyi", include_str!("../../../cli/src/stubs/copy.pyi")),
     ("csv.pyi", include_str!("../../../cli/src/stubs/csv.pyi")),
     (

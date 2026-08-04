@@ -151,7 +151,7 @@ else
 fi
 
 run_test
-if grep -q "from charm import\|from input import" "$TEST_DIR/simple_out.py"; then
+if grep -q "from tui import\|from input import" "$TEST_DIR/simple_out.py"; then
     pass "Single mode transforms imports"
 else
     fail "Single mode doesn't transform imports" "Missing transformed imports"

@@ -56,7 +56,7 @@ pub fn registerAll() void {
     @import("mod_ansi").register();
     @import("mod_term").register();
     @import("mod_args").register();
-    @import("mod_charm").register();
+    @import("mod_tui").register();
     @import("mod_input").register();
     @import("mod_template").register();
     @import("mod_sys").register();

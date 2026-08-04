@@ -3,8 +3,11 @@ use std::mem::MaybeUninit;
 use std::os::fd::FromRawFd;
 use std::process::{Command, Output, Stdio};
 use std::ptr;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+
+static PTY_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn selection_byte_streams_match_the_zig_runtime() {
@@ -170,6 +173,9 @@ fn preserves_binding_and_argument_errors() {
 
 #[test]
 fn restores_real_terminal_settings_after_interaction() {
+    let _pty_guard = PTY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (master, slave) = open_pty();
     let original = terminal_settings(slave.0);
     // SAFETY: duplicating a valid descriptor creates an independently owned
@@ -215,6 +221,90 @@ fn restores_real_terminal_settings_after_interaction() {
     assert_eq!(restored.c_cflag, original.c_cflag);
     assert_eq!(restored.c_lflag, original.c_lflag);
     assert_eq!(restored.c_cc, original.c_cc);
+}
+
+#[test]
+fn ratatui_select_renders_in_a_real_terminal_and_restores_it() {
+    let output = run_ratatui_in_pty(
+        "import input; print(repr(input.select('Choose:', ['Build', 'Test', 'Deploy'])))",
+        b"j\r",
+    );
+    assert!(output.contains('╭') && output.contains('╯'), "{output:?}");
+    assert!(output.contains("[Enter] select"), "{output:?}");
+    assert!(output.contains("'Test'"), "{output:?}");
+}
+
+#[test]
+fn ratatui_multiselect_handles_batched_keys_in_a_real_terminal() {
+    let output = run_ratatui_in_pty(
+        "import input; print(repr(input.multiselect('Features:', ['Logging', 'HTTP', 'Config'])))",
+        b" j \r",
+    );
+    assert!(output.contains("[Space] toggle"), "{output:?}");
+    assert!(output.contains("['Logging', 'HTTP']"), "{output:?}");
+}
+
+fn run_ratatui_in_pty(source: &str, keys: &[u8]) -> String {
+    let _pty_guard = PTY_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let (master, slave) = open_pty();
+    let original = terminal_settings(slave.0);
+    set_terminal_size(master.0, 80, 24);
+    set_nonblocking(master.0);
+
+    let child_stdin = duplicate_file(slave.0);
+    let child_stdout = duplicate_file(slave.0);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
+        .args(["-c", source])
+        .env_remove("MCHARM_TEST_KEYS")
+        .stdin(Stdio::from(child_stdin))
+        .stdout(Stdio::from(child_stdout))
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start Ratatui input runtime on a PTY");
+
+    let mut output = Vec::new();
+    let mut answered_cursor_query = false;
+    let mut sent_selection = false;
+    let mut completed = false;
+    // Allow enough time for the cursor-position handshake on loaded CI hosts;
+    // the loop still exits as soon as the child completes.
+    for _ in 0..1_000 {
+        read_available(master.0, &mut output);
+        if output.windows(4).any(|window| window == b"\x1b[6n") && !answered_cursor_query {
+            write_descriptor(master.0, b"\x1b[1;1R");
+            answered_cursor_query = true;
+        }
+        if output.contains(&b'?') && answered_cursor_query && !sent_selection {
+            write_descriptor(master.0, keys);
+            sent_selection = true;
+        }
+        if child.try_wait().expect("poll Ratatui child").is_some() {
+            completed = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(completed, "Ratatui interaction timed out");
+    read_available(master.0, &mut output);
+    let child_output = child.wait_with_output().expect("collect Ratatui child");
+    assert!(
+        child_output.status.success(),
+        "{}",
+        text(&child_output.stderr)
+    );
+
+    let output = text(&output);
+    assert!(output.contains("\x1b[?25h"), "cursor was not restored");
+
+    let restored = terminal_settings(slave.0);
+    assert_eq!(restored.c_iflag, original.c_iflag);
+    assert_eq!(restored.c_oflag, original.c_oflag);
+    assert_eq!(restored.c_cflag, original.c_cflag);
+    assert_eq!(restored.c_lflag, original.c_lflag);
+    assert_eq!(restored.c_cc, original.c_cc);
+    output
 }
 
 fn run(source: &str, keys: &str) -> Output {
@@ -275,4 +365,55 @@ fn terminal_settings(descriptor: libc::c_int) -> libc::termios {
     assert_eq!(status, 0, "read PTY terminal settings");
     // SAFETY: successful `tcgetattr` initialized the structure.
     unsafe { settings.assume_init() }
+}
+
+fn duplicate_file(descriptor: libc::c_int) -> File {
+    // SAFETY: duplicating a valid descriptor creates a new owned descriptor.
+    let duplicate = unsafe { libc::dup(descriptor) };
+    assert!(duplicate >= 0, "duplicate PTY descriptor");
+    // SAFETY: `duplicate` is a newly created, independently owned descriptor.
+    unsafe { File::from_raw_fd(duplicate) }
+}
+
+fn set_terminal_size(descriptor: libc::c_int, columns: u16, rows: u16) {
+    let size = libc::winsize {
+        ws_row: rows,
+        ws_col: columns,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    // SAFETY: `descriptor` is a PTY and `size` points to initialized storage.
+    let status = unsafe { libc::ioctl(descriptor, libc::TIOCSWINSZ, &size) };
+    assert_eq!(status, 0, "set PTY size");
+}
+
+fn set_nonblocking(descriptor: libc::c_int) {
+    // SAFETY: fcntl receives a valid PTY descriptor.
+    let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
+    assert!(flags >= 0, "read PTY flags");
+    // SAFETY: preserve the existing flags and add nonblocking reads.
+    let status = unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+    assert_eq!(status, 0, "set PTY nonblocking");
+}
+
+fn read_available(descriptor: libc::c_int, output: &mut Vec<u8>) {
+    let mut buffer = [0_u8; 4096];
+    loop {
+        // SAFETY: `buffer` is writable and the descriptor is a nonblocking PTY.
+        let count = unsafe { libc::read(descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
+        let Ok(count) = usize::try_from(count) else {
+            break;
+        };
+        if count == 0 {
+            break;
+        }
+        output.extend_from_slice(&buffer[..count]);
+    }
+}
+
+fn write_descriptor(descriptor: libc::c_int, bytes: &[u8]) {
+    // SAFETY: `bytes` remains live for the synchronous write and the descriptor
+    // is the PTY master.
+    let count = unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
+    assert_eq!(count, bytes.len() as isize, "write PTY input");
 }

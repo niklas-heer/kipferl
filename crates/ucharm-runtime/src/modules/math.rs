@@ -77,7 +77,7 @@ fn initialize(module: Value) {
 }
 
 fn unary(argc: c_int, argv: ffi::py_StackRef, operation: impl FnOnce(f64) -> f64) -> bool {
-    // SAFETY: every native callback passes PocketPy's live argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(value) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");
@@ -102,6 +102,7 @@ unsafe extern "C" fn asinh(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn acosh(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(value) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");
@@ -113,6 +114,7 @@ unsafe extern "C" fn acosh(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn atanh(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(value) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");
@@ -124,6 +126,7 @@ unsafe extern "C" fn atanh(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn frexp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(value) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");
@@ -145,6 +148,7 @@ unsafe extern "C" fn frexp(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn ldexp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(value) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");
@@ -163,6 +167,7 @@ unsafe extern "C" fn expm1(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn log1p(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(value) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");
@@ -174,6 +179,7 @@ unsafe extern "C" fn log1p(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn hypot(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Ok(x) = arguments.get(0).ok_or(()).and_then(|v| v.cast_number()) else {
         return type_error(c"expected number");

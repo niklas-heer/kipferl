@@ -180,9 +180,9 @@ Output:
 
 ```python
 import input
-import charm
+import tui
 
-charm.rule("Project Setup", color="cyan")
+tui.rule("Project Setup", color="cyan")
 
 # Text input
 name = input.prompt("Project name:", default="my-cli")
@@ -204,13 +204,13 @@ features = input.multiselect("Features:", [
 
 # Confirmation
 if input.confirm(f"Create '{name}' with {len(features)} features?"):
-    charm.success(f"Created {name}!")
-    charm.table([
+    tui.success(f"Created {name}!")
+    tui.table([
         ["Setting", "Value"],
         ["Name", name],
         ["Template", template],
         ["Features", ", ".join(features) or "None"],
     ], headers=True)
 else:
-    charm.warning("Cancelled")
+    tui.warning("Cancelled")
 ```

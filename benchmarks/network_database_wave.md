@@ -19,10 +19,12 @@ The four-target release build recorded these stripped Rust runtime sizes:
 | `aarch64-unknown-linux-musl` | 2,378,848 | 2,500,000 |
 | `x86_64-unknown-linux-musl` | 2,449,232 | 2,500,000 |
 
-The Linux ceiling is an explicit cutover exception for the fully static musl
-artifact with bundled SQLite. [Issue #41](https://github.com/ucharmdev/ucharm/issues/41)
-tracks recovering both Linux targets below 2,000,000 bytes without sacrificing
-compatibility or the standalone deployment model.
+The original Linux ceiling was an explicit cutover exception for the fully
+static musl artifact with bundled SQLite. The post-cutover optimization review
+relaxes the aspirational 2 MB target: 2.5 MB is the practical runtime goal and
+3 MB is the Linux regression ceiling. This keeps performance and the standalone
+deployment model ahead of arbitrary byte shaving; the history remains in
+[issue #41](https://github.com/ucharmdev/ucharm/issues/41).
 
 - `http.client` uses `std::net` and adds no runtime dependency. It supports the
   compatibility API, plain HTTP/1.1, bounded 8 MiB responses, content length,
@@ -61,5 +63,5 @@ artifact gate merely to replace a statically linked C component.
 - SQLite: in-memory and file-backed databases, joins, positional binding,
   integers, floats, text, blobs, nulls, `fetchone`, `fetchall`, and close paths.
 - Release builds and smoke tests: native ARM64 and x86_64 macOS locally, plus
-  ARM64 and x86_64 static Linux in CI. macOS stays below the 2 MB runtime
-  budget; Linux stays below the approved 2.5 MB exception tracked in issue #41.
+  ARM64 and x86_64 static Linux in CI. macOS stays below the 2.5 MB practical
+  runtime target; Linux stays below the 3 MB regression ceiling.

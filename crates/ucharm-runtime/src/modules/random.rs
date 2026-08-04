@@ -86,7 +86,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn secure_word(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active callback argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;

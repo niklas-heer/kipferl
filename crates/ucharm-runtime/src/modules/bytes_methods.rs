@@ -13,6 +13,7 @@ pub(super) fn register() {
 }
 
 unsafe extern "C" fn multiply(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;

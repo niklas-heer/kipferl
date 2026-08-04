@@ -113,6 +113,7 @@ unsafe extern "C" fn a2b_base64(argc: c_int, argv: ffi::py_StackRef) -> bool {
 unsafe extern "C" fn crc32(argc: c_int, argv: ffi::py_StackRef) -> bool {
     // The declaration binder supplies the default second argument. The Zig
     // implementation intentionally ignores it, so only validate `data`.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(input) = arguments.get(0).and_then(Value::bytes) else {
         return type_error(c"a bytes-like object is required");
@@ -123,7 +124,7 @@ unsafe extern "C" fn crc32(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn one_bytes_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return None;
@@ -136,7 +137,7 @@ fn one_bytes_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
 }
 
 fn one_bytes_or_string_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
-    // SAFETY: called only from a PocketPy callback with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return None;

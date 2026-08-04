@@ -1,14 +1,14 @@
 ---
-title: charm
+title: tui
 description: Beautiful terminal output - boxes, tables, progress bars, and more
 ---
 
-# charm
+# tui
 
-The `charm` module provides high-level UI components for beautiful terminal output.
+The `tui` module provides high-level UI components for beautiful terminal output.
 
 ```python
-import charm
+import tui
 # or
 from ucharm import box, table, success, error, warning, info
 ```
@@ -18,10 +18,10 @@ from ucharm import box, table, success, error, warning, info
 Display styled status messages with icons:
 
 ```python
-charm.success("Build completed!")    # ✓ Build completed!
-charm.error("Build failed")          # ✗ Build failed
-charm.warning("Deprecated API")      # ⚠ Deprecated API
-charm.info("Starting server...")     # ℹ Starting server...
+tui.success("Build completed!")    # ✓ Build completed!
+tui.error("Build failed")          # ✗ Build failed
+tui.warning("Deprecated API")      # ⚠ Deprecated API
+tui.info("Starting server...")     # ℹ Starting server...
 ```
 
 ## Boxes
@@ -29,7 +29,7 @@ charm.info("Starting server...")     # ℹ Starting server...
 Draw bordered boxes around content:
 
 ```python
-charm.box("Hello, World!", title="Greeting", border_color="cyan")
+tui.box("Hello, World!", title="Greeting", border_color="cyan")
 ```
 
 Output:
@@ -54,7 +54,7 @@ Output:
 Display formatted tables with optional headers:
 
 ```python
-charm.table([
+tui.table([
     ["Name", "Age", "Role"],
     ["Alice", "28", "Engineer"],
     ["Bob", "34", "Designer"],
@@ -85,7 +85,7 @@ Output:
 Draw horizontal dividers:
 
 ```python
-charm.rule("Section Title", color="cyan")
+tui.rule("Section Title", color="cyan")
 ```
 
 Output:
@@ -112,9 +112,9 @@ import time
 start = time.time()
 for i in range(101):
     elapsed = time.time() - start
-    charm.progress(i, 100, label="Downloading", width=30, elapsed=elapsed)
+    tui.progress(i, 100, label="Downloading", width=30, elapsed=elapsed)
     time.sleep(0.05)
-charm.progress_done()
+tui.progress_done()
 ```
 
 Output:
@@ -141,10 +141,10 @@ Display animated spinners for indeterminate progress:
 import time
 
 for i in range(30):
-    charm.spinner(i, "Loading data...", color="cyan")
+    tui.spinner(i, "Loading data...", color="cyan")
     time.sleep(0.1)
-charm.progress_done()
-charm.success("Done!")
+tui.progress_done()
+tui.success("Done!")
 ```
 
 ### Parameters
@@ -160,7 +160,7 @@ charm.success("Done!")
 Apply ANSI styles to text:
 
 ```python
-styled = charm.style("Important!", fg="red", bold=True)
+styled = tui.style("Important!", fg="red", bold=True)
 print(styled)
 ```
 
@@ -191,9 +191,9 @@ Available color names:
 Get the visible length of text (excluding ANSI escape codes):
 
 ```python
-styled = charm.style("Hello", fg="red", bold=True)
+styled = tui.style("Hello", fg="red", bold=True)
 print(len(styled))              # 19 (includes escape codes)
-print(charm.visible_len(styled)) # 5 (visible characters only)
+print(tui.visible_len(styled)) # 5 (visible characters only)
 ```
 
 ### spinner_frame
@@ -201,5 +201,5 @@ print(charm.visible_len(styled)) # 5 (visible characters only)
 Get a single spinner frame character:
 
 ```python
-frame = charm.spinner_frame(0)  # Returns "⠋"
+frame = tui.spinner_frame(0)  # Returns "⠋"
 ```

@@ -52,6 +52,7 @@ except Exception:
 if HAS_HTTP_CLIENT:
     print("\n=== HTTPConnection basics ===")
     test("has HTTPConnection", hasattr(http_client, "HTTPConnection"))
+    test("has HTTPSConnection", hasattr(http_client, "HTTPSConnection"))
     test("has HTTPResponse", hasattr(http_client, "HTTPResponse"))
 
     try:

@@ -6,7 +6,7 @@ const io = @import("io.zig");
 const stub_ansi = @embedFile("stubs/ansi.pyi");
 const stub_args = @embedFile("stubs/args.pyi");
 const stub_base64 = @embedFile("stubs/base64.pyi");
-const stub_charm = @embedFile("stubs/charm.pyi");
+const stub_tui = @embedFile("stubs/tui.pyi");
 const stub_copy = @embedFile("stubs/copy.pyi");
 const stub_csv = @embedFile("stubs/csv.pyi");
 const stub_datetime = @embedFile("stubs/datetime.pyi");
@@ -32,7 +32,7 @@ pub const stubs = [_]struct { name: []const u8, content: []const u8 }{
     .{ .name = "ansi.pyi", .content = stub_ansi },
     .{ .name = "args.pyi", .content = stub_args },
     .{ .name = "base64.pyi", .content = stub_base64 },
-    .{ .name = "charm.pyi", .content = stub_charm },
+    .{ .name = "tui.pyi", .content = stub_tui },
     .{ .name = "copy.pyi", .content = stub_copy },
     .{ .name = "csv.pyi", .content = stub_csv },
     .{ .name = "datetime.pyi", .content = stub_datetime },

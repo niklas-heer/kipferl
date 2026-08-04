@@ -30,7 +30,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
 };
 
 unsafe extern "C" fn urlsafe_b64encode(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -46,7 +46,7 @@ unsafe extern "C" fn urlsafe_b64encode(argc: c_int, argv: ffi::py_StackRef) -> b
 }
 
 unsafe extern "C" fn urlsafe_b64decode(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;

@@ -1,7 +1,7 @@
 const std = @import("std");
 const pk = @import("pk");
 const c = pk.c;
-const charm_core = @import("charm_core");
+const tui_core = @import("tui_core");
 const RULE_CHAR = "\xe2\x94\x80";
 
 fn writeOut(bytes: []const u8) void {
@@ -71,14 +71,14 @@ fn buildStyleCode(
 
     if (fg) |fg_c| {
         if (fg_c[0] != 0) {
-            const code = charm_core.charm_color_code(fg_c);
+            const code = tui_core.tui_color_code(fg_c);
             if (code >= 0) {
                 appendInt(buf, &pos, &has_codes, code);
             } else if (fg_c[0] == '#') {
                 var r: u8 = 0;
                 var g: u8 = 0;
                 var b: u8 = 0;
-                if (charm_core.charm_parse_hex(fg_c, &r, &g, &b)) {
+                if (tui_core.tui_parse_hex(fg_c, &r, &g, &b)) {
                     appendRgb(buf, &pos, &has_codes, "38;2;", r, g, b);
                 }
             }
@@ -87,14 +87,14 @@ fn buildStyleCode(
 
     if (bg) |bg_c| {
         if (bg_c[0] != 0) {
-            const code = charm_core.charm_color_code(bg_c);
+            const code = tui_core.tui_color_code(bg_c);
             if (code >= 0) {
                 appendInt(buf, &pos, &has_codes, code + 10);
             } else if (bg_c[0] == '#') {
                 var r: u8 = 0;
                 var g: u8 = 0;
                 var b: u8 = 0;
-                if (charm_core.charm_parse_hex(bg_c, &r, &g, &b)) {
+                if (tui_core.tui_parse_hex(bg_c, &r, &g, &b)) {
                     appendRgb(buf, &pos, &has_codes, "48;2;", r, g, b);
                 }
             }
@@ -113,7 +113,7 @@ fn visibleLenSlice(line: []const u8) usize {
         var tmp: [1024]u8 = undefined;
         @memcpy(tmp[0..line.len], line);
         tmp[line.len] = 0;
-        return charm_core.charm_visible_len(@ptrCast(&tmp));
+        return tui_core.tui_visible_len(@ptrCast(&tmp));
     }
     const buf = std.heap.page_allocator.alloc(u8, line.len + 1) catch {
         return line.len;
@@ -121,7 +121,7 @@ fn visibleLenSlice(line: []const u8) usize {
     defer std.heap.page_allocator.free(buf);
     @memcpy(buf[0..line.len], line);
     buf[line.len] = 0;
-    return charm_core.charm_visible_len(@ptrCast(buf.ptr));
+    return tui_core.tui_visible_len(@ptrCast(buf.ptr));
 }
 
 fn maxLineVisibleLen(content: []const u8) usize {
@@ -142,7 +142,7 @@ fn visibleLenFn(ctx: *pk.Context) bool {
     }
     @memcpy(tmp[0..text.len], text);
     tmp[text.len] = 0;
-    const len = charm_core.charm_visible_len(@ptrCast(&tmp));
+    const len = tui_core.tui_visible_len(@ptrCast(&tmp));
     return ctx.returnInt(@intCast(len));
 }
 
@@ -206,24 +206,24 @@ fn boxFn(ctx: *pk.Context) bool {
         break :blk @ptrCast(s.ptr);
     } else null;
 
-    var border_style: u8 = charm_core.BORDER_ROUNDED;
+    var border_style: u8 = tui_core.BORDER_ROUNDED;
     const border = std.mem.span(border_c);
     if (std.mem.eql(u8, border, "square")) {
-        border_style = charm_core.BORDER_SQUARE;
+        border_style = tui_core.BORDER_SQUARE;
     } else if (std.mem.eql(u8, border, "double")) {
-        border_style = charm_core.BORDER_DOUBLE;
+        border_style = tui_core.BORDER_DOUBLE;
     } else if (std.mem.eql(u8, border, "heavy")) {
-        border_style = charm_core.BORDER_HEAVY;
+        border_style = tui_core.BORDER_HEAVY;
     } else if (std.mem.eql(u8, border, "none")) {
-        border_style = charm_core.BORDER_NONE;
+        border_style = tui_core.BORDER_NONE;
     }
 
-    const tl = std.mem.span(charm_core.charm_box_char(border_style, 0));
-    const tr = std.mem.span(charm_core.charm_box_char(border_style, 1));
-    const bl = std.mem.span(charm_core.charm_box_char(border_style, 2));
-    const br = std.mem.span(charm_core.charm_box_char(border_style, 3));
-    const h = std.mem.span(charm_core.charm_box_char(border_style, 4));
-    const v = std.mem.span(charm_core.charm_box_char(border_style, 5));
+    const tl = std.mem.span(tui_core.tui_box_char(border_style, 0));
+    const tr = std.mem.span(tui_core.tui_box_char(border_style, 1));
+    const bl = std.mem.span(tui_core.tui_box_char(border_style, 2));
+    const br = std.mem.span(tui_core.tui_box_char(border_style, 3));
+    const h = std.mem.span(tui_core.tui_box_char(border_style, 4));
+    const v = std.mem.span(tui_core.tui_box_char(border_style, 5));
 
     const max_width = maxLineVisibleLen(content);
     const title_len = if (title_c != null) std.mem.span(title_c.?).len else 0;
@@ -254,14 +254,14 @@ fn boxFn(ctx: *pk.Context) bool {
         writeOut(" \x1b[0m");
 
         const remaining = inner_width - title_len - 3;
-        const rep_len = charm_core.charm_repeat(@ptrCast(h.ptr), @intCast(remaining), &repeat_buf);
+        const rep_len = tui_core.tui_repeat(@ptrCast(h.ptr), @intCast(remaining), &repeat_buf);
         writeOut(color_start);
         writeOut(repeat_buf[0..rep_len]);
         writeOut(tr);
         writeOut(color_end);
         writeOut("\n");
     } else {
-        const rep_len = charm_core.charm_repeat(@ptrCast(h.ptr), @intCast(inner_width), &repeat_buf);
+        const rep_len = tui_core.tui_repeat(@ptrCast(h.ptr), @intCast(inner_width), &repeat_buf);
         writeOut(color_start);
         writeOut(tl);
         writeOut(repeat_buf[0..rep_len]);
@@ -271,7 +271,7 @@ fn boxFn(ctx: *pk.Context) bool {
     }
 
     var pad_spaces: [64]u8 = undefined;
-    const pad_len = charm_core.charm_repeat(" ", padding, &pad_spaces);
+    const pad_len = tui_core.tui_repeat(" ", padding, &pad_spaces);
     const pad_slice = pad_spaces[0..pad_len];
 
     var it = std.mem.splitScalar(u8, content, '\n');
@@ -289,7 +289,7 @@ fn boxFn(ctx: *pk.Context) bool {
             return ctx.runtimeError("out of memory");
         };
         defer std.heap.page_allocator.free(pad_buf);
-        const pad_len_line = charm_core.charm_pad(@ptrCast(line_buf.ptr), @intCast(content_width), 0, pad_buf.ptr);
+        const pad_len_line = tui_core.tui_pad(@ptrCast(line_buf.ptr), @intCast(content_width), 0, pad_buf.ptr);
 
         writeOut(color_start);
         writeOut(v);
@@ -308,7 +308,7 @@ fn boxFn(ctx: *pk.Context) bool {
             return ctx.runtimeError("out of memory");
         };
         defer std.heap.page_allocator.free(pad_buf);
-        const pad_len_line = charm_core.charm_pad("", @intCast(content_width), 0, pad_buf.ptr);
+        const pad_len_line = tui_core.tui_pad("", @intCast(content_width), 0, pad_buf.ptr);
 
         writeOut(color_start);
         writeOut(v);
@@ -322,7 +322,7 @@ fn boxFn(ctx: *pk.Context) bool {
         writeOut("\n");
     }
 
-    const rep_len = charm_core.charm_repeat(@ptrCast(h.ptr), @intCast(inner_width), &repeat_buf);
+    const rep_len = tui_core.tui_repeat(@ptrCast(h.ptr), @intCast(inner_width), &repeat_buf);
     writeOut(color_start);
     writeOut(bl);
     writeOut(repeat_buf[0..rep_len]);
@@ -368,7 +368,7 @@ fn ruleFn(ctx: *pk.Context) bool {
         const title_len = std.mem.span(title_c.?).len;
         var side: i32 = @divTrunc(width - @as(i32, @intCast(title_len)) - 2, 2);
         if (side < 0) side = 0;
-        const rep_len = charm_core.charm_repeat(ch_c, @intCast(side), &repeat_buf);
+        const rep_len = tui_core.tui_repeat(ch_c, @intCast(side), &repeat_buf);
         writeOut(color_start);
         writeOut(repeat_buf[0..rep_len]);
         writeOut(color_end);
@@ -377,13 +377,13 @@ fn ruleFn(ctx: *pk.Context) bool {
         writeOut(" ");
         var remaining: i32 = width - side - @as(i32, @intCast(title_len)) - 2;
         if (remaining < 0) remaining = 0;
-        const rep_len2 = charm_core.charm_repeat(ch_c, @intCast(remaining), &repeat_buf);
+        const rep_len2 = tui_core.tui_repeat(ch_c, @intCast(remaining), &repeat_buf);
         writeOut(color_start);
         writeOut(repeat_buf[0..rep_len2]);
         writeOut(color_end);
         writeOut("\n");
     } else {
-        const rep_len = charm_core.charm_repeat(ch_c, @intCast(width), &repeat_buf);
+        const rep_len = tui_core.tui_repeat(ch_c, @intCast(width), &repeat_buf);
         writeOut(color_start);
         writeOut(repeat_buf[0..rep_len]);
         writeOut(color_end);
@@ -396,7 +396,7 @@ fn ruleFn(ctx: *pk.Context) bool {
 fn successFn(ctx: *pk.Context) bool {
     const msg = ctx.argStr(0) orelse return ctx.typeError("message must be a string");
     writeOut("\x1b[1;32m");
-    writeCStr(charm_core.charm_symbol_success());
+    writeCStr(tui_core.tui_symbol_success());
     writeOut(" \x1b[0m");
     writeOut(msg);
     writeOut("\n");
@@ -406,7 +406,7 @@ fn successFn(ctx: *pk.Context) bool {
 fn errorMsgFn(ctx: *pk.Context) bool {
     const msg = ctx.argStr(0) orelse return ctx.typeError("message must be a string");
     writeOut("\x1b[1;31m");
-    writeCStr(charm_core.charm_symbol_error());
+    writeCStr(tui_core.tui_symbol_error());
     writeOut(" \x1b[0m");
     writeOut(msg);
     writeOut("\n");
@@ -416,7 +416,7 @@ fn errorMsgFn(ctx: *pk.Context) bool {
 fn warningFn(ctx: *pk.Context) bool {
     const msg = ctx.argStr(0) orelse return ctx.typeError("message must be a string");
     writeOut("\x1b[1;33m");
-    writeCStr(charm_core.charm_symbol_warning());
+    writeCStr(tui_core.tui_symbol_warning());
     writeOut(" \x1b[0m");
     writeOut(msg);
     writeOut("\n");
@@ -426,7 +426,7 @@ fn warningFn(ctx: *pk.Context) bool {
 fn infoFn(ctx: *pk.Context) bool {
     const msg = ctx.argStr(0) orelse return ctx.typeError("message must be a string");
     writeOut("\x1b[1;34m");
-    writeCStr(charm_core.charm_symbol_info());
+    writeCStr(tui_core.tui_symbol_info());
     writeOut(" \x1b[0m");
     writeOut(msg);
     writeOut("\n");
@@ -459,8 +459,8 @@ fn progressFn(ctx: *pk.Context) bool {
 
     var bar_buf: [256]u8 = undefined;
     var percent_buf: [16]u8 = undefined;
-    const bar_len = charm_core.charm_progress_bar(current, total, width, &bar_buf);
-    const percent_len = charm_core.charm_percent_str(current, total, &percent_buf);
+    const bar_len = tui_core.tui_progress_bar(current, total, width, &bar_buf);
+    const percent_len = tui_core.tui_percent_str(current, total, &percent_buf);
 
     var color_start_buf: [64]u8 = undefined;
     var color_start_len: usize = 0;
@@ -497,7 +497,7 @@ fn progressFn(ctx: *pk.Context) bool {
 
 fn spinnerFrameFn(ctx: *pk.Context) bool {
     const index: u32 = @intCast(ctx.argInt(0) orelse return ctx.typeError("index must be int"));
-    c.py_newstr(c.py_retval(), charm_core.charm_spinner_frame(index));
+    c.py_newstr(c.py_retval(), tui_core.tui_spinner_frame(index));
     return true;
 }
 
@@ -530,7 +530,7 @@ fn spinnerFn(ctx: *pk.Context) bool {
 
     writeOut("\r");
     writeOut(color_start);
-    writeCStr(charm_core.charm_spinner_frame(index));
+    writeCStr(tui_core.tui_spinner_frame(index));
     writeOut(color_end);
     if (msg) |m| {
         writeOut(" ");
@@ -574,17 +574,17 @@ fn tableFn(ctx: *pk.Context) bool {
     const has_headers = ctx.argBool(1) orelse false;
 
     // Determine border style
-    var border_style: u8 = charm_core.BORDER_SQUARE;
+    var border_style: u8 = tui_core.BORDER_SQUARE;
     if (border_arg != null and !border_arg.?.isNone()) {
         if (border_arg.?.toStr()) |border_str| {
             if (std.mem.eql(u8, border_str, "rounded")) {
-                border_style = charm_core.BORDER_ROUNDED;
+                border_style = tui_core.BORDER_ROUNDED;
             } else if (std.mem.eql(u8, border_str, "double")) {
-                border_style = charm_core.BORDER_DOUBLE;
+                border_style = tui_core.BORDER_DOUBLE;
             } else if (std.mem.eql(u8, border_str, "heavy")) {
-                border_style = charm_core.BORDER_HEAVY;
+                border_style = tui_core.BORDER_HEAVY;
             } else if (std.mem.eql(u8, border_str, "none")) {
-                border_style = charm_core.BORDER_NONE;
+                border_style = tui_core.BORDER_NONE;
             }
         }
     }
@@ -605,17 +605,17 @@ fn tableFn(ctx: *pk.Context) bool {
     const color_start = color_start_buf[0..color_start_len];
 
     // Get table characters
-    const h = std.mem.span(charm_core.charm_table_char(border_style, TC_H));
-    const v = std.mem.span(charm_core.charm_table_char(border_style, TC_V));
-    const tl = std.mem.span(charm_core.charm_table_char(border_style, TC_TL));
-    const tr = std.mem.span(charm_core.charm_table_char(border_style, TC_TR));
-    const bl = std.mem.span(charm_core.charm_table_char(border_style, TC_BL));
-    const br = std.mem.span(charm_core.charm_table_char(border_style, TC_BR));
-    const th = std.mem.span(charm_core.charm_table_char(border_style, TC_TH));
-    const bh = std.mem.span(charm_core.charm_table_char(border_style, TC_BH));
-    const lv = std.mem.span(charm_core.charm_table_char(border_style, TC_LV));
-    const rv = std.mem.span(charm_core.charm_table_char(border_style, TC_RV));
-    const cross = std.mem.span(charm_core.charm_table_char(border_style, TC_CROSS));
+    const h = std.mem.span(tui_core.tui_table_char(border_style, TC_H));
+    const v = std.mem.span(tui_core.tui_table_char(border_style, TC_V));
+    const tl = std.mem.span(tui_core.tui_table_char(border_style, TC_TL));
+    const tr = std.mem.span(tui_core.tui_table_char(border_style, TC_TR));
+    const bl = std.mem.span(tui_core.tui_table_char(border_style, TC_BL));
+    const br = std.mem.span(tui_core.tui_table_char(border_style, TC_BR));
+    const th = std.mem.span(tui_core.tui_table_char(border_style, TC_TH));
+    const bh = std.mem.span(tui_core.tui_table_char(border_style, TC_BH));
+    const lv = std.mem.span(tui_core.tui_table_char(border_style, TC_LV));
+    const rv = std.mem.span(tui_core.tui_table_char(border_style, TC_RV));
+    const cross = std.mem.span(tui_core.tui_table_char(border_style, TC_CROSS));
 
     // Get row count - use Value.len() which works for lists
     const num_rows: usize = rows_val.len() orelse return ctx.typeError("rows must be a list");
@@ -664,7 +664,7 @@ fn tableFn(ctx: *pk.Context) bool {
             writeOut(cstart);
             writeOut(left);
             for (0..cols) |i| {
-                const rep_len = charm_core.charm_repeat(@ptrCast(horiz.ptr), @intCast(widths[i] + 2), rbuf);
+                const rep_len = tui_core.tui_repeat(@ptrCast(horiz.ptr), @intCast(widths[i] + 2), rbuf);
                 writeOut(rbuf[0..rep_len]);
                 if (i < cols - 1) {
                     writeOut(mid);
@@ -737,7 +737,7 @@ fn tableFn(ctx: *pk.Context) bool {
 }
 
 pub fn register() void {
-    var builder = pk.ModuleBuilder.new("charm");
+    var builder = pk.ModuleBuilder.new("tui");
     _ = builder
         .funcWrapped("visible_len", 1, 1, visibleLenFn)
         // Use signature-based binding for kwargs support
@@ -753,11 +753,11 @@ pub fn register() void {
         .funcWrapped("spinner_frame", 1, 1, spinnerFrameFn)
         .funcSigWrapped("spinner(frame, message=None, color=None)", 1, 3, spinnerFn)
         .funcSigWrapped("table(rows, headers=False, border='square', border_color=None)", 1, 4, tableFn)
-        .constInt("BORDER_ROUNDED", charm_core.BORDER_ROUNDED)
-        .constInt("BORDER_SQUARE", charm_core.BORDER_SQUARE)
-        .constInt("BORDER_DOUBLE", charm_core.BORDER_DOUBLE)
-        .constInt("BORDER_HEAVY", charm_core.BORDER_HEAVY)
-        .constInt("BORDER_NONE", charm_core.BORDER_NONE)
+        .constInt("BORDER_ROUNDED", tui_core.BORDER_ROUNDED)
+        .constInt("BORDER_SQUARE", tui_core.BORDER_SQUARE)
+        .constInt("BORDER_DOUBLE", tui_core.BORDER_DOUBLE)
+        .constInt("BORDER_HEAVY", tui_core.BORDER_HEAVY)
+        .constInt("BORDER_NONE", tui_core.BORDER_NONE)
         .constInt("ALIGN_LEFT", 0)
         .constInt("ALIGN_RIGHT", 1)
         .constInt("ALIGN_CENTER", 2);

@@ -7,7 +7,7 @@
     "getting-started/quick-start",
     "---Modules---",
     "modules/index",
-    "modules/charm",
+    "modules/tui",
     "modules/input",
     "modules/term",
     "modules/ansi",

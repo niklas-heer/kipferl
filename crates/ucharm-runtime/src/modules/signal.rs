@@ -142,6 +142,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn raise_signal(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(signum) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"signum must be an integer");

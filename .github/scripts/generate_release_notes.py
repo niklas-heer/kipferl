@@ -76,7 +76,7 @@ def generate_release_notes_with_ai(
 
 # Task:
 
-Generate polished, engaging release notes in markdown. Follow the style of popular developer tools like Charm/Bubbletea, Bun, and Deno.
+Generate polished, engaging release notes in markdown. Follow the style of polished developer tools like Bun and Deno.
 
 ## Structure:
 
@@ -115,7 +115,7 @@ Interactive prompts have arrived! Build beautiful CLI experiences with select me
 ### ✨ What's New
 
 - Add **input** module with `select()`, `confirm()`, `prompt()`, and `password()`
-- Add **charm.spinner_frame()** for animated loading indicators
+- Add **tui.spinner_frame()** for animated loading indicators
 - New `ucharm init --ai` command generates AI assistant instructions
 
 ### ⚡ Improvements

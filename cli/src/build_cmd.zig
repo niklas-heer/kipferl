@@ -245,7 +245,7 @@ fn printHelp() void {
         \\    linux-aarch64          Linux on ARM64
         \\
         \\{s}MODES:{s}
-        \\    universal              Standalone binary (~900KB, no dependencies)
+        \\    universal              Standalone binary (~4-5MB, no dependencies)
         \\    executable             Shell wrapper (requires pocketpy-ucharm)
         \\    single                 Transformed .py file (requires pocketpy-ucharm)
         \\
@@ -271,7 +271,7 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]u8 {
     try output_buffer.appendSlice(allocator, "# Built with ucharm - native modules edition\n\n");
 
     // Track what needs to be imported from native modules
-    var needs_charm = false;
+    var needs_tui = false;
     var needs_input = false;
 
     // First pass: check what ucharm imports are used
@@ -283,7 +283,7 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]u8 {
             // Parse the imports to see what's needed
             const import_part = trimmed["from ucharm import".len..];
             if (containsAny(import_part, &.{ "style", "box", "rule", "success", "error", "warning", "info", "progress" })) {
-                needs_charm = true;
+                needs_tui = true;
             }
             if (containsAny(import_part, &.{ "select", "multiselect", "confirm", "prompt", "password" })) {
                 needs_input = true;
@@ -296,21 +296,21 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]u8 {
             std.mem.startsWith(u8, trimmed, "from ucharm.table import"))
         {
             // from ucharm.components/style/table import ...
-            needs_charm = true;
+            needs_tui = true;
         } else if (std.mem.startsWith(u8, trimmed, "import ucharm")) {
-            needs_charm = true;
+            needs_tui = true;
             needs_input = true;
         }
     }
 
     // Add native module imports if needed
-    if (needs_charm) {
-        try output_buffer.appendSlice(allocator, "from charm import style, box, rule, success, error, warning, info, progress\n");
+    if (needs_tui) {
+        try output_buffer.appendSlice(allocator, "from tui import style, box, rule, success, error, warning, info, progress\n");
     }
     if (needs_input) {
         try output_buffer.appendSlice(allocator, "from input import select, multiselect, confirm, prompt, password\n");
     }
-    if (needs_charm or needs_input) {
+    if (needs_tui or needs_input) {
         try output_buffer.appendSlice(allocator, "\n");
     }
 
@@ -474,7 +474,7 @@ fn buildUniversal(allocator: Allocator, script: []const u8, output: []const u8, 
     io.print(style.dim ++ "  Output:  " ++ style.reset ++ "{s}\n", .{output});
     io.print(style.dim ++ "  Target:  " ++ style.reset ++ "{s}\n", .{target.displayName()});
     io.print(style.dim ++ "  Size:    " ++ style.reset ++ "{d} KB " ++ style.dim ++ "(standalone, no dependencies)" ++ style.reset ++ "\n", .{total_kb});
-    io.print(style.dim ++ "  Startup: " ++ style.reset ++ "~6ms " ++ style.dim ++ "(instant)" ++ style.reset ++ "\n", .{});
+    io.print(style.dim ++ "  Startup: " ++ style.reset ++ "~8ms " ++ style.dim ++ "(instant)" ++ style.reset ++ "\n", .{});
     // Show run command - handle absolute vs relative paths
     if (output[0] == '/') {
         io.print("\n" ++ style.dim ++ "  Run with: " ++ style.reset ++ "{s}\n\n", .{output});

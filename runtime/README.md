@@ -1,7 +1,7 @@
 # μcharm Runtime Modules
 
 This folder contains runtime modules split into two groups:
-- `runtime/ucharm/` for ucharm-native UX modules (ansi/term/charm/input/args)
+- `runtime/ucharm/` for ucharm-native UX modules (ansi/term/tui/input/args)
 - `runtime/compat/` for CPython-compat modules (argparse, csv, etc.)
 
 Each module includes a `pocketpy.zig` binding and optional Zig core files.

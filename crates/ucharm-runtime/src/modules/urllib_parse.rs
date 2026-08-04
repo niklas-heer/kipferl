@@ -117,6 +117,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn quote(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(input) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"quote() requires a string");
@@ -141,6 +142,7 @@ unsafe extern "C" fn quote(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn unquote(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(input) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"unquote() requires a string");

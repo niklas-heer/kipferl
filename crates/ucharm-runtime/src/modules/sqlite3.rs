@@ -92,7 +92,7 @@ fn close_connection(state: &mut ConnectionState) {
 }
 
 unsafe extern "C" fn connect(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 8) {
         return false;
@@ -123,6 +123,7 @@ fn connection(value: Value) -> Option<NonNull<rusqlite::Connection>> {
 }
 
 unsafe extern "C" fn connection_cursor(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -153,6 +154,7 @@ fn new_cursor(owner: Value) -> bool {
 }
 
 unsafe extern "C" fn connection_execute(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 3) {
         return false;
@@ -180,6 +182,7 @@ unsafe extern "C" fn connection_execute(argc: c_int, argv: ffi::py_StackRef) -> 
 }
 
 unsafe extern "C" fn connection_commit(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -195,6 +198,7 @@ unsafe extern "C" fn connection_commit(argc: c_int, argv: ffi::py_StackRef) -> b
 }
 
 unsafe extern "C" fn connection_close(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -212,6 +216,7 @@ unsafe extern "C" fn connection_close(argc: c_int, argv: ffi::py_StackRef) -> bo
 }
 
 unsafe extern "C" fn cursor_execute(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 3) {
         return false;
@@ -360,6 +365,7 @@ fn python_value(roots: &mut RootFrame, value: SqlValue) -> Option<Value> {
 }
 
 unsafe extern "C" fn cursor_fetchone(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -390,6 +396,7 @@ unsafe extern "C" fn cursor_fetchone(argc: c_int, argv: ffi::py_StackRef) -> boo
 }
 
 unsafe extern "C" fn cursor_fetchall(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -419,6 +426,7 @@ unsafe extern "C" fn cursor_fetchall(argc: c_int, argv: ffi::py_StackRef) -> boo
 }
 
 unsafe extern "C" fn cursor_close(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;

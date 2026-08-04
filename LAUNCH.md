@@ -52,7 +52,7 @@ adoption for CLI tools.
 ## Channels
 
 - HN / r/commandline / r/devops
-- Charm community channels (Bubble Tea / Lip Gloss audiences)
+- Terminal UI community channels (Bubble Tea / Lip Gloss audiences)
 - GitHub discussions and showcases
 
 ## Success Metrics
@@ -61,4 +61,3 @@ adoption for CLI tools.
 - > 30% of visitors complete the Quickstart.
 - 3-5 showcase apps in the first month.
 - Sustained weekly downloads from releases.
-

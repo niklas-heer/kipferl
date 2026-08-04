@@ -26,15 +26,15 @@ predictable packaging, and fast startup.
 ### Simple status + table
 
 ```python
-import charm
+import tui
 import subprocess
 
-charm.box("Deploying build...", title="Release", border="rounded")
+tui.box("Deploying build...", title="Release", border="rounded")
 result = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True)
 commit = result["stdout"].decode().strip()
-charm.success(f"Built commit {commit}")
+tui.success(f"Built commit {commit}")
 
-charm.table(
+tui.table(
     [
         ["Artifact", "Size", "Time"],
         ["app-linux", "900KB", "6ms"],
@@ -48,29 +48,29 @@ charm.table(
 
 ```python
 import input
-import charm
+import tui
 
-charm.rule("Project Setup")
+tui.rule("Project Setup")
 name = input.prompt("Project name:")
 features = input.multiselect("Select features:", ["Logging", "HTTP", "Config"])
 if input.confirm("Create project now?", default=True):
-    charm.success(f"Created {name} with {len(features)} features")
+    tui.success(f"Created {name} with {len(features)} features")
 else:
-    charm.warning("Canceled")
+    tui.warning("Canceled")
 ```
 
 ### Progress + subprocess
 
 ```python
-import charm
+import tui
 import subprocess
 
-charm.progress(0, 100, label="Uploading")
+tui.progress(0, 100, label="Uploading")
 result = subprocess.run(["/usr/bin/scp", "dist/app", "prod:/apps/"], capture_output=True)
 if result["returncode"] == 0:
-    charm.success("Upload complete")
+    tui.success("Upload complete")
 else:
-    charm.error("Upload failed")
+    tui.error("Upload failed")
 ```
 
 ## Example Output (what it should look like)
@@ -209,7 +209,7 @@ Features inspired by popular CLI frameworks (Rich, Inquirer, BubbleTea, listr2) 
 
 | Feature | Description | Inspiration |
 |---------|-------------|-------------|
-| `charm.tree()` | Hierarchical tree display for file structures, dependencies, nested data | Rich Tree |
+| `tui.tree()` | Hierarchical tree display for file structures, dependencies, nested data | Rich Tree |
 | Fuzzy select | Filter choices by typing in `input.select()` | Inquirer/Questionary |
 | Task list | Show multiple tasks with status (pending/running/done/failed) | listr2 |
 

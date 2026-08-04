@@ -14,7 +14,7 @@ const RED: &str = "\x1b[31m";
 const MAX_SCRIPT_SIZE: usize = 1024 * 1024;
 const TRANSFORM_HEADER: &str = "#!/usr/bin/env pocketpy-ucharm\n\
 # Transformed by ucharm run\n\n\
-from charm import style, box, rule, success, error, warning, info, progress, spinner_frame, visible_len\n\
+from tui import style, box, rule, success, error, warning, info, progress, spinner_frame, visible_len\n\
 from input import select, multiselect, confirm, prompt, password\n\n\
 # Stubs for functions not yet in native modules\n\
 def spinner(msg, duration=1): pass\n\

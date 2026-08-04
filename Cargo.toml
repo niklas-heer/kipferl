@@ -18,9 +18,13 @@ repository = "https://github.com/ucharmdev/ucharm"
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
 [profile.release]
-opt-level = "z"
+opt-level = 2
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+overflow-checks = true

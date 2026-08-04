@@ -89,6 +89,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn listdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"path must be a string");
@@ -109,6 +110,7 @@ unsafe extern "C" fn listdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn mkdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"path must be a string");
@@ -121,6 +123,7 @@ unsafe extern "C" fn mkdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn makedirs(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"name must be a string");
@@ -186,6 +189,7 @@ unsafe extern "C" fn stat(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn one_path(argc: c_int, argv: ffi::py_StackRef) -> Option<String> {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return None;

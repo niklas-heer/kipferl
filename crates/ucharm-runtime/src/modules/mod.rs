@@ -7,8 +7,6 @@ mod base64;
 mod binascii;
 mod bytearray;
 mod bytes_methods;
-mod charm;
-mod charm_core;
 mod collections;
 mod configparser;
 mod contextlib;
@@ -42,6 +40,7 @@ mod pathlib;
 mod random;
 mod re;
 mod secrets;
+mod selection_tui;
 mod shutil;
 mod signal;
 mod sqlite3;
@@ -59,6 +58,8 @@ mod textwrap;
 mod textwrap_core;
 mod time;
 mod tomllib;
+mod tui;
+mod tui_core;
 mod typing;
 mod unittest;
 mod urllib_parse;
@@ -76,7 +77,7 @@ const MODULES: &[NativeModule] = &[
     args::MODULE,
     base64::MODULE,
     binascii::MODULE,
-    charm::MODULE,
+    tui::MODULE,
     copy::MODULE,
     typing::MODULE,
     collections::MODULE,

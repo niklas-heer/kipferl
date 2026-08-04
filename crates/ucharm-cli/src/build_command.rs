@@ -252,7 +252,7 @@ fn targets_text() -> String {
 
 pub fn help() -> String {
     format!(
-        "{BOLD}μcharm build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    ucharm build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Standalone binary (~900KB, no dependencies)\n    executable             Shell wrapper (requires pocketpy-ucharm)\n    single                 Transformed .py file (requires pocketpy-ucharm)\n\n{DIM}EXAMPLES:{RESET}\n    ucharm build app.py -o app\n    ucharm build app.py -o app-linux --target linux-x86_64\n    ucharm build app.py -o app.py --mode single\n"
+        "{BOLD}μcharm build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    ucharm build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Standalone binary (~4-5MB, no dependencies)\n    executable             Shell wrapper (requires pocketpy-ucharm)\n    single                 Transformed .py file (requires pocketpy-ucharm)\n\n{DIM}EXAMPLES:{RESET}\n    ucharm build app.py -o app\n    ucharm build app.py -o app-linux --target linux-x86_64\n    ucharm build app.py -o app.py --mode single\n"
     )
 }
 
@@ -266,13 +266,13 @@ fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
     }
     let source = String::from_utf8(source)
         .map_err(|invalid| io::Error::new(io::ErrorKind::InvalidData, invalid))?;
-    let mut needs_charm = false;
+    let mut needs_tui = false;
     let mut needs_input = false;
 
     for line in source.split('\n') {
         let trimmed = line.trim_matches([' ', '\t']);
         if let Some(imports) = trimmed.strip_prefix("from ucharm import") {
-            needs_charm |= contains_any(
+            needs_tui |= contains_any(
                 imports,
                 &[
                     "style", "box", "rule", "success", "error", "warning", "info", "progress",
@@ -288,9 +288,9 @@ fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
             || trimmed.starts_with("from ucharm.style import")
             || trimmed.starts_with("from ucharm.table import")
         {
-            needs_charm = true;
+            needs_tui = true;
         } else if trimmed.starts_with("import ucharm") {
-            needs_charm = true;
+            needs_tui = true;
             needs_input = true;
         }
     }
@@ -298,15 +298,15 @@ fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
     let mut transformed = String::with_capacity(source.len() + 256);
     transformed.push_str("#!/usr/bin/env pocketpy-ucharm\n");
     transformed.push_str("# Built with ucharm - native modules edition\n\n");
-    if needs_charm {
+    if needs_tui {
         transformed.push_str(
-            "from charm import style, box, rule, success, error, warning, info, progress\n",
+            "from tui import style, box, rule, success, error, warning, info, progress\n",
         );
     }
     if needs_input {
         transformed.push_str("from input import select, multiselect, confirm, prompt, password\n");
     }
-    if needs_charm || needs_input {
+    if needs_tui || needs_input {
         transformed.push('\n');
     }
 
@@ -424,7 +424,7 @@ fn build_universal(
         stdout,
         "{DIM}  Size:    {RESET}{total_kb} KB {DIM}(standalone, no dependencies){RESET}"
     )?;
-    writeln!(stdout, "{DIM}  Startup: {RESET}~6ms {DIM}(instant){RESET}")?;
+    writeln!(stdout, "{DIM}  Startup: {RESET}~8ms {DIM}(instant){RESET}")?;
     write_run_hint(stdout, output_display, true)
 }
 
@@ -450,7 +450,7 @@ fn runtime_for(
         target.runtime_filename(),
         run_command::embedded_runtime(),
         "PocketPy runtime",
-        "~2.5MB",
+        "~4MB",
         current_directory,
         stdout,
         stderr,

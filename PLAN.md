@@ -5,23 +5,27 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, and 51 fully compatible stdlib targets are implemented. The release-path cutover is the remaining migration boundary.
+- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Public prerelease publication is intentionally deferred.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust runtime passes 1,668/1,668 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
+- Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
 
-- Native modules cover TUI (charm/input/ui), terminal + ANSI, and a growing stdlib set (copy, fnmatch, typing, csv, datetime, json, subprocess, signal, logging, etc.).
+- Native modules cover TUI presentation (`tui`) and interaction (`input`),
+  terminal + ANSI, and a growing stdlib set (copy, fnmatch, typing, csv,
+  datetime, json, subprocess, signal, logging, etc.).
 - The Rust loader and CLI build and run universal binaries; the Rust CLI tests and `tests/compat_runner.py` provide compatibility tooling.
 - Stubs exist in `stubs/` and `cli/src/stubs/`; there is a generator script in `scripts/generate_stubs.py`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
 ## Active Priority: Rust Migration
 
-- Phase 5 implementation is complete at 1,668/1,668 available checks.
-- Phase 6 cuts the canonical CI, release workflow, embedded assets, public
+- Phase 5 implementation is complete at 1,669/1,669 available checks.
+- Phase 6 has cut the canonical CI, release workflow, embedded assets, public
   binary names, local commands, and contributor guidance over to Rust/Cargo.
+- The active local work is the measured Rust-native optimization and safety
+  review; no prerelease tag should be pushed until publication is approved.
 - Freeze new Zig feature work; accept only small correctness, security, and release-blocking fixes.
 - Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
 - Establish the Rust/PocketPy FFI and four-target build proof before translating the large runtime module surface.
@@ -50,16 +54,48 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## What to Focus on Next
 
-1. Merge the Rust-only CI/release cutover after its four native targets build,
-   execute universal applications, and satisfy static-link and size gates.
-2. Publish and bake one Rust prerelease using the rebuilt CLI/runtime/loader
-   assets and Homebrew path.
+1. The measured Rust-native optimization and safety review is complete and
+   frozen in `benchmarks/rust_optimization_baseline.md`.
+2. When publication is approved, bake one Rust prerelease using the rebuilt
+   CLI/runtime/loader assets; prereleases do not update stable Homebrew.
 3. Remove the archived Zig implementation after that release is proven, then
    continue the product roadmap below.
 
 ## Product Roadmap After the Rust Cutover
 
 ### Phase A: Rust-native optimization and dependency review
+- The completed profile review accepts `opt-level = 2`, fat LTO, one codegen
+  unit, checked integer overflow, aborting panics, and symbol stripping. On the
+  pre-HTTPS ARM64 runtime, `-O2` improved representative interpreter workloads
+  by 7-14% over `s` for about 510 KiB. `-O3` added another 231 KiB without a
+  measurable win, thin LTO regressed size and speed, and PGO's small,
+  corpus-specific gains did not justify its training/toolchain burden.
+- Treat 5 MB as the cross-target regression ceiling, not as a goal to fill at
+  the expense of developer experience, correctness, or maintainability. The
+  current optimized ARM64 runtime with SQLite, HTTPS, maintained archives, and
+  Ratatui is 4,000,864 bytes. The refreshed runtime assets range from 4,000,864
+  bytes on ARM64 macOS to 4,831,144 bytes on x86_64 Linux.
+- Ratatui 0.30.2 with its Crossterm backend is accepted for real interactive
+  `input.select` and `input.multiselect` sessions. It uses an inline viewport to
+  preserve scrollback, bounded list scrolling, visible keyboard help, semantic
+  focus styling, `NO_COLOR`, responsive compact/minimum-size modes, and
+  TestBackend plus PTY coverage. Crossterm owns interactive key and resize event
+  parsing; the legacy renderer remains for non-interactive sessions and the
+  deterministic Zig-compatibility harness. Build future stateful screen APIs on
+  the same renderer rather than introducing another terminal abstraction.
+- The public presentation module is `tui`, with no legacy module alias. Runtime
+  registration, generated-project stubs, CLI transforms, tests, examples, and
+  documentation use the same name. The frozen `MCHARM01` binary format remains
+  unchanged until a separately versioned format migration is justified.
+- The first allocation cleanup replaces `tui.style`'s temporary vector,
+  per-code strings, join, and final format with one lazy output buffer. It keeps
+  the ARM64 runtime byte size unchanged and improves a 20,000-call style
+  workload by 26.9% at the median with exact golden-output parity.
+- Treat borrowed callback values, VM globals, and rooted values as distinct
+  states in any future FFI type redesign. A single lifetime on the current
+  `Value` wrapper is insufficient because PocketPy allocations can invalidate
+  unrooted slots; implement the split only as a dedicated compatibility-gated
+  refactor.
 - Freeze a reproducible post-cutover baseline before optimizing: compatibility,
   startup distributions, peak memory and allocations, interactive latency,
   representative module throughput, binary sections, dependency contribution,
@@ -76,34 +112,45 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   a meaningful gain and the PocketPy ownership rules remain explicit.
 - Audit Cargo features and duplicate dependencies with `cargo tree` and analyze
   release contribution with
-  [`cargo-bloat`](https://github.com/RazrFalcon/cargo-bloat). Compare `z` versus
-  `s`, LTO choices, and profile-guided optimization using the same startup,
-  size, and throughput corpus; keep the existing size-oriented release profile
-  as the control.
+  [`cargo-bloat`](https://github.com/RazrFalcon/cargo-bloat). The completed
+  profile comparison covers `s`, `O2`, `O3`, fat/thin LTO, overflow checks, and
+  PGO against the same startup and throughput corpus.
 - Run isolated library spikes behind the existing Python API and golden tests:
-  - compare the current terminal/raw-mode/event code with a feature-minimal
-    [`Crossterm`](https://github.com/crossterm-rs/crossterm) substrate, and
-    compare selected layout/widget primitives with
-    [`Ratatui`](https://ratatui.rs/) rather than replacing μcharm's presentation
-    model wholesale;
-  - retain the accepted feature-minimal `rusqlite` plus statically bundled
-    SQLite implementation. The August 2026 Turso spike added 211 lockfile
-    packages and produced a 5,420,336-byte runtime, so the pure-Rust engine was
-    rejected for this release. Recheck Turso's maturity, compatibility, and
-    artifact cost after the cutover; the measurements and decision are in
-    `benchmarks/network_database_wave.md`;
-  - inventory focused crates for remaining process, signal, regex, networking,
-    archive, and format modules, disabling default features and rejecting a
-    dependency when the standard library or current implementation is clearer.
+  - accept [`Ratatui`](https://ratatui.rs/) with its Crossterm backend for
+    interactive selection. The first production slice keeps the PocketPy API
+    stable while replacing rendering/layout and retaining μcharm's tested raw
+    input and cleanup guards;
+  - retain feature-minimal `rusqlite` plus statically bundled SQLite. A current
+    Turso 0.8.0-pre.2 spike with public defaults disabled produced a 9,576,960
+    byte binary and 257 dependency-tree entries, so it increases size and
+    maintenance/supply-chain surface while its database engine remains beta;
+  - accept feature-minimal Ureq/Rustls for `http.client`. It removes the local
+    socket, framing, response-parser, and chunk-decoder implementation, retains
+    the 8 MB body cap, and adds HTTPS. With `-O2` the complete ARM64 runtime is
+    3,735,360 bytes before the archive-library adoption and a real TLS request
+    succeeds;
+  - accept feature-minimal `zip` and `tar` readers. They replace handwritten
+    central-directory, chunk, header, and member-boundary parsing for about
+    66 KiB in the pre-Ratatui runtime;
+  - inventory focused crates for remaining process, signal, regex, and format
+    modules, disabling default features and rejecting a dependency when
+    the standard library or current implementation is clearer.
 - Record each spike as an accept/reject decision with compatibility, safety,
   maintenance, license, dependency, size, startup, memory, and throughput data.
   A library is adopted only when it improves the overall engineering result;
   “more Rust” or fewer local lines is not sufficient.
 - Exit gate: no Python API, byte-output, error, compatibility, or release-target
   regression; every accepted change has a measured benefit and the final
-  baseline is committed for the public retrospective.
+  baseline is committed for the public retrospective. **Complete:** the final
+  host baseline, four release sizes, dependency attribution, memory, PTY
+  latency, workload corpus, safety audit, and accept/reject decisions are
+  recorded in `benchmarks/rust_optimization_baseline.md`.
 
 ### Phase B: Migration documentation and public retrospective
+- Complete a formal product-name clearance review before the public launch
+  refresh. Treat the project name, organization/domain, package and binary
+  names, and visual identity as one decision; do not conflate that review with
+  the completed `tui` interface rename.
 - Revisit the README, website, and all user/contributor documentation once the
   Rust release is proven. Remove stale Zig architecture, commands, examples,
   screenshots, performance claims, and download instructions.
@@ -125,9 +172,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ### Phase C: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface. `tomllib`, `http.client`,
-  `xml.etree`, and the basic `sqlite3` DB-API subset are now present; remaining
-  work includes the separate third-party `toml` package, HTTPS/TLS, YAML, and
-  deeper API coverage where product demand justifies it.
+  `xml.etree`, HTTPS/TLS through `http.client`, and the basic `sqlite3` DB-API
+  subset are now present; remaining work includes the separate third-party
+  `toml` package, YAML, and deeper API coverage where product demand justifies
+  it.
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase D: Developer experience
@@ -144,6 +192,6 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 - Tree-shaking or module selection for smaller binaries.
 - `ucharm dev` (watch mode / hot reload).
-- Networking and formats: HTTPS/TLS, third-party `toml`, and YAML.
+- Formats: third-party `toml` and YAML.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

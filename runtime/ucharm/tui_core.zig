@@ -1,4 +1,4 @@
-// charm.zig - UI display components for ucharm
+// tui.zig - UI display components for ucharm
 //
 // This module provides high-level UI rendering:
 // - Box rendering with multiple border styles
@@ -150,7 +150,7 @@ fn hex_digit(c: u8) ?u8 {
 // ============================================================================
 
 /// Get visible length of string (excluding ANSI escape codes)
-pub export fn charm_visible_len(s: CStr) usize {
+pub export fn tui_visible_len(s: CStr) usize {
     var i: usize = 0;
     var length: usize = 0;
 
@@ -184,7 +184,7 @@ pub export fn charm_visible_len(s: CStr) usize {
 
 /// Get box character for style and position
 /// position: 0=tl, 1=tr, 2=bl, 3=br, 4=h, 5=v
-pub export fn charm_box_char(style: u8, position: u8) CStr {
+pub export fn tui_box_char(style: u8, position: u8) CStr {
     const idx = if (style < 5) style else 0;
     const chars = &box_chars[idx];
     return switch (position) {
@@ -199,44 +199,44 @@ pub export fn charm_box_char(style: u8, position: u8) CStr {
 }
 
 /// Get success symbol
-pub export fn charm_symbol_success() CStr {
+pub export fn tui_symbol_success() CStr {
     return @ptrCast(SYMBOL_SUCCESS.ptr);
 }
 
 /// Get error symbol
-pub export fn charm_symbol_error() CStr {
+pub export fn tui_symbol_error() CStr {
     return @ptrCast(SYMBOL_ERROR.ptr);
 }
 
 /// Get warning symbol
-pub export fn charm_symbol_warning() CStr {
+pub export fn tui_symbol_warning() CStr {
     return @ptrCast(SYMBOL_WARNING.ptr);
 }
 
 /// Get info symbol
-pub export fn charm_symbol_info() CStr {
+pub export fn tui_symbol_info() CStr {
     return @ptrCast(SYMBOL_INFO.ptr);
 }
 
 /// Get bullet symbol
-pub export fn charm_symbol_bullet() CStr {
+pub export fn tui_symbol_bullet() CStr {
     return @ptrCast(SYMBOL_BULLET.ptr);
 }
 
 /// Get spinner frame
-pub export fn charm_spinner_frame(index: u32) CStr {
+pub export fn tui_spinner_frame(index: u32) CStr {
     const idx = index % SPINNER_FRAMES.len;
     return @ptrCast(SPINNER_FRAMES[idx].ptr);
 }
 
 /// Get spinner frame count
-pub export fn charm_spinner_frame_count() u32 {
+pub export fn tui_spinner_frame_count() u32 {
     return SPINNER_FRAMES.len;
 }
 
 /// Get table character for style and position
 /// position: 0=h, 1=v, 2=tl, 3=tr, 4=bl, 5=br, 6=th, 7=bh, 8=lv, 9=rv, 10=cross
-pub export fn charm_table_char(style: u8, position: u8) CStr {
+pub export fn tui_table_char(style: u8, position: u8) CStr {
     const idx = if (style < 5) style else 0;
     const chars = &table_chars[idx];
     return switch (position) {
@@ -256,7 +256,7 @@ pub export fn charm_table_char(style: u8, position: u8) CStr {
 }
 
 /// Build a progress bar string into the provided buffer
-pub export fn charm_progress_bar(current: u32, total: u32, width: u32, buf: [*]u8) usize {
+pub export fn tui_progress_bar(current: u32, total: u32, width: u32, buf: [*]u8) usize {
     if (total == 0 or width == 0) return 0;
 
     const filled_count: u32 = @min(width, (width * current) / total);
@@ -282,7 +282,7 @@ pub export fn charm_progress_bar(current: u32, total: u32, width: u32, buf: [*]u
 }
 
 /// Get percentage string
-pub export fn charm_percent_str(current: u32, total: u32, buf: [*]u8) usize {
+pub export fn tui_percent_str(current: u32, total: u32, buf: [*]u8) usize {
     if (total == 0) {
         buf[0] = '0';
         buf[1] = '%';
@@ -302,7 +302,7 @@ pub export fn charm_percent_str(current: u32, total: u32, buf: [*]u8) usize {
 }
 
 /// Look up color name and return foreground code
-pub export fn charm_color_code(name: CStr) i32 {
+pub export fn tui_color_code(name: CStr) i32 {
     for (standard_colors) |color| {
         if (streq_slice(name, color.name)) {
             return @intCast(color.fg);
@@ -312,7 +312,7 @@ pub export fn charm_color_code(name: CStr) i32 {
 }
 
 /// Parse hex color string (#RRGGBB) into r,g,b values
-pub export fn charm_parse_hex(hex: CStr, out_r: *u8, out_g: *u8, out_b: *u8) bool {
+pub export fn tui_parse_hex(hex: CStr, out_r: *u8, out_g: *u8, out_b: *u8) bool {
     if (hex[0] != '#') return false;
 
     var len: usize = 0;
@@ -345,7 +345,7 @@ pub export fn charm_parse_hex(hex: CStr, out_r: *u8, out_g: *u8, out_b: *u8) boo
 }
 
 /// Repeat a pattern n times into buffer
-pub export fn charm_repeat(pattern: CStr, count: u32, buf: [*]u8) usize {
+pub export fn tui_repeat(pattern: CStr, count: u32, buf: [*]u8) usize {
     const pattern_len = cstr_len(pattern);
     var pos: usize = 0;
 
@@ -362,9 +362,9 @@ pub export fn charm_repeat(pattern: CStr, count: u32, buf: [*]u8) usize {
 }
 
 /// Pad a string to width (align: 0=left, 1=right, 2=center)
-pub export fn charm_pad(text: CStr, width: u32, align_mode: u8, buf: [*]u8) usize {
+pub export fn tui_pad(text: CStr, width: u32, align_mode: u8, buf: [*]u8) usize {
     const text_len = cstr_len(text);
-    const vis_len = charm_visible_len(text);
+    const vis_len = tui_visible_len(text);
 
     if (vis_len >= width) {
         for (0..text_len) |i| {
@@ -429,24 +429,24 @@ pub export fn charm_pad(text: CStr, width: u32, align_mode: u8, buf: [*]u8) usiz
 // ============================================================================
 
 test "visible_len_ascii" {
-    try std.testing.expectEqual(@as(usize, 5), charm_visible_len("hello"));
-    try std.testing.expectEqual(@as(usize, 0), charm_visible_len(""));
+    try std.testing.expectEqual(@as(usize, 5), tui_visible_len("hello"));
+    try std.testing.expectEqual(@as(usize, 0), tui_visible_len(""));
 }
 
 test "visible_len_ansi" {
-    try std.testing.expectEqual(@as(usize, 5), charm_visible_len("\x1b[31mhello\x1b[0m"));
+    try std.testing.expectEqual(@as(usize, 5), tui_visible_len("\x1b[31mhello\x1b[0m"));
 }
 
 test "progress_bar" {
     var buf: [256]u8 = undefined;
-    const len = charm_progress_bar(5, 10, 10, &buf);
+    const len = tui_progress_bar(5, 10, 10, &buf);
     try std.testing.expect(len > 0);
 }
 
 test "color_code" {
-    try std.testing.expectEqual(@as(i32, 31), charm_color_code("red"));
-    try std.testing.expectEqual(@as(i32, 32), charm_color_code("green"));
-    try std.testing.expectEqual(@as(i32, -1), charm_color_code("purple"));
+    try std.testing.expectEqual(@as(i32, 31), tui_color_code("red"));
+    try std.testing.expectEqual(@as(i32, 32), tui_color_code("green"));
+    try std.testing.expectEqual(@as(i32, -1), tui_color_code("purple"));
 }
 
 test "parse_hex" {
@@ -454,7 +454,7 @@ test "parse_hex" {
     var g: u8 = 0;
     var b: u8 = 0;
 
-    try std.testing.expect(charm_parse_hex("#ff5500", &r, &g, &b));
+    try std.testing.expect(tui_parse_hex("#ff5500", &r, &g, &b));
     try std.testing.expectEqual(@as(u8, 255), r);
     try std.testing.expectEqual(@as(u8, 85), g);
     try std.testing.expectEqual(@as(u8, 0), b);

@@ -83,6 +83,7 @@ fn decode_limited(mut decoder: impl Read) -> bool {
 }
 
 fn bytes_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return None;

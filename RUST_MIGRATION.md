@@ -5,10 +5,10 @@
 μcharm will migrate its native implementation from Zig to stable Rust while
 keeping PocketPy as the embedded Python runtime.
 
-The runtime implementation reached 1,668/1,668 available compatibility checks
-on 2026-08-04. Phase 6 is now cutting CI, packaging, public binary names, and
-release assets over to the Rust implementation; v0.5.0 remains the final stable
-Zig release baseline.
+The runtime implementation reached 1,669/1,669 available compatibility checks
+on 2026-08-04. The Cargo-first CI, packaging, public binary names, and release
+assets have been cut over to Rust; public prerelease publication is deliberately
+deferred. v0.5.0 remains the final stable Zig release baseline.
 
 This is a host-language and toolchain migration, not a product rewrite. The
 Python-facing API, PocketPy compatibility work, universal-binary behavior, and
@@ -136,10 +136,11 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. The stripped runtime remains below 2 MB on macOS and 2.5 MB on fully static
-   Linux. The Linux allowance is an explicit cutover exception; issue
-   [#41](https://github.com/ucharmdev/ucharm/issues/41) tracks recovery below
-   2 MB without sacrificing compatibility or standalone deployment.
+7. The stripped runtime remains below the current 5 MB release-target budget;
+   correctness, maintainability, and developer-experience improvements may use
+   that budget deliberately. Issue
+   [#41](https://github.com/ucharmdev/ucharm/issues/41) preserves the original
+   2 MB optimization investigation and the measured reason for relaxing it.
 8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
    release path.
 
@@ -151,9 +152,9 @@ status, stdout, and stderr.
 
 ### Implementation status
 
-- Phase 0 is in progress: the host baseline harness is available through
+- Phase 0 is complete: the host baseline harness is available through
   `just rust-baseline` and the legacy CI runner is pinned for reproducibility.
-- Phase 1 is in progress: the Cargo workspace builds vendored PocketPy through
+- Phase 1 is complete: the Cargo workspace builds vendored PocketPy through
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
 - Phase 2 is functionally complete: `ucharm-format` encodes and decodes the
@@ -181,7 +182,7 @@ status, stdout, and stderr.
   the small container, type-object, and temporary-rooting surface required by
   native callbacks. Module registration is table-driven, including
   signature-based functions with defaults and keyword arguments. The complete
-  `ansi`, `args`, `term`, interactive `input`, and `charm` presentation modules
+  `ansi`, `args`, `term`, interactive `input`, and `tui` presentation modules
   are ported with Python-level behavior, error, allocation-stress, byte-stream,
   pseudo-terminal, Unicode-width, and golden ANSI-output tests. The rooted Rust
   `args` implementation fixes the legacy alias-key corruption and SIGSEGV
@@ -195,7 +196,11 @@ status, stdout, and stderr.
   lifecycle, and Linux CI instruments PocketPy C with AddressSanitizer,
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
-- Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
+- The public presentation namespace is now `tui`, with runtime registration,
+  CLI transforms, stubs, templates, tests, examples, and documentation changed
+  together and no legacy module alias. `MCHARM01` remains frozen for binary
+  compatibility; broader product-name clearance is a separate launch decision.
+- Phase 5 is complete: `fnmatch`, `base64`, `binascii`, `statistics`,
   `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
   `operator` are now joined by the first data/model wave: `collections`, `csv`,
   `dataclasses`, `datetime`, `json`, `random`, and `uuid`; and the binary-
@@ -279,27 +284,28 @@ status, stdout, and stderr.
   1,000-round math/interning stress, CPython differential output, IANA and
   POSIX `TZ` DST regression coverage, calendar round-trips, domain/type
   failures, exact stream bytes, and dual-architecture release smoke. The final
-  network/database wave keeps HTTP/1.1 on `std::net` with bounded
-  content-length/chunked response parsing and no new networking dependency.
+  network/database wave now delegates HTTP/1.1, HTTPS, TLS, response framing,
+  and bounded body reads to feature-minimal Ureq/Rustls.
   SQLite uses feature-minimal `rusqlite` with a statically linked, trimmed
   SQLite amalgamation and preserves in-memory, file-backed, positional-binding,
   scalar/blob/null, join, fetch, and lifecycle behavior. A pure-Rust Turso
   0.6.1 spike was rejected after adding 211 lockfile packages and growing the
   optimized runtime to 5,420,336 bytes; the accepted implementation stays
   within the cross-target size gate. The full Rust result is now
-  1,668/1,668 (100%), up from the original 456/1,668, with 51 of 52 targeted
+  1,669/1,669 (100%), up from the original 456-check baseline, with 51 of 52 targeted
   modules at full parity, no partial modules, and one host-unavailable `toml`
   baseline.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 1,840,336 bytes on ARM64 and 1,971,304
-  bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  The fully static Linux artifacts are 2,378,848 bytes on ARM64 and 2,449,232
-  bytes on x86_64. macOS remains below the 2 MB runtime gate; Linux uses the
-  approved 2.5 MB ceiling while issue #41 tracks recovery below 2 MB. On the
-  latest 400-run warm-start sample, native Rust measured 6.986 ms median and
-  8.024 ms p95. The native ARM64 host remains below the 10 ms gate; native
-  Intel CI remains the authoritative x86_64 execution environment.
+- The first cutover profile produced macOS runtimes of 1,840,336 bytes on
+  ARM64 and 1,971,304 bytes on x86_64, versus 2,313,264 bytes for the legacy
+  Zig ARM64 runtime. The accepted post-cutover `s` profile produces 2,131,168-
+  and 2,148,764-byte macOS runtimes, and a 2,378,840-byte static Linux ARM64
+  runtime. In exchange, its 400-run ARM64 sample improves median startup from
+  6.060 ms to 5.396 ms and materially improves representative interpreter
+  workloads. Native CI remains authoritative for the final Linux x86_64
+  artifact; full measurements are in
+  `benchmarks/rust_optimization_baseline.md`.
 
 ### Phase 0 — Freeze and baseline
 
@@ -365,7 +371,7 @@ universal apps using the existing runtime assets.
 - Add leak checks, sanitizer runs for C code, and tests for callback/value
   lifetime boundaries.
 
-Exit gate: representative `charm`, `input`, and compatibility modules register
+Exit gate: representative `tui`, `input`, and compatibility modules register
 through one reviewed path and survive stress/error tests.
 
 ### Phase 5 — Port native modules in risk-ordered waves
@@ -422,6 +428,11 @@ artifacts meet the compatibility, startup, and size gates.
 - Update architecture documentation and contributor guidance.
 - Before the public migration wrap-up, run a bounded Rust-native optimization
   and dependency review against a frozen post-cutover baseline:
+  - accept `opt-level = 2`, fat LTO, one codegen unit, checked overflow,
+    stripped symbols, and aborting panics as the final measured profile. The
+    feature-minimal HTTPS/archive/Ratatui runtime is 4,000,864 bytes on ARM64
+    macOS; the largest refreshed asset is 4,831,144 bytes on x86_64 Linux,
+    under the current 5 MB release-target budget;
   - profile startup, allocations, peak memory, interactive latency, module
     throughput, binary sections, dependency contribution, and all four release
     artifacts;
@@ -436,9 +447,9 @@ artifacts meet the compatibility, startup, and size gates.
   - audit duplicate crates and default features, attribute release size with
     `cargo-bloat`, and compare release-profile/PGO variants using the same
     compatibility, startup, size, memory, and throughput corpus;
-  - spike a feature-minimal Crossterm substrate and selected Ratatui primitives
-    behind the existing terminal and μcharm APIs; preserve exact golden output
-    and adopt neither wholesale merely to reduce local code;
+  - adopt Ratatui/Crossterm for interactive selection through an inline
+    viewport, with TestBackend, PTY restoration, resize, compact-layout, and
+    `NO_COLOR` coverage; extend that substrate for future stateful screens;
   - retain the measured `rusqlite` plus statically bundled SQLite decision for
     this release. Re-evaluate the pure-Rust Turso Database after cutover only
     if its production maturity, compatibility, dependency graph, startup, and
@@ -451,8 +462,16 @@ artifacts meet the compatibility, startup, and size gates.
   - keep an accept/reject decision record for every spike. Adoption requires no
     Python API, byte-output, error, compatibility, or target regression and a
     demonstrated overall benefit in the recorded matrix.
+- **Complete:** the bounded review is frozen in
+  `benchmarks/rust_optimization_baseline.md`, including the final startup,
+  memory, workload, PTY latency, section/dependency attribution, all four
+  release sizes, and the decision not to force the larger borrowed/rooted FFI
+  type redesign into the prerelease without evidence of a current defect.
 - After the Rust release is proven, complete a public documentation and
   communication pass before treating the migration as old news:
+  - complete formal product-name clearance before refreshing public launch
+    materials, considering the project, organization/domain, packages,
+    binaries, and visual identity together;
   - audit the README, website, docs, templates, examples, installation paths,
     architecture diagrams, and benchmark claims for stale Zig-era content;
   - add a website blog/migration section covering **why** μcharm moved, **how**
@@ -464,7 +483,7 @@ artifacts meet the compatibility, startup, and size gates.
     final Zig tag and migration tracker, and report regressions and tradeoffs as
     explicitly as improvements.
 - Resume roadmap work in this order:
-  1. Rust-native optimization and dependency review;
+  1. Rust-native optimization and dependency review — complete;
   2. README/website/docs refresh and the migration retrospective;
   3. canonical stub generation and CI drift checking;
   4. compatibility report and PocketPy patch verification artifacts;

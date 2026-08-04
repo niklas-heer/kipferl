@@ -4,7 +4,7 @@ use std::io::{self, Write};
 
 use ucharm_pocketpy_sys as ffi;
 
-use super::charm_core::{self, BorderStyle};
+use super::tui_core::{self, BorderStyle};
 use crate::native::{
     Arguments, NativeFunction, NativeIntConstant, NativeModule, NativeSignature, RootFrame, Value,
     return_string, return_value, runtime_error, type_error, value_error,
@@ -73,23 +73,23 @@ const SIGNATURES: &[NativeSignature] = &[
 const INT_CONSTANTS: &[NativeIntConstant] = &[
     NativeIntConstant {
         name: c"BORDER_ROUNDED",
-        value: charm_core::BORDER_ROUNDED,
+        value: tui_core::BORDER_ROUNDED,
     },
     NativeIntConstant {
         name: c"BORDER_SQUARE",
-        value: charm_core::BORDER_SQUARE,
+        value: tui_core::BORDER_SQUARE,
     },
     NativeIntConstant {
         name: c"BORDER_DOUBLE",
-        value: charm_core::BORDER_DOUBLE,
+        value: tui_core::BORDER_DOUBLE,
     },
     NativeIntConstant {
         name: c"BORDER_HEAVY",
-        value: charm_core::BORDER_HEAVY,
+        value: tui_core::BORDER_HEAVY,
     },
     NativeIntConstant {
         name: c"BORDER_NONE",
-        value: charm_core::BORDER_NONE,
+        value: tui_core::BORDER_NONE,
     },
     NativeIntConstant {
         name: c"ALIGN_LEFT",
@@ -106,7 +106,7 @@ const INT_CONSTANTS: &[NativeIntConstant] = &[
 ];
 
 pub(super) const MODULE: NativeModule = NativeModule {
-    name: c"charm",
+    name: c"tui",
     kind: crate::native::NativeModuleKind::Create,
     functions: FUNCTIONS,
     signatures: SIGNATURES,
@@ -148,7 +148,7 @@ fn optional_string(arguments: &Arguments, index: usize, c_string: bool) -> Optio
 }
 
 fn style_prefix(color: Option<&str>) -> (String, &'static str) {
-    let start = charm_core::style_code(color, None, false, false, false, false, false);
+    let start = tui_core::style_code(color, None, false, false, false, false, false);
     if start.is_empty() {
         (start, "")
     } else {
@@ -157,7 +157,7 @@ fn style_prefix(color: Option<&str>) -> (String, &'static str) {
 }
 
 unsafe extern "C" fn visible_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -169,19 +169,19 @@ unsafe extern "C" fn visible_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
         return value_error(c"text too long");
     }
     let mut roots = RootFrame::new();
-    let length = roots.integer(charm_core::visible_len(&text) as i64);
+    let length = roots.integer(tui_core::visible_len(&text) as i64);
     return_value(length)
 }
 
 unsafe extern "C" fn style(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(text) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"text must be a string");
     };
     let foreground = optional_string(&arguments, 1, true);
     let background = optional_string(&arguments, 2, true);
-    let prefix = charm_core::style_code(
+    let prefix = tui_core::style_code(
         foreground.as_deref(),
         background.as_deref(),
         arguments.get(3).and_then(Value::boolean).unwrap_or(false),
@@ -197,7 +197,7 @@ unsafe extern "C" fn style(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(content) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"content must be a string");
@@ -210,10 +210,10 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
         return runtime_error(c"box is too large");
     }
 
-    let chars = charm_core::box_chars(BorderStyle::for_box(&border));
+    let chars = tui_core::box_chars(BorderStyle::for_box(&border));
     let maximum_width = content
         .split('\n')
-        .map(charm_core::visible_len)
+        .map(tui_core::visible_len)
         .max()
         .unwrap_or(0);
     let title_length = title.as_ref().map_or(0, String::len);
@@ -241,7 +241,7 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
         output.push_str(title);
         output.push_str(" \x1b[0m");
         output.push_str(&color_start);
-        output.push_str(&charm_core::repeat(
+        output.push_str(&tui_core::repeat(
             chars.h,
             inner_width.saturating_sub(title_length.saturating_add(3)),
         ));
@@ -251,7 +251,7 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
     } else {
         output.push_str(&color_start);
         output.push_str(chars.tl);
-        output.push_str(&charm_core::repeat(chars.h, inner_width));
+        output.push_str(&tui_core::repeat(chars.h, inner_width));
         output.push_str(chars.tr);
         output.push_str(color_end);
         output.push('\n');
@@ -264,7 +264,7 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
         output.push_str(chars.v);
         output.push_str(color_end);
         output.push_str(&side_padding);
-        output.push_str(&charm_core::pad_left(&line, content_width));
+        output.push_str(&tui_core::pad_left(&line, content_width));
         output.push_str(&side_padding);
         output.push_str(&color_start);
         output.push_str(chars.v);
@@ -274,7 +274,7 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
 
     output.push_str(&color_start);
     output.push_str(chars.bl);
-    output.push_str(&charm_core::repeat(chars.h, inner_width));
+    output.push_str(&tui_core::repeat(chars.h, inner_width));
     output.push_str(chars.br);
     output.push_str(color_end);
     output.push('\n');
@@ -283,7 +283,7 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let title = optional_string(&arguments, 0, true);
     let character = optional_string(&arguments, 1, true).unwrap_or_else(|| "─".to_owned());
@@ -299,7 +299,7 @@ unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
         let title_length = i32::try_from(title.len()).unwrap_or(i32::MAX);
         let side = ((width.saturating_sub(title_length).saturating_sub(2)) / 2).max(0);
         output.push_str(&color_start);
-        output.push_str(&charm_core::repeat(&character, side as usize));
+        output.push_str(&tui_core::repeat(&character, side as usize));
         output.push_str(color_end);
         output.push(' ');
         output.push_str(title);
@@ -310,12 +310,12 @@ unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
             .saturating_sub(2)
             .max(0);
         output.push_str(&color_start);
-        output.push_str(&charm_core::repeat(&character, remaining as usize));
+        output.push_str(&tui_core::repeat(&character, remaining as usize));
         output.push_str(color_end);
         output.push('\n');
     } else {
         output.push_str(&color_start);
-        output.push_str(&charm_core::repeat(&character, width.max(0) as usize));
+        output.push_str(&tui_core::repeat(&character, width.max(0) as usize));
         output.push_str(color_end);
         output.push('\n');
     }
@@ -329,7 +329,7 @@ fn status_message(
     color: &'static str,
     symbol: &'static str,
 ) -> bool {
-    // SAFETY: called only from PocketPy callbacks with an active argument stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -342,23 +342,23 @@ fn status_message(
 }
 
 unsafe extern "C" fn success(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "32", charm_core::SYMBOL_SUCCESS)
+    status_message(argc, argv, "32", tui_core::SYMBOL_SUCCESS)
 }
 
 unsafe extern "C" fn error(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "31", charm_core::SYMBOL_ERROR)
+    status_message(argc, argv, "31", tui_core::SYMBOL_ERROR)
 }
 
 unsafe extern "C" fn warning(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "33", charm_core::SYMBOL_WARNING)
+    status_message(argc, argv, "33", tui_core::SYMBOL_WARNING)
 }
 
 unsafe extern "C" fn info(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "34", charm_core::SYMBOL_INFO)
+    status_message(argc, argv, "34", tui_core::SYMBOL_INFO)
 }
 
 unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(current) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"current must be int");
@@ -386,16 +386,12 @@ unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
         output.push(' ');
     }
     output.push_str(&color_start);
-    output.push_str(&charm_core::progress_bar(
-        current as u32,
-        total as u32,
-        width,
-    ));
+    output.push_str(&tui_core::progress_bar(current as u32, total as u32, width));
     output.push_str(color_end);
     output.push(' ');
-    output.push_str(&charm_core::percent_string(current as u32, total as u32));
+    output.push_str(&tui_core::percent_string(current as u32, total as u32));
     if let Some(elapsed) = elapsed {
-        let _ = write!(output, "  {}s", charm_core::elapsed_string(elapsed));
+        let _ = write!(output, "  {}s", tui_core::elapsed_string(elapsed));
     }
     output.push_str("\x1b[K");
     write_output(output.as_bytes());
@@ -403,7 +399,7 @@ unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn progress_done(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(0, 0) {
         return false;
@@ -413,7 +409,7 @@ unsafe extern "C" fn progress_done(argc: c_int, argv: ffi::py_StackRef) -> bool 
 }
 
 unsafe extern "C" fn spinner_frame(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -421,11 +417,11 @@ unsafe extern "C" fn spinner_frame(argc: c_int, argv: ffi::py_StackRef) -> bool 
     let Some(index) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"index must be int");
     };
-    return_string(charm_core::spinner_frame(index as u32))
+    return_string(tui_core::spinner_frame(index as u32))
 }
 
 unsafe extern "C" fn spinner(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(index) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"index must be int");
@@ -435,7 +431,7 @@ unsafe extern "C" fn spinner(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let (color_start, color_end) = style_prefix(color.as_deref());
     let mut output = format!(
         "\r{color_start}{}{color_end}",
-        charm_core::spinner_frame(index as u32)
+        tui_core::spinner_frame(index as u32)
     );
     if let Some(message) = message {
         output.push(' ');
@@ -458,7 +454,7 @@ fn horizontal_line(
     output.push_str(color_start);
     output.push_str(left);
     for (index, width) in widths.iter().enumerate() {
-        output.push_str(&charm_core::repeat(horizontal, width + 2));
+        output.push_str(&tui_core::repeat(horizontal, width + 2));
         if index + 1 < widths.len() {
             output.push_str(middle);
         }
@@ -469,7 +465,7 @@ fn horizontal_line(
 }
 
 unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy supplies an active argument stack to this callback.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     let Some(rows) = arguments.get(0) else {
         return type_error(c"rows must be a list");
@@ -493,7 +489,7 @@ unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let has_headers = arguments.get(1).and_then(Value::boolean).unwrap_or(false);
     let border = optional_string(&arguments, 2, false).unwrap_or_else(|| "square".to_owned());
     let border_color = optional_string(&arguments, 3, true);
-    let chars = charm_core::table_chars(BorderStyle::for_table(&border));
+    let chars = tui_core::table_chars(BorderStyle::for_table(&border));
     let actual_columns = column_count.min(32);
     let mut widths = vec![0_usize; actual_columns];
     for row_index in 0..row_count {
@@ -512,7 +508,7 @@ unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
                 .list_item(column_index)
                 .and_then(Value::string)
                 .unwrap_or_default();
-            *width = (*width).max(charm_core::visible_len(&cell));
+            *width = (*width).max(tui_core::visible_len(&cell));
         }
     }
 
@@ -552,7 +548,7 @@ unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
             if has_headers && row_index == 0 {
                 output.push_str("\x1b[0m");
             }
-            output.push_str(&" ".repeat(width.saturating_sub(charm_core::visible_len(&cell))));
+            output.push_str(&" ".repeat(width.saturating_sub(tui_core::visible_len(&cell))));
             output.push(' ');
             output.push_str(&color_start);
             output.push_str(chars.v);

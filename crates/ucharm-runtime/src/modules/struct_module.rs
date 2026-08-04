@@ -119,7 +119,7 @@ fn initialize(module: Value) {
 }
 
 unsafe extern "C" fn calcsize(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active callback stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
         return false;
@@ -135,7 +135,7 @@ unsafe extern "C" fn calcsize(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn pack(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active callback stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;
@@ -187,7 +187,7 @@ unsafe extern "C" fn pack(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 unsafe extern "C" fn unpack(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    // SAFETY: called only from PocketPy with its active callback stack.
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(2, 2) {
         return false;

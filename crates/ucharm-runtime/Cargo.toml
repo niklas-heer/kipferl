@@ -11,11 +11,15 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 jiff = { version = "0.2.35", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 libc = "0.2"
 md-5 = { version = "0.11.0", default-features = false }
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm_0_29"] }
 regex-lite = "0.1.9"
 rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
 sha1 = { version = "0.11.0", default-features = false }
 sha2 = { version = "0.11", default-features = false }
+tar = { version = "0.4.46", default-features = false }
 ucharm-pocketpy-sys = { path = "../pocketpy-sys" }
+ureq = { version = "3.3.0", default-features = false, features = ["rustls"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"] }
 
 [lints]
 workspace = true

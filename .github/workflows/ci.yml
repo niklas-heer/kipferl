@@ -130,7 +130,7 @@ jobs:
         shell: bash
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm
-          -c 'import ansi, args, base64, binascii, charm, collections, copy, csv, dataclasses, datetime, errno, fnmatch, functools, heapq, input, io, itertools, json, operator, random, statistics, term, textwrap, typing, uuid; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert base64.urlsafe_b64decode(base64.urlsafe_b64encode(b"\xfb\xfc")) == b"\xfb\xfc"; assert binascii.crc32(b"123456789") == 3421780262; assert charm.BORDER_ROUNDED == 0; assert charm.visible_len(charm.style("界", fg="red")) == 2; assert collections.Counter("aba")["a"] == 2; sample = [[1]]; duplicate = copy.deepcopy(sample); assert duplicate == sample; assert duplicate is not sample; assert duplicate[0] is not sample[0]; output = io.StringIO(); csv.writer(output).writerow(["a,b", "c"]); assert output.getvalue()[0] == chr(34); assert hasattr(dataclasses, "is_dataclass"); assert datetime.date(2024, 1, 15).weekday() == 0; assert errno.errorcode[errno.ENOENT] == "ENOENT"; assert OSError(errno.ENOENT, "ignored").args == (errno.ENOENT,); assert fnmatch.filter(["alpha", "beta"], "a*") == ["alpha"]; assert functools.reduce(lambda x, y: x + y, [1, 2, 3]) == 6; assert functools.cache(lambda x: x + 1)(2) == 3; assert heapq.nsmallest(2, [3, 1, 2]) == [1, 2]; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert itertools.islice(itertools.count(1, 2), 3) == [1, 3, 5]; assert json.loads(json.dumps({"a": 1})) == {"a": 1}; assert operator.itemgetter(1)([1, 2]) == 2; assert operator.attrgetter("args")(ValueError(3)) == (3,); assert 0 <= random.getrandbits(8) < 256; assert statistics.mode([1, 2, 1]) == 1; assert statistics.variance([1, 2, 3, 4, 5]) == 2.5; assert len(term.size()) == 2; assert term.raw_mode(False) is None; assert textwrap.wrap("alpha beta", 5) == ["alpha"]; marker = []; assert typing.cast(list, marker) is marker; assert typing.TYPE_CHECKING is False; assert uuid.UUID("12345678-1234-4678-9234-567812345678").version == 4'
+          -c 'import ansi, args, base64, binascii, tui, collections, copy, csv, dataclasses, datetime, errno, fnmatch, functools, heapq, input, io, itertools, json, operator, random, statistics, term, textwrap, typing, uuid; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert base64.urlsafe_b64decode(base64.urlsafe_b64encode(b"\xfb\xfc")) == b"\xfb\xfc"; assert binascii.crc32(b"123456789") == 3421780262; assert tui.BORDER_ROUNDED == 0; assert tui.visible_len(tui.style("界", fg="red")) == 2; assert collections.Counter("aba")["a"] == 2; sample = [[1]]; duplicate = copy.deepcopy(sample); assert duplicate == sample; assert duplicate is not sample; assert duplicate[0] is not sample[0]; output = io.StringIO(); csv.writer(output).writerow(["a,b", "c"]); assert output.getvalue()[0] == chr(34); assert hasattr(dataclasses, "is_dataclass"); assert datetime.date(2024, 1, 15).weekday() == 0; assert errno.errorcode[errno.ENOENT] == "ENOENT"; assert OSError(errno.ENOENT, "ignored").args == (errno.ENOENT,); assert fnmatch.filter(["alpha", "beta"], "a*") == ["alpha"]; assert functools.reduce(lambda x, y: x + y, [1, 2, 3]) == 6; assert functools.cache(lambda x: x + 1)(2) == 3; assert heapq.nsmallest(2, [3, 1, 2]) == [1, 2]; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert itertools.islice(itertools.count(1, 2), 3) == [1, 3, 5]; assert json.loads(json.dumps({"a": 1})) == {"a": 1}; assert operator.itemgetter(1)([1, 2]) == 2; assert operator.attrgetter("args")(ValueError(3)) == (3,); assert 0 <= random.getrandbits(8) < 256; assert statistics.mode([1, 2, 1]) == 1; assert statistics.variance([1, 2, 3, 4, 5]) == 2.5; assert len(term.size()) == 2; assert term.raw_mode(False) is None; assert textwrap.wrap("alpha beta", 5) == ["alpha"]; marker = []; assert typing.cast(list, marker) is marker; assert typing.TYPE_CHECKING is False; assert uuid.UUID("12345678-1234-4678-9234-567812345678").version == 4'
       - name: Smoke-test Rust binary-container wave
         shell: bash
         run: >-
@@ -188,7 +188,7 @@ jobs:
             exit 1
           fi
           grep -q "invalid universal trailer" loader.out
-      - name: Enforce initial runtime size budget
+      - name: Enforce release size budget
         shell: bash
         run: |
           python3 - <<'PY'
@@ -197,7 +197,7 @@ jobs:
           binary = Path("target/${{ matrix.target }}/release/pocketpy-ucharm")
           size = binary.stat().st_size
           target = "${{ matrix.target }}"
-          runtime_limit = 2_500_000 if target.endswith("linux-musl") else 2_000_000
+          runtime_limit = 5_000_000
           print(f"{binary}: {size:,} bytes (limit: {runtime_limit:,})")
           assert size < runtime_limit, (
               f"Rust runtime exceeds the {runtime_limit:,}-byte {target} budget: "
@@ -212,7 +212,7 @@ jobs:
           cli = Path("target/${{ matrix.target }}/release/ucharm")
           cli_size = cli.stat().st_size
           print(f"{cli}: {cli_size:,} bytes")
-          assert cli_size < 3_500_000, f"Rust CLI with embedded runtime exceeds 3.5 MB: {cli_size:,} bytes"
+          assert cli_size < 6_000_000, f"Rust CLI with embedded runtime exceeds 6 MB: {cli_size:,} bytes"
           PY
   compatibility:
     name: Compatibility

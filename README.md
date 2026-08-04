@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (2 MB macOS / 2.5 MB static Linux runtime gates)
+- Tiny, portable binaries (about 4–4.9 MB; 5 MB release-target ceiling)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -50,21 +50,21 @@ ucharm build app.py -o app
 
 **app.py**
 ```python
-import charm
+import tui
 import input
 import subprocess
 
-charm.box("Deploying build...", title="Release", border="rounded")
+tui.box("Deploying build...", title="Release", border="rounded")
 result = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True)
 commit = result["stdout"].decode().strip()
-charm.success(f"Built commit {commit}")
+tui.success(f"Built commit {commit}")
 
 features = input.multiselect("Select features:", ["Logging", "HTTP", "Config"])
 if input.confirm("Deploy now?", default=True):
-    charm.progress(68, 100, label="Uploading")
-    charm.success(f"Deployed with {len(features)} features")
+    tui.progress(68, 100, label="Uploading")
+    tui.success(f"Deployed with {len(features)} features")
 else:
-    charm.warning("Canceled")
+    tui.warning("Canceled")
 ```
 
 **Output**
@@ -92,10 +92,10 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 
 ## Comparison
 
-| | Python + Rich | Go + Charm | Rust + Ratatui | **μcharm** |
+| | Python + Rich | Go TUI stack | Rust + Ratatui | **μcharm** |
 |---|:---:|:---:|:---:|:---:|
-| **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~ 3ms** |
-| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **< 2.8MB** |
+| **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~8ms** |
+| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~4MB** |
 | **Easy to write** | Yes | Medium | Hard | **Yes** |
 | **Beautiful TUI** | Yes | Yes | Yes | **Yes** |
 
@@ -106,16 +106,16 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 ### TUI Components
 
 ```python
-import charm
+import tui
 
-print(charm.style("Bold cyan", fg="cyan", bold=True))
-charm.box("Important notice", title="Notice")
-charm.table([
+print(tui.style("Bold cyan", fg="cyan", bold=True))
+tui.box("Important notice", title="Notice")
+tui.table([
     ["Name", "Role"],
     ["Alice", "Engineer"],
     ["Bob", "Designer"],
 ], headers=True)
-charm.progress(50, 100, label="Downloading")
+tui.progress(50, 100, label="Downloading")
 ```
 
 ### Prompts
@@ -171,7 +171,7 @@ configparser, enum, uuid, urllib.parse, contextlib, typing, statistics,
 functools, itertools, heapq.
 
 **Nice to have:**
-toml/tomllib, http.client (no TLS), secrets, hmac, dataclasses,
+toml/tomllib, http.client (HTTP + HTTPS), secrets, hmac, dataclasses,
 xml.etree (fromstring + basic iteration), sqlite3 (basic DB-API subset),
 gzip (read), zipfile (read-only), tarfile (read-only).
 
@@ -274,11 +274,11 @@ ucharm/
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
-- Rust runtime: 1,668/1,668 available tests passing (100%)
+- Rust runtime: 1,669/1,669 available tests passing (100%)
 - 52 targeted modules, with 51 at 100% parity, no partial modules, and one
   host-unavailable `toml` baseline
-- 6.986ms median / 8.024ms p95 native ARM64 startup and a 1,840,336-byte
-  stripped runtime in the latest 400-run migration sample
+- 7.044ms median / 7.980ms p95 native ARM64 startup and a 4,000,864-byte
+  stripped runtime in the final 1,200-run migration sample
 
 ## Showcase
 
@@ -293,13 +293,14 @@ Built something with μcharm? Open a PR to add it here.
 <details>
 <summary>Where does the name come from?</summary>
 
-μcharm started as “MicroPython + charm-like libraries” → **μcharm** (official name) → **ucharm** (ASCII-friendly).
+The `μ` signals the project's compact-runtime focus; **ucharm** is the
+ASCII-friendly spelling used for commands, packages, and repository paths.
 </details>
 
 <details>
 <summary>Why is it so fast?</summary>
 
-The current native ARM64 median is 6.986ms. Fast startup comes from:
+The current native ARM64 median is 7.044ms. Fast startup comes from:
 
 1. No interpreter overhead (PocketPy embeds into one native binary)
 2. No import machinery (modules compiled into the binary)
@@ -310,13 +311,17 @@ The current native ARM64 median is 6.986ms. Fast startup comes from:
 <details>
 <summary>Why is the binary so small?</summary>
 
-~2.1-2.8MB universal binaries (SQLite enabled) because:
+About 4MB for the optimized ARM64 runtime (SQLite, HTTPS, and Ratatui enabled)
+because:
 
 1. PocketPy core is small
-2. The Rust release profile uses size optimization, fat LTO, one codegen unit,
-   symbol stripping, and aborting panics
+2. The Rust release profile uses `-O2`, fat LTO, one codegen unit, overflow
+   checks, symbol stripping, and aborting panics
 3. Curated stdlib surface (no bloat) while still bundling useful extras like `sqlite3`
-4. SQLite is statically bundled with unused extensions disabled
+4. SQLite is statically bundled with unused extensions disabled, and HTTPS uses
+   a feature-minimal Rustls/Ureq stack
+5. Ratatui powers interactive selection with an inline, scrollback-preserving
+   viewport and a single Crossterm backend
 </details>
 
 <details>
