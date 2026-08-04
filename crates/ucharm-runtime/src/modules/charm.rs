@@ -112,6 +112,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     signatures: SIGNATURES,
     int_constants: INT_CONSTANTS,
     type_aliases: &[],
+    initializer: None,
 };
 
 fn write_output(bytes: &[u8]) {

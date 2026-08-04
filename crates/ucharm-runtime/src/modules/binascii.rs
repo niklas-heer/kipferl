@@ -58,6 +58,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     signatures: SIGNATURES,
     int_constants: &[],
     type_aliases: TYPE_ALIASES,
+    initializer: None,
 };
 
 unsafe extern "C" fn hexlify(argc: c_int, argv: ffi::py_StackRef) -> bool {
