@@ -11,8 +11,11 @@ This project uses ucharm (PocketPy + native Rust modules).
 ## Preferred Patterns
 
 ```python
-from ucharm import box, table, success, select, confirm
 import tui
+import input
+
+tui.box("Ready", title="Status")
+choice = input.select("Next step:", ["Build", "Test", "Exit"])
 
 # Tables
 tui.table([["Name", "Age"], ["Alice", "25"]], headers=True)

@@ -61,37 +61,36 @@ const APP_TEMPLATE: &str = r##"#!/usr/bin/env python3
 """
 __APP_NAME__ - Built with ucharm
 """
-from ucharm import box, success, error, warning, info
-from ucharm import select, confirm, prompt
+import tui
+import input
 
 
 def main():
-    box(
-        "__APP_NAME__\n"
-        "Built with ucharm",
+    tui.box(
+        "__APP_NAME__\nBuilt with ucharm",
         title="Welcome",
         border_color="cyan"
     )
     print()
 
-    choice = select("What would you like to do?", [
+    choice = input.select("What would you like to do?", [
         "Say hello",
         "Show status messages",
         "Exit"
     ])
 
     if choice == "Say hello":
-        name = prompt("What's your name?", default="World")
+        name = input.prompt("What's your name?", default="World")
         print()
-        success(f"Hello, {name}!")
+        tui.success(f"Hello, {name}!")
     elif choice == "Show status messages":
         print()
-        success("This is a success message")
-        warning("This is a warning message")
-        error("This is an error message")
-        info("This is an info message")
+        tui.success("This is a success message")
+        tui.warning("This is a warning message")
+        tui.error("This is an error message")
+        tui.info("This is an info message")
     else:
-        info("Goodbye!")
+        tui.info("Goodbye!")
 
 
 if __name__ == "__main__":

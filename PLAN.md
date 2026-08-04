@@ -4,7 +4,8 @@ This is the single source of truth for priorities and next steps.
 
 ## Snapshot
 
-- Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
+- Goal: build beautiful CLI apps with Python syntax, shipped as compact, fast,
+  standalone binaries.
 - Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Rust prerelease `v0.6.0-rc.1` is published and proven.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
 - Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
@@ -51,7 +52,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ### Phase 3: DX + packaging alignment
 - Align stubs with the PocketPy import surface and regenerate with a single command.
-- Update templates/examples to reference the PocketPy runtime and current modules.
+- **Complete:** templates and examples reference the PocketPy runtime and the
+  direct `tui`/`input` module interface.
 - Add CI target for PocketPy compatibility report generation.
 
 ## What to Focus on Next
@@ -61,8 +63,11 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 2. Rust prerelease `v0.6.0-rc.1` passed both four-target CI matrices, the tagged
    release workflow, checksum verification, and an external universal-app
    smoke test without updating stable Homebrew.
-3. The archived Zig implementation is removed. Continue with the public
-   README/website/docs refresh and migration retrospective below.
+3. The archived Zig implementation is removed. The public README, website,
+   docs, templates, and examples now describe the Rust architecture and RC;
+   the website publishes the measured migration retrospective below.
+4. Continue with canonical stub generation and CI drift checking, then promote
+   0.6 after the remaining prerelease feedback and product-name review.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -154,24 +159,26 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   refresh. Treat the project name, organization/domain, package and binary
   names, and visual identity as one decision; do not conflate that review with
   the completed `tui` interface rename.
-- Revisit the README, website, and all user/contributor documentation once the
-  Rust release is proven. Remove stale Zig architecture, commands, examples,
-  screenshots, performance claims, and download instructions.
-- Add a migration section to the website and publish a polished retrospective,
-  either as a three-part series or one long-form article with clear sections:
+- **Complete:** the README, website, user docs, generated-project templates,
+  and examples now use the Rust architecture, direct `tui`/`input` imports,
+  measured performance/size claims, and real architecture-specific RC assets.
+- **Complete:** the website has a migration section and a long-form article
+  with clear sections:
   1. **Why** — repository-specific maintenance, ownership, ecosystem, and
      governance reasons, while acknowledging Zig's strengths.
   2. **How** — the incremental architecture, compatibility gates, FFI safety,
      differential tests, four-target CI, and release cutover.
   3. **Outcome** — what improved, what regressed, what remains, and what we
      would do differently.
-- Finish with reproducible, well-presented statistics and charts: compatibility
-  over time, migrated modules and lines, binary sizes, startup distributions,
-  CI/target coverage, defects found during migration, dependencies, and the
-  final Zig-versus-Rust artifact comparison. Link every headline number to its
-  committed benchmark or compatibility source.
-- Preserve the migration issue, plan, final Zig tag, and major PRs as an
-  engineering case study rather than erasing the project history.
+- **Complete for the RC:** the article presents reproducible statistics as
+  responsive cards and an explicit outcome table: the final compatibility
+  result, removed surface area, runtime sizes, startup distribution, memory,
+  interactive latency, and four-target coverage. Headline numbers link to
+  committed benchmark, compatibility, issue, and release sources. Add
+  longitudinal charts later only when more than the migration endpoints exist;
+  do not manufacture a trend from two samples.
+- **Complete:** preserve the migration issue, plan, final Zig tag, and major
+  PRs as an engineering case study rather than erasing the project history.
 
 ### Phase C: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface. `tomllib`, `http.client`,

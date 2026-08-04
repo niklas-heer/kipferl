@@ -19,14 +19,14 @@ ucharm init
 Create `app.py`:
 
 ```python
-from ucharm import box, success, error, select, confirm
 import tui
+import input
 
 # Show a welcome box
-box("Welcome to Hello CLI!", title="Hello", border_color="cyan")
+tui.box("Welcome to Hello CLI!", title="Hello", border_color="cyan")
 
 # Interactive selection
-action = select("What would you like to do?", [
+action = input.select("What would you like to do?", [
     "Say hello",
     "Show a table", 
     "Exit"
@@ -34,7 +34,7 @@ action = select("What would you like to do?", [
 
 if action == "Say hello":
     name = input("What's your name? ")
-    success(f"Hello, {name}!")
+    tui.success(f"Hello, {name}!")
     
 elif action == "Show a table":
     tui.table([
@@ -44,8 +44,8 @@ elif action == "Show a table":
     ], headers=True, border="rounded")
     
 elif action == "Exit":
-    if confirm("Are you sure?"):
-        error("Goodbye!")
+    if input.confirm("Are you sure?"):
+        tui.error("Goodbye!")
 ```
 
 ## Run It
@@ -60,8 +60,11 @@ ucharm run app.py
 # Build for current platform
 ucharm build app.py -o hello
 
-# Build universal binary (works on any machine)
+# Build a standalone binary for this machine
 ucharm build app.py -o hello --mode universal
+
+# Or target another supported platform
+ucharm build app.py -o hello-linux --target linux-x86_64
 
 # Run the binary
 ./hello

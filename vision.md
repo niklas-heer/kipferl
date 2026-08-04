@@ -183,22 +183,27 @@ It is not a drop-in replacement for CPython or pip.
 
 ## Success Metrics
 
-- "hello world" binary < 2MB and starts in <= 10ms on macOS and Linux.
+- Minimal standalone application stays near the current 4.3–5.3 MB target
+  range and starts in <= 10ms on the measured native baseline.
 - 90%+ parity for essential modules listed above.
 - polished UX for prompts, tables, progress, and error output.
 - at least one production-grade sample CLI app in the repo.
 
 ## Runtime Decision (PocketPy)
 
-We are choosing PocketPy as the runtime base for ucharm.
+PocketPy is the runtime base for ucharm.
 
 Why:
-- Velocity: we reached 22/22 Vision tests quickly and maintain a curated CPython-compatibility suite for targeted stdlib modules (see `tests/compat_report_pocketpy.md`).
-- Extension workflow: PocketPy is easier to extend in Zig without macro-heavy friction, so missing modules are faster to implement and maintain.
-- Product fit: binaries remain small (sub‑1MB in current builds) with startup ~2ms; this fits the <10ms startup target and keeps headroom for curated stdlib.
+- Velocity: the Rust host passes 1,669/1,669 available checks in the curated
+  CPython-compatibility suite (see `tests/compat_report_pocketpy.md`).
+- Extension workflow: PocketPy exposes a narrow embedding API that the Rust
+  host wraps behind one audited FFI boundary.
+- Product fit: the final Apple Silicon baseline starts in 7.044ms median and
+  retains useful headroom under the 10ms target while bundling SQLite, HTTPS,
+  maintained archive readers, and Ratatui-backed interaction.
 
 Decision implications:
-- Continue investing in Zig-native modules on PocketPy.
+- Continue investing in compatibility-gated Rust modules on PocketPy.
 - MicroPython is not part of the repo anymore; keep historical comparisons for context only.
 
 ## Future Features (Wishlist)

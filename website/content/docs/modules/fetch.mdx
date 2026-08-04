@@ -12,7 +12,10 @@ import fetch
 ```
 
 <Callout>
-Unlike Python's `requests` library, `fetch` is built into ucharm with zero dependencies. TLS is handled natively via BearSSL.
+Unlike Python's `requests` library, `fetch` is built into the μcharm runtime.
+HTTP framing and HTTPS are maintained through a feature-minimal Ureq, Rustls,
+and WebPKI roots stack, so applications do not need a separate package or
+system TLS installation.
 </Callout>
 
 ## GET Requests
@@ -181,7 +184,8 @@ if response:
 
 ## HTTPS Support
 
-HTTPS is fully supported with built-in TLS via BearSSL. Certificate verification is enabled by default.
+HTTPS is fully supported through the runtime's Rustls stack. Certificate
+verification is enabled by default.
 
 ```python
 # Works out of the box

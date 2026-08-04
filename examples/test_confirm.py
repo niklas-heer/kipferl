@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Test script for confirm component - used by e2e tests."""
 
-import sys
+import input
 
-sys.path.insert(0, ".")
-
-from ucharm.input import confirm
-
-result = confirm("Do you agree?")
+result = input.confirm("Do you agree?")
 if result is True:
     print("CONFIRMED: yes")
 elif result is False:

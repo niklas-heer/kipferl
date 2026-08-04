@@ -5,7 +5,7 @@
 <h1 align="center">μcharm</h1>
 
 <p align="center">
-  <strong>Python CLIs. Tiny binaries. Instant startup.</strong>
+  <strong>Python CLIs. Standalone binaries. Fast startup.</strong>
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 ```
 ╭─────────────────────────────────────────────────╮
 │                                                 │
-│   Write Python. Ship a tiny binary.             │
+│   Write Python. Ship one native binary.         │
 │   <= 10ms startup. No runtime deps.             │
 │                                                 │
 ╰─────────────────────────────────────────────────╯
@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (about 4–4.9 MB; 5 MB release-target ceiling)
+- Standalone, target-specific binaries (about 4.3–5.3 MB for a minimal app)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -85,7 +85,7 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 ## Why μcharm
 
 - Python ergonomics with Go-style shipping
-- Tiny binaries, instant startup
+- Compact binaries, fast startup
 - Rich TUI components out of the box
 - No runtime dependency chain
 - Honest, curated stdlib compatibility
@@ -179,30 +179,40 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Homebrew (macOS/Linux)
+### Rust release candidate (recommended for testing)
 
-```bash
-brew install ucharmdev/tap/ucharm
-```
-
-### Direct Download
+The Rust rewrite is available as `v0.6.0-rc.1`. Pick the CLI matching your
+machine; each download is a standalone executable that embeds its matching
+runtime.
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-macos-aarch64 -o ucharm
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-aarch64 -o ucharm
 chmod +x ucharm
 
 # macOS (Intel)
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-macos-x86_64 -o ucharm
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-x86_64 -o ucharm
 chmod +x ucharm
 
-# Linux
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-linux-x86_64 -o ucharm
+# Linux (x86_64, static musl)
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-x86_64 -o ucharm
 chmod +x ucharm
 
-# Linux (ARM64)
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-linux-aarch64 -o ucharm
+# Linux (ARM64, static musl)
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-aarch64 -o ucharm
 chmod +x ucharm
+```
+
+Move the downloaded file somewhere on your `PATH`, then confirm it with
+`ucharm --version`.
+
+### Homebrew stable (macOS/Linux)
+
+Homebrew remains on the previous stable release until Rust 0.6 is promoted out
+of prerelease:
+
+```bash
+brew install ucharmdev/tap/ucharm
 ```
 
 ---
@@ -211,7 +221,7 @@ chmod +x ucharm
 
 | Mode | Size | Dependencies | Use case |
 |------|------|--------------|----------|
-| `universal` | ~2.1-2.8MB | None | Production deployment |
+| `universal` | ~4.3-5.3MB | None | Production deployment |
 | `executable` | ~3KB | pocketpy-ucharm | Dev machines with runtime |
 | `single` | ~2KB | pocketpy-ucharm | Scripting |
 
@@ -270,7 +280,20 @@ ucharm/
 - Pure-Python packages may work if compatible with PocketPy.
 - See `tests/compat_report_pocketpy.md` for current parity.
 
-## Status
+## Rust architecture and status
+
+The shipping implementation is Rust around an embedded PocketPy C runtime:
+
+- `ucharm-cli` owns project generation, execution, and cross-target builds.
+- `ucharm-runtime` provides the Python VM host and curated native modules.
+- `ucharm-loader` and `ucharm-format` own the standalone application format.
+- `pocketpy-sys` is the narrow, audited C FFI boundary.
+
+The migration was compatibility-gated rather than rewritten behind a flag day.
+Read [the migration plan](RUST_MIGRATION.md), the
+[optimization record](benchmarks/rust_optimization_baseline.md), and the
+[public retrospective](https://ucharm.dev/blog/rust-migration) for the why,
+the incremental process, accepted tradeoffs, and final measurements.
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
@@ -302,7 +325,7 @@ ASCII-friendly spelling used for commands, packages, and repository paths.
 
 The current native ARM64 median is 7.044ms. Fast startup comes from:
 
-1. No interpreter overhead (PocketPy embeds into one native binary)
+1. No external CPython startup or virtual-environment activation
 2. No import machinery (modules compiled into the binary)
 3. Minimal runtime (PocketPy is much smaller than CPython)
 4. Native Rust modules (TUI components are compiled, not imported packages)
@@ -335,8 +358,7 @@ We evaluated both and chose PocketPy for CLI tooling:
 | C API | Clean, embedding-focused | Complex, hardware-focused |
 | Syntax | Full Python 3.x | Subset of Python 3.4 |
 | Rust host integration | Narrow C FFI | More embedded-runtime glue |
-| Binary size | ~400KB | ~600KB |
-| Startup | ~3ms | ~2ms |
+| Product fit | CLI-focused embedding | Microcontroller-focused runtime |
 
 MicroPython excels at microcontrollers. PocketPy excels at embedding Python in applications.
 </details>
@@ -359,9 +381,11 @@ See `tests/compat_report_pocketpy.md` for detailed module compatibility.
 
 ## Docs
 
-- `vision.md` for product direction
-- `PLAN.md` for implementation priorities
-- `LAUNCH.md` for go-to-market
+- [Website documentation](https://ucharm.dev/docs)
+- [Product direction](vision.md)
+- [Implementation priorities](PLAN.md)
+- [Rust migration record](RUST_MIGRATION.md)
+- [Launch plan](LAUNCH.md)
 
 ---
 

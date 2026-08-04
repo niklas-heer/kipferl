@@ -7,33 +7,45 @@ description: Install ucharm on macOS or Linux
 
 ucharm is available as a single binary for macOS and Linux.
 
-## macOS (Homebrew)
+## Rust release candidate
 
-The easiest way to install on macOS:
-
-```bash
-brew install ucharmdev/tap/ucharm
-```
-
-## Linux / macOS (Direct Download)
-
-Download the latest release from GitHub:
+The current Rust implementation is available as `v0.6.0-rc.1`. Download the
+CLI for your operating system and CPU architecture:
 
 ```bash
 # Linux (x86_64)
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-linux-x86_64 -o ucharm
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-x86_64 -o ucharm
 chmod +x ucharm
 sudo mv ucharm /usr/local/bin/
 
 # Linux (ARM64)
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-linux-aarch64 -o ucharm
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-aarch64 -o ucharm
 chmod +x ucharm
 sudo mv ucharm /usr/local/bin/
 
-# macOS (Universal)
-curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-macos-universal -o ucharm
+# macOS (Apple Silicon)
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-aarch64 -o ucharm
 chmod +x ucharm
 sudo mv ucharm /usr/local/bin/
+
+# macOS (Intel)
+curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-x86_64 -o ucharm
+chmod +x ucharm
+sudo mv ucharm /usr/local/bin/
+```
+
+Every release also includes a `.sha256` file for verification. There is no
+architecture-independent CLI: choose the asset that matches the machine where
+the CLI itself will run. `ucharm build --targets` lists the four application
+targets it can produce.
+
+## Homebrew stable
+
+Homebrew remains on the previous stable release while the Rust release is an
+RC. It will move to Rust when 0.6 is promoted:
+
+```bash
+brew install ucharmdev/tap/ucharm
 ```
 
 ## Verify Installation
@@ -45,7 +57,7 @@ ucharm --version
 You should see output like:
 
 ```
-μcharm v0.4.0
+μcharm v0.6.0-rc.1
 ```
 
 ## Editor Setup
@@ -65,5 +77,5 @@ This creates:
 
 <Cards>
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
-  <Card title="Your First App" href="/docs/getting-started/first-app" />
+  <Card title="Why we moved to Rust" href="/blog/rust-migration" />
 </Cards>

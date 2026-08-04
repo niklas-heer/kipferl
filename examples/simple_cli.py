@@ -1,152 +1,100 @@
-#!/usr/bin/env micropython
-"""
-Example: A simple CLI tool built with ucharm
-"""
+#!/usr/bin/env python3
+"""A small command-line application built with μcharm."""
 
 import sys
-
-sys.path.insert(0, "..")
-
-from ucharm import (
-    style,
-    box,
-    success,
-    error,
-    warning,
-    info,
-    select,
-    confirm,
-    prompt,
-    progress,
-)
-from ucharm.table import key_value
 import time
+
+import input
+import tui
 
 
 def cmd_greet(name=None):
-    """Greet command"""
     if not name:
-        name = prompt("What's your name?", default="World")
-    print()
-    box(
-        "Hello, " + str(name) + "!\nWelcome to ucharm.",
+        name = input.prompt("What is your name?", default="World")
+    tui.box(
+        f"Hello, {name}!\nWelcome to μcharm.",
         title="Greeting",
         border_color="cyan",
     )
-    print()
 
 
 def cmd_status():
-    """Show system status"""
-    print()
-    info("Checking system status...")
-    print()
-
-    # Fake checks with progress
+    tui.info("Checking system status...")
     checks = [
         ("Database", True),
         ("Cache", True),
         ("API", True),
         ("Queue", False),
     ]
-
     for name, ok in checks:
-        time.sleep(0.3)
+        time.sleep(0.1)
         if ok:
-            success(name + ": Connected")
+            tui.success(name + ": Connected")
         else:
-            error(name + ": Disconnected")
+            tui.error(name + ": Disconnected")
 
-    print()
-    key_value(
-        {
-            "Uptime": "3 days, 14 hours",
-            "Memory": "245 MB / 512 MB",
-            "CPU": "12%",
-            "Version": "1.0.0",
-        }
+    tui.table(
+        [
+            ["Metric", "Value"],
+            ["Uptime", "3 days, 14 hours"],
+            ["Memory", "245 MB / 512 MB"],
+            ["CPU", "12%"],
+        ],
+        headers=True,
+        border="rounded",
     )
-    print()
 
 
 def cmd_process(count=50):
-    """Process files"""
-    print()
-    info("Processing " + str(count) + " files...")
-    print()
-
-    for i in range(count + 1):
-        progress(i, count, label="  Progress", color="green")
-        time.sleep(0.05)
-
-    print()
-    success("Processed " + str(count) + " files")
-    print()
+    tui.info("Processing " + str(count) + " files...")
+    for current in range(count + 1):
+        tui.progress(current, count, label="Progress", color="green")
+        time.sleep(0.01)
+    tui.progress_done()
+    tui.success("Processed " + str(count) + " files")
 
 
 def show_help():
-    """Show help message"""
-    print()
-    box(
-        "Commands:\n"
-        "  greet [name]    Greet someone\n"
-        "  status          Show system status\n"
-        "  process [n]     Process n files\n"
-        "  help            Show this help",
-        title="Simple CLI - Help",
+    tui.box(
+        "Commands:\n  greet [name]    Greet someone\n  status          Show system status\n  process [n]     Process n files\n  help            Show this help",
+        title="Simple CLI — Help",
         border_color="cyan",
     )
-    print()
 
 
 def interactive_mode():
-    """Run in interactive mode"""
-    print()
-    box(
-        "Simple CLI Example\nBuilt with ucharm",
-        title="Welcome",
-        border_color="cyan",
-    )
-    print()
-
-    cmd = select(
+    tui.box("Simple CLI Example\nBuilt with μcharm", title="Welcome")
+    command = input.select(
         "What would you like to do?",
         ["Greet someone", "Check status", "Process files", "Exit"],
     )
-
-    if cmd == "Greet someone":
+    if command == "Greet someone":
         cmd_greet()
-    elif cmd == "Check status":
+    elif command == "Check status":
         cmd_status()
-    elif cmd == "Process files":
+    elif command == "Process files":
         cmd_process()
     else:
-        print()
-        info("Goodbye!")
-        print()
+        tui.info("Goodbye!")
 
 
 def main():
     args = sys.argv[1:]
-
     if not args:
         interactive_mode()
         return
 
-    cmd = args[0]
-
-    if cmd == "greet":
-        name = args[1] if len(args) > 1 else None
-        cmd_greet(name)
-    elif cmd == "status":
+    command = args[0]
+    if command == "greet":
+        cmd_greet(args[1] if len(args) > 1 else None)
+    elif command == "status":
         cmd_status()
-    elif cmd == "process":
-        count = int(args[1]) if len(args) > 1 else 50
-        cmd_process(count)
-    elif cmd == "help" or cmd == "--help" or cmd == "-h":
+    elif command == "process":
+        cmd_process(int(args[1]) if len(args) > 1 else 50)
+    elif command in ("help", "--help", "-h"):
         show_help()
     else:
-        error("Unknown command: " + cmd)
+        tui.error("Unknown command: " + command)
         show_help()
 
 

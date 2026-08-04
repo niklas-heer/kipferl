@@ -6,19 +6,22 @@ This project uses **ucharm** - a CLI toolkit for building beautiful command-line
 
 - **Runtime**: PocketPy with native Rust modules (NOT CPython)
 - **No pip packages**: Cannot use packages with C extensions (no requests, numpy, pandas)
-- **Output**: Standalone binaries (~1MB)
+- **Output**: Target-specific standalone binaries (about 4.3–5.3 MB)
 - **50+ runtime modules** including: ansi, args, argparse, base64, tui, collections, copy, csv, dataclasses, datetime, fetch, fnmatch, functools, glob, gzip, hashlib, heapq, hmac, http.client, input, itertools, json, logging, math, operator, os, pathlib, random, re, secrets, shutil, signal, sqlite3, statistics, struct, subprocess, tarfile, tempfile, template, term, textwrap, time, toml, typing, unittest, urllib.parse, uuid, xml.etree.ElementTree, zipfile
 
 ## Import Pattern
 
 ```python
-# Use 'from ucharm import' for TUI components
-from ucharm import box, success, error, select, confirm, prompt
-
-# Or import native modules directly
+# Import the native modules directly in new code
 import tui
 import input
+
+tui.box("Ready", title="Status")
+choice = input.select("Next step:", ["Build", "Test", "Exit"])
 ```
+
+The CLI still transforms legacy `from ucharm import ...` source for
+compatibility, but generated projects use the explicit modules.
 
 ## Available TUI Functions
 

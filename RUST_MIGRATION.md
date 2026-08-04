@@ -473,8 +473,9 @@ artifacts meet the compatibility, startup, and size gates.
   memory, workload, PTY latency, section/dependency attribution, all four
   release sizes, and the decision not to force the larger borrowed/rooted FFI
   type redesign into the prerelease without evidence of a current defect.
-- After the Rust release is proven, complete a public documentation and
-  communication pass before treating the migration as old news:
+- **Complete for the RC:** after proving the Rust release, the public README,
+  website, docs, templates, examples, and migration article were refreshed
+  before treating the migration as old news:
   - complete formal product-name clearance before refreshing public launch
     materials, considering the project, organization/domain, packages,
     binaries, and visual identity together;
