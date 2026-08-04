@@ -189,6 +189,17 @@ impl Value {
         }
     }
 
+    pub fn less_than(self, other: Self) -> Result<bool, ()> {
+        // SAFETY: both values remain VM-rooted for the duration of comparison,
+        // which may invoke Python code and allocate.
+        match unsafe { ffi::py_less(self.raw, other.raw) } {
+            -1 => Err(()),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(()),
+        }
+    }
+
     pub fn snapshot(self) -> ValueSnapshot {
         // SAFETY: `self.raw` points to one initialized value. The snapshot is
         // not a VM root and must not cross an allocating call before being
@@ -279,6 +290,52 @@ impl Value {
         // SAFETY: `self` is a list and both values remain VM-rooted for the
         // duration of the operation.
         unsafe { ffi::py_list_append(self.raw, value.raw) };
+    }
+
+    pub fn list_set(self, index: usize, value: Self) -> bool {
+        let Some(length) = self.list_len() else {
+            return false;
+        };
+        if index >= length {
+            return false;
+        }
+        let Ok(index) = c_int::try_from(index) else {
+            return false;
+        };
+        // SAFETY: the exact type and bounds checks establish a valid list slot.
+        // PocketPy copies `value` before the mutation can invalidate item refs.
+        unsafe { ffi::py_list_setitem(self.raw, index, value.raw) };
+        true
+    }
+
+    pub fn list_delete(self, index: usize) -> bool {
+        let Some(length) = self.list_len() else {
+            return false;
+        };
+        if index >= length {
+            return false;
+        }
+        let Ok(index) = c_int::try_from(index) else {
+            return false;
+        };
+        // SAFETY: the exact type and bounds checks establish a valid list slot.
+        unsafe { ffi::py_list_delitem(self.raw, index) };
+        true
+    }
+
+    pub fn list_swap(self, first: usize, second: usize) -> bool {
+        let Some(length) = self.list_len() else {
+            return false;
+        };
+        if first >= length || second >= length {
+            return false;
+        }
+        let (Ok(first), Ok(second)) = (c_int::try_from(first), c_int::try_from(second)) else {
+            return false;
+        };
+        // SAFETY: the exact type and bounds checks establish two valid slots.
+        unsafe { ffi::py_list_swap(self.raw, first, second) };
+        true
     }
 
     pub fn tuple_len(self) -> Option<usize> {
@@ -586,6 +643,18 @@ pub(crate) fn value_error(message: &'static CStr) -> bool {
     unsafe {
         ffi::py_exception(
             ffi::py_PredefinedType_tp_ValueError as ffi::py_Type,
+            c"%s".as_ptr(),
+            message.as_ptr(),
+        )
+    }
+}
+
+pub(crate) fn index_error(message: &'static CStr) -> bool {
+    // SAFETY: the VM is active during a callback. The format string and message
+    // have static storage and match PocketPy's `%s` vararg contract.
+    unsafe {
+        ffi::py_exception(
+            ffi::py_PredefinedType_tp_IndexError as ffi::py_Type,
             c"%s".as_ptr(),
             message.as_ptr(),
         )

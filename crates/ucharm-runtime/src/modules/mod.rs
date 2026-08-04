@@ -8,6 +8,7 @@ mod charm_core;
 mod encoding_core;
 mod fnmatch;
 mod fnmatch_core;
+mod heapq;
 mod input;
 mod statistics;
 mod statistics_core;
@@ -25,6 +26,7 @@ const MODULES: &[NativeModule] = &[
     binascii::MODULE,
     charm::MODULE,
     fnmatch::MODULE,
+    heapq::MODULE,
     input::MODULE,
     statistics::MODULE,
     term::MODULE,

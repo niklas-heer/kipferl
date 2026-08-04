@@ -188,20 +188,22 @@ status, stdout, and stderr.
   lifecycle, and Linux CI instruments PocketPy C with AddressSanitizer,
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
-- Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`, and
-  `textwrap` are now on the Rust runtime. The shared boundary copies PocketPy
-  bytes into owned Rust buffers before allocation, roots exact-size byte and
-  float results, supports equality with a LIFO-safe snapshot-to-root handoff
-  for retained mode values, and constructs large string lists through stable
-  global scratch registers rather than movable stack pointers. The registrar
-  can extend PocketPy's existing `base64` module and declare the
-  `binascii.Error` and `Incomplete` exception aliases without custom setup code.
-  The existing fixtures pass at 55/55, 18/18, 55/55, 28/28, and 24/24
-  respectively, with byte-for-byte Zig/Rust output parity plus native error,
-  size-boundary, CRC, identity, allocation-stress, and cross-target smoke tests.
-  The full Rust compatibility result has risen from 456/1,668 to 624/1,668.
-  `heapq` is the next contained candidate; it requires list mutation and ordered
-  comparison at the PocketPy boundary. `copy` still requires the broader
+- Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
+  `textwrap`, and `heapq` are now on the Rust runtime. The shared boundary
+  copies PocketPy bytes into owned Rust buffers before allocation, roots
+  exact-size byte and float results, supports equality and ordered comparison,
+  mutates lists through checked slots, and constructs large string lists
+  through stable global scratch registers. Removed heap values remain rooted
+  across subsequent Python comparisons rather than relying on the legacy
+  module's unrooted static return storage. The registrar can extend PocketPy's
+  existing `base64` module and declare the `binascii.Error` and `Incomplete`
+  exception aliases without custom setup code. The existing fixtures pass at
+  55/55, 18/18, 55/55, 28/28, 24/24, and 42/42 respectively, with byte-for-byte
+  Zig/Rust output parity plus native error, bounds, CRC, identity,
+  allocation-stress, and cross-target smoke tests. The full Rust compatibility
+  result has risen from 456/1,668 to 634/1,668. `typing` is the next contained
+  candidate and will establish the type/object construction boundary needed by
+  later iterator and decorator modules. `copy` still requires the broader
   object-call and attribute-access boundary.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
