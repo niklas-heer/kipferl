@@ -198,7 +198,8 @@ status, stdout, and stderr.
   `tempfile`, and `shutil`; and the process/regex/observability wave: `re`,
   `logging`, `signal`, and `subprocess`; plus the tooling/format wave:
   `argparse`, `configparser`, `contextlib`, `unittest`, `urllib.parse`,
-  `tomllib`, and `xml.etree.ElementTree`.
+  `tomllib`, and `xml.etree.ElementTree`; and the core-runtime wave:
+  `math`, `time`, `sys`, and the legacy ASCII string classifiers.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -259,16 +260,24 @@ status, stdout, and stderr.
   conversion. Its seven fixtures pass 142/142 raw checks and add 137 checks to
   the conservative report, backed by CPython differential output, 250-round
   nested parser/serializer stress, malformed-input coverage, Unicode URL
-  round-trips, and four-target release smoke. The full Rust result is now
-  1,574/1,668 (94.4%), up from the original 456/1,668, with 46 of 52 targeted
-  modules at full parity.
+  round-trips, and four-target release smoke. The core-runtime wave extends
+  PocketPy's existing math, clock, argument, and recursion primitives rather
+  than replacing them. Rust adds the missing hyperbolic/frexp/ldexp math
+  surface; libc-backed local/UTC calendar conversion and formatting; standard
+  sys metadata, module registry, interning, and streams; and the Zig runtime's
+  ASCII string classifiers. Its three fixtures pass 182/182 raw checks plus
+  1,000-round math/interning stress, CPython differential output, calendar
+  round-trips, domain/type failures, exact stream bytes, and dual-architecture
+  release smoke. The full Rust result is now 1,658/1,668 (99.4%), up from the
+  original 456/1,668, with 49 of 52 targeted modules at full parity and no
+  partial modules.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 986,624 bytes on ARM64 and 1,068,424
+- The current stripped macOS runtime is 1,003,984 bytes on ARM64 and 1,081,496
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  On the latest 400-run warm-start sample, native Rust measured 5.222 ms median
-  and 5.641 ms p95; x86_64 Rust under Rosetta measured 12.347 ms median and
-  14.457 ms p95. The native ARM64 host remains below the 10 ms gate; native
+  On the latest 400-run warm-start sample, native Rust measured 5.359 ms median
+  and 5.912 ms p95; x86_64 Rust under Rosetta measured 12.405 ms median and
+  13.653 ms p95. The native ARM64 host remains below the 10 ms gate; native
   Intel CI remains the authoritative x86_64 execution environment.
 
 ### Phase 0 — Freeze and baseline

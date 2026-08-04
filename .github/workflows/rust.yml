@@ -98,6 +98,11 @@ jobs:
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import argparse, configparser, contextlib, tomllib, unittest; from urllib.parse import quote, unquote; from xml.etree.ElementTree import fromstring, tostring; parser = argparse.ArgumentParser(); parser.add_argument("--count", type=int, required=True); assert parser.parse_args(["--count", "3"]).count == 3; config = configparser.ConfigParser(); config.read_string("[core]\nenabled=yes\n"); assert config.getboolean("core", "enabled"); assert unquote(quote("μ charm")) == "μ charm"; assert tomllib.loads("name=\"ucharm\"")["name"] == "ucharm"; xml = fromstring("<root><child>a &lt; b</child></root>"); assert "a &lt; b" in tostring(xml, "unicode"); case = unittest.TestCase(); case.assertEqual(2 + 2, 4); assert contextlib.nullcontext("ok").__enter__() == "ok"'
+      - name: Smoke-test Rust core-runtime wave
+        shell: bash
+        run: >-
+          target/${{ matrix.target }}/release/pocketpy-ucharm-rs
+          -c 'import math, sys, time; assert math.frexp(8.0) == (0.5, 4); assert math.ldexp(0.5, 4) == 8.0; epoch = time.gmtime(0); assert epoch[:3] == (1970, 1, 1); assert time.strftime("%Y-%m-%d", epoch) == "1970-01-01"; parsed = time.strptime("2024-02-29", "%Y-%m-%d"); assert parsed[:3] == (2024, 2, 29); assert time.monotonic() >= 0; assert sys.version_info[0] == 3; assert sys.modules["sys"] is sys; assert sys.intern("ucharm") is sys.intern("ucharm"); assert "ABC123".isalnum() and "123".isdigit()'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"

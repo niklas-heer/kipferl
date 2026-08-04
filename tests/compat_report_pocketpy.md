@@ -1,14 +1,14 @@
 # μcharm Compatibility Report
 
-Generated: 2026-08-04 20:02:36
+Generated: 2026-08-04 20:16:27
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,574/1,668 (94.4%)
-- **Modules at 100%**: 46/52
-- **Modules partial**: 3/52
+- **Tests passing**: 1,658/1,668 (99.4%)
+- **Modules at 100%**: 49/52
+- **Modules partial**: 0/52
 - **No baseline (host CPython)**: 1/52
 
 ### CPython Stdlib Coverage
@@ -45,6 +45,7 @@ Generated: 2026-08-04 20:02:36
 | itertools | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | json | stdlib | 70/70 | 70/70 | 100% | ✅ Full |
 | logging | stdlib | 39/39 | 39/39 | 100% | ✅ Full |
+| math | stdlib | 82/82 | 82/82 | 100% | ✅ Full |
 | operator | stdlib | 114/115 | 115/115 | 100% | ✅ Full |
 | os | stdlib | 45/45 | 45/45 | 100% | ✅ Full |
 | pathlib | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
@@ -56,9 +57,11 @@ Generated: 2026-08-04 20:02:36
 | statistics | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | struct | stdlib | 68/68 | 68/68 | 100% | ✅ Full |
 | subprocess | stdlib | 19/19 | 19/19 | 100% | ✅ Full |
+| sys | stdlib | 58/58 | 58/58 | 100% | ✅ Full |
 | tarfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
 | tempfile | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
 | textwrap | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
+| time | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | toml | stdlib | - | - | - | ✅ Full |
 | tomllib | stdlib | 0/1 | 1/1 | 100% | ✅ Full |
 | typing | stdlib | 43/43 | 43/43 | 100% | ✅ Full |
@@ -67,18 +70,8 @@ Generated: 2026-08-04 20:02:36
 | uuid | stdlib | 18/18 | 18/18 | 100% | ✅ Full |
 | xml.etree.ElementTree | stdlib | 12/12 | 12/12 | 100% | ✅ Full |
 | zipfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
-| math | stdlib | 82/82 | 73/82 | 89% | 9 skipped |
-| time | stdlib | 42/42 | 22/42 | 52% | 6 skipped |
-| sys | stdlib | 58/58 | 3/58 | 5% | 1 failing |
 | http.client | stdlib | 8/8 | 0/8 | 0% |  |
 | sqlite3 | stdlib | 2/2 | 0/2 | 0% |  |
-
-## Failed Tests
-
-### sys
-
-- `FAIL: version_info exists`
-
 
 ## Skipped Tests
 
@@ -103,14 +96,6 @@ These tests require features not available in pocketpy-ucharm:
 ### json
 
 - 1 tests skipped
-
-### math
-
-- 9 tests skipped
-
-### time
-
-- 6 tests skipped
 
 ### toml
 

@@ -8,6 +8,25 @@ use crate::native::{
 };
 
 pub(super) fn register() {
+    for (name, callback) in [
+        (c"isdigit", isdigit as crate::native::Callback),
+        (c"isalpha", isalpha),
+        (c"isalnum", isalnum),
+        (c"isspace", isspace),
+        (c"islower", islower),
+        (c"istitle", istitle),
+        (c"isdecimal", isdigit),
+        (c"isnumeric", isdigit),
+        (c"isidentifier", isidentifier),
+        (c"isprintable", isprintable),
+        (c"isascii", isascii),
+    ] {
+        bind_type_method(
+            ffi::py_PredefinedType_tp_str as ffi::py_Type,
+            name,
+            callback,
+        );
+    }
     bind_type_method(
         ffi::py_PredefinedType_tp_str as ffi::py_Type,
         c"isupper",
@@ -18,6 +37,118 @@ pub(super) fn register() {
         c"rsplit(self, sep=None, maxsplit=-1)",
         rsplit,
     );
+}
+
+fn return_bool(value: bool) -> bool {
+    let mut roots = RootFrame::new();
+    let result = roots.boolean(value);
+    return_value(result)
+}
+
+fn string_argument(argc: c_int, argv: ffi::py_StackRef) -> Result<String, ()> {
+    // SAFETY: every native callback passes PocketPy's live argument stack.
+    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    if !arguments.require_arity(1, 1) {
+        return Err(());
+    }
+    arguments.get(0).and_then(Value::string).ok_or_else(|| {
+        let _ = type_error(c"expected string");
+    })
+}
+
+unsafe extern "C" fn isdigit(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    return_bool(!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
+unsafe extern "C" fn isalpha(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    return_bool(!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_alphabetic()))
+}
+
+unsafe extern "C" fn isalnum(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    return_bool(!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_alphanumeric()))
+}
+
+unsafe extern "C" fn isspace(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    return_bool(
+        !value.is_empty()
+            && value
+                .bytes()
+                .all(|byte| matches!(byte, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)),
+    )
+}
+
+unsafe extern "C" fn islower(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    let has_cased = value.bytes().any(|byte| byte.is_ascii_lowercase());
+    return_bool(has_cased && !value.bytes().any(|byte| byte.is_ascii_uppercase()))
+}
+
+unsafe extern "C" fn istitle(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    let mut previous_cased = false;
+    let mut has_cased = false;
+    for byte in value.bytes() {
+        if byte.is_ascii_uppercase() {
+            if previous_cased {
+                return return_bool(false);
+            }
+            previous_cased = true;
+            has_cased = true;
+        } else if byte.is_ascii_lowercase() {
+            if !previous_cased {
+                return return_bool(false);
+            }
+            previous_cased = true;
+            has_cased = true;
+        } else {
+            previous_cased = false;
+        }
+    }
+    return_bool(has_cased)
+}
+
+unsafe extern "C" fn isidentifier(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    let mut bytes = value.bytes();
+    let Some(first) = bytes.next() else {
+        return return_bool(false);
+    };
+    return_bool(
+        (first.is_ascii_alphabetic() || first == b'_')
+            && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'),
+    )
+}
+
+unsafe extern "C" fn isprintable(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    return_bool(value.bytes().all(|byte| (0x20..=0x7e).contains(&byte)))
+}
+
+unsafe extern "C" fn isascii(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, argv) else {
+        return false;
+    };
+    return_bool(value.is_ascii())
 }
 
 unsafe extern "C" fn isupper(argc: c_int, argv: ffi::py_StackRef) -> bool {
