@@ -15,6 +15,7 @@ mod functools;
 mod heapq;
 mod input;
 mod itertools;
+mod operator;
 mod statistics;
 mod statistics_core;
 mod string_methods;
@@ -39,6 +40,7 @@ const MODULES: &[NativeModule] = &[
     heapq::MODULE,
     input::MODULE,
     itertools::MODULE,
+    operator::MODULE,
     statistics::MODULE,
     term::MODULE,
     textwrap::MODULE,
