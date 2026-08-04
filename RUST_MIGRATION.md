@@ -170,9 +170,9 @@ status, stdout, and stderr.
   verification. The Rust `test` command runs single files and the CPython
   compatibility runner with the source-built runtime during development and
   the embedded released runtime as a self-contained fallback.
-- Phase 4 is in progress: the generated PocketPy bindings now expose the small
-  container, type-object, and temporary-rooting surface required by native
-  callbacks. Module registration is table-driven, including signature-based
+- Phase 4 is functionally complete: the generated PocketPy bindings now expose
+  the small container, type-object, and temporary-rooting surface required by
+  native callbacks. Module registration is table-driven, including signature-based
   functions with defaults and keyword arguments. The complete `ansi`, `args`,
   `term`, interactive `input`, and `charm` presentation modules are ported with
   Python-level behavior, error, allocation-stress, byte-stream, pseudo-terminal,
@@ -183,12 +183,17 @@ status, stdout, and stderr.
   confirmation, editing, cancellation, and password screen bytes match Zig.
   The reusable Rust TUI core preserves the Zig runtime's byte-oriented width,
   color, border, progress, spinner, and table behavior, including its historical
-  keyword-binding quirks. Phase 4 is functionally complete: allocation and
-  exception stress crosses every production Rust callback module, explicit
+  keyword-binding quirks. Allocation and exception stress crosses every
+  production Rust callback module, explicit
   tests enforce the one-owner VM lifecycle, and Linux CI instruments PocketPy C
   with AddressSanitizer, UndefinedBehaviorSanitizer, and leak detection. The
-  original `_ucharm_rust` proof module has been retired; the first pure-module
-  Phase 5 wave is next.
+  original `_ucharm_rust` proof module has been retired.
+- Phase 5 is in progress: `fnmatch` is the first pure compatibility module on
+  the Rust runtime. Its four Python APIs pass the existing 55/55 compatibility
+  fixture with byte-for-byte Zig/Rust output parity, plus native error and
+  allocation-root tests. This raises the full Rust compatibility result from
+  456/1,668 to 511/1,668. `base64` and `binascii` are the next bounded slice so
+  their shared bytes conversion can cross the FFI boundary once.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.
