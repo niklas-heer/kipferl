@@ -194,9 +194,37 @@ jobs:
           name: cli-${{ matrix.suffix }}
           path: release-assets/
 
+  release-evidence:
+    name: Verify release evidence
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify and replay PocketPy vendor patchset
+        run: >-
+          python3 scripts/verify-pocketpy-patches.py
+          --check-upstream
+          --report release-evidence/pocketpy-patch-verification.json
+      - name: Build canonical runtime
+        run: cargo build --release -p ucharm-runtime
+      - name: Generate and enforce compatibility report
+        run: >-
+          python3 tests/compat_runner.py
+          --runtime target/release/pocketpy-ucharm
+          --report
+          --output release-evidence/compatibility-report.md
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence
+          path: release-evidence/
+
   release:
     name: Create Release
-    needs: [build-components, build-cli]
+    needs: [build-components, build-cli, release-evidence]
     runs-on: ubuntu-latest
 
     steps:
@@ -216,9 +244,15 @@ jobs:
           find artifacts -type f \( \
             -name 'ucharm-*' -o \
             -name 'pocketpy-ucharm-*' -o \
-            -name 'loader-*' \
+            -name 'loader-*' -o \
+            -name 'compatibility-report.md' -o \
+            -name 'pocketpy-patch-verification.json' \
           \) -exec cp {} release/ \;
-          find release -type f ! -name '*.sha256' -exec chmod +x {} +
+          find release -type f \( \
+            -name 'ucharm-*' -o \
+            -name 'pocketpy-ucharm-*' -o \
+            -name 'loader-*' \
+          \) ! -name '*.sha256' -exec chmod +x {} +
           ls -la release
 
       - uses: actions/setup-python@v5

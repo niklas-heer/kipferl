@@ -51,10 +51,14 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 - Maintain parity by re-running `python3 tests/compat_runner.py --report` after runtime changes.
 
 ### Phase 3: DX + packaging alignment
-- Align stubs with the PocketPy import surface and regenerate with a single command.
+- **Complete:** align stubs with the PocketPy import surface and regenerate
+  with a single command.
 - **Complete:** templates and examples reference the PocketPy runtime and the
   direct `tui`/`input` module interface.
-- Add CI target for PocketPy compatibility report generation.
+- **Complete:** CI generates and uploads the PocketPy compatibility report,
+  fails on compatibility regressions, and publishes a machine-readable proof
+  that the declared PocketPy patches replay onto pristine upstream and exactly
+  reconstruct the vendored source.
 
 ## What to Focus on Next
 
@@ -66,9 +70,9 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 3. The archived Zig implementation is removed. The public README, website,
    docs, templates, and examples now describe the Rust architecture and RC;
    the website publishes the measured migration retrospective below.
-4. Canonical stub generation and CI drift checking are complete. Continue with
-   release-artifact/report verification, then promote 0.6 after the remaining
-   prerelease feedback and product-name review.
+4. Canonical stub generation, release evidence, and cross-target build
+   verification are complete. Promote 0.6 after the remaining prerelease
+   feedback and product-name review.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -202,9 +206,15 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   `tui`/`input` import paths.
 
 ### Phase E: Packaging + release hygiene
-- Add a CI step that runs `python3 tests/compat_runner.py --report` and uploads the report as an artifact.
-- Add a CI step that runs `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
-- Validate cross-target build support (`ucharm build --targets` and a sample `--target` build).
+- **Complete:** CI runs the full compatibility report as a regression gate and
+  uploads it as an artifact. Tagged releases regenerate and publish that report.
+- **Complete:** CI checks the PocketPy anchors against pristine upstream,
+  replays every declared patch, requires the result to match the vendored
+  source byte for byte, and publishes the JSON verification record in tagged
+  releases.
+- **Complete:** `ucharm build --targets` is integration-tested, every embedded
+  target is packaged and trailer-verified, and native-architecture CI builds
+  and executes a sample `--target` universal application on all four targets.
 - Prefer native-architecture CI runners for C/Rust release builds; do not reintroduce Zig for cross-compilation.
 
 ## Backlog (ordered)

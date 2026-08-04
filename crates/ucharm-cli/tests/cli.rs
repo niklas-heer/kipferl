@@ -26,6 +26,17 @@ fn reports_version_help_and_unknown_commands() {
     assert!(build_help.status.success());
     assert!(text(&build_help.stdout).contains("Build standalone binaries"));
 
+    let targets = run(&temporary, &["build", "--targets"]);
+    assert!(targets.status.success());
+    for target in [
+        "macos-aarch64",
+        "macos-x86_64",
+        "linux-aarch64",
+        "linux-x86_64",
+    ] {
+        assert!(text(&targets.stdout).contains(target), "missing {target}");
+    }
+
     let test_help = run(&temporary, &["test", "--help"]);
     assert!(test_help.status.success());
     assert!(text(&test_help.stdout).contains("CPython Compatibility Testing"));

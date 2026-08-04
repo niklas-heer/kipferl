@@ -300,6 +300,11 @@ Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 - 7.044ms median / 7.980ms p95 native ARM64 startup and a 4,000,864-byte
   stripped runtime in the final 1,200-run migration sample
 
+CI treats compatibility as a regression gate and uploads the full report. Each
+tagged release also publishes that report plus a machine-readable verification
+that the declared PocketPy patch series reproduces the vendored source from the
+pristine upstream release.
+
 ## Showcase
 
 Built something with μcharm? Open a PR to add it here.
