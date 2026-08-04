@@ -251,6 +251,10 @@ unsafe extern "C" {
     pub fn py_newmodule(path: *const ::core::ffi::c_char) -> py_GlobalRef;
 }
 unsafe extern "C" {
+    #[doc = " Import a module.\n The result will be set to `py_retval()`.\n -1: error, 0: not found, 1: success"]
+    pub fn py_import(path: *const ::core::ffi::c_char) -> ::core::ffi::c_int;
+}
+unsafe extern "C" {
     #[doc = " Check if the unhandled exception is an instance of the given type.\n If match, the exception will be stored in `py_retval()`."]
     pub fn py_matchexc(type_: py_Type) -> bool;
 }
