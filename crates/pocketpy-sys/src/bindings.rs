@@ -75,6 +75,10 @@ unsafe extern "C" {
     pub fn py_newint(arg1: py_OutRef, arg2: py_i64);
 }
 unsafe extern "C" {
+    #[doc = " Create a `float` object."]
+    pub fn py_newfloat(arg1: py_OutRef, arg2: py_f64);
+}
+unsafe extern "C" {
     #[doc = " Create a `bool` object."]
     pub fn py_newbool(arg1: py_OutRef, arg2: bool);
 }
@@ -109,6 +113,10 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Convert a `float` object in python to `double`."]
     pub fn py_tofloat(arg1: py_Ref) -> py_f64;
+}
+unsafe extern "C" {
+    #[doc = " Cast a `int` or `float` object in python to `double`.\n If successful, return true and set the value to `out`.\n Otherwise, return false and raise `TypeError`."]
+    pub fn py_castfloat(arg1: py_Ref, out: *mut py_f64) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Convert a `bool` object in python to `bool`."]
@@ -153,6 +161,10 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Python equivalent to `lhs is rhs`."]
     pub fn py_isidentical(arg1: py_Ref, arg2: py_Ref) -> bool;
+}
+unsafe extern "C" {
+    #[doc = " Compare two objects.\n 1: lhs == rhs, 0: lhs != rhs, -1: error"]
+    pub fn py_equal(lhs: py_Ref, rhs: py_Ref) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
     #[doc = " Get a module by path."]

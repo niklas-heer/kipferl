@@ -9,6 +9,8 @@ mod encoding_core;
 mod fnmatch;
 mod fnmatch_core;
 mod input;
+mod statistics;
+mod statistics_core;
 mod term;
 mod term_core;
 
@@ -22,6 +24,7 @@ const MODULES: &[NativeModule] = &[
     charm::MODULE,
     fnmatch::MODULE,
     input::MODULE,
+    statistics::MODULE,
     term::MODULE,
 ];
 
