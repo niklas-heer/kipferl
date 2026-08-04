@@ -11,9 +11,15 @@ pub(crate) struct NativeFunction {
     pub callback: Callback,
 }
 
+pub(crate) struct NativeSignature {
+    pub signature: &'static CStr,
+    pub callback: Callback,
+}
+
 pub(crate) struct NativeModule {
     pub name: &'static CStr,
     pub functions: &'static [NativeFunction],
+    pub signatures: &'static [NativeSignature],
 }
 
 pub(crate) fn register_modules(modules: &[NativeModule]) {
@@ -25,6 +31,9 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
             let object = ffi::py_newmodule(module.name.as_ptr());
             for function in module.functions {
                 ffi::py_bindfunc(object, function.name.as_ptr(), Some(function.callback));
+            }
+            for function in module.signatures {
+                ffi::py_bind(object, function.signature.as_ptr(), Some(function.callback));
             }
         }
     }
@@ -97,6 +106,10 @@ impl Value {
         }
         // SAFETY: the exact type check above establishes a boolean value.
         Some(unsafe { ffi::py_tobool(self.raw) })
+    }
+
+    pub fn is_none(self) -> bool {
+        self.is_type(ffi::py_PredefinedType_tp_NoneType)
     }
 
     pub fn string(self) -> Option<String> {

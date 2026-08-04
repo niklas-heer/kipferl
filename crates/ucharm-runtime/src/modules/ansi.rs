@@ -59,6 +59,7 @@ const FUNCTIONS: &[NativeFunction] = &[
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"ansi",
     functions: FUNCTIONS,
+    signatures: &[],
 };
 
 unsafe extern "C" fn reset(argc: c_int, argv: ffi::py_StackRef) -> bool {

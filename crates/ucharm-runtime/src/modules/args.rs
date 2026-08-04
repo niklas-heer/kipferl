@@ -46,6 +46,7 @@ const FUNCTIONS: &[NativeFunction] = &[
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"args",
     functions: FUNCTIONS,
+    signatures: &[],
 };
 
 fn sys_argv() -> Option<Value> {

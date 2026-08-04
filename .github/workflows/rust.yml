@@ -48,7 +48,7 @@ jobs:
         shell: bash
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
-          -c 'import _ucharm_rust, ansi, args, term; assert _ucharm_rust.answer() == 42; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert len(term.size()) == 2; assert term.raw_mode(False) is None'
+          -c 'import _ucharm_rust, ansi, args, input, term; assert _ucharm_rust.answer() == 42; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert len(term.size()) == 2; assert term.raw_mode(False) is None'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"

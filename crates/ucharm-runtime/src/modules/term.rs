@@ -72,6 +72,7 @@ const FUNCTIONS: &[NativeFunction] = &[
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"term",
     functions: FUNCTIONS,
+    signatures: &[],
 };
 
 #[derive(Default)]
