@@ -22,13 +22,13 @@ const HEADER_LINE: &str = "\x1b[2m───────────────�
 const MAX_SCRIPT_SIZE: usize = 1024 * 1024;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-macos-aarch64");
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../assets/loader-macos-aarch64");
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-macos-x86_64");
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../assets/loader-macos-x86_64");
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-linux-x86_64");
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../assets/loader-linux-x86_64");
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-linux-aarch64");
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../assets/loader-linux-aarch64");
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "macos", target_arch = "x86_64"),
@@ -504,9 +504,11 @@ fn component_for(
     }
 
     for source_path in [
-        current_directory.join("cli/src/stubs").join(filename),
+        current_directory
+            .join("crates/ucharm-cli/assets")
+            .join(filename),
         Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../cli/src/stubs")
+            .join("assets")
             .join(filename),
     ] {
         if source_path.is_file() {

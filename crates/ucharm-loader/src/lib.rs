@@ -277,8 +277,8 @@ mod tests {
 
     use super::*;
 
-    const RUNTIME: &[u8] = include_bytes!("../../../loader/src/fixtures/cache_runtime_v1.txt");
-    const PYTHON: &[u8] = include_bytes!("../../../loader/src/fixtures/cache_python_v1.py");
+    const RUNTIME: &[u8] = include_bytes!("../tests/fixtures/cache_runtime_v1.txt");
+    const PYTHON: &[u8] = include_bytes!("../tests/fixtures/cache_python_v1.py");
 
     #[test]
     fn reads_metadata_and_preserves_the_zig_cache_key() {
@@ -288,9 +288,7 @@ mod tests {
 
         assert_eq!(
             metadata.content_hash,
-            decode_hash(include_str!(
-                "../../../loader/src/fixtures/cache_hash_v1.hex"
-            ))
+            decode_hash(include_str!("../tests/fixtures/cache_hash_v1.hex"))
         );
         assert_eq!(metadata.cache_key(), "6695b943da86e0e4");
         assert_eq!(

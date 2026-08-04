@@ -48,6 +48,17 @@ def parse_commits(raw_commits: str) -> list[dict]:
     return commits
 
 
+def installation_guidance(current_tag: str) -> str:
+    """Return release-note installation rules for stable or prerelease tags."""
+    if "-" in current_tag:
+        return """This is a prerelease. Do not suggest Homebrew, because prereleases do not update the stable formula. Tell users to download the matching `ucharm-*` asset and adjacent `.sha256` file from the GitHub release."""
+    return """Use the stable Homebrew commands:
+```bash
+brew install ucharmdev/tap/ucharm
+brew upgrade ucharm
+```"""
+
+
 def generate_release_notes_with_ai(
     commits: list[dict],
     current_tag: str,
@@ -68,7 +79,9 @@ def generate_release_notes_with_ai(
 
     commits_text = "\n\n".join(commits_context)
 
-    prompt = f"""You are writing release notes for "ucharm" (μcharm) - a CLI toolkit for building beautiful, fast, tiny command-line applications with MicroPython. It provides Python syntax with native Zig performance and sub-1MB standalone binaries.
+    installation = installation_guidance(current_tag)
+
+    prompt = f"""You are writing release notes for "ucharm" (μcharm), a CLI toolkit for building beautiful, fast command-line applications with Python syntax. The production CLI, universal loader, native modules, and PocketPy host are implemented in Rust. PocketPy itself is vendored C. Supported release targets are macOS ARM64, macOS x86_64, Linux ARM64 musl, and Linux x86_64 musl. Typical runtime artifacts are 4-5 MB and start in about 8 ms on Apple Silicon.
 
 # Commits:
 
@@ -91,13 +104,7 @@ Generate polished, engaging release notes in markdown. Follow the style of polis
    - 📚 **Documentation** — Docs and examples (only if significant)
 
 3. **Installation** (always include):
-   ```bash
-   # Install
-   brew install ucharmdev/tap/ucharm
-
-   # Or upgrade
-   brew upgrade ucharm
-   ```
+   {installation}
 
 ## Style Guidelines:
 
@@ -105,6 +112,7 @@ Generate polished, engaging release notes in markdown. Follow the style of polis
 - **Bullets**: Use `-` with concise descriptions (one line each, ~10-20 words max)
 - **Emphasis**: Use `**bold**` for module names, commands, and key terms
 - **Metrics**: Include performance numbers when available (e.g., "6.6x faster than CPython")
+- **Accuracy**: Do not invent targets, metrics, compatibility counts, size claims, or installation methods. Never claim Windows support. Only use numbers present in the commits or the product facts above.
 - **No commit hashes** in the output
 - **Present tense**: "Add" not "Added"
 
@@ -130,9 +138,7 @@ Interactive prompts have arrived! Build beautiful CLI experiences with select me
 
 ### Installation
 
-```bash
-brew install ucharmdev/tap/ucharm
-```
+Follow the installation rule supplied above for the current tag.
 
 ---
 

@@ -15,7 +15,7 @@ fn main() {
         unsupported => panic!("unsupported μcharm host: {unsupported:?}"),
     };
     let manifest = Path::new(&env::var("CARGO_MANIFEST_DIR").expect("manifest directory"))
-        .join("../../cli/src/stubs")
+        .join("assets")
         .join(filename);
     println!("cargo:rerun-if-changed={}", manifest.display());
 

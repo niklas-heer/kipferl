@@ -5,7 +5,7 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Public prerelease publication is intentionally deferred.
+- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Rust prerelease `v0.6.0-rc.1` is published and proven.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
 - Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
@@ -16,7 +16,8 @@ This is the single source of truth for priorities and next steps.
   terminal + ANSI, and a growing stdlib set (copy, fnmatch, typing, csv,
   datetime, json, subprocess, signal, logging, etc.).
 - The Rust loader and CLI build and run universal binaries; the Rust CLI tests and `tests/compat_runner.py` provide compatibility tooling.
-- Stubs exist in `stubs/` and `cli/src/stubs/`; there is a generator script in `scripts/generate_stubs.py`.
+- Canonical project stubs live in `stubs/`; embedded release components and
+  generated-project templates live under `crates/ucharm-cli/`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
 ## Active Priority: Rust Migration
@@ -24,13 +25,14 @@ This is the single source of truth for priorities and next steps.
 - Phase 5 implementation is complete at 1,669/1,669 available checks.
 - Phase 6 has cut the canonical CI, release workflow, embedded assets, public
   binary names, local commands, and contributor guidance over to Rust/Cargo.
-- The active local work is the measured Rust-native optimization and safety
-  review; no prerelease tag should be pushed until publication is approved.
-- Freeze new Zig feature work; accept only small correctness, security, and release-blocking fixes.
+- The Rust optimization, safety, native CI, and prerelease gates are complete.
+- The archived Zig implementation has been removed from the working tree; use
+  final Zig tag `v0.5.0` for archaeology.
 - Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
 - Establish the Rust/PocketPy FFI and four-target build proof before translating the large runtime module surface.
 - Port in releasable slices: loader, CLI using existing assets, runtime foundation, then module waves.
-- Keep Zig and Rust differential tests until each component crosses its parity, size, startup, and target gates.
+- Preserve the frozen v0.5.0 golden and differential fixtures that define
+  compatibility, even though the archived implementation is no longer built.
 - Do not retain Zig indirectly through `cargo-zigbuild` in the final release pipeline.
 
 The detailed inventory, architecture, acceptance gates, PR sequence, and risks are in `RUST_MIGRATION.md`.
@@ -56,10 +58,11 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 1. The measured Rust-native optimization and safety review is complete and
    frozen in `benchmarks/rust_optimization_baseline.md`.
-2. When publication is approved, bake one Rust prerelease using the rebuilt
-   CLI/runtime/loader assets; prereleases do not update stable Homebrew.
-3. Remove the archived Zig implementation after that release is proven, then
-   continue the product roadmap below.
+2. Rust prerelease `v0.6.0-rc.1` passed both four-target CI matrices, the tagged
+   release workflow, checksum verification, and an external universal-app
+   smoke test without updating stable Homebrew.
+3. The archived Zig implementation is removed. Continue with the public
+   README/website/docs refresh and migration retrospective below.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -81,8 +84,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   focus styling, `NO_COLOR`, responsive compact/minimum-size modes, and
   TestBackend plus PTY coverage. Crossterm owns interactive key and resize event
   parsing; the legacy renderer remains for non-interactive sessions and the
-  deterministic Zig-compatibility harness. Build future stateful screen APIs on
-  the same renderer rather than introducing another terminal abstraction.
+  deterministic v0.5.0-compatibility harness. Build future stateful screen APIs
+  on the same renderer rather than introducing another terminal abstraction.
 - The public presentation module is `tui`, with no legacy module alias. Runtime
   registration, generated-project stubs, CLI transforms, tests, examples, and
   documentation use the same name. The frozen `MCHARM01` binary format remains

@@ -10,11 +10,11 @@ use ucharm_loader::inspect;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let arguments: Vec<_> = env::args_os().collect();
-    let [_, zig_bundle, rust_loader, output] = arguments.as_slice() else {
-        return Err("usage: repack_for_test ZIG_BUNDLE RUST_LOADER OUTPUT".into());
+    let [_, source_bundle, rust_loader, output] = arguments.as_slice() else {
+        return Err("usage: repack_for_test SOURCE_BUNDLE RUST_LOADER OUTPUT".into());
     };
 
-    let mut source = File::open(zig_bundle)?;
+    let mut source = File::open(source_bundle)?;
     let source_size = source.metadata()?.len();
     let metadata = inspect(&mut source, source_size)?;
     let runtime = read_payload(

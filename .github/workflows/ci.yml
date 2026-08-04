@@ -14,8 +14,11 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
-      - name: Test release versioning
-        run: python3 -m unittest scripts/test_release.py
+      - name: Test release tooling
+        run: >-
+          python3 -m unittest
+          scripts/test_release.py
+          scripts/test_release_notes.py
 
   ffi-sanitizers:
     name: PocketPy FFI sanitizers
@@ -106,9 +109,9 @@ jobs:
         shell: bash
         run: |
           cp target/${{ matrix.target }}/release/pocketpy-ucharm \
-            cli/src/stubs/pocketpy-ucharm-${{ matrix.suffix }}
+            crates/ucharm-cli/assets/pocketpy-ucharm-${{ matrix.suffix }}
           cp target/${{ matrix.target }}/release/ucharm-loader \
-            cli/src/stubs/loader-${{ matrix.suffix }}
+            crates/ucharm-cli/assets/loader-${{ matrix.suffix }}
       - name: Build Rust CLI
         shell: bash
         run: |

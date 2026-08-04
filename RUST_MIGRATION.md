@@ -7,8 +7,10 @@ keeping PocketPy as the embedded Python runtime.
 
 The runtime implementation reached 1,669/1,669 available compatibility checks
 on 2026-08-04. The Cargo-first CI, packaging, public binary names, and release
-assets have been cut over to Rust; public prerelease publication is deliberately
-deferred. v0.5.0 remains the final stable Zig release baseline.
+assets have been cut over to Rust. Public prerelease `v0.6.0-rc.1` passed both
+four-target CI matrices, the tagged release workflow, published-checksum
+verification, and a downloaded universal-app smoke test. v0.5.0 remains the
+final stable Zig release baseline.
 
 This is a host-language and toolchain migration, not a product rewrite. The
 Python-facing API, PocketPy compatibility work, universal-binary behavior, and
@@ -404,9 +406,10 @@ Linux ARM64 CLI releases, and enforces genuinely static Linux linkage. The CLI
 embeds only its host component pair and obtains checksum-verified cross-target
 pairs on demand, reducing the ARM64 CLI from 3,723,328 to 2,583,984 bytes. Full
 measurements and the static-link finding are recorded in
-`benchmarks/release_cutover.md`. The native four-target CI bake is green. The
-remaining phase gate is a public prerelease with synchronized Cargo/public
-versions, prerelease metadata, and no Homebrew promotion.
+`benchmarks/release_cutover.md`. The native four-target CI bake is green.
+**Complete:** `v0.6.0-rc.1` was published from synchronized Cargo/public
+versions as a GitHub prerelease, passed release-asset installation and
+universal execution checks, and correctly skipped Homebrew promotion.
 
 - Switch `justfile`, CI, release workflows, updater scripts, Homebrew formula,
   docs, templates, and contributor instructions to Cargo.
@@ -422,10 +425,13 @@ artifacts meet the compatibility, startup, and size gates.
 
 ### Phase 7 — Remove Zig, optimize the Rust implementation, and resume the roadmap
 
-- Delete Zig sources, build files, caches, and stale embedded binaries only
-  after the Rust release is proven. Preserve the last Zig tag and migration
-  notes for archaeology.
-- Update architecture documentation and contributor guidance.
+- **Complete:** after the proven Rust prerelease, the archived Zig CLI, loader,
+  runtime, build files, unused BearSSL/TinyTemplate vendor payload, and
+  duplicate project stubs were removed. Rust release assets, templates, and
+  frozen format/cache fixtures now live in their owning Cargo crates. The last
+  Zig release remains preserved by tag `v0.5.0` and this migration record.
+- **Complete:** architecture documentation and contributor guidance describe
+  the Rust-only working tree and Cargo-owned release assets.
 - Before the public migration wrap-up, run a bounded Rust-native optimization
   and dependency review against a frozen post-cutover baseline:
   - accept `opt-level = 2`, fat LTO, one codegen unit, checked overflow,

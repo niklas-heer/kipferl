@@ -8,81 +8,42 @@ const DIM: &str = "\x1b[2m";
 const GREEN: &str = "\x1b[32m";
 
 const STUBS: &[(&str, &str)] = &[
-    ("ansi.pyi", include_str!("../../../cli/src/stubs/ansi.pyi")),
-    ("args.pyi", include_str!("../../../cli/src/stubs/args.pyi")),
-    (
-        "base64.pyi",
-        include_str!("../../../cli/src/stubs/base64.pyi"),
-    ),
-    ("tui.pyi", include_str!("../../../cli/src/stubs/tui.pyi")),
-    ("copy.pyi", include_str!("../../../cli/src/stubs/copy.pyi")),
-    ("csv.pyi", include_str!("../../../cli/src/stubs/csv.pyi")),
-    (
-        "datetime.pyi",
-        include_str!("../../../cli/src/stubs/datetime.pyi"),
-    ),
-    (
-        "fnmatch.pyi",
-        include_str!("../../../cli/src/stubs/fnmatch.pyi"),
-    ),
+    ("ansi.pyi", include_str!("../../../stubs/ansi.pyi")),
+    ("args.pyi", include_str!("../../../stubs/args.pyi")),
+    ("base64.pyi", include_str!("../../../stubs/base64.pyi")),
+    ("tui.pyi", include_str!("../../../stubs/tui.pyi")),
+    ("copy.pyi", include_str!("../../../stubs/copy.pyi")),
+    ("csv.pyi", include_str!("../../../stubs/csv.pyi")),
+    ("datetime.pyi", include_str!("../../../stubs/datetime.pyi")),
+    ("fnmatch.pyi", include_str!("../../../stubs/fnmatch.pyi")),
     (
         "functools.pyi",
-        include_str!("../../../cli/src/stubs/functools.pyi"),
+        include_str!("../../../stubs/functools.pyi"),
     ),
-    ("glob.pyi", include_str!("../../../cli/src/stubs/glob.pyi")),
-    (
-        "heapq.pyi",
-        include_str!("../../../cli/src/stubs/heapq.pyi"),
-    ),
-    (
-        "input.pyi",
-        include_str!("../../../cli/src/stubs/input.pyi"),
-    ),
+    ("glob.pyi", include_str!("../../../stubs/glob.pyi")),
+    ("heapq.pyi", include_str!("../../../stubs/heapq.pyi")),
+    ("input.pyi", include_str!("../../../stubs/input.pyi")),
     (
         "itertools.pyi",
-        include_str!("../../../cli/src/stubs/itertools.pyi"),
+        include_str!("../../../stubs/itertools.pyi"),
     ),
-    (
-        "logging.pyi",
-        include_str!("../../../cli/src/stubs/logging.pyi"),
-    ),
-    (
-        "operator.pyi",
-        include_str!("../../../cli/src/stubs/operator.pyi"),
-    ),
-    (
-        "random.pyi",
-        include_str!("../../../cli/src/stubs/random.pyi"),
-    ),
-    (
-        "shutil.pyi",
-        include_str!("../../../cli/src/stubs/shutil.pyi"),
-    ),
-    (
-        "signal.pyi",
-        include_str!("../../../cli/src/stubs/signal.pyi"),
-    ),
+    ("logging.pyi", include_str!("../../../stubs/logging.pyi")),
+    ("operator.pyi", include_str!("../../../stubs/operator.pyi")),
+    ("random.pyi", include_str!("../../../stubs/random.pyi")),
+    ("shutil.pyi", include_str!("../../../stubs/shutil.pyi")),
+    ("signal.pyi", include_str!("../../../stubs/signal.pyi")),
     (
         "statistics.pyi",
-        include_str!("../../../cli/src/stubs/statistics.pyi"),
+        include_str!("../../../stubs/statistics.pyi"),
     ),
     (
         "subprocess.pyi",
-        include_str!("../../../cli/src/stubs/subprocess.pyi"),
+        include_str!("../../../stubs/subprocess.pyi"),
     ),
-    (
-        "tempfile.pyi",
-        include_str!("../../../cli/src/stubs/tempfile.pyi"),
-    ),
-    ("term.pyi", include_str!("../../../cli/src/stubs/term.pyi")),
-    (
-        "textwrap.pyi",
-        include_str!("../../../cli/src/stubs/textwrap.pyi"),
-    ),
-    (
-        "typing.pyi",
-        include_str!("../../../cli/src/stubs/typing.pyi"),
-    ),
+    ("tempfile.pyi", include_str!("../../../stubs/tempfile.pyi")),
+    ("term.pyi", include_str!("../../../stubs/term.pyi")),
+    ("textwrap.pyi", include_str!("../../../stubs/textwrap.pyi")),
+    ("typing.pyi", include_str!("../../../stubs/typing.pyi")),
 ];
 
 const PYRIGHT_CONFIG: &str = r#"{
@@ -229,7 +190,7 @@ pub fn initialize(
         if matches!(ai, AiInstructions::Agents | AiInstructions::All) {
             files_created += write_if_absent(
                 &directory.join("AGENTS.md"),
-                include_str!("../../../cli/src/templates/AGENTS.md"),
+                include_str!("../templates/AGENTS.md"),
                 "AGENTS.md",
                 output,
             )? as usize;
@@ -237,7 +198,7 @@ pub fn initialize(
         if matches!(ai, AiInstructions::Claude | AiInstructions::All) {
             files_created += write_if_absent(
                 &directory.join("CLAUDE.md"),
-                include_str!("../../../cli/src/templates/CLAUDE.md"),
+                include_str!("../templates/CLAUDE.md"),
                 "CLAUDE.md",
                 output,
             )? as usize;
@@ -247,7 +208,7 @@ pub fn initialize(
             fs::create_dir_all(copilot_path.parent().expect("Copilot path has a parent"))?;
             files_created += write_if_absent(
                 &copilot_path,
-                include_str!("../../../cli/src/templates/copilot-instructions.md"),
+                include_str!("../templates/copilot-instructions.md"),
                 ".github/copilot-instructions.md",
                 output,
             )? as usize;
