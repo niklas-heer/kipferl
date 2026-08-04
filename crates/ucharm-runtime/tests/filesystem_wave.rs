@@ -129,14 +129,14 @@ fn exposes_script_file_to_python() {
 }
 
 fn run_runtime(source: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .output()
         .expect("run Rust PocketPy runtime")
 }
 
 fn run_file(path: &std::path::Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .arg(path)
         .output()
         .expect("run Rust PocketPy script")

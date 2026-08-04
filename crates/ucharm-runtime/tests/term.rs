@@ -125,7 +125,7 @@ fn restores_terminal_settings_when_the_vm_exits() {
     // SAFETY: `child_stdin` is a newly duplicated, owned descriptor.
     let child_stdin = unsafe { File::from_raw_fd(child_stdin) };
 
-    let child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    let child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args([
             "-c",
             "import term; term.raw_mode(True)\nwhile term.read_key() is None:\n    pass",
@@ -162,7 +162,7 @@ fn restores_terminal_settings_when_the_vm_exits() {
 }
 
 fn run(source: &str, input: &[u8]) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

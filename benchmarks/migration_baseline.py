@@ -37,7 +37,7 @@ def main() -> None:
     parser.add_argument(
         "--rust",
         type=Path,
-        default=Path("target/release/pocketpy-ucharm-rs"),
+        default=Path("target/release/pocketpy-ucharm"),
     )
     parser.add_argument("--runs", type=int, default=50)
     args = parser.parse_args()

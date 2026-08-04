@@ -2,8 +2,10 @@
 """
 Generate Python type stubs (.pyi) from runtime legacy C module source files.
 
-Note: ucharm now prefers Zig-only runtime modules. If no legacy C modules
-exist, this script will emit no stubs and you should update stubs manually.
+Note: μcharm's production runtime modules are implemented in Rust. This script
+only supports the historical C declaration format; if no matching legacy
+sources exist, it emits no stubs and the checked-in stubs must be maintained
+from the Rust API surface.
 
 Parses:
 - Function signatures from mp_arg_t allowed_args[] arrays

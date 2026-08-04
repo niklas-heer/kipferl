@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (target < 2MB for typical CLIs)
+- Tiny, portable binaries (2 MB macOS / 2.5 MB static Linux runtime gates)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -95,7 +95,7 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 | | Python + Rich | Go + Charm | Rust + Ratatui | **μcharm** |
 |---|:---:|:---:|:---:|:---:|
 | **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~ 3ms** |
-| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **< 2MB** |
+| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **< 2.8MB** |
 | **Easy to write** | Yes | Medium | Hard | **Yes** |
 | **Beautiful TUI** | Yes | Yes | Yes | **Yes** |
 
@@ -199,6 +199,10 @@ chmod +x ucharm
 # Linux
 curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-linux-x86_64 -o ucharm
 chmod +x ucharm
+
+# Linux (ARM64)
+curl -L https://github.com/ucharmdev/ucharm/releases/latest/download/ucharm-linux-aarch64 -o ucharm
+chmod +x ucharm
 ```
 
 ---
@@ -207,7 +211,7 @@ chmod +x ucharm
 
 | Mode | Size | Dependencies | Use case |
 |------|------|--------------|----------|
-| `universal` | ~0.9-2.0MB | None | Production deployment |
+| `universal` | ~2.1-2.8MB | None | Production deployment |
 | `executable` | ~3KB | pocketpy-ucharm | Dev machines with runtime |
 | `single` | ~2KB | pocketpy-ucharm | Scripting |
 
@@ -215,7 +219,7 @@ chmod +x ucharm
 # Fully standalone binary (recommended)
 ucharm build app.py -o app --mode universal
 
-# Cross-compile for another platform (downloads a small target runtime once, with sha256 verification)
+# Cross-compile for another platform (downloads the target components once, with SHA-256 verification)
 ucharm build app.py -o app-linux --target linux-x86_64
 
 # Shell wrapper (needs pocketpy-ucharm installed)
@@ -231,7 +235,7 @@ ucharm build app.py -o app.py --mode single
 
 ### Prerequisites
 
-- [Zig](https://ziglang.org/) 0.15+
+- [Rust](https://rustup.rs/) using the pinned stable toolchain
 - [just](https://github.com/casey/just) (optional, recommended)
 
 ### Quick Start
@@ -249,11 +253,11 @@ just test
 
 ```
 ucharm/
-├── cli/           # Zig CLI tool
-├── loader/        # Universal binary loader
-├── runtime/       # Runtime Zig modules
+├── crates/        # Rust CLI, runtime, loader, format, and PocketPy FFI
+├── pocketpy/      # Vendored PocketPy sources and tracked patches
 ├── tests/         # Test suite
 ├── examples/      # Example apps
+├── benchmarks/    # Reproducible migration and performance evidence
 └── assets/        # Branding
 ```
 
@@ -270,7 +274,7 @@ ucharm/
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
-- Rust migration runtime: 1,668/1,668 available tests passing (100%)
+- Rust runtime: 1,668/1,668 available tests passing (100%)
 - 52 targeted modules, with 51 at 100% parity, no partial modules, and one
   host-unavailable `toml` baseline
 - 6.986ms median / 8.024ms p95 native ARM64 startup and a 1,840,336-byte
@@ -295,23 +299,24 @@ Built something with μcharm? Open a PR to add it here.
 <details>
 <summary>Why is it so fast?</summary>
 
-~3ms startup vs CPython’s ~15ms comes from:
+The current native ARM64 median is 6.986ms. Fast startup comes from:
 
 1. No interpreter overhead (PocketPy embeds into one native binary)
 2. No import machinery (modules compiled into the binary)
 3. Minimal runtime (PocketPy is much smaller than CPython)
-4. Native Zig modules (TUI components are Zig, not Python)
+4. Native Rust modules (TUI components are compiled, not imported packages)
 </details>
 
 <details>
 <summary>Why is the binary so small?</summary>
 
-~1-2MB universal binaries (sqlite enabled) because:
+~2.1-2.8MB universal binaries (SQLite enabled) because:
 
 1. PocketPy core is small
-2. Zig modules compile small
+2. The Rust release profile uses size optimization, fat LTO, one codegen unit,
+   symbol stripping, and aborting panics
 3. Curated stdlib surface (no bloat) while still bundling useful extras like `sqlite3`
-4. `-Doptimize=ReleaseSmall` strips unused code
+4. SQLite is statically bundled with unused extensions disabled
 </details>
 
 <details>
@@ -324,7 +329,7 @@ We evaluated both and chose PocketPy for CLI tooling:
 | Target | General Python 3.x | Embedded/IoT |
 | C API | Clean, embedding-focused | Complex, hardware-focused |
 | Syntax | Full Python 3.x | Subset of Python 3.4 |
-| Zig integration | Excellent | More glue |
+| Rust host integration | Narrow C FFI | More embedded-runtime glue |
 | Binary size | ~400KB | ~600KB |
 | Startup | ~3ms | ~2ms |
 

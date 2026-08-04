@@ -179,7 +179,7 @@ fn restores_real_terminal_settings_after_interaction() {
     // SAFETY: `child_stdin` is a newly duplicated, owned descriptor.
     let child_stdin = unsafe { File::from_raw_fd(child_stdin) };
 
-    let child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    let child = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args([
             "-c",
             "import input; print(repr(input.confirm('Continue?')))",
@@ -218,7 +218,7 @@ fn restores_real_terminal_settings_after_interaction() {
 }
 
 fn run(source: &str, keys: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .env("MCHARM_TEST_KEYS", keys)
         .stdin(Stdio::null())

@@ -74,7 +74,11 @@ fn test_runs_single_files_and_propagates_failures() {
     let failed = run(&temporary, &["test", "failing.py"]);
     assert_eq!(failed.status.code(), Some(1));
     assert!(text(&failed.stdout).contains("RuntimeError: expected test failure"));
-    assert!(text(&failed.stderr).contains("PocketPyExecFailed"));
+    assert!(
+        text(&failed.stderr).contains("error: Python execution failed"),
+        "{}",
+        text(&failed.stderr)
+    );
 }
 
 #[test]
@@ -134,18 +138,12 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
         .validate_layout(universal.len() as u64)
         .expect("validate universal layout");
 
-    // The released Zig Linux loader has a known child-wait defect. Linux stays
-    // covered by byte/layout checks until the Rust loader becomes the bundled
-    // release asset; the released macOS loader can execute this artifact.
-    #[cfg(target_os = "macos")]
-    {
-        let executed = Command::new(temporary.path.join("app.universal"))
-            .current_dir(&temporary.path)
-            .output()
-            .expect("run universal application");
-        assert!(executed.status.success(), "{}", text(&executed.stderr));
-        assert!(text(&executed.stdout).contains("built with Rust"));
-    }
+    let executed = Command::new(temporary.path.join("app.universal"))
+        .current_dir(&temporary.path)
+        .output()
+        .expect("run universal application");
+    assert!(executed.status.success(), "{}", text(&executed.stderr));
+    assert!(text(&executed.stdout).contains("built with Rust"));
 }
 
 #[test]
@@ -238,7 +236,7 @@ fn run_transforms_a_script_and_forwards_arguments() {
     let failed = run(&temporary, &["run", "failure.py"]);
     assert_eq!(failed.status.code(), Some(1));
     assert!(text(&failed.stdout).contains("RuntimeError: expected failure"));
-    assert!(text(&failed.stderr).contains("PocketPyExecFailed"));
+    assert!(text(&failed.stderr).contains("error: Python execution failed"));
 }
 
 #[test]
@@ -319,7 +317,7 @@ fn rejects_invalid_ai_types_and_path_traversal_names() {
 }
 
 fn run(temporary: &TestDirectory, arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_ucharm"))
         .args(arguments)
         .current_dir(&temporary.path)
         .env("UCHARM_CACHE_DIR", temporary.path.join(".cache"))

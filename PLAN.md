@@ -5,20 +5,23 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, and 51 fully compatible stdlib targets are implemented while the remaining release cutover work migrates from Zig.
+- Runtime: PocketPy; the Rust host, loader, CLI, and 51 fully compatible stdlib targets are implemented. The release-path cutover is the remaining migration boundary.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust migration runtime passes 1,668/1,668 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm-rs --report`.
+- Compatibility status: the Rust runtime passes 1,668/1,668 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
 
 - Native modules cover TUI (charm/input/ui), terminal + ANSI, and a growing stdlib set (copy, fnmatch, typing, csv, datetime, json, subprocess, signal, logging, etc.).
-- Loader and CLI already build and run universal binaries; `cli/src/test_cmd.zig` and `tests/compat_runner.py` provide compatibility tooling.
+- The Rust loader and CLI build and run universal binaries; the Rust CLI tests and `tests/compat_runner.py` provide compatibility tooling.
 - Stubs exist in `stubs/` and `cli/src/stubs/`; there is a generator script in `scripts/generate_stubs.py`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
 ## Active Priority: Rust Migration
 
+- Phase 5 implementation is complete at 1,668/1,668 available checks.
+- Phase 6 cuts the canonical CI, release workflow, embedded assets, public
+  binary names, local commands, and contributor guidance over to Rust/Cargo.
 - Freeze new Zig feature work; accept only small correctness, security, and release-blocking fixes.
 - Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
 - Establish the Rust/PocketPy FFI and four-target build proof before translating the large runtime module surface.
@@ -47,9 +50,12 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## What to Focus on Next
 
-1. Keep the completed Rust runtime surface at the 1,668/1,668 baseline while closing release-cutover gaps.
-2. Run the final four-target release candidate and cut CI, packaging, and releases fully to Rust.
-3. Remove Zig after the Rust release is proven, then continue the product roadmap below.
+1. Merge the Rust-only CI/release cutover after its four native targets build,
+   execute universal applications, and satisfy static-link and size gates.
+2. Publish and bake one Rust prerelease using the rebuilt CLI/runtime/loader
+   assets and Homebrew path.
+3. Remove the archived Zig implementation after that release is proven, then
+   continue the product roadmap below.
 
 ## Product Roadmap After the Rust Cutover
 

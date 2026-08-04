@@ -21,10 +21,21 @@ const CYAN: &str = "\x1b[36m";
 const HEADER_LINE: &str = "\x1b[2m─────────────────────────────────────────\x1b[0m";
 const MAX_SCRIPT_SIZE: usize = 1024 * 1024;
 
-const LOADER_MACOS_AARCH64: &[u8] = include_bytes!("../../../cli/src/stubs/loader-macos-aarch64");
-const LOADER_MACOS_X86_64: &[u8] = include_bytes!("../../../cli/src/stubs/loader-macos-x86_64");
-const LOADER_LINUX_X86_64: &[u8] = include_bytes!("../../../cli/src/stubs/loader-linux-x86_64");
-const LOADER_LINUX_AARCH64: &[u8] = include_bytes!("../../../cli/src/stubs/loader-linux-aarch64");
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-macos-aarch64");
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-macos-x86_64");
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-linux-x86_64");
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+const EMBEDDED_LOADER: &[u8] = include_bytes!("../../../cli/src/stubs/loader-linux-aarch64");
+#[cfg(not(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64")
+)))]
+const EMBEDDED_LOADER: &[u8] = &[];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -94,12 +105,12 @@ impl Target {
         }
     }
 
-    const fn loader(self) -> &'static [u8] {
+    const fn loader_filename(self) -> &'static str {
         match self {
-            Self::MacosAarch64 => LOADER_MACOS_AARCH64,
-            Self::MacosX86_64 => LOADER_MACOS_X86_64,
-            Self::LinuxX86_64 => LOADER_LINUX_X86_64,
-            Self::LinuxAarch64 => LOADER_LINUX_AARCH64,
+            Self::MacosAarch64 => "loader-macos-aarch64",
+            Self::MacosX86_64 => "loader-macos-x86_64",
+            Self::LinuxX86_64 => "loader-linux-x86_64",
+            Self::LinuxAarch64 => "loader-linux-aarch64",
         }
     }
 }
@@ -369,7 +380,7 @@ fn build_universal(
 ) -> io::Result<()> {
     let python = transform_script(script)?;
     let runtime = runtime_for(target, current_directory, stdout, stderr)?;
-    let loader = target.loader();
+    let loader = loader_for(target, current_directory, stdout, stderr)?;
 
     writeln!(
         stdout,
@@ -394,7 +405,10 @@ fn build_universal(
         python_size: python.len() as u64,
     }
     .encode();
-    write_executable(output_path, &[loader, runtime.as_ref(), &python, &trailer])?;
+    write_executable(
+        output_path,
+        &[loader.as_ref(), runtime.as_ref(), &python, &trailer],
+    )?;
 
     let total_size = loader.len() + runtime.len() + python.len() + trailer.len();
     let total_kb = total_size / 1024;
@@ -425,30 +439,75 @@ fn write_run_hint(stdout: &mut dyn Write, output: &str, leading_blank: bool) -> 
     }
 }
 
-fn runtime_for<'a>(
+fn runtime_for(
     target: Target,
     current_directory: &Path,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
-) -> io::Result<Cow<'a, [u8]>> {
+) -> io::Result<Cow<'static, [u8]>> {
+    component_for(
+        target,
+        target.runtime_filename(),
+        run_command::embedded_runtime(),
+        "PocketPy runtime",
+        "~2.5MB",
+        current_directory,
+        stdout,
+        stderr,
+    )
+}
+
+fn loader_for(
+    target: Target,
+    current_directory: &Path,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> io::Result<Cow<'static, [u8]>> {
+    component_for(
+        target,
+        target.loader_filename(),
+        EMBEDDED_LOADER,
+        "universal loader",
+        "~450KB",
+        current_directory,
+        stdout,
+        stderr,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn component_for(
+    target: Target,
+    filename: &'static str,
+    embedded: &'static [u8],
+    description: &str,
+    download_size: &str,
+    current_directory: &Path,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> io::Result<Cow<'static, [u8]>> {
     if target == Target::host() {
-        return Ok(Cow::Borrowed(run_command::embedded_runtime()));
+        if embedded.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("no embedded {description} for this target"),
+            ));
+        }
+        return Ok(Cow::Borrowed(embedded));
     }
 
     if let Some(directory) = env::var_os("UCHARM_RUNTIME_DIR") {
-        let runtime = PathBuf::from(directory).join(target.runtime_filename());
-        if runtime.is_file() {
-            return fs::read(runtime).map(Cow::Owned);
+        let component = PathBuf::from(directory).join(filename);
+        if component.is_file() {
+            return fs::read(component).map(Cow::Owned);
         }
     }
 
     for source_path in [
-        current_directory
-            .join("cli/src/stubs")
-            .join(target.runtime_filename()),
+        current_directory.join("cli/src/stubs").join(filename),
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../cli/src/stubs")
-            .join(target.runtime_filename()),
+            .join(filename),
     ] {
         if source_path.is_file() {
             return fs::read(source_path).map(Cow::Owned);
@@ -456,18 +515,21 @@ fn runtime_for<'a>(
     }
 
     let cache_directory = runtime_cache_directory();
-    let runtime_path = cache_directory.join(target.runtime_filename());
-    let version_path = cache_directory.join(format!("{}.version", target.runtime_filename()));
-    if runtime_path.is_file()
+    let component_path = cache_directory.join(filename);
+    let version_path = cache_directory.join(format!("{filename}.version"));
+    if component_path.is_file()
         && fs::read_to_string(&version_path).is_ok_and(|cached| cached.trim() == crate::version())
     {
-        return fs::read(runtime_path).map(Cow::Owned);
+        return fs::read(component_path).map(Cow::Owned);
     }
 
-    download_runtime(
+    download_component(
         target,
+        filename,
+        description,
+        download_size,
         &cache_directory,
-        &runtime_path,
+        &component_path,
         &version_path,
         stdout,
         stderr,
@@ -485,15 +547,18 @@ fn runtime_cache_directory() -> PathBuf {
     )
 }
 
-fn download_runtime(
+#[allow(clippy::too_many_arguments)]
+fn download_component(
     target: Target,
+    filename: &str,
+    description: &str,
+    download_size: &str,
     cache_directory: &Path,
-    runtime_path: &Path,
+    component_path: &Path,
     version_path: &Path,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> io::Result<Vec<u8>> {
-    let filename = target.runtime_filename();
     let url = format!(
         "https://github.com/ucharmdev/ucharm/releases/download/v{}/{filename}",
         crate::version()
@@ -502,13 +567,13 @@ fn download_runtime(
 
     writeln!(
         stdout,
-        "{YELLOW}?{RESET} PocketPy runtime for {BOLD}{}{RESET} not found locally.",
+        "{YELLOW}?{RESET} {description} for {BOLD}{}{RESET} not found locally.",
         target.name()
     )?;
     write!(
         stdout,
-        "  Download version {BOLD}{}{RESET} from GitHub? {DIM}(~850KB){RESET} [Y/n] ",
-        crate::version()
+        "  Download version {BOLD}{}{RESET} from GitHub? {DIM}({download_size}){RESET} [Y/n] ",
+        crate::version(),
     )?;
     stdout.flush()?;
     let mut answer = String::new();
@@ -516,7 +581,7 @@ fn download_runtime(
     if matches!(answer.trim().chars().next(), Some('n' | 'N')) {
         writeln!(stdout, "\n{DIM}To download manually:{RESET}")?;
         writeln!(stdout, "  mkdir -p {}", cache_directory.display())?;
-        writeln!(stdout, "  curl -L {url} -o {}", runtime_path.display())?;
+        writeln!(stdout, "  curl -L {url} -o {}", component_path.display())?;
         writeln!(
             stdout,
             "  echo '{}' > {}\n",
@@ -525,7 +590,7 @@ fn download_runtime(
         )?;
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            "runtime download declined",
+            format!("{description} download declined"),
         ));
     }
 
@@ -539,12 +604,12 @@ fn download_runtime(
     if !checksum_output.status.success() {
         writeln!(
             stderr,
-            "{RED}Error:{RESET}  Failed to fetch runtime checksum"
+            "{RED}Error:{RESET}  Failed to fetch {description} checksum"
         )?;
         return Err(io::Error::other("checksum download failed"));
     }
     let expected = parse_sha256(&checksum_output.stdout)?;
-    let temporary_path = runtime_path.with_extension(format!("download.{}", std::process::id()));
+    let temporary_path = component_path.with_extension(format!("download.{}", std::process::id()));
     let status = Command::new("curl")
         .args(["-fSL", "--progress-bar", "-o"])
         .arg(&temporary_path)
@@ -554,7 +619,7 @@ fn download_runtime(
         .status()?;
     if !status.success() {
         let _ = fs::remove_file(&temporary_path);
-        return Err(io::Error::other("runtime download failed"));
+        return Err(io::Error::other(format!("{description} download failed")));
     }
 
     let downloaded = fs::read(&temporary_path)?;
@@ -563,11 +628,11 @@ fn download_runtime(
         let _ = fs::remove_file(&temporary_path);
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("runtime checksum mismatch for {filename}"),
+            format!("checksum mismatch for {filename}"),
         ));
     }
     fs::set_permissions(&temporary_path, fs::Permissions::from_mode(0o755))?;
-    fs::rename(&temporary_path, runtime_path)?;
+    fs::rename(&temporary_path, component_path)?;
     fs::write(version_path, format!("{}\n", crate::version()))?;
     Ok(downloaded)
 }
