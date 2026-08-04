@@ -171,6 +171,10 @@ unsafe extern "C" {
     pub fn py_equal(lhs: py_Ref, rhs: py_Ref) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
+    #[doc = " Compare two objects.\n 1: lhs < rhs, 0: lhs >= rhs, -1: error"]
+    pub fn py_less(lhs: py_Ref, rhs: py_Ref) -> ::core::ffi::c_int;
+}
+unsafe extern "C" {
     #[doc = " Get a module by path."]
     pub fn py_getmodule(path: *const ::core::ffi::c_char) -> py_GlobalRef;
 }
@@ -207,7 +211,16 @@ unsafe extern "C" {
     pub fn py_list_getitem(self_: py_Ref, i: ::core::ffi::c_int) -> py_ItemRef;
 }
 unsafe extern "C" {
+    pub fn py_list_setitem(self_: py_Ref, i: ::core::ffi::c_int, val: py_Ref);
+}
+unsafe extern "C" {
+    pub fn py_list_delitem(self_: py_Ref, i: ::core::ffi::c_int);
+}
+unsafe extern "C" {
     pub fn py_list_len(self_: py_Ref) -> ::core::ffi::c_int;
+}
+unsafe extern "C" {
+    pub fn py_list_swap(self_: py_Ref, i: ::core::ffi::c_int, j: ::core::ffi::c_int);
 }
 unsafe extern "C" {
     pub fn py_list_append(self_: py_Ref, val: py_Ref);
