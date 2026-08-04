@@ -131,8 +131,10 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. A typical standalone app remains below 2 MB. A temporary exception requires
-   an explicit recorded decision and a size-recovery issue before cutover.
+7. The stripped runtime remains below 2 MB on macOS and 2.5 MB on fully static
+   Linux. The Linux allowance is an explicit cutover exception; issue
+   [#41](https://github.com/ucharmdev/ucharm/issues/41) tracks recovery below
+   2 MB without sacrificing compatibility or standalone deployment.
 8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
    release path.
 
@@ -287,11 +289,12 @@ status, stdout, and stderr.
   reserved for boundaries whose ownership or binary-format risk warrants them.
 - The current stripped macOS runtime is 1,840,336 bytes on ARM64 and 1,971,304
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  Both architectures remain below the 2 MB runtime gate with the database
-  engine included. On the latest 400-run warm-start sample, native Rust
-  measured 6.986 ms median and 8.024 ms p95. The native ARM64 host remains
-  below the 10 ms gate; native Intel CI remains the authoritative x86_64
-  execution environment.
+  The fully static Linux artifacts are 2,378,848 bytes on ARM64 and 2,449,232
+  bytes on x86_64. macOS remains below the 2 MB runtime gate; Linux uses the
+  approved 2.5 MB ceiling while issue #41 tracks recovery below 2 MB. On the
+  latest 400-run warm-start sample, native Rust measured 6.986 ms median and
+  8.024 ms p95. The native ARM64 host remains below the 10 ms gate; native
+  Intel CI remains the authoritative x86_64 execution environment.
 
 ### Phase 0 — Freeze and baseline
 

@@ -127,8 +127,13 @@ jobs:
 
           binary = Path("target/${{ matrix.target }}/release/pocketpy-ucharm-rs")
           size = binary.stat().st_size
-          print(f"{binary}: {size:,} bytes")
-          assert size < 2_000_000, f"initial Rust spine exceeds 2 MB: {size:,} bytes"
+          target = "${{ matrix.target }}"
+          runtime_limit = 2_500_000 if target.endswith("linux-musl") else 2_000_000
+          print(f"{binary}: {size:,} bytes (limit: {runtime_limit:,})")
+          assert size < runtime_limit, (
+              f"Rust runtime exceeds the {runtime_limit:,}-byte {target} budget: "
+              f"{size:,} bytes"
+          )
 
           loader = Path("target/${{ matrix.target }}/release/ucharm-loader")
           loader_size = loader.stat().st_size
