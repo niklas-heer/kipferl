@@ -37,7 +37,7 @@ features to them.
 ```bash
 just setup                  # Check Cargo and build the release workspace
 just check                  # rustfmt, strict Clippy, and workspace tests
-just compat                 # Full 1,668-check compatibility report
+just compat                 # Full 1,669-check compatibility report
 just demo                   # Run the example through the public Rust CLI
 just build-app app.py app   # Build a standalone universal executable
 ```

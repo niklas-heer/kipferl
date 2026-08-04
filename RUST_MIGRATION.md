@@ -5,7 +5,7 @@
 μcharm will migrate its native implementation from Zig to stable Rust while
 keeping PocketPy as the embedded Python runtime.
 
-The runtime implementation reached 1,668/1,668 available compatibility checks
+The runtime implementation reached 1,669/1,669 available compatibility checks
 on 2026-08-04. The Cargo-first CI, packaging, public binary names, and release
 assets have been cut over to Rust; public prerelease publication is deliberately
 deferred. v0.5.0 remains the final stable Zig release baseline.
@@ -136,8 +136,9 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. The stripped runtime remains below the 2.5 MB practical target on macOS and
-   the 3 MB regression ceiling on fully static Linux. Issue
+7. The stripped runtime remains below the current 4 MB release-target budget;
+   correctness, maintainability, and developer-experience improvements may use
+   that budget deliberately. Issue
    [#41](https://github.com/ucharmdev/ucharm/issues/41) preserves the original
    2 MB optimization investigation and the measured reason for relaxing it.
 8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
@@ -287,7 +288,7 @@ status, stdout, and stderr.
   0.6.1 spike was rejected after adding 211 lockfile packages and growing the
   optimized runtime to 5,420,336 bytes; the accepted implementation stays
   within the cross-target size gate. The full Rust result is now
-  1,668/1,668 (100%), up from the original 456/1,668, with 51 of 52 targeted
+  1,669/1,669 (100%), up from the original 456-check baseline, with 51 of 52 targeted
   modules at full parity, no partial modules, and one host-unavailable `toml`
   baseline.
   Related low-risk modules now move as validated waves; standalone PRs are
@@ -423,11 +424,10 @@ artifacts meet the compatibility, startup, and size gates.
 - Update architecture documentation and contributor guidance.
 - Before the public migration wrap-up, run a bounded Rust-native optimization
   and dependency review against a frozen post-cutover baseline:
-  - accept `opt-level = "s"` with fat LTO as the first measured improvement:
-    it materially improves startup and representative interpreter workloads,
-    keeps macOS runtimes below 2.5 MB, and leaves static Linux ARM64 at
-    2,378,840 bytes; retain 3 MB as the Linux regression ceiling rather than
-    sacrificing performance to pursue the former strict 2 MB aspiration;
+  - accept `opt-level = 2`, fat LTO, one codegen unit, checked overflow,
+    stripped symbols, and aborting panics as the final measured profile. The
+    feature-minimal HTTPS/archive runtime is 3,801,664 bytes on ARM64 macOS
+    under the current 4 MB release-target budget;
   - profile startup, allocations, peak memory, interactive latency, module
     throughput, binary sections, dependency contribution, and all four release
     artifacts;

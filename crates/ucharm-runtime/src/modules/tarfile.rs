@@ -1,10 +1,12 @@
 use std::ffi::c_int;
+use std::fs::File;
+use std::io::Read;
 
 use ucharm_pocketpy_sys as ffi;
 
 use crate::native::{
-    Arguments, NativeFunction, NativeModule, NativeModuleKind, Value, execute_module, return_bytes,
-    runtime_error, type_error, value_error,
+    Arguments, NativeFunction, NativeModule, NativeModuleKind, RootFrame, Value, execute_module,
+    return_bytes, return_value, runtime_error, type_error, value_error,
 };
 
 const MAX_ARCHIVE_SIZE: usize = 64 * 1024 * 1024;
@@ -16,24 +18,10 @@ import io
 ReadError = ValueError
 
 
-def _text_field(data):
-    end = 0
-    while end < len(data) and data[end] != 0:
-        end += 1
-    return data[:end].decode()
-
-
-def _octal_field(data):
-    text = _text_field(data).strip()
-    if text == "":
-        return 0
-    return int(text, 8)
-
-
 def is_tarfile(name):
     try:
-        data = _read_file(name)
-        return len(data) >= 512 and data[257:262] == b"ustar"
+        _names(name)
+        return True
     except Exception:
         return False
 
@@ -42,34 +30,16 @@ class TarFile:
     def __init__(self, name, mode="r"):
         if mode != "r":
             raise ValueError("only read mode is supported")
-        self._data = _read_file(name)
-        self._entries = []
+        self._name = name
+        self._entries = _names(name)
         self.closed = False
-        offset = 0
-        while offset + 512 <= len(self._data):
-            header = self._data[offset:offset + 512]
-            if header[0] == 0:
-                break
-            name = _text_field(header[:100])
-            size = _octal_field(header[124:136])
-            typeflag = header[156]
-            data_offset = offset + 512
-            if typeflag == 0 or typeflag == 48:
-                self._entries.append((name, data_offset, size))
-            offset = data_offset + ((size + 511) // 512) * 512
-        if len(self._entries) == 0 and not is_tarfile(name):
-            raise ReadError("not a tar archive")
 
     def getnames(self):
-        names = []
-        for entry in self._entries:
-            names.append(entry[0])
-        return names
+        return list(self._entries)
 
     def extractfile(self, member):
-        for entry in self._entries:
-            if entry[0] == member:
-                return io.BytesIO(self._data[entry[1]:entry[1] + entry[2]])
+        if member in self._entries:
+            return io.BytesIO(_read_member(self._name, member))
         return None
 
     def close(self):
@@ -86,10 +56,16 @@ def open(name, mode="r"):
     return TarFile(name, mode)
 "#;
 
-const FUNCTIONS: &[NativeFunction] = &[NativeFunction {
-    name: c"_read_file",
-    callback: read_file,
-}];
+const FUNCTIONS: &[NativeFunction] = &[
+    NativeFunction {
+        name: c"_names",
+        callback: names,
+    },
+    NativeFunction {
+        name: c"_read_member",
+        callback: read_member,
+    },
+];
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"tarfile",
@@ -109,7 +85,16 @@ fn initialize(module: Value) {
     }
 }
 
-unsafe extern "C" fn read_file(argc: c_int, argv: ffi::py_StackRef) -> bool {
+fn open_archive(path: &str) -> Result<tar::Archive<File>, ()> {
+    let file = File::open(path).map_err(|_| ())?;
+    let length = file.metadata().map_err(|_| ())?.len();
+    if !(1024..=MAX_ARCHIVE_SIZE as u64).contains(&length) {
+        return Err(());
+    }
+    Ok(tar::Archive::new(file))
+}
+
+unsafe extern "C" fn names(argc: c_int, argv: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
     if !arguments.require_arity(1, 1) {
@@ -118,9 +103,99 @@ unsafe extern "C" fn read_file(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"filename must be a string");
     };
-    match std::fs::read(path) {
-        Ok(data) if data.len() <= MAX_ARCHIVE_SIZE => return_bytes(&data),
-        Ok(_) => value_error(c"archive is too large"),
-        Err(_) => runtime_error(c"unable to read archive"),
+    let Ok(mut archive) = open_archive(&path) else {
+        return value_error(c"not a tar archive");
+    };
+    let Ok(entries) = archive.entries() else {
+        return value_error(c"not a tar archive");
+    };
+    let mut names = Vec::new();
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return value_error(c"not a tar archive");
+        };
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let Ok(path) = entry.path() else {
+            return value_error(c"invalid tar member name");
+        };
+        let Some(path) = path.to_str() else {
+            return value_error(c"invalid tar member name");
+        };
+        names.push(path.to_owned());
+    }
+    let mut roots = RootFrame::new();
+    let output = roots.list();
+    for name in names {
+        let Some(name) = roots.string(&name) else {
+            return value_error(c"tar member name is too large");
+        };
+        output.list_append(name);
+    }
+    return_value(output)
+}
+
+unsafe extern "C" fn read_member(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
+    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    if !arguments.require_arity(2, 2) {
+        return false;
+    }
+    let Some(path) = arguments.get(0).and_then(Value::string) else {
+        return type_error(c"filename must be a string");
+    };
+    let Some(name) = arguments.get(1).and_then(Value::string) else {
+        return type_error(c"member name must be a string");
+    };
+    let Ok(mut archive) = open_archive(&path) else {
+        return value_error(c"not a tar archive");
+    };
+    let Ok(entries) = archive.entries() else {
+        return value_error(c"not a tar archive");
+    };
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return value_error(c"not a tar archive");
+        };
+        let Ok(entry_path) = entry.path() else {
+            return value_error(c"invalid tar member name");
+        };
+        if entry_path != std::path::Path::new(&name) {
+            continue;
+        }
+        if entry.size() > MAX_ARCHIVE_SIZE as u64 {
+            return value_error(c"tar member is too large");
+        }
+        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        if entry
+            .take(MAX_ARCHIVE_SIZE as u64 + 1)
+            .read_to_end(&mut bytes)
+            .is_err()
+        {
+            return runtime_error(c"unable to read tar member");
+        }
+        if bytes.len() > MAX_ARCHIVE_SIZE {
+            return value_error(c"tar member is too large");
+        }
+        return return_bytes(&bytes);
+    }
+    runtime_error(c"unable to read tar member")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::open_archive;
+
+    #[test]
+    fn rejects_short_non_archives_before_parsing() {
+        let path = std::env::temp_dir().join(format!(
+            "ucharm-invalid-tar-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, [0_u8; 512]).expect("write invalid archive");
+        assert!(open_archive(path.to_str().expect("UTF-8 temp path")).is_err());
+        std::fs::remove_file(path).expect("remove invalid archive");
     }
 }

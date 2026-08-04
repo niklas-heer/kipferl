@@ -5,7 +5,7 @@ Each timing is a randomized round-robin comparison with seed 42 so thermal and
 run-order drift is shared across candidates. Commands are reproducible with
 `benchmarks/migration_baseline.py --candidate LABEL=PATH`.
 
-## Release profile decision
+## Release profile exploration
 
 All candidates retain one codegen unit, aborting panics, symbol stripping, and
 the existing Cargo dependency/features graph.
@@ -30,10 +30,9 @@ workloads after three warmups:
 | one-million-iteration loop | 63.627 ms | 32.384 ms | 49.1% | 63.483 ms |
 | 10,000 JSON parses | 63.243 ms | 50.225 ms | 20.6% | 62.852 ms |
 
-The speedup is large enough to justify the size tradeoff under the revised
-policy. `opt-level = "s"` with fat LTO is accepted. The practical runtime target
-is 2.5 MB, with 3 MB retained as the static-Linux regression ceiling. This is a
-performance-aware budget, not a target to fill.
+This first pass established `s` with fat LTO as the better control than `z`.
+The later developer-experience review broadened the acceptable runtime budget
+and superseded it with the final `-O2` decision below.
 
 Measured `s` artifacts:
 
@@ -53,6 +52,47 @@ under Rosetta; the Linux ARM64 universal application is 2,776,276 bytes and
 executes in a clean Debian ARM64 container. These application sizes include the
 loader, embedded runtime, trailer, and test payload rather than only the runtime
 shown above.
+
+## Final profile and value budget
+
+The second pass compared `s`, `O2`, `O3`, thin LTO, checked overflow, and PGO.
+These pre-HTTP-dependency ARM64 results use fat LTO unless stated otherwise:
+
+| Profile | Runtime | Startup median | Fibonacci | Million-iteration loop | JSON | Style |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `s` | 2,131,168 | 5.423 ms | 142.756 ms | 30.492 ms | 32.384 ms | 13.775 ms |
+| `O2` | 2,641,600 | 5.344 ms | 129.493 ms | 26.240 ms | 31.050 ms | 12.708 ms |
+| `O3` | 2,872,928 | 5.344 ms | 130.268 ms | 26.285 ms | 31.005 ms | 12.836 ms |
+| `s` + thin LTO | 2,284,160 | 5.437 ms | 143.397 ms | 30.613 ms | 32.716 ms | 13.646 ms |
+| `O2` + overflow checks | 2,641,648 | 5.365 ms | 129.069 ms | 28.148 ms | 31.721 ms | 13.192 ms |
+
+`O2` is accepted: it materially improves representative workloads while the
+complete runtime remains within the product's value-based budget. `O3` adds
+231,328 bytes over `O2` without a measurable benefit. Thin LTO is larger and
+slower than fat LTO. Overflow checks add only 48 bytes to the pre-HTTPS `O2`
+runtime and are accepted as a quality safeguard.
+
+An instrumented PGO build was trained on startup, Fibonacci, loop, JSON, style,
+and all 1,668 compatibility checks. It reduced the binary by 32,816 bytes but
+did not improve startup; the only notable workload gain was about 4.6% for
+style, while other changes were neutral or below 1%. LLVM also exhausted static
+counters during the callback-heavy training run, PocketPy's C compilation did
+not consume the Rust profile, and 39 Rust functions lacked profile data. PGO is
+therefore rejected until a stable representative production corpus justifies
+the extra release machinery.
+
+After accepting feature-minimal Ureq/Rustls for maintained HTTP and HTTPS, the
+final host artifacts are:
+
+| Artifact | ARM64 macOS size |
+| --- | ---: |
+| Runtime (`pocketpy-ucharm`) | 3,801,664 bytes |
+| CLI (`ucharm`, before final asset refresh) | 2,914,016 bytes |
+
+The runtime remains below the 4 MB current-target regression budget. The budget
+is a guardrail rather than the primary product metric: a modest size increase is
+accepted when it materially improves correctness, maintainability, testability,
+or user/developer experience.
 
 ## Peak memory and interactive latency
 
@@ -83,8 +123,9 @@ throughput improvement with no artifact-size cost.
 
 ## Dependency and section audit
 
-- `Cargo.lock` contains 54 packages and `cargo tree --duplicates` reports no
-  duplicate versions.
+- Before the dependency adoptions, `Cargo.lock` contained 54 packages. The
+  accepted Ureq/Rustls and archive stacks bring the final graph to 92 packages;
+  `cargo tree --duplicates` still reports no duplicate versions.
 - `cargo audit` reports no known vulnerabilities.
 - Every runtime dependency has default features disabled or an intentionally
   narrow feature set where the crate offers one. The SQLite dependency remains
@@ -96,9 +137,50 @@ throughput improvement with no artifact-size cost.
   estimates are directional because stripped C symbols cannot all be assigned
   precisely.
 
-No dependency replacement is accepted in this pass. The graph is already
-small, has no duplicated versions, and the previously measured pure-Rust Turso
-spike remains substantially worse for size and dependency count.
+The database spike retains `rusqlite` with bundled SQLite. With identical
+`O2`/fat-LTO/overflow settings, a trivial control was 302,448 bytes, Rusqlite
+was 1,317,120 bytes with 12 tree entries, and Turso 0.8.0-pre.2 was 9,576,960
+bytes with 257 entries and 27 duplicate-version groups. Turso executed the
+query successfully, but its current beta engine, artifact size, async/runtime
+graph, bindgen/Clang path, ICU, tracing, crypto, parser, and index dependencies
+make it a worse maintenance result for this release.
+
+The networking spike compared feature-minimal synchronous HTTPS clients. A
+trivial control was 302,432 bytes, Minreq/Rustls was 701,296 bytes with 26 tree
+entries, and Ureq/Rustls was 1,463,712 bytes with 33 entries in the shared spike
+workspace. Minreq is smaller, but Ureq provides the stronger maintained
+protocol/configuration layer. Ureq is accepted without its gzip feature so
+`http.client` returns the wire body. It removes more than 260 lines of local
+socket/request/response/chunking code, preserves bounded reads and status
+responses, and adds a tested `HTTPSConnection` path.
+
+The archive spike used the same release profile. A trivial control was 302,560
+bytes, `zip` 8.6.0 with only Flate2 deflate support was 385,664 bytes with 15
+tree entries, and `tar` 0.4.46 without xattrs was 319,360 bytes with five
+entries. Both are accepted. The complete runtime grows by 66,304 bytes over the
+HTTP-only build, while maintained crates replace the local ZIP central-
+directory/member parser and TAR header/member-boundary parser.
+
+## Direct dependency decisions
+
+| Dependency | Decision | Reason |
+| --- | --- | --- |
+| `flate2` | Retain, feature-minimal | Pure-Rust gzip/deflate backend, now shared by gzip and ZIP |
+| `jiff` | Retain, feature-minimal | Maintained time-zone and DST correctness using the system zone database |
+| `libc` | Retain | Small, standard platform ABI surface still required by terminal, process, and signal compatibility |
+| RustCrypto `md-5`, `sha1`, `sha2` | Retain, feature-minimal | Maintained digest implementations; MD5/SHA-1 remain compatibility algorithms, not security choices |
+| `regex-lite` | Retain | Covers the curated regex surface without the Unicode/data cost of the full `regex` crate |
+| `rusqlite` + bundled SQLite | Retain | Mature DB-API substrate and standalone linkage; Turso is currently a much larger beta-engine graph |
+| `ureq` + Rustls | Adopt | Transfers HTTP framing, parsing, bounded-body plumbing, TLS, and certificate roots to maintained crates |
+| `zip` | Adopt, deflate only | Transfers ZIP variants, central-directory validation, CRC, and member bounds upstream |
+| `tar` | Adopt, no xattrs | Transfers TAR header/path/member parsing upstream without extraction-only features |
+| `ucharm-pocketpy-sys` + `cc` | Retain | Required local FFI boundary and build path for the embedded PocketPy C runtime |
+
+CLI/loader dependencies remain limited to the shared format crate and the
+existing RustCrypto hashes used by stable cache/integrity formats. General CLI
+frameworks, full regex, async networking, alternate terminal backends, and
+additional serialization layers are not adopted because they would not remove
+enough product-specific code or improve the current public API.
 
 ## Terminal and TUI library spike
 
@@ -120,13 +202,17 @@ Rustix, parking_lot, and supporting crates. The Ratatui measurement does not
 include a terminal backend, yet already adds 52 dependency entries beyond the
 control.
 
-Neither library is accepted. The current terminal surface is a small set of
-exact ANSI sequences plus `/dev/tty`, process-group, timed-read, and restoration
-behavior covered by byte-stream and pseudo-terminal tests. The presentation
-surface deliberately preserves μcharm-specific width and rendering semantics.
-The spikes add graph and artifact cost without removing those compatibility
-requirements. Reconsider a library if the product grows into a stateful,
-full-screen application framework rather than for the current bounded API.
+Neither library is forced underneath the current stateless compatibility API.
+That surface still needs μcharm-specific prompt state, PocketPy bindings,
+`/dev/tty`, timed reads, restoration behavior, and exact width/rendering
+semantics, so a backend substitution would not yet remove enough local code.
+
+This is not a size-only rejection. Ratatui is the preferred foundation for a
+future stateful/responsive screen API where its buffered rendering,
+`TestBackend`, layout/widgets, resize/focus model, keyboard discoverability, and
+accessibility patterns can materially improve both user experience and
+testability. That product layer should be designed around Ratatui rather than
+retrofitting it invisibly beneath the existing calls.
 
 ## Rust safety audit
 

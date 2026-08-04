@@ -1,12 +1,12 @@
 # μcharm Compatibility Report
 
-Generated: 2026-08-04 21:37:12
+Generated: 2026-08-04 23:12:03
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,668/1,668 (100.0%)
+- **Tests passing**: 1,669/1,669 (100.0%)
 - **Modules at 100%**: 51/52
 - **Modules partial**: 0/52
 - **No baseline (host CPython)**: 1/52
@@ -41,7 +41,7 @@ Generated: 2026-08-04 21:37:12
 | hashlib | stdlib | 29/29 | 29/29 | 100% | ✅ Full |
 | heapq | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | hmac | stdlib | 4/4 | 4/4 | 100% | ✅ Full |
-| http.client | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
+| http.client | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
 | io | stdlib | 53/53 | 53/53 | 100% | ✅ Full |
 | itertools | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | json | stdlib | 70/70 | 70/70 | 100% | ✅ Full |

@@ -7,7 +7,7 @@ This is the single source of truth for priorities and next steps.
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
 - Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Public prerelease publication is intentionally deferred.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust runtime passes 1,668/1,668 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
+- Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -19,7 +19,7 @@ This is the single source of truth for priorities and next steps.
 
 ## Active Priority: Rust Migration
 
-- Phase 5 implementation is complete at 1,668/1,668 available checks.
+- Phase 5 implementation is complete at 1,669/1,669 available checks.
 - Phase 6 has cut the canonical CI, release workflow, embedded assets, public
   binary names, local commands, and contributor guidance over to Rust/Cargo.
 - The active local work is the measured Rust-native optimization and safety
@@ -62,17 +62,23 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 ## Product Roadmap After the Rust Cutover
 
 ### Phase A: Rust-native optimization and dependency review
-- The first profile review accepts `opt-level = "s"` with fat LTO. On Apple
-  Silicon it trades 290,832 bytes for roughly 11% faster startup, 49% faster
-  interpreter-heavy loop/Fibonacci workloads, and 21% faster JSON parsing.
-  Static Linux ARM64 remains 2,378,840 bytes. Keep 2.5 MB as the practical
-  runtime target and 3 MB as the Linux regression ceiling; do not optimize for
-  the former 2 MB aspiration at the expense of material runtime performance.
-- The bounded terminal-library spike rejects Crossterm and Ratatui for the
-  current API. The feature-relevant Crossterm event build adds 69,056 bytes and
-  21 dependency entries over its control; backend-free Ratatui layout/widgets
-  add 82,672 bytes and 52 entries while still requiring compatibility adapters.
-  Reconsider them only if μcharm grows into a stateful full-screen framework.
+- The completed profile review accepts `opt-level = 2`, fat LTO, one codegen
+  unit, checked integer overflow, aborting panics, and symbol stripping. On the
+  pre-HTTPS ARM64 runtime, `-O2` improved representative interpreter workloads
+  by 7-14% over `s` for about 510 KiB. `-O3` added another 231 KiB without a
+  measurable win, thin LTO regressed size and speed, and PGO's small,
+  corpus-specific gains did not justify its training/toolchain burden.
+- Treat 4 MB as a regression budget for current runtime artifacts, not as a
+  goal to minimize at the expense of developer experience, correctness, or a
+  maintained implementation. The current optimized ARM64 runtime with SQLite,
+  HTTPS, and maintained ZIP/TAR readers is 3,801,664 bytes; the host CLI is
+  2,914,016 bytes before the final embedded-asset refresh.
+- The bounded terminal-library spike does not force Crossterm or Ratatui under
+  the current stateless compatibility API, because most of the product-specific
+  prompt state and PocketPy binding would remain. Ratatui is the preferred
+  foundation for a future stateful/responsive screen API: its buffer model,
+  TestBackend, layout/widgets, resize handling, and accessibility conventions
+  can improve both user experience and testability enough to justify its size.
 - The first allocation cleanup replaces `charm.style`'s temporary vector,
   per-code strings, join, and final format with one lazy output buffer. It keeps
   the ARM64 runtime byte size unchanged and improves a 20,000-call style
@@ -98,25 +104,30 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   a meaningful gain and the PocketPy ownership rules remain explicit.
 - Audit Cargo features and duplicate dependencies with `cargo tree` and analyze
   release contribution with
-  [`cargo-bloat`](https://github.com/RazrFalcon/cargo-bloat). Compare `z` versus
-  `s`, LTO choices, and profile-guided optimization using the same startup,
-  size, and throughput corpus; keep the existing size-oriented release profile
-  as the control.
+  [`cargo-bloat`](https://github.com/RazrFalcon/cargo-bloat). The completed
+  profile comparison covers `s`, `O2`, `O3`, fat/thin LTO, overflow checks, and
+  PGO against the same startup and throughput corpus.
 - Run isolated library spikes behind the existing Python API and golden tests:
   - compare the current terminal/raw-mode/event code with a feature-minimal
     [`Crossterm`](https://github.com/crossterm-rs/crossterm) substrate, and
     compare selected layout/widget primitives with
     [`Ratatui`](https://ratatui.rs/) rather than replacing μcharm's presentation
     model wholesale;
-  - retain the accepted feature-minimal `rusqlite` plus statically bundled
-    SQLite implementation. The August 2026 Turso spike added 211 lockfile
-    packages and produced a 5,420,336-byte runtime, so the pure-Rust engine was
-    rejected for this release. Recheck Turso's maturity, compatibility, and
-    artifact cost after the cutover; the measurements and decision are in
-    `benchmarks/network_database_wave.md`;
-  - inventory focused crates for remaining process, signal, regex, networking,
-    archive, and format modules, disabling default features and rejecting a
-    dependency when the standard library or current implementation is clearer.
+  - retain feature-minimal `rusqlite` plus statically bundled SQLite. A current
+    Turso 0.8.0-pre.2 spike with public defaults disabled produced a 9,576,960
+    byte binary and 257 dependency-tree entries, so it increases size and
+    maintenance/supply-chain surface while its database engine remains beta;
+  - accept feature-minimal Ureq/Rustls for `http.client`. It removes the local
+    socket, framing, response-parser, and chunk-decoder implementation, retains
+    the 8 MB body cap, and adds HTTPS. With `-O2` the complete ARM64 runtime is
+    3,735,360 bytes before the archive-library adoption and a real TLS request
+    succeeds;
+  - accept feature-minimal `zip` and `tar` readers. They replace handwritten
+    central-directory, chunk, header, and member-boundary parsing for about
+    66 KiB in the complete runtime; the final ARM64 runtime is 3,801,664 bytes;
+  - inventory focused crates for remaining process, signal, regex, and format
+    modules, disabling default features and rejecting a dependency when
+    the standard library or current implementation is clearer.
 - Record each spike as an accept/reject decision with compatibility, safety,
   maintenance, license, dependency, size, startup, memory, and throughput data.
   A library is adopted only when it improves the overall engineering result;
@@ -147,9 +158,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ### Phase C: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface. `tomllib`, `http.client`,
-  `xml.etree`, and the basic `sqlite3` DB-API subset are now present; remaining
-  work includes the separate third-party `toml` package, HTTPS/TLS, YAML, and
-  deeper API coverage where product demand justifies it.
+  `xml.etree`, HTTPS/TLS through `http.client`, and the basic `sqlite3` DB-API
+  subset are now present; remaining work includes the separate third-party
+  `toml` package, YAML, and deeper API coverage where product demand justifies
+  it.
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase D: Developer experience
@@ -166,6 +178,6 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 - Tree-shaking or module selection for smaller binaries.
 - `ucharm dev` (watch mode / hot reload).
-- Networking and formats: HTTPS/TLS, third-party `toml`, and YAML.
+- Formats: third-party `toml` and YAML.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

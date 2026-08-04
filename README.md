@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (2.5 MB practical runtime target; 3 MB Linux ceiling)
+- Tiny, portable binaries (under a 4 MB runtime budget on current release targets)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -95,7 +95,7 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 | | Python + Rich | Go + Charm | Rust + Ratatui | **μcharm** |
 |---|:---:|:---:|:---:|:---:|
 | **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~ 3ms** |
-| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **< 2.8MB** |
+| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~4MB** |
 | **Easy to write** | Yes | Medium | Hard | **Yes** |
 | **Beautiful TUI** | Yes | Yes | Yes | **Yes** |
 
@@ -171,7 +171,7 @@ configparser, enum, uuid, urllib.parse, contextlib, typing, statistics,
 functools, itertools, heapq.
 
 **Nice to have:**
-toml/tomllib, http.client (no TLS), secrets, hmac, dataclasses,
+toml/tomllib, http.client (HTTP + HTTPS), secrets, hmac, dataclasses,
 xml.etree (fromstring + basic iteration), sqlite3 (basic DB-API subset),
 gzip (read), zipfile (read-only), tarfile (read-only).
 
@@ -274,7 +274,7 @@ ucharm/
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
-- Rust runtime: 1,668/1,668 available tests passing (100%)
+- Rust runtime: 1,669/1,669 available tests passing (100%)
 - 52 targeted modules, with 51 at 100% parity, no partial modules, and one
   host-unavailable `toml` baseline
 - 6.986ms median / 8.024ms p95 native ARM64 startup and a 1,840,336-byte
@@ -310,13 +310,14 @@ The current native ARM64 median is 6.986ms. Fast startup comes from:
 <details>
 <summary>Why is the binary so small?</summary>
 
-~2.1-2.8MB universal binaries (SQLite enabled) because:
+About 4MB for the optimized ARM64 runtime (SQLite and HTTPS enabled) because:
 
 1. PocketPy core is small
-2. The Rust release profile uses size optimization, fat LTO, one codegen unit,
-   symbol stripping, and aborting panics
+2. The Rust release profile uses `-O2`, fat LTO, one codegen unit, overflow
+   checks, symbol stripping, and aborting panics
 3. Curated stdlib surface (no bloat) while still bundling useful extras like `sqlite3`
-4. SQLite is statically bundled with unused extensions disabled
+4. SQLite is statically bundled with unused extensions disabled, and HTTPS uses
+   a feature-minimal Rustls/Ureq stack
 </details>
 
 <details>

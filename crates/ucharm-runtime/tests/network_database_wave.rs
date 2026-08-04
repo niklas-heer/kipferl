@@ -8,7 +8,7 @@ fn passes_all_network_database_compatibility_fixtures() {
         (
             "http.client",
             include_str!("../../../tests/cpython/test_http_client.py"),
-            "Results: 8 passed, 0 failed, 0 skipped",
+            "Results: 9 passed, 0 failed, 0 skipped",
         ),
         (
             "sqlite3",
@@ -49,10 +49,10 @@ fn sends_and_parses_a_real_loopback_http_exchange() {
         }
         let request = String::from_utf8(request).expect("ASCII HTTP request");
         assert!(request.starts_with("GET /health HTTP/1.1\r\n"));
-        assert!(request.contains("X-Ucharm: yes\r\n"));
+        assert!(request.to_ascii_lowercase().contains("x-ucharm: yes\r\n"));
         stream
             .write_all(
-                b"HTTP/1.1 201 Created\r\nContent-Length: 12\r\nX-Test: value\r\n\r\nrust-http-ok",
+                b"HTTP/1.1 201 Created\r\nTransfer-Encoding: chunked\r\nX-Test: value\r\n\r\n4\r\nrust\r\n8\r\n-http-ok\r\n0\r\n\r\n",
             )
             .expect("write HTTP response");
     });

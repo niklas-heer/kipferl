@@ -450,7 +450,7 @@ fn runtime_for(
         target.runtime_filename(),
         run_command::embedded_runtime(),
         "PocketPy runtime",
-        "~2.5MB",
+        "~4MB",
         current_directory,
         stdout,
         stderr,

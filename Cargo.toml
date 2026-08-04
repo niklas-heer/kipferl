@@ -22,8 +22,9 @@ unsafe_op_in_unsafe_fn = "deny"
 undocumented_unsafe_blocks = "deny"
 
 [profile.release]
-opt-level = "s"
+opt-level = 2
 lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+overflow-checks = true

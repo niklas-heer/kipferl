@@ -1,16 +1,15 @@
 use std::ffi::{c_int, c_void};
-use std::io::{Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use ucharm_pocketpy_sys as ffi;
+use ureq::{Agent, http};
 
 use crate::native::{
     Arguments, NativeFunction, NativeModule, NativeModuleKind, RootFrame, Value, dict_apply,
     execute_module, os_error, return_value, type_error, value_error,
 };
 
-const MAX_RESPONSE_SIZE: usize = 8 * 1024 * 1024;
+const MAX_RESPONSE_SIZE: u64 = 8 * 1024 * 1024;
 
 const COMPATIBILITY_SOURCE: &str = r#"
 class HTTPResponse:
@@ -28,6 +27,8 @@ class HTTPResponse:
 
 
 class HTTPConnection:
+    _scheme = "http"
+
     def __init__(self, host, port=80, timeout=None):
         if not isinstance(host, str):
             raise TypeError("host must be str")
@@ -37,7 +38,7 @@ class HTTPConnection:
         self._last_response = None
 
     def request(self, method, url, body=None, headers=None):
-        result = _request(self.host, self.port, method, url, body, headers, self.timeout)
+        result = _request(self._scheme, self.host, self.port, method, url, body, headers, self.timeout)
         self._last_response = HTTPResponse(result[0], result[1], result[2], result[3])
 
     def getresponse(self):
@@ -46,6 +47,13 @@ class HTTPConnection:
         response = self._last_response
         self._last_response = None
         return response
+
+
+class HTTPSConnection(HTTPConnection):
+    _scheme = "https"
+
+    def __init__(self, host, port=443, timeout=None):
+        HTTPConnection.__init__(self, host, port, timeout)
 "#;
 
 const FUNCTIONS: &[NativeFunction] = &[NativeFunction {
@@ -115,28 +123,34 @@ unsafe extern "C" fn collect_header(
 unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
-    if !arguments.require_arity(7, 7) {
+    if !arguments.require_arity(8, 8) {
         return false;
     }
-    let Some(host) = arguments.get(0).and_then(Value::string) else {
+    let Some(scheme) = arguments.get(0).and_then(Value::string) else {
+        return type_error(c"scheme must be str");
+    };
+    if !matches!(scheme.as_str(), "http" | "https") {
+        return value_error(c"unsupported HTTP scheme");
+    }
+    let Some(host) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"host must be str");
     };
-    let Some(port) = arguments.get(1).and_then(Value::integer) else {
+    let Some(port) = arguments.get(2).and_then(Value::integer) else {
         return type_error(c"port must be int");
     };
     let Ok(port) = u16::try_from(port) else {
         return value_error(c"port must be in range 0..65536");
     };
-    let Some(method) = arguments.get(2).and_then(Value::string) else {
+    let Some(method) = arguments.get(3).and_then(Value::string) else {
         return type_error(c"method must be str");
     };
-    let Some(url) = arguments.get(3).and_then(Value::string) else {
+    let Some(url) = arguments.get(4).and_then(Value::string) else {
         return type_error(c"url must be str");
     };
     if method.contains(['\r', '\n']) || url.contains(['\r', '\n']) {
         return value_error(c"invalid HTTP request line");
     }
-    let body = match arguments.get(4) {
+    let body = match arguments.get(5) {
         Some(value) if value.is_none() => Vec::new(),
         Some(value) if value.is_type(ffi::py_PredefinedType_tp_bytes) => {
             value.bytes().expect("bytes checked")
@@ -151,7 +165,7 @@ unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
         valid: true,
         ..HeaderCollector::default()
     };
-    if let Some(headers) = arguments.get(5)
+    if let Some(headers) = arguments.get(6)
         && !headers.is_none()
     {
         if !headers.is_type(ffi::py_PredefinedType_tp_dict) {
@@ -169,72 +183,101 @@ unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
         }
     }
 
-    let timeout = arguments.get(6).and_then(|value| {
+    let timeout = arguments.get(7).and_then(|value| {
         if value.is_none() {
             None
         } else {
-            value.number().filter(|seconds| *seconds >= 0.0)
+            value
+                .number()
+                .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
         }
     });
-    let path = request_path(&url);
-    let mut encoded = Vec::with_capacity(256 + body.len());
-    if write!(&mut encoded, "{method} {path} HTTP/1.1\r\n").is_err() {
-        return value_error(c"request is too large");
+    if !arguments.get(7).is_some_and(|value| value.is_none()) && timeout.is_none() {
+        return value_error(c"timeout must be a finite non-negative number or None");
     }
-    if !has_header(&collector.headers, "host") && write!(&mut encoded, "Host: {host}\r\n").is_err()
-    {
-        return value_error(c"request is too large");
-    }
-    if !has_header(&collector.headers, "connection") {
-        encoded.extend_from_slice(b"Connection: close\r\n");
-    }
-    if !body.is_empty() && !has_header(&collector.headers, "content-length") {
-        let _ = write!(&mut encoded, "Content-Length: {}\r\n", body.len());
-    }
-    for (name, value) in &collector.headers {
-        let _ = write!(&mut encoded, "{name}: {value}\r\n");
-    }
-    encoded.extend_from_slice(b"\r\n");
-    encoded.extend_from_slice(&body);
 
-    let Ok(mut addresses) = (host.as_str(), port).to_socket_addrs() else {
-        return os_error(c"failed to resolve HTTP host");
+    let Some(endpoint) = endpoint(&scheme, &host, port, &url) else {
+        return value_error(c"invalid HTTP URL");
     };
-    let Some(address) = addresses.next() else {
-        return os_error(c"HTTP host has no addresses");
+    let Ok(method) = http::Method::from_bytes(method.as_bytes()) else {
+        return value_error(c"invalid HTTP method");
     };
-    let connected = timeout
-        .map(|seconds| TcpStream::connect_timeout(&address, Duration::from_secs_f64(seconds)))
-        .unwrap_or_else(|| TcpStream::connect(address));
-    let Ok(mut stream) = connected else {
-        return os_error(c"failed to connect HTTP socket");
+    let mut builder = http::Request::builder().method(method).uri(endpoint);
+    for (name, value) in collector.headers {
+        builder = builder.header(name, value);
+    }
+    let Ok(request) = builder.body(body) else {
+        return value_error(c"invalid HTTP request");
     };
+
+    let mut config = Agent::config_builder()
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .proxy(None)
+        .user_agent("")
+        .accept("");
     if let Some(seconds) = timeout {
-        let duration = Some(Duration::from_secs_f64(seconds));
-        let _ = stream.set_read_timeout(duration);
-        let _ = stream.set_write_timeout(duration);
+        config = config.timeout_global(Some(Duration::from_secs_f64(seconds)));
     }
-    if stream.write_all(&encoded).is_err() {
-        return os_error(c"failed to send HTTP request");
-    }
-
-    let Ok(response) = read_response(&mut stream, !method.eq_ignore_ascii_case("HEAD")) else {
+    let agent: Agent = config.build().into();
+    let Ok(mut response) = agent.run(request) else {
+        return os_error(c"HTTP request failed");
+    };
+    let status = response.status();
+    let reason = status.canonical_reason().unwrap_or("").to_owned();
+    let headers = response
+        .headers()
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.as_str().to_ascii_lowercase(),
+                String::from_utf8_lossy(value.as_bytes()).into_owned(),
+            )
+        })
+        .collect();
+    let Ok(body) = response
+        .body_mut()
+        .with_config()
+        .limit(MAX_RESPONSE_SIZE)
+        .read_to_vec()
+    else {
         return os_error(c"failed to read HTTP response");
     };
-    return_response(response)
+    return_response(Response {
+        status: i64::from(status.as_u16()),
+        reason,
+        headers,
+        body,
+    })
 }
 
 fn request_path(url: &str) -> &str {
-    if let Some(rest) = url.strip_prefix("http://") {
+    if let Some(rest) = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))
+    {
         return rest.find('/').map_or("/", |index| &rest[index..]);
     }
-    if url.is_empty() { "/" } else { url }
+    if url.is_empty() {
+        "/"
+    } else if url.starts_with('/') {
+        url
+    } else {
+        ""
+    }
 }
 
-fn has_header(headers: &[(String, String)], needle: &str) -> bool {
-    headers
-        .iter()
-        .any(|(name, _)| name.eq_ignore_ascii_case(needle))
+fn endpoint(scheme: &str, host: &str, port: u16, url: &str) -> Option<String> {
+    let path = request_path(url);
+    if path.is_empty() || host.is_empty() {
+        return None;
+    }
+    let host = if host.contains(':') && !(host.starts_with('[') && host.ends_with(']')) {
+        format!("[{host}]")
+    } else {
+        host.to_owned()
+    };
+    Some(format!("{scheme}://{host}:{port}{path}"))
 }
 
 struct Response {
@@ -242,123 +285,6 @@ struct Response {
     reason: String,
     headers: Vec<(String, String)>,
     body: Vec<u8>,
-}
-
-fn read_response(stream: &mut impl Read, expects_body: bool) -> Result<Response, ()> {
-    let mut bytes = Vec::new();
-    let mut buffer = [0_u8; 8192];
-    loop {
-        let count = stream.read(&mut buffer).map_err(|_| ())?;
-        if count == 0 {
-            break;
-        }
-        bytes.extend_from_slice(&buffer[..count]);
-        if bytes.len() > MAX_RESPONSE_SIZE {
-            return Err(());
-        }
-        if response_is_complete(&bytes, expects_body) {
-            break;
-        }
-    }
-    let header_end = find_bytes(&bytes, b"\r\n\r\n").ok_or(())?;
-    let head = std::str::from_utf8(&bytes[..header_end]).map_err(|_| ())?;
-    let mut lines = head.split("\r\n");
-    let mut status_parts = lines.next().ok_or(())?.splitn(3, ' ');
-    let protocol = status_parts.next().ok_or(())?;
-    if !protocol.starts_with("HTTP/") {
-        return Err(());
-    }
-    let status = status_parts.next().ok_or(())?.parse().map_err(|_| ())?;
-    let reason = status_parts.next().unwrap_or("").to_owned();
-    let headers = lines
-        .filter_map(|line| line.split_once(':'))
-        .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_owned()))
-        .collect::<Vec<_>>();
-    let encoded_body = &bytes[header_end + 4..];
-    let body = if !expects_body || (100..200).contains(&status) || matches!(status, 204 | 304) {
-        Vec::new()
-    } else if headers
-        .iter()
-        .any(|(name, value)| name == "transfer-encoding" && value.eq_ignore_ascii_case("chunked"))
-    {
-        decode_chunked(encoded_body)?
-    } else if let Some(length) = content_length(&headers) {
-        encoded_body.get(..length).ok_or(())?.to_vec()
-    } else {
-        encoded_body.to_vec()
-    };
-    Ok(Response {
-        status,
-        reason,
-        headers,
-        body,
-    })
-}
-
-fn response_is_complete(bytes: &[u8], expects_body: bool) -> bool {
-    let Some(header_end) = find_bytes(bytes, b"\r\n\r\n") else {
-        return false;
-    };
-    let Ok(head) = std::str::from_utf8(&bytes[..header_end]) else {
-        return false;
-    };
-    let status = head
-        .split("\r\n")
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|value| value.parse::<i64>().ok());
-    if !expects_body
-        || status.is_some_and(|status| (100..200).contains(&status) || matches!(status, 204 | 304))
-    {
-        return true;
-    }
-    let headers = head
-        .split("\r\n")
-        .skip(1)
-        .filter_map(|line| line.split_once(':'))
-        .map(|(name, value)| (name.trim().to_ascii_lowercase(), value.trim().to_owned()))
-        .collect::<Vec<_>>();
-    let body = &bytes[header_end + 4..];
-    if let Some(length) = content_length(&headers) {
-        return body.len() >= length;
-    }
-    headers
-        .iter()
-        .any(|(name, value)| name == "transfer-encoding" && value.eq_ignore_ascii_case("chunked"))
-        && find_bytes(body, b"\r\n0\r\n\r\n").is_some()
-}
-
-fn content_length(headers: &[(String, String)]) -> Option<usize> {
-    headers
-        .iter()
-        .find(|(name, _)| name == "content-length")
-        .and_then(|(_, value)| value.parse().ok())
-}
-
-fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack
-        .windows(needle.len())
-        .position(|window| window == needle)
-}
-
-fn decode_chunked(mut encoded: &[u8]) -> Result<Vec<u8>, ()> {
-    let mut decoded = Vec::new();
-    loop {
-        let line_end = find_bytes(encoded, b"\r\n").ok_or(())?;
-        let line = std::str::from_utf8(&encoded[..line_end]).map_err(|_| ())?;
-        let size =
-            usize::from_str_radix(line.split(';').next().ok_or(())?.trim(), 16).map_err(|_| ())?;
-        encoded = &encoded[line_end + 2..];
-        if size == 0 {
-            return Ok(decoded);
-        }
-        let chunk = encoded.get(..size).ok_or(())?;
-        if decoded.len().saturating_add(chunk.len()) > MAX_RESPONSE_SIZE {
-            return Err(());
-        }
-        decoded.extend_from_slice(chunk);
-        encoded = encoded.get(size + 2..).ok_or(())?;
-    }
 }
 
 fn return_response(response: Response) -> bool {
@@ -394,40 +320,22 @@ fn return_response(response: Response) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-
-    use super::{decode_chunked, read_response, request_path, response_is_complete};
+    use super::{endpoint, request_path};
 
     #[test]
-    fn parses_content_length_response() {
-        let bytes = b"HTTP/1.1 201 Created\r\nContent-Length: 4\r\nX-Test: yes\r\n\r\nrust";
-        let response = read_response(&mut Cursor::new(bytes), true).expect("valid response");
-        assert_eq!(response.status, 201);
-        assert_eq!(response.reason, "Created");
-        assert_eq!(response.body, b"rust");
-        assert_eq!(response.headers[1], ("x-test".into(), "yes".into()));
-    }
-
-    #[test]
-    fn parses_chunked_response_and_absolute_url() {
-        let encoded = b"4\r\nrust\r\n5\r\n-http\r\n0\r\n\r\n";
-        assert_eq!(decode_chunked(encoded).unwrap(), b"rust-http");
-        let mut response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec();
-        response.extend_from_slice(encoded);
-        assert!(response_is_complete(&response, true));
+    fn builds_http_and_https_endpoints() {
         assert_eq!(request_path("http://example.com/a?q=1"), "/a?q=1");
+        assert_eq!(request_path("https://example.com/a?q=1"), "/a?q=1");
         assert_eq!(request_path("http://example.com"), "/");
-    }
-
-    #[test]
-    fn accepts_head_and_no_content_responses_without_a_body() {
-        let head = b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n";
-        let response = read_response(&mut Cursor::new(head), false).expect("valid HEAD response");
-        assert!(response.body.is_empty());
-
-        let no_content = b"HTTP/1.1 204 No Content\r\nContent-Length: 10\r\n\r\n";
-        let response =
-            read_response(&mut Cursor::new(no_content), true).expect("valid no-content response");
-        assert!(response.body.is_empty());
+        assert_eq!(
+            endpoint("https", "example.com", 443, "/health"),
+            Some("https://example.com:443/health".into())
+        );
+        assert_eq!(
+            endpoint("http", "::1", 8080, "/health"),
+            Some("http://[::1]:8080/health".into())
+        );
+        assert_eq!(endpoint("http", "", 80, "/"), None);
+        assert_eq!(endpoint("http", "example.com", 80, "health"), None);
     }
 }
