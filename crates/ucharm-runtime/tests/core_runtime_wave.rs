@@ -111,6 +111,32 @@ fn preserves_domain_type_and_calendar_errors() {
 }
 
 #[test]
+fn resolves_iana_and_posix_time_zones_with_dst() {
+    let source = concat!(
+        "import time\n",
+        "assert time.localtime(0) == (1969, 12, 31, 19, 0, 0, 2, 365, 0)\n",
+        "summer = time.localtime(1719792000)\n",
+        "assert summer == (2024, 6, 30, 20, 0, 0, 6, 182, 1)\n",
+        "assert time.mktime((1970, 1, 1, 0, 0, 0, 3, 1, -1)) == 18000.0\n",
+        "assert time.strftime('%z %Z', time.localtime(0)) == '-0500 EST'\n",
+        "assert time.strftime('%z %Z', summer) == '-0400 EDT'\n",
+    );
+    for time_zone in ["America/New_York", "EST5EDT,M3.2.0,M11.1.0"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+            .env("TZ", time_zone)
+            .args(["-c", source])
+            .output()
+            .expect("run Rust PocketPy runtime with time zone");
+        assert!(
+            output.status.success(),
+            "{time_zone}: {}",
+            diagnostic(&output)
+        );
+        assert_eq!(text(&output.stderr), "", "{time_zone}");
+    }
+}
+
+#[test]
 fn writes_sys_streams_and_returns_byte_lengths() {
     let output = run(concat!(
         "import sys\n",

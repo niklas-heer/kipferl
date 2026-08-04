@@ -1,7 +1,8 @@
-use std::ffi::{CStr, CString, c_int};
+use std::ffi::{CStr, c_int};
 use std::sync::OnceLock;
 use std::time::Instant;
 
+use jiff::{Timestamp, Zoned, civil::DateTime, fmt::strtime::BrokenDownTime, tz::TimeZone};
 use ucharm_pocketpy_sys as ffi;
 
 use crate::native::{
@@ -47,10 +48,9 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-fn timestamp(value: Option<Value>) -> Result<libc::time_t, &'static CStr> {
+fn timestamp(value: Option<Value>) -> Result<Timestamp, &'static CStr> {
     if value.is_none_or(Value::is_none) {
-        // SAFETY: a null output pointer asks libc to return the current time.
-        return Ok(unsafe { libc::time(std::ptr::null_mut()) });
+        return Ok(Timestamp::now());
     }
     let seconds = value
         .expect("checked Some above")
@@ -59,47 +59,41 @@ fn timestamp(value: Option<Value>) -> Result<libc::time_t, &'static CStr> {
     if !seconds.is_finite() {
         return Err(c"timestamp out of range");
     }
-    Ok(seconds as libc::time_t)
-}
-
-fn converted_time(
-    value: Option<Value>,
-    convert: unsafe extern "C" fn(*const libc::time_t, *mut libc::tm) -> *mut libc::tm,
-) -> bool {
-    let time = match timestamp(value) {
-        Ok(value) => value,
-        Err(message) => return type_error(message),
-    };
-    // SAFETY: libc::tm is a plain C value and zero is a valid initial state.
-    let mut result: libc::tm = unsafe { std::mem::zeroed() };
-    // SAFETY: both pointers are valid for the synchronous libc conversion.
-    if unsafe { convert(&time, &mut result) }.is_null() {
-        return value_error(c"invalid time");
-    }
-    return_tm(&result)
+    Timestamp::from_second(seconds as i64).map_err(|_| c"timestamp out of range")
 }
 
 unsafe extern "C" fn localtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
-    converted_time(arguments.get(0), libc::localtime_r)
+    let timestamp = match timestamp(arguments.get(0)) {
+        Ok(value) => value,
+        Err(message) => return type_error(message),
+    };
+    let time_zone = TimeZone::system();
+    let datetime = time_zone.to_datetime(timestamp);
+    let is_dst = i64::from(time_zone.to_offset_info(timestamp).dst().is_dst());
+    return_datetime(datetime, is_dst)
 }
 
 unsafe extern "C" fn gmtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let arguments = unsafe { Arguments::from_raw(argc, argv) };
-    converted_time(arguments.get(0), libc::gmtime_r)
+    let timestamp = match timestamp(arguments.get(0)) {
+        Ok(value) => value,
+        Err(message) => return type_error(message),
+    };
+    return_datetime(TimeZone::UTC.to_datetime(timestamp), 0)
 }
 
-fn return_tm(value: &libc::tm) -> bool {
+fn return_datetime(value: DateTime, is_dst: i64) -> bool {
     let values = [
-        i64::from(value.tm_year) + 1900,
-        i64::from(value.tm_mon) + 1,
-        i64::from(value.tm_mday),
-        i64::from(value.tm_hour),
-        i64::from(value.tm_min),
-        i64::from(value.tm_sec),
-        i64::from((value.tm_wday + 6).rem_euclid(7)),
-        i64::from(value.tm_yday) + 1,
-        i64::from(value.tm_isdst),
+        i64::from(value.year()),
+        i64::from(value.month()),
+        i64::from(value.day()),
+        i64::from(value.hour()),
+        i64::from(value.minute()),
+        i64::from(value.second()),
+        i64::from(value.weekday().to_monday_zero_offset()),
+        i64::from(value.day_of_year()),
+        is_dst,
     ];
     let Some(tuple) = global_tuple(0, values.len()) else {
         return runtime_error(c"failed to create struct_time");
@@ -111,7 +105,12 @@ fn return_tm(value: &libc::tm) -> bool {
     return_value(tuple)
 }
 
-fn tm_from_value(value: Value) -> Result<libc::tm, &'static CStr> {
+struct TimeFields {
+    datetime: DateTime,
+    is_dst: i64,
+}
+
+fn time_fields(value: Value) -> Result<TimeFields, &'static CStr> {
     if value.tuple_len().is_none_or(|length| length < 9) {
         return Err(c"time tuple must have at least 9 elements");
     }
@@ -122,19 +121,47 @@ fn tm_from_value(value: Value) -> Result<libc::tm, &'static CStr> {
             .and_then(Value::integer)
             .ok_or(c"time tuple fields must be integers")?;
     }
-    // SAFETY: libc::tm is plain C storage initialized field by field below.
-    let mut result: libc::tm = unsafe { std::mem::zeroed() };
-    result.tm_year = c_int::try_from(fields[0] - 1900).map_err(|_| c"year out of range")?;
-    result.tm_mon = c_int::try_from(fields[1] - 1).map_err(|_| c"month out of range")?;
-    result.tm_mday = c_int::try_from(fields[2]).map_err(|_| c"day out of range")?;
-    result.tm_hour = c_int::try_from(fields[3]).map_err(|_| c"hour out of range")?;
-    result.tm_min = c_int::try_from(fields[4]).map_err(|_| c"minute out of range")?;
-    result.tm_sec = c_int::try_from(fields[5]).map_err(|_| c"second out of range")?;
-    let weekday = c_int::try_from(fields[6]).map_err(|_| c"weekday out of range")?;
-    result.tm_wday = (weekday + 1).rem_euclid(7);
-    result.tm_yday = c_int::try_from(fields[7] - 1).map_err(|_| c"year day out of range")?;
-    result.tm_isdst = c_int::try_from(fields[8]).map_err(|_| c"DST flag out of range")?;
-    Ok(result)
+    let datetime = DateTime::new(
+        i16::try_from(fields[0]).map_err(|_| c"year out of range")?,
+        i8::try_from(fields[1]).map_err(|_| c"month out of range")?,
+        i8::try_from(fields[2]).map_err(|_| c"day out of range")?,
+        i8::try_from(fields[3]).map_err(|_| c"hour out of range")?,
+        i8::try_from(fields[4]).map_err(|_| c"minute out of range")?,
+        i8::try_from(fields[5]).map_err(|_| c"second out of range")?,
+        0,
+    )
+    .map_err(|_| c"calendar field out of range")?;
+    Ok(TimeFields {
+        datetime,
+        is_dst: fields[8],
+    })
+}
+
+fn zoned_is_dst(value: &Zoned) -> bool {
+    value
+        .time_zone()
+        .to_offset_info(value.timestamp())
+        .dst()
+        .is_dst()
+}
+
+fn resolve_local(fields: &TimeFields) -> Result<Zoned, ()> {
+    let time_zone = TimeZone::system();
+    let ambiguous = time_zone.to_ambiguous_zoned(fields.datetime);
+    if fields.is_dst < 0 {
+        return ambiguous.compatible().map_err(|_| ());
+    }
+
+    let desired_dst = fields.is_dst > 0;
+    let earlier = ambiguous.clone().earlier().map_err(|_| ())?;
+    if zoned_is_dst(&earlier) == desired_dst {
+        return Ok(earlier);
+    }
+    let later = ambiguous.clone().later().map_err(|_| ())?;
+    if zoned_is_dst(&later) == desired_dst {
+        return Ok(later);
+    }
+    ambiguous.compatible().map_err(|_| ())
 }
 
 unsafe extern "C" fn mktime(argc: c_int, argv: ffi::py_StackRef) -> bool {
@@ -142,13 +169,15 @@ unsafe extern "C" fn mktime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let Some(value) = arguments.get(0) else {
         return type_error(c"mktime() requires a time tuple");
     };
-    let mut value = match tm_from_value(value) {
+    let fields = match time_fields(value) {
         Ok(value) => value,
         Err(message) => return type_error(message),
     };
-    // SAFETY: the value is a fully initialized libc::tm.
-    let result = unsafe { libc::mktime(&mut value) };
-    return_number(result as f64)
+    let zoned = match resolve_local(&fields) {
+        Ok(value) => value,
+        Err(()) => return value_error(c"mktime argument out of range"),
+    };
+    return_number(zoned.timestamp().as_second() as f64)
 }
 
 unsafe extern "C" fn strftime(argc: c_int, argv: ffi::py_StackRef) -> bool {
@@ -156,37 +185,20 @@ unsafe extern "C" fn strftime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let Some(format) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"strftime() format must be a string");
     };
-    let format = match CString::new(format) {
-        Ok(value) => value,
-        Err(_) => return value_error(c"format contains NUL"),
-    };
-    let time = if arguments.get(1).is_none_or(Value::is_none) {
-        // SAFETY: a null output pointer asks libc to return the current time.
-        let now = unsafe { libc::time(std::ptr::null_mut()) };
-        // SAFETY: libc::tm is plain C storage initialized by localtime_r.
-        let mut value: libc::tm = unsafe { std::mem::zeroed() };
-        // SAFETY: both pointers are valid for the synchronous conversion.
-        if unsafe { libc::localtime_r(&now, &mut value) }.is_null() {
-            return value_error(c"invalid time");
-        }
-        value
+    let zoned = if arguments.get(1).is_none_or(Value::is_none) {
+        Timestamp::now().to_zoned(TimeZone::system())
     } else {
-        match tm_from_value(arguments.get(1).expect("checked Some above")) {
+        let fields = match time_fields(arguments.get(1).expect("checked Some above")) {
             Ok(value) => value,
             Err(message) => return type_error(message),
+        };
+        match resolve_local(&fields) {
+            Ok(value) => value,
+            Err(()) => return value_error(c"invalid time"),
         }
     };
-    let mut buffer = vec![0_i8; 4096];
-    // SAFETY: buffer is writable, format is NUL terminated, and time is initialized.
-    let length =
-        unsafe { libc::strftime(buffer.as_mut_ptr(), buffer.len(), format.as_ptr(), &time) };
-    if length == 0 {
-        return_string_bytes(&[])
-    } else {
-        // SAFETY: libc initialized exactly length bytes in the output buffer.
-        let bytes = unsafe { std::slice::from_raw_parts(buffer.as_ptr().cast::<u8>(), length) };
-        return_string_bytes(bytes)
-    }
+    let output = zoned.strftime(&format).to_string();
+    return_string_bytes(output.as_bytes())
 }
 
 unsafe extern "C" fn strptime(argc: c_int, argv: ffi::py_StackRef) -> bool {
@@ -197,22 +209,42 @@ unsafe extern "C" fn strptime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let Some(format) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"strptime() format must be a string");
     };
-    let input = match CString::new(input) {
+    let mut parsed = match BrokenDownTime::parse(format.as_bytes(), input.as_bytes()) {
         Ok(value) => value,
-        Err(_) => return value_error(c"input contains NUL"),
+        Err(_) => return value_error(c"time data does not match format"),
     };
-    let format = match CString::new(format) {
-        Ok(value) => value,
-        Err(_) => return value_error(c"format contains NUL"),
-    };
-    // SAFETY: libc::tm is plain C storage initialized by strptime.
-    let mut result: libc::tm = unsafe { std::mem::zeroed() };
-    result.tm_isdst = -1;
-    // SAFETY: both inputs are NUL terminated and result is writable.
-    if unsafe { libc::strptime(input.as_ptr(), format.as_ptr(), &mut result) }.is_null() {
+    if parsed.year().is_none()
+        && parsed.iso_week_year().is_none()
+        && parsed.set_year(Some(1900)).is_err()
+    {
         return value_error(c"time data does not match format");
     }
-    return_tm(&result)
+    let has_alternate_date = parsed.day_of_year().is_some()
+        || parsed.iso_week().is_some()
+        || parsed.sunday_based_week().is_some()
+        || parsed.monday_based_week().is_some();
+    if !has_alternate_date {
+        if parsed.month().is_none() && parsed.set_month(Some(1)).is_err() {
+            return value_error(c"time data does not match format");
+        }
+        if parsed.day().is_none() && parsed.set_day(Some(1)).is_err() {
+            return value_error(c"time data does not match format");
+        }
+    }
+    if parsed.hour().is_none() && parsed.set_hour(Some(0)).is_err() {
+        return value_error(c"time data does not match format");
+    }
+    if parsed.minute().is_none() && parsed.set_minute(Some(0)).is_err() {
+        return value_error(c"time data does not match format");
+    }
+    if parsed.second().is_none() && parsed.set_second(Some(0)).is_err() {
+        return value_error(c"time data does not match format");
+    }
+    let datetime = match parsed.to_datetime() {
+        Ok(value) => value,
+        Err(_) => return value_error(c"time data does not match format"),
+    };
+    return_datetime(datetime, -1)
 }
 
 unsafe extern "C" fn monotonic(_argc: c_int, _argv: ffi::py_StackRef) -> bool {

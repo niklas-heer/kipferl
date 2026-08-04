@@ -272,7 +272,7 @@ Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 
 - Rust migration runtime: 1,658/1,668 tests passing (99.4%)
 - 52 targeted modules, with 49 at 100% parity and no partial modules on the Rust host
-- 5.359ms median native ARM64 startup and a 1,003,984-byte stripped runtime in
+- 5.318ms median native ARM64 startup and a 1,186,720-byte stripped runtime in
   the latest 400-run migration sample
 
 ## Showcase
