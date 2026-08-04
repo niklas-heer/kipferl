@@ -4,7 +4,7 @@ use std::process::{Command, Output};
 fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
     let output = run(
         concat!(
-            "import ansi, args, base64, binascii, charm, fnmatch, heapq, input, itertools, statistics, term, textwrap, typing\n",
+            "import ansi, args, base64, binascii, charm, errno, fnmatch, heapq, input, itertools, statistics, term, textwrap, typing\n",
             "spec = {\n",
             "    '--name': str,\n",
             "    '--count': (int, 0),\n",
@@ -81,6 +81,10 @@ fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
             "    assert itertools.chain([i], (i + 1,), 'x') == [i, i + 1, 'x']\n",
             "    assert itertools.takewhile(lambda x: x < 3, [1, 2, 4]) == [1, 2]\n",
             "    assert itertools.dropwhile(lambda x: x < 3, [1, 2, 4]) == [4]\n",
+            "    assert errno.errorcode[errno.ENOENT] == 'ENOENT'\n",
+            "    assert 'EAGAIN'.isupper() is True\n",
+            "    os_error = OSError(i, 'ignored')\n",
+            "    assert os_error.args == (i,)\n",
             "    hint = typing.TypeVar('T')\n",
             "    assert repr(hint) == '~T'\n",
             "    assert hint.__name__ == 'T'\n",
@@ -148,6 +152,12 @@ fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
             "    try:\n",
             "        itertools.islice([1], 0, 1, 0)\n",
             "    except ValueError:\n",
+            "        caught = True\n",
+            "    assert caught\n",
+            "    caught = False\n",
+            "    try:\n",
+            "        OSError(1, 2, 3)\n",
+            "    except TypeError:\n",
             "        caught = True\n",
             "    assert caught\n",
             "assert len(retained) == 0\n",
