@@ -183,9 +183,12 @@ status, stdout, and stderr.
   confirmation, editing, cancellation, and password screen bytes match Zig.
   The reusable Rust TUI core preserves the Zig runtime's byte-oriented width,
   color, border, progress, spinner, and table behavior, including its historical
-  keyword-binding quirks. The representative Phase 4 module gate is now met;
-  leak/sanitizer and callback-lifetime hardening are next. The `_ucharm_rust`
-  probe remains temporarily as an FFI smoke test while that hardening finishes.
+  keyword-binding quirks. Phase 4 is functionally complete: allocation and
+  exception stress crosses every production Rust callback module, explicit
+  tests enforce the one-owner VM lifecycle, and Linux CI instruments PocketPy C
+  with AddressSanitizer, UndefinedBehaviorSanitizer, and leak detection. The
+  original `_ucharm_rust` proof module has been retired; the first pure-module
+  Phase 5 wave is next.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

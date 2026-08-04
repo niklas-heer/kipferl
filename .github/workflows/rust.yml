@@ -15,6 +15,30 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
+  ffi-sanitizers:
+    name: PocketPy FFI sanitizers
+    runs-on: ubuntu-24.04
+    env:
+      CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+      RUSTFLAGS: -C link-arg=-fsanitize=address -C link-arg=-fsanitize=undefined -C link-arg=-lasan -C link-arg=-lubsan
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+      LSAN_OPTIONS: exitcode=23
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build instrumented PocketPy tests
+        run: cargo test -p ucharm-runtime --lib --test ffi_stress --no-run
+      - name: Stress PocketPy callbacks and lifecycle
+        shell: bash
+        run: |
+          export LD_PRELOAD="$(gcc -print-file-name=libasan.so)"
+          test_count=0
+          while IFS= read -r test_binary; do
+            "$test_binary" --test-threads=1
+            test_count=$((test_count + 1))
+          done < <(find target/debug/deps -maxdepth 1 -type f -executable \( -name 'ucharm_runtime-*' -o -name 'ffi_stress-*' \) | sort)
+          test "$test_count" -eq 2
+
   build:
     name: Rust build (${{ matrix.target }})
     strategy:
@@ -48,7 +72,7 @@ jobs:
         shell: bash
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
-          -c 'import _ucharm_rust, ansi, args, charm, input, term; assert _ucharm_rust.answer() == 42; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert charm.BORDER_ROUNDED == 0; assert charm.visible_len(charm.style("界", fg="red")) == 2; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert len(term.size()) == 2; assert term.raw_mode(False) is None'
+          -c 'import ansi, args, charm, input, term; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert charm.BORDER_ROUNDED == 0; assert charm.visible_len(charm.style("界", fg="red")) == 2; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert len(term.size()) == 2; assert term.raw_mode(False) is None'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"

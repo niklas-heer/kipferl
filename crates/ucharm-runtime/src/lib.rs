@@ -92,7 +92,6 @@ impl Vm {
                 let vm = Self {
                     _not_send_or_sync: PhantomData,
                 };
-                vm.register_probe_module();
                 modules::register_all();
                 Ok(vm)
             }
@@ -143,22 +142,6 @@ impl Vm {
         // reports a pending Python exception.
         unsafe { ffi::py_printexc() };
     }
-
-    fn register_probe_module(&self) {
-        // SAFETY: `self` proves the VM is active. The C string literals have
-        // static storage, and the callback uses PocketPy's required ABI.
-        unsafe {
-            let module = ffi::py_newmodule(c"_ucharm_rust".as_ptr());
-            ffi::py_bindfunc(module, c"answer".as_ptr(), Some(probe_answer));
-        }
-    }
-}
-
-unsafe extern "C" fn probe_answer(_argc: i32, _argv: ffi::py_StackRef) -> bool {
-    // SAFETY: PocketPy invokes this callback with an active VM and owns the
-    // return register. `py_newint` writes a complete Python integer into it.
-    unsafe { ffi::py_newint(ffi::py_retval(), 42) };
-    true
 }
 
 impl Drop for Vm {
@@ -175,16 +158,19 @@ impl Drop for Vm {
 mod tests {
     use std::ffi::CString;
 
-    use super::Vm;
+    use super::{InitializeError, Vm};
 
     #[test]
-    fn executes_python_through_pocketpy() {
+    fn enforces_the_process_lifecycle_and_executes_python() {
         let vm = Vm::initialize().expect("initialize PocketPy");
+        assert!(matches!(
+            Vm::initialize(),
+            Err(InitializeError::AlreadyActive)
+        ));
         let arguments = [CString::new("-c").expect("valid C string")];
         vm.set_argv(&arguments);
         vm.execute_str(
-            "import _ucharm_rust, ansi, sys\n\
-assert _ucharm_rust.answer() == 42\n\
+            "import ansi, sys\n\
 assert sys.argv == ['-c']\n\
 assert ansi.fg('red') == '\\x1b[31m'\n\
 assert ansi.bg('#f50') == '\\x1b[48;2;255;85;0m'\n\
@@ -193,5 +179,11 @@ assert ansi.strikethrough() == '\\x1b[9m'",
             "<rust-test>",
         )
         .expect("execute Python");
+
+        drop(vm);
+        assert!(matches!(
+            Vm::initialize(),
+            Err(InitializeError::AlreadyFinalized)
+        ));
     }
 }
