@@ -89,6 +89,10 @@ unsafe extern "C" {
     pub fn py_name(arg1: *const ::core::ffi::c_char) -> py_Name;
 }
 unsafe extern "C" {
+    #[doc = " Bind a function to the object via \"decl-based\" style.\n @param obj the target object.\n @param sig signature of the function. e.g. `add(x, y)`.\n @param f function to bind."]
+    pub fn py_bind(obj: py_Ref, sig: *const ::core::ffi::c_char, f: py_CFunction);
+}
+unsafe extern "C" {
     #[doc = " Bind a function to the object via \"argc-based\" style.\n @param obj the target object.\n @param name name of the function.\n @param f function to bind."]
     pub fn py_bindfunc(obj: py_Ref, name: *const ::core::ffi::c_char, f: py_CFunction);
 }
