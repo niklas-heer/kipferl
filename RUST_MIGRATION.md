@@ -173,8 +173,10 @@ status, stdout, and stderr.
 - Phase 4 is in progress: the generated PocketPy bindings now expose the small
   value-inspection surface required by native callbacks, module registration is
   table-driven, and the `ansi` module is ported with Python-level behavior and
-  error parity tests. The `_ucharm_rust` probe remains temporarily as an FFI
-  smoke test while production modules cross the boundary.
+  error parity tests. The safe, allocation-free argument parsing core is also
+  ported; registering the complete `args` Python module is the next container
+  and rooting-boundary slice. The `_ucharm_rust` probe remains temporarily as
+  an FFI smoke test while production modules cross the boundary.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.
