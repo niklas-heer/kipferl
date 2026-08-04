@@ -1,167 +1,78 @@
-#!/usr/bin/env micropython
-"""
-ucharm demo - showcasing all features
-"""
+#!/usr/bin/env python3
+"""μcharm demo showcasing the current native tui and input modules."""
 
-import sys
-
-sys.path.insert(0, "..")
-
-from ucharm import (
-    style,
-    box,
-    spinner,
-    progress,
-    rule,
-    success,
-    error,
-    warning,
-    info,
-    select,
-    confirm,
-    prompt,
-    table,
-    Color,
-)
-from ucharm.table import key_value
 import time
+
+import input
+import tui
 
 
 def main():
-    # Welcome
     print()
-    box(
-        "ucharm v0.1.0\n"
-        + "Beautiful CLIs for MicroPython\n"
-        + "Fast startup | Tiny binaries | Python syntax",
+    tui.box(
+        "μcharm v0.6.0-rc.1\nBeautiful CLIs with PocketPy and Rust\nFast startup | Standalone binaries | Python syntax",
         title="Welcome",
         border_color="cyan",
     )
     print()
 
-    # Styling demo
-    rule("Styling", color="magenta")
+    tui.rule("Styling", color="magenta")
     print()
-    print(
-        "  "
-        + style("Bold", bold=True)
-        + "  "
-        + style("Dim", dim=True)
-        + "  "
-        + style("Italic", italic=True)
-        + "  "
-        + style("Underline", underline=True)
-    )
-    print()
-    print(
-        "  "
-        + style("Red", fg="red")
-        + "  "
-        + style("Green", fg="green")
-        + "  "
-        + style("Blue", fg="blue")
-        + "  "
-        + style("Yellow", fg="yellow")
-        + "  "
-        + style("Cyan", fg="cyan")
-        + "  "
-        + style("Magenta", fg="magenta")
-    )
-    print()
-    print(
-        "  "
-        + style("RGB Color!", fg="#FF6B6B", bold=True)
-        + "  "
-        + style("Another!", fg="#4ECDC4")
-        + "  "
-        + style("And more!", fg="#FFE66D")
-    )
+    styles = "  "
+    styles += tui.style("Bold", bold=True) + "  "
+    styles += tui.style("Italic", italic=True) + "  "
+    styles += tui.style("Underline", underline=True)
+    print(styles)
+
+    colors = "  "
+    colors += tui.style("Red", fg="red") + "  "
+    colors += tui.style("Green", fg="green") + "  "
+    colors += tui.style("Cyan", fg="cyan") + "  "
+    colors += tui.style("RGB", fg="#FF6B6B", bold=True)
+    print(colors)
     print()
 
-    # Status messages
-    rule("Status Messages", color="magenta")
-    print()
-    success("Operation completed successfully")
-    info("Here's some useful information")
-    warning("This might need your attention")
-    error("Something went wrong")
+    tui.rule("Status Messages", color="magenta")
+    tui.success("Operation completed successfully")
+    tui.info("Here is some useful information")
+    tui.warning("This might need your attention")
+    tui.error("Something went wrong")
     print()
 
-    # Progress indicators
-    rule("Progress Indicators", color="magenta")
-    print()
-    spinner("Installing dependencies", duration=1.5)
-    spinner("Compiling assets", duration=1)
-    print()
-
-    print(style("  Downloading:", bold=True))
-    for i in range(101):
-        progress(i, 100, label="  ", color="green")
+    tui.rule("Progress", color="magenta")
+    for current in range(0, 101, 5):
+        tui.progress(current, 100, label="Downloading", color="green")
         time.sleep(0.015)
+    tui.progress_done()
     print()
 
-    # Tables
-    rule("Tables", color="magenta")
-    print()
-    table(
+    tui.rule("Measured Release", color="magenta")
+    tui.table(
         [
-            ["MicroPython", "~5ms", "652KB"],
-            ["CPython", "~30ms", "84MB"],
-            ["Node.js", "~40ms", "~100MB"],
-            ["Go binary", "~2ms", "~10MB"],
+            ["Metric", "v0.6.0-rc.1"],
+            ["Compatibility", "1,669 / 1,669"],
+            ["Median startup", "7.044 ms"],
+            ["ARM64 minimal app", "4.3 MB"],
         ],
-        headers=["Runtime", "Startup", "Size"],
-        header_style={"bold": True, "fg": "cyan"},
+        headers=True,
+        border="rounded",
+        border_color="cyan",
     )
     print()
 
-    # Key-value display
-    key_value(
-        {
-            "Version": "0.1.0",
-            "Platform": "MicroPython",
-            "Author": "Your Name",
-        }
-    )
-    print()
-
-    # Boxes
-    rule("Box Styles", color="magenta")
-    print()
-    box("Rounded corners (default)", border="rounded", border_color="cyan")
-    box("Square corners", border="square", border_color="green")
-    box("Double lines", border="double", border_color="yellow")
-    box("Heavy lines", border="heavy", border_color="red")
-    print()
-
-    # Interactive demo
-    if confirm("Run interactive demo?", default=True):
-        print()
-        rule("Interactive Input", color="magenta")
-        print()
-
-        lang = select(
-            "What's your favorite language?",
-            ["Python", "Go", "Rust", "JavaScript", "Other"],
+    if input.confirm("Run the interactive demo?", default=True):
+        language = input.select(
+            "What is your favorite language?",
+            ["Python", "Rust", "Go", "JavaScript", "Other"],
+        )
+        name = input.prompt("What is your name?", default="Developer")
+        tui.box(
+        f"Hello, {name}!\nGreat choice picking {language}.",
+            title="Summary",
+            border_color="green",
         )
 
-        if lang:
-            print()
-            name = prompt("What's your name?", default="Developer")
-            print()
-
-            if name:
-                box(
-                    f"Hello, {name}!\n"
-                    + f"Great choice picking {lang}.\n"
-                    + "Happy coding!",
-                    title="Summary",
-                    border_color="green",
-                )
-
-    print()
-    success("Demo complete!")
-    print()
+    tui.success("Demo complete!")
 
 
 if __name__ == "__main__":

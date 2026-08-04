@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Test script for select component - used by e2e tests."""
 
-import sys
+import input
 
-sys.path.insert(0, ".")
-
-from ucharm.input import select
-
-result = select("Choose a color:", ["Red", "Green", "Blue"])
+result = input.select("Choose a color:", ["Red", "Green", "Blue"])
 if result:
     print(f"SELECTED: {result}")
 else:

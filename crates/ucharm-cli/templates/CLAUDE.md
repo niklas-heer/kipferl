@@ -7,7 +7,7 @@ This project uses **ucharm** - a CLI toolkit for building beautiful command-line
 - **PocketPy, not CPython**: This runs on PocketPy with native Rust modules, not standard Python
 - **Native modules**: 50+ high-performance modules implemented in Rust (see list below)
 - **No pip packages**: You cannot use pip packages that have C extensions
-- **Single binary output**: Apps compile to standalone executables (~1MB)
+- **Single binary output**: Apps compile to target-specific standalone executables (about 4.3–5.3 MB)
 
 ## Available Modules
 
@@ -36,22 +36,23 @@ This project uses **ucharm** - a CLI toolkit for building beautiful command-line
 ## Import Pattern
 
 ```python
-# Use 'from ucharm import' syntax - it gets transformed automatically
-from ucharm import box, success, select, confirm
-
-# Or import native modules directly
+# Import native modules directly in new code
 import tui
 import input
 ```
 
+The CLI still transforms legacy `from ucharm import ...` source for
+compatibility.
+
 ## Example Usage
 
 ```python
-from ucharm import box, success, select
+import tui
+import input
 
-box("Welcome!", title="My App", border_color="cyan")
-choice = select("Pick one:", ["Option A", "Option B", "Exit"])
-success(f"You chose: {choice}")
+tui.box("Welcome!", title="My App", border_color="cyan")
+choice = input.select("Pick one:", ["Option A", "Option B", "Exit"])
+tui.success(f"You chose: {choice}")
 ```
 
 ## Running & Building

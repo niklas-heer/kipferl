@@ -1,42 +1,43 @@
 ---
 title: Introduction
-description: Build beautiful CLI apps with Python syntax and ship them as tiny, fast binaries.
+description: Build beautiful CLI apps with Python syntax and ship them as compact, standalone binaries.
 ---
 
 # Welcome to ucharm
 
 **ucharm** is a CLI toolkit for building beautiful command-line applications with Python syntax, powered by [PocketPy](https://pocketpy.dev). 
 
-Write in familiar Python, ship as single-file executables under 1MB that start in milliseconds.
+Write in familiar Python, ship as target-specific standalone executables around 4.3–5.3 MB that start in under 10 ms on the measured Apple Silicon baseline.
 
 ## Why ucharm?
 
 - **Instant startup** - Under 10ms cold start, no interpreter warm-up
-- **Tiny binaries** - Single-file executables under 1MB
+- **Standalone binaries** - No Python, libc, or dynamic runtime installation on the target machine
 - **Python syntax** - No new language to learn
 - **Beautiful output** - Tables, boxes, progress bars, colors built-in
 - **Interactive prompts** - Select, multiselect, confirm with keyboard navigation
-- **50+ native modules** - JSON, HTTP, SQLite, regex, and more in native Zig
+- **50+ runtime modules** - JSON, HTTP, SQLite, regex, and more hosted by Rust
 
 ## Quick Example
 
 ```python
-from ucharm import box, table, success, select
+import tui
+import input
 
 # Beautiful boxes
-box("Welcome to my app!", title="Hello", border_color="cyan")
+tui.box("Welcome to my app!", title="Hello", border_color="cyan")
 
 # Interactive prompts
-choice = select("Pick an option:", ["Deploy", "Test", "Exit"])
+choice = input.select("Pick an option:", ["Deploy", "Test", "Exit"])
 
 # Formatted tables
-table([
+tui.table([
     ["Status", "Count"],
     ["Passed", "42"],
     ["Failed", "0"],
 ], headers=True)
 
-success(f"Selected: {choice}")
+tui.success(f"Selected: {choice}")
 ```
 
 ## What's Different?
@@ -45,8 +46,8 @@ ucharm is **not** a drop-in replacement for CPython. It's a focused runtime opti
 
 | Feature | ucharm | CPython |
 |---------|--------|---------|
-| Startup time | ~5ms | ~50ms+ |
-| Binary size | ~1MB | ~100MB+ |
+| Startup time | 7.044 ms median | ~50ms+ |
+| Binary size | ~4.3–5.3 MB | ~100MB+ |
 | Dependencies | None | pip ecosystem |
 | TUI components | Built-in | Requires packages |
 
@@ -56,4 +57,5 @@ ucharm is **not** a drop-in replacement for CPython. It's a focused runtime opti
   <Card title="Installation" href="/docs/getting-started/installation" />
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
   <Card title="Modules" href="/docs/modules" />
+  <Card title="Why we moved to Rust" href="/blog/rust-migration" />
 </Cards>

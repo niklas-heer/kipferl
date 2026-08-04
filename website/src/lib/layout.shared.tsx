@@ -15,6 +15,10 @@ export function baseOptions(): BaseLayoutProps {
         url: "/docs",
       },
       {
+        text: "Blog",
+        url: "/blog",
+      },
+      {
         text: "GitHub",
         url: "https://github.com/ucharmdev/ucharm",
         external: true,

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 
 function CopyButton({ text }: { text: string }) {
@@ -15,12 +15,14 @@ function CopyButton({ text }: { text: string }) {
 
   return (
     <button
+      type="button"
       onClick={copy}
       className="text-gray-400 hover:text-white transition-colors"
       title="Copy to clipboard"
     >
       {copied ? (
         <svg
+          aria-hidden="true"
           className="w-4 h-4 text-green-400"
           fill="none"
           stroke="currentColor"
@@ -35,6 +37,7 @@ function CopyButton({ text }: { text: string }) {
         </svg>
       ) : (
         <svg
+          aria-hidden="true"
           className="w-4 h-4"
           fill="none"
           stroke="currentColor"
@@ -150,7 +153,7 @@ export default function HomePage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
             </span>
-            Now with HTTPS, SQLite, and 50+ modules
+            Rust v0.6.0-rc.1 is available now
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-[1.1]">
@@ -162,7 +165,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Python syntax. Single-file binaries around 2MB.
+            Python syntax. Standalone binaries around 4–5 MB.
             <span className="text-gray-900 dark:text-white font-medium">
               {" "}
               Instant startup.
@@ -186,6 +189,7 @@ export default function HomePage() {
               className="group px-8 py-4 border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 font-semibold rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50"
             >
               <svg
+                aria-hidden="true"
                 className="inline-block w-5 h-5 mr-2 -mt-0.5"
                 fill="currentColor"
                 viewBox="0 0 24 24"
@@ -200,9 +204,9 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-4 px-5 py-3 bg-gray-900 dark:bg-gray-950 rounded-xl font-mono text-sm border border-gray-800">
             <span className="text-cyan-400">$</span>
             <code className="text-gray-100">
-              brew install ucharmdev/tap/ucharm
+              curl -LO …/v0.6.0-rc.1/ucharm-macos-aarch64
             </code>
-            <CopyButton text="brew install ucharmdev/tap/ucharm" />
+            <CopyButton text="curl -LO https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-aarch64" />
           </div>
         </div>
       </section>
@@ -235,10 +239,10 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            <StatCard value="~3" suffix="ms" label="Cold start" />
-            <StatCard value="~2" suffix="MB" label="Binary size" />
-            <StatCard value="50" suffix="+" label="Native modules" />
-            <StatCard value="0" label="Dependencies" />
+            <StatCard value="7.044" suffix="ms" label="Median startup" />
+            <StatCard value="4.3" suffix="MB" label="Minimal app" />
+            <StatCard value="1,669" label="Compat checks" />
+            <StatCard value="4" label="Release targets" />
           </div>
         </div>
       </section>
@@ -260,6 +264,7 @@ export default function HomePage() {
             <FeatureCard
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-6 h-6 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -275,11 +280,12 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-yellow-400 to-orange-500"
               title="Instant Startup"
-              description="Under 5ms cold start. No interpreter warm-up, no virtual environment activation, no waiting around."
+              description="A measured 7.044 ms median and 7.980 ms p95 on Apple Silicon, without virtual-environment activation."
             />
             <FeatureCard
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-6 h-6 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -294,12 +300,13 @@ export default function HomePage() {
                 </svg>
               }
               gradient="bg-gradient-to-br from-green-400 to-emerald-500"
-              title="Tiny Binaries"
-              description="Single-file executables around 2MB. Universal binaries that run on any macOS or Linux machine."
+              title="Standalone Binaries"
+              description="Target-specific executables around 4.3–5.3 MB. Linux releases are static musl binaries with no dynamic libc dependency."
             />
             <FeatureCard
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-6 h-6 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -320,6 +327,7 @@ export default function HomePage() {
             <FeatureCard
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-6 h-6 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -340,6 +348,7 @@ export default function HomePage() {
             <FeatureCard
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-6 h-6 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -360,6 +369,7 @@ export default function HomePage() {
             <FeatureCard
               icon={
                 <svg
+                  aria-hidden="true"
                   className="w-6 h-6 text-white"
                   fill="none"
                   stroke="currentColor"
@@ -374,8 +384,8 @@ export default function HomePage() {
                 </svg>
               }
               gradient="bg-gradient-to-br from-red-400 to-rose-500"
-              title="50+ Native Modules"
-              description="HTTP, SQLite, JSON, regex, subprocess, and more. All implemented in native Zig for speed."
+              title="50+ Runtime Modules"
+              description="HTTP, SQLite, JSON, regex, subprocess, and more—hosted by Rust with compatibility tests against CPython."
             />
           </div>
         </div>
@@ -412,15 +422,15 @@ export default function HomePage() {
               <tbody className="bg-white dark:bg-gray-950">
                 <ComparisonRow
                   feature="Cold start"
-                  ucharm="~3ms"
-                  python="~80ms"
-                  node="~40ms"
+                  ucharm="7.044ms"
+                  python="Runtime-dependent"
+                  node="Runtime-dependent"
                 />
                 <ComparisonRow
                   feature="Binary size"
-                  ucharm="~2MB"
-                  python="~50MB+"
-                  node="~40MB+"
+                  ucharm="~4.3MB"
+                  python="Runtime + app"
+                  node="Runtime + app"
                 />
                 <ComparisonRow
                   feature="Dependencies"
@@ -469,6 +479,7 @@ export default function HomePage() {
                 ].map((item) => (
                   <li key={item} className="flex items-center gap-3">
                     <svg
+                      aria-hidden="true"
                       className="w-5 h-5 text-green-500 flex-shrink-0"
                       fill="none"
                       stroke="currentColor"
@@ -501,18 +512,18 @@ export default function HomePage() {
               </div>
               <pre className="bg-gray-950 p-6 overflow-x-auto text-sm leading-relaxed">
                 <code className="text-gray-100 font-mono">
-                  <span className="text-rose-400">from</span>
-                  {" ucharm "}
                   <span className="text-rose-400">import</span>
-                  {" box, table, success, select\n\n"}
+                  {" tui\n"}
+                  <span className="text-rose-400">import</span>
+                  {" input\n\n"}
                   <span className="text-gray-500"># Beautiful boxes</span>
-                  {"\nbox("}
+                  {"\ntui.box("}
                   <span className="text-amber-300">{'"Deploying..."'}</span>
                   {", title="}
                   <span className="text-amber-300">{'"Release"'}</span>
                   {")\n\n"}
                   <span className="text-gray-500"># Interactive prompts</span>
-                  {"\nenv = select("}
+                  {"\nenv = input.select("}
                   <span className="text-amber-300">{'"Environment:"'}</span>
                   {", ["}
                   <span className="text-amber-300">{'"dev"'}</span>
@@ -520,18 +531,18 @@ export default function HomePage() {
                   <span className="text-amber-300">{'"prod"'}</span>
                   {"])\n\n"}
                   <span className="text-gray-500"># Formatted tables</span>
-                  {"\ntable([\n    ["}
+                  {"\ntui.table([\n    ["}
                   <span className="text-amber-300">{'"Artifact"'}</span>
                   {", "}
                   <span className="text-amber-300">{'"Size"'}</span>
                   {"],\n    ["}
                   <span className="text-amber-300">{'"app"'}</span>
                   {", "}
-                  <span className="text-amber-300">{'"2MB"'}</span>
+                  <span className="text-amber-300">{'"4.3MB"'}</span>
                   {"],\n], headers="}
                   <span className="text-purple-400">True</span>
                   {")\n\n"}
-                  {"success("}
+                  {"tui.success("}
                   <span className="text-amber-300">f"Deployed to </span>
                   <span className="text-gray-100">{"{env}"}</span>
                   <span className="text-amber-300">!"</span>
@@ -539,6 +550,51 @@ export default function HomePage() {
                 </code>
               </pre>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Migration story */}
+      <section className="py-20 px-6 bg-gray-950 text-white">
+        <div className="max-w-5xl mx-auto grid lg:grid-cols-[1.15fr_0.85fr] gap-12 items-center">
+          <div>
+            <div className="text-cyan-400 font-mono text-sm mb-4">
+              ENGINEERING RETROSPECTIVE
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold mb-6 leading-tight">
+              Why we rewrote μcharm in Rust
+            </h2>
+            <p className="text-gray-300 text-lg leading-relaxed mb-8">
+              We migrated the CLI, loader, runtime host, and native modules
+              incrementally—keeping the application format stable and using
+              compatibility as the release gate. The result is easier to
+              maintain, fully tested on four targets, and still compact enough
+              to ship as one file.
+            </p>
+            <Link
+              href="/blog/rust-migration"
+              className="inline-flex items-center font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
+            >
+              Read the migration story <span className="ml-2">→</span>
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              ["1,669 / 1,669", "compatibility checks"],
+              ["85,310", "obsolete lines removed"],
+              ["7.044 ms", "median startup"],
+              ["4", "native release targets"],
+            ].map(([value, label]) => (
+              <div
+                key={label}
+                className="rounded-2xl border border-gray-800 bg-gray-900 p-5"
+              >
+                <div className="text-2xl font-bold text-white mb-1">
+                  {value}
+                </div>
+                <div className="text-sm text-gray-400">{label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -603,6 +659,12 @@ export default function HomePage() {
                 Docs
               </Link>
               <Link
+                href="/blog"
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                Blog
+              </Link>
+              <Link
                 href="https://github.com/ucharmdev/ucharm"
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
@@ -617,7 +679,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-sm text-gray-500">
-            Built with Zig and PocketPy. Open source under MIT license.
+            Built with Rust and PocketPy. Open source under the MIT license.
           </div>
         </div>
       </footer>

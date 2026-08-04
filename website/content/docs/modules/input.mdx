@@ -9,9 +9,10 @@ The `input` module provides interactive command-line prompts with keyboard navig
 
 ```python
 import input
-# or
-from ucharm import select, multiselect, confirm, prompt, password
 ```
+
+`from ucharm import ...` remains a source-transform compatibility path, but
+new code should use the native module directly.
 
 ## Select
 
@@ -200,7 +201,7 @@ features = input.multiselect("Features:", [
     "Config file",
     "HTTP client",
     "Database"
-], defaults=[0])  # Pre-select first option
+], defaults=["Logging"])  # Pre-select by value
 
 # Confirmation
 if input.confirm(f"Create '{name}' with {len(features)} features?"):
