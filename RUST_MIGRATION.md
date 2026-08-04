@@ -5,6 +5,11 @@
 μcharm will migrate its native implementation from Zig to stable Rust while
 keeping PocketPy as the embedded Python runtime.
 
+The runtime implementation reached 1,668/1,668 available compatibility checks
+on 2026-08-04. Phase 6 is now cutting CI, packaging, public binary names, and
+release assets over to the Rust implementation; v0.5.0 remains the final stable
+Zig release baseline.
+
 This is a host-language and toolchain migration, not a product rewrite. The
 Python-facing API, PocketPy compatibility work, universal-binary behavior, and
 product goals remain in place.
@@ -385,6 +390,16 @@ Exit gate: the complete compatibility suite and interactive/e2e suite pass on
 the Rust runtime for every release target.
 
 ### Phase 6 — Cut over CI, packaging, and releases
+
+Implementation status: the cutover branch gives the Rust binaries their public
+`ucharm` and `pocketpy-ucharm` names, makes Cargo the default local/CI/release
+path, replaces all eight embedded runtime/loader assets with Rust builds, adds
+Linux ARM64 CLI releases, and enforces genuinely static Linux linkage. The CLI
+embeds only its host component pair and obtains checksum-verified cross-target
+pairs on demand, reducing the ARM64 CLI from 3,723,328 to 2,583,984 bytes. Full
+measurements and the static-link finding are recorded in
+`benchmarks/release_cutover.md`. The native CI bake and prerelease remain before
+the phase exit gate can be marked complete.
 
 - Switch `justfile`, CI, release workflows, updater scripts, Homebrew formula,
   docs, templates, and contributor instructions to Cargo.

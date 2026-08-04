@@ -9,109 +9,198 @@ permissions:
   contents: write
 
 jobs:
-  build-cli:
-    name: Build CLI (${{ matrix.target }})
+  build-components:
+    name: Build runtime and loader (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-15
-            target: aarch64-macos
-            artifact: ucharm-macos-aarch64
-          - os: macos-15
-            target: x86_64-macos
-            artifact: ucharm-macos-x86_64
-          - os: ubuntu-latest
-            target: x86_64-linux
-            artifact: ucharm-linux-x86_64
+            target: aarch64-apple-darwin
+            suffix: macos-aarch64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            suffix: macos-x86_64
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            suffix: linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            suffix: linux-aarch64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.15.2
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
 
-      - name: Build CLI
+      - name: Install musl tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build Rust runtime and loader
+        shell: bash
         run: |
-          cp VERSION cli/src/VERSION
-          cd cli && zig build -Doptimize=ReleaseSmall -Dtarget=${{ matrix.target }}
-          mv zig-out/bin/ucharm ../${{ matrix.artifact }}
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            export CC=musl-gcc
+          fi
+          cargo build --release \
+            -p ucharm-runtime \
+            -p ucharm-loader \
+            --target ${{ matrix.target }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
-
-  build-runtimes:
-    name: Build PocketPy runtime (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-15
-            target: aarch64-macos
-            artifact: pocketpy-ucharm-macos-aarch64
-          - os: macos-15
-            target: x86_64-macos
-            artifact: pocketpy-ucharm-macos-x86_64
-          - os: ubuntu-latest
-            target: x86_64-linux-musl
-            artifact: pocketpy-ucharm-linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64-linux-musl
-            artifact: pocketpy-ucharm-linux-aarch64
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.15.2
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Build PocketPy runtime
+      - name: Verify static Linux components
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
-          cd pocketpy && zig build -Doptimize=ReleaseSmall -Dtarget=${{ matrix.target }}
-          mv zig-out/bin/pocketpy-ucharm ../${{ matrix.artifact }}
-          cd ..
+          for binary in pocketpy-ucharm ucharm-loader; do
+            path="target/${{ matrix.target }}/release/$binary"
+            file "$path"
+            if readelf -l "$path" | grep -q "INTERP"; then
+              echo "$path unexpectedly contains a dynamic interpreter" >&2
+              exit 1
+            fi
+          done
 
+      - name: Collect component assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
+            release-assets/pocketpy-ucharm-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/ucharm-loader \
+            release-assets/loader-${{ matrix.suffix }}
           python3 - <<'PY'
           import hashlib
           from pathlib import Path
 
-          p = Path("${{ matrix.artifact }}")
-          h = hashlib.sha256(p.read_bytes()).hexdigest()
-          Path(str(p) + ".sha256").write_text(f"{h}  {p.name}\n")
-          print("sha256:", h)
+          for component in [
+              Path("release-assets/pocketpy-ucharm-${{ matrix.suffix }}"),
+              Path("release-assets/loader-${{ matrix.suffix }}"),
+          ]:
+              digest = hashlib.sha256(component.read_bytes()).hexdigest()
+              component.with_name(component.name + ".sha256").write_text(
+                  f"{digest}  {component.name}\n"
+              )
           PY
 
-      - name: Upload artifact
+      - name: Upload component assets
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: |
-            ${{ matrix.artifact }}
-            ${{ matrix.artifact }}.sha256
+          name: components-${{ matrix.suffix }}
+          path: release-assets/
+
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    needs: build-components
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            suffix: macos-aarch64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            suffix: macos-x86_64
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            suffix: linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            suffix: linux-aarch64
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download current Rust component assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: components-*
+          path: release-inputs
+          merge-multiple: true
+
+      - name: Refresh CLI embedded assets
+        shell: bash
+        run: |
+          find release-inputs -type f ! -name '*.sha256' \
+            -exec cp {} cli/src/stubs/ \;
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install musl tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build Rust CLI
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            export CC=musl-gcc
+          fi
+          cargo build --release -p ucharm-cli --target ${{ matrix.target }}
+
+      - name: Verify static Linux CLI
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          path="target/${{ matrix.target }}/release/ucharm"
+          file "$path"
+          if readelf -l "$path" | grep -q "INTERP"; then
+            echo "$path unexpectedly contains a dynamic interpreter" >&2
+            exit 1
+          fi
+
+      - name: Smoke-test release candidate
+        shell: bash
+        run: |
+          cli="target/${{ matrix.target }}/release/ucharm"
+          "$cli" --version | grep -q "μcharm"
+          smoke_dir="$RUNNER_TEMP/ucharm-release-smoke"
+          mkdir -p "$smoke_dir"
+          printf '%s\n' 'print("rust release")' > "$smoke_dir/app.py"
+          "$cli" build "$smoke_dir/app.py" \
+            -o "$smoke_dir/app" \
+            --target ${{ matrix.suffix }}
+          "$smoke_dir/app" | grep -q "rust release"
+
+      - name: Collect CLI asset
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp target/${{ matrix.target }}/release/ucharm \
+            release-assets/ucharm-${{ matrix.suffix }}
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          cli = Path("release-assets/ucharm-${{ matrix.suffix }}")
+          digest = hashlib.sha256(cli.read_bytes()).hexdigest()
+          cli.with_name(cli.name + ".sha256").write_text(
+              f"{digest}  {cli.name}\n"
+          )
+          PY
+
+      - name: Upload CLI asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.suffix }}
+          path: release-assets/
 
   release:
     name: Create Release
-    needs: [build-cli, build-runtimes]
+    needs: [build-components, build-cli]
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -121,18 +210,22 @@ jobs:
           path: artifacts
 
       - name: Prepare release assets
+        shell: bash
         run: |
           mkdir -p release
-          find artifacts -type f -exec mv {} release/ \;
-          chmod +x release/ucharm-* release/pocketpy-ucharm-* || true
-          cd release && ls -la
+          find artifacts -type f \( \
+            -name 'ucharm-*' -o \
+            -name 'pocketpy-ucharm-*' -o \
+            -name 'loader-*' \
+          \) -exec cp {} release/ \;
+          find release -type f ! -name '*.sha256' -exec chmod +x {} +
+          ls -la release
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install release-note dependencies
         run: pip install requests
 
       - name: Generate AI-powered release notes
@@ -143,23 +236,15 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           AI_MODEL: anthropic/claude-haiku-4.5
         run: |
-          # Get previous tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           export PREV_TAG
-
-          # Generate release notes using AI
           python3 .github/scripts/generate_release_notes.py > release_notes.md
-
-          # Display for debugging
-          echo "Generated release notes:"
           cat release_notes.md
-
-          # Set output for GitHub Actions
           {
             echo "changelog<<EOF"
             cat release_notes.md
             echo "EOF"
-          } >> $GITHUB_OUTPUT
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -177,12 +262,12 @@ jobs:
 
     steps:
       - name: Checkout ucharm repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: ucharm
 
       - name: Checkout homebrew-tap repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ucharmdev/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -193,16 +278,13 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Update Homebrew formula
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ github.ref_name }}
         run: |
           cd ucharm
-          chmod +x scripts/update-homebrew.sh
           ./scripts/update-homebrew.sh "$VERSION"
 
       - name: Commit and push changes
@@ -210,24 +292,20 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git add Formula/ucharm.rb
-
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "chore: update ucharm to v${{ steps.version.outputs.version }}"
             git push
-            echo "Homebrew formula updated and pushed!"
           fi
 
       - name: Create summary
         run: |
-          echo "## Homebrew Tap Updated" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Formula updated to version **v${{ steps.version.outputs.version }}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Users can now install with:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "brew install ucharmdev/tap/ucharm" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "## Homebrew Tap Updated" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Formula updated to version **v${{ steps.version.outputs.version }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "brew install ucharmdev/tap/ucharm" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

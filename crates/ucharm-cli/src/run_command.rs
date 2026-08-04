@@ -27,23 +27,15 @@ static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 const EMBEDDED_RUNTIME: &[u8] =
     include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-aarch64");
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-const EMBEDDED_RUNTIME_KEY: u64 = 0x7028_bea1_39aa_8ff5;
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const EMBEDDED_RUNTIME: &[u8] =
     include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-x86_64");
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-const EMBEDDED_RUNTIME_KEY: u64 = 0xcdea_1db9_0a87_1b1b;
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
 const EMBEDDED_RUNTIME: &[u8] =
     include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-aarch64");
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-const EMBEDDED_RUNTIME_KEY: u64 = 0x5058_28b2_5c29_5d0f;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 const EMBEDDED_RUNTIME: &[u8] =
     include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-x86_64");
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-const EMBEDDED_RUNTIME_KEY: u64 = 0xf398_30f6_c5da_6c0c;
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "macos", target_arch = "x86_64"),
@@ -51,13 +43,8 @@ const EMBEDDED_RUNTIME_KEY: u64 = 0xf398_30f6_c5da_6c0c;
     all(target_os = "linux", target_arch = "x86_64")
 )))]
 const EMBEDDED_RUNTIME: &[u8] = &[];
-#[cfg(not(any(
-    all(target_os = "macos", target_arch = "aarch64"),
-    all(target_os = "macos", target_arch = "x86_64"),
-    all(target_os = "linux", target_arch = "aarch64"),
-    all(target_os = "linux", target_arch = "x86_64")
-)))]
-const EMBEDDED_RUNTIME_KEY: u64 = 0;
+
+include!(concat!(env!("OUT_DIR"), "/embedded_runtime_key.rs"));
 
 pub(crate) fn embedded_runtime() -> &'static [u8] {
     EMBEDDED_RUNTIME

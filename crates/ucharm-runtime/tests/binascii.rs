@@ -68,7 +68,7 @@ fn preserves_binascii_errors_and_buffer_limits() {
 }
 
 fn run(source: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .output()
         .expect("run Rust PocketPy runtime")

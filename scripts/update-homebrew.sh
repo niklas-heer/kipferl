@@ -30,10 +30,12 @@ echo "Calculating checksums..."
 SHA_MACOS_ARM64=$(calc_sha256 "$BASE_URL/ucharm-macos-aarch64")
 SHA_MACOS_X86=$(calc_sha256 "$BASE_URL/ucharm-macos-x86_64")
 SHA_LINUX_X86=$(calc_sha256 "$BASE_URL/ucharm-linux-x86_64")
+SHA_LINUX_ARM64=$(calc_sha256 "$BASE_URL/ucharm-linux-aarch64")
 
 echo "  macOS ARM64: $SHA_MACOS_ARM64"
 echo "  macOS x86:   $SHA_MACOS_X86"
 echo "  Linux x86:   $SHA_LINUX_X86"
+echo "  Linux ARM64: $SHA_LINUX_ARM64"
 
 # Generate formula
 FORMULA_PATH="$TAP_REPO/Formula/ucharm.rb"
@@ -57,15 +59,20 @@ class Ucharm < Formula
   end
 
   on_linux do
-    url "https://github.com/ucharmdev/ucharm/releases/download/v#{version}/ucharm-linux-x86_64"
-    sha256 "$SHA_LINUX_X86"
+    if Hardware::CPU.arm?
+      url "https://github.com/ucharmdev/ucharm/releases/download/v#{version}/ucharm-linux-aarch64"
+      sha256 "$SHA_LINUX_ARM64"
+    else
+      url "https://github.com/ucharmdev/ucharm/releases/download/v#{version}/ucharm-linux-x86_64"
+      sha256 "$SHA_LINUX_X86"
+    end
   end
 
   def install
     binary_name = if OS.mac?
       Hardware::CPU.arm? ? "ucharm-macos-aarch64" : "ucharm-macos-x86_64"
     else
-      "ucharm-linux-x86_64"
+      Hardware::CPU.arm? ? "ucharm-linux-aarch64" : "ucharm-linux-x86_64"
     end
 
     bin.install binary_name => "ucharm"

@@ -130,7 +130,7 @@ fn preserves_crypto_buffer_state_limits_and_error_paths_under_stress() {
 }
 
 fn run_runtime(source: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .output()
         .expect("run Rust PocketPy runtime")

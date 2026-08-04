@@ -45,8 +45,8 @@ else
 	        echo "Updated to v$LATEST_VERSION"
 	        echo ""
 	        echo "Rebuild and test:"
-	        echo "  cd pocketpy && zig build -Doptimize=ReleaseSmall"
-	        echo "  python3 tests/compat_runner.py --report"
+	        echo "  cargo build --release -p ucharm-runtime"
+	        echo "  python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report"
 	    else
 	        echo "Run with --update to download the new version."
 	        exit 1

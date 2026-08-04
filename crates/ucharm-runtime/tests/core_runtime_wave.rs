@@ -122,7 +122,7 @@ fn resolves_iana_and_posix_time_zones_with_dst() {
         "assert time.strftime('%z %Z', summer) == '-0400 EDT'\n",
     );
     for time_zone in ["America/New_York", "EST5EDT,M3.2.0,M11.1.0"] {
-        let output = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+        let output = Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
             .env("TZ", time_zone)
             .args(["-c", source])
             .output()
@@ -150,7 +150,7 @@ fn writes_sys_streams_and_returns_byte_lengths() {
 }
 
 fn run(source: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .output()
         .expect("run Rust PocketPy runtime")

@@ -67,15 +67,15 @@ jobs:
                ./scripts/check-pocketpy-version.sh --update
                \`\`\`
 
-            2. Apply the required \`match\` soft keyword patch (see CLAUDE.md)
+            2. Refresh and apply the tracked patches under \`pocketpy/patches/\`.
 
             3. Build and test:
                \`\`\`bash
-               cd pocketpy && zig build -Doptimize=ReleaseSmall
-               python3 tests/compat_runner.py --report
+               cargo build --release -p ucharm-runtime
+               python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report
                \`\`\`
 
-            4. Update embedded binaries in CLI stubs
+            4. Refresh the four Rust runtime assets embedded by the CLI.
 
             ## Release Notes
             https://github.com/pocketpy/pocketpy/releases/tag/v${latest}

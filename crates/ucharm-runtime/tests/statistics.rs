@@ -75,7 +75,7 @@ fn preserves_statistics_errors_and_legacy_bounds() {
 }
 
 fn run(source: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .output()
         .expect("run Rust PocketPy runtime")

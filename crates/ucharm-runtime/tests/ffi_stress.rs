@@ -284,7 +284,7 @@ fn repeatedly_initializes_executes_and_finalizes_the_runtime_process() {
 }
 
 fn run(source: &str, arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm"))
         .args(["-c", source])
         .args(arguments)
         .output()

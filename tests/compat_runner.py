@@ -129,7 +129,7 @@ STDLIB_MODULES = [
     "time",
     "urllib_parse",
     "uuid",
-    # Modules with runtime ucharm Zig implementations
+    # Modules with native μcharm Rust implementations
     "base64",
     "copy",
     "csv",
@@ -375,15 +375,15 @@ def get_runtime_path() -> str:
     """Find pocketpy-ucharm binary."""
     script_dir = Path(__file__).resolve().parent.parent
 
-    # Try pocketpy development path (primary)
-    dev_path = script_dir / "pocketpy" / "zig-out" / "bin" / "pocketpy-ucharm"
-    if dev_path.exists():
-        return str(dev_path.resolve())
+    # Canonical optimized Rust build
+    release_path = script_dir / "target" / "release" / "pocketpy-ucharm"
+    if release_path.exists():
+        return str(release_path.resolve())
 
-    # Try CLI output path
-    cli_path = script_dir / "cli" / "zig-out" / "bin" / "pocketpy-ucharm"
-    if cli_path.exists():
-        return str(cli_path.resolve())
+    # Development Rust build
+    debug_path = script_dir / "target" / "debug" / "pocketpy-ucharm"
+    if debug_path.exists():
+        return str(debug_path.resolve())
 
     # Fallback to PATH
     return "pocketpy-ucharm"
@@ -1068,7 +1068,7 @@ def main():
             subprocess.run([mpy_path, str(smoke)], capture_output=True, timeout=5)
     except Exception as e:
         print(f"{RED}Error: pocketpy-ucharm not found at {mpy_path}{RESET}")
-        print(f"{DIM}Build it with: cd pocketpy && zig build{RESET}")
+        print(f"{DIM}Build it with: cargo build --release -p ucharm-runtime{RESET}")
         sys.exit(1)
 
     # Run tests

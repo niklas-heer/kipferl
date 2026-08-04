@@ -158,7 +158,7 @@ def main():
     parser.add_argument("--warmup", type=int, default=3)
     parser.add_argument(
         "--runtime",
-        default=str(ROOT / "pocketpy" / "zig-out" / "bin" / "pocketpy-ucharm"),
+        default=str(ROOT / "target" / "release" / "pocketpy-ucharm"),
     )
     parser.add_argument(
         "--report", default=str(Path(__file__).parent / "vision_report.md")

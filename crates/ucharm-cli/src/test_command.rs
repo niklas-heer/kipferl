@@ -145,27 +145,20 @@ fn runtime_path(current_directory: &Path) -> io::Result<PathBuf> {
     if let Ok(executable) = env::current_exe()
         && let Some(binary_directory) = executable.parent()
     {
-        for ancestor in binary_directory.ancestors().take(6) {
-            let candidate = ancestor.join("pocketpy/zig-out/bin/pocketpy-ucharm");
-            if candidate.is_file() {
-                return Ok(candidate);
-            }
-        }
         let sibling = binary_directory.join("pocketpy-ucharm");
         if sibling.is_file() {
             return Ok(sibling);
         }
     }
 
-    let current_path = current_directory.join("pocketpy/zig-out/bin/pocketpy-ucharm");
-    if current_path.is_file() {
-        return Ok(current_path);
-    }
-
-    let source_path =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../pocketpy/zig-out/bin/pocketpy-ucharm");
-    if source_path.is_file() {
-        return Ok(source_path);
+    let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for root in [current_directory, source_root.as_path()] {
+        for profile in ["release", "debug"] {
+            let candidate = root.join("target").join(profile).join("pocketpy-ucharm");
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
     }
 
     run_command::prepare_runtime()

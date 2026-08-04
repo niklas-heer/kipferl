@@ -1,8 +1,10 @@
 [target.aarch64-unknown-linux-musl]
 linker = "musl-gcc"
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=-static"]
 
 [target.x86_64-unknown-linux-musl]
 linker = "musl-gcc"
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=-static"]
 
 [env]
 # Keep the statically bundled SQLite engine focused on the DB-API surface used

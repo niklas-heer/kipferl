@@ -1,140 +1,115 @@
-# ucharm development commands
-# Run `just` to see all available commands
+# μcharm development commands
+# Run `just` to see all available commands.
 
-# Default: show help
 default:
     @just --list
 
-# Check the Rust migration workspace
-rust-check:
+# Format, lint, and test the Rust workspace
+check:
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
 
-# Build the Rust-hosted PocketPy runtime
-rust-build:
+# Build the public CLI, runtime, and loader in release mode
+build:
     cargo build --release --workspace
 
-# Run code through the Rust-hosted PocketPy runtime
-rust-run code:
-    cargo run -p ucharm-runtime --bin pocketpy-ucharm-rs -- -c {{ quote(code) }}
-
-# Run the Rust CLI migration binary
-rust-cli *args:
-    cargo run -p ucharm-cli --bin ucharm-rs -- {{ args }}
-
-# Regenerate the checked-in PocketPy FFI declarations
-rust-bindings:
-    ./scripts/generate-rust-bindings.sh
-
-# Compare the host Zig runtime and Rust migration spine
-rust-baseline runs="50":
-    python3 benchmarks/migration_baseline.py --runs {{ runs }}
-
-# Build the CLI in release mode
-build:
-    cp VERSION cli/src/VERSION
-    cd cli && zig build -Doptimize=ReleaseSmall
-
-# Build the CLI in debug mode
+# Build the workspace with debug information
 build-debug:
-    cp VERSION cli/src/VERSION
-    cd cli && zig build
+    cargo build --workspace
 
-# Run all tests
-test: test-unit test-loader test-e2e
+# Run the full CPython compatibility report against the Rust runtime
+compat: build
+    python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report
 
-# Run unit tests
-test-unit:
-    cd cli && zig build test
+# Run all local release-cutover checks
+test: check compat
 
-# Run loader format and extraction unit tests
-test-loader:
-    cd loader && zig build test
-
-# Run end-to-end tests
+# Run only the CLI end-to-end integration tests
 test-e2e:
-    cd cli && ./test_e2e.sh
+    cargo test -p ucharm-cli --test cli
 
-# Run a Python script with ucharm
-run script:
-    ./cli/zig-out/bin/ucharm run {{ script }}
+# Run a Python script through the public CLI
+run script: build
+    target/release/ucharm run {{ script }}
 
 # Build a universal binary from a Python script
-build-app script output="app":
-    ./cli/zig-out/bin/ucharm build {{ script }} -o {{ output }} --mode universal
+build-app script output="app": build
+    target/release/ucharm build {{ script }} -o {{ output }} --mode universal
 
-# Build PocketPy runtime with native modules
-build-pocketpy:
-    cd pocketpy && zig build -Doptimize=ReleaseSmall
+# Build only the PocketPy runtime
+build-runtime:
+    cargo build --release -p ucharm-runtime
 
-# Run the demo
-demo:
-    ./cli/zig-out/bin/ucharm run examples/demo.py
+# Run code directly through the Rust-hosted PocketPy runtime
+runtime code:
+    cargo run -p ucharm-runtime --bin pocketpy-ucharm -- -c {{ quote(code) }}
+
+# Run the CLI without a release build
+cli *args:
+    cargo run -p ucharm-cli --bin ucharm -- {{ args }}
+
+# Run the example demo
+demo: build
+    target/release/ucharm run examples/demo.py
 
 # Run the full feature demo
-demo-full:
-    ./cli/zig-out/bin/ucharm run examples/simple_cli.py
+demo-full: build
+    target/release/ucharm run examples/simple_cli.py
 
-# Clean build artifacts
+# Regenerate the checked-in PocketPy FFI declarations
+bindings:
+    ./scripts/generate-rust-bindings.sh
+
+# Verify the PocketPy vendor patches against upstream
+check-pocketpy:
+    python3 scripts/verify-pocketpy-patches.py --check-upstream
+
+# Run the broader vision suite
+vision: build
+    python3 tests/vision/run_vision.py --runtime target/release/pocketpy-ucharm
+
+# Remove Cargo build artifacts
 clean:
-    rm -rf cli/zig-out cli/.zig-cache
-    rm -rf pocketpy/zig-out pocketpy/.zig-cache
+    cargo clean
 
-# Format Zig code
+# Format Rust code
 fmt:
-    cd cli && zig fmt src/
+    cargo fmt --all
 
-# Check Zig code formatting
+# Check Rust formatting
 fmt-check:
-    cd cli && zig fmt --check src/
+    cargo fmt --all --check
 
-# Create a new release (interactive) - built with ucharm!
+# Create a new release interactively
+release: build
+    target/release/ucharm run scripts/release.py
 
-# Interactive release
-release:
-    ./cli/zig-out/bin/ucharm run scripts/release.py
+# Show the public binary sizes
+size: build
+    @ls -lh target/release/ucharm target/release/pocketpy-ucharm target/release/ucharm-loader
 
-# Show binary size breakdown
-size:
-    @echo "CLI binary:"
-    @ls -lh cli/zig-out/bin/ucharm 2>/dev/null || echo "  Not built yet. Run: just build"
-    @echo ""
-    @echo "PocketPy runtime:"
-    @ls -lh pocketpy/zig-out/bin/pocketpy-ucharm 2>/dev/null || echo "  Not built yet. Run: just build-pocketpy"
-
-# Run benchmarks
-bench:
-    @echo "Running native module benchmarks..."
-    cd cli && zig build test 2>&1 | grep -E "(benchmark|ns|ms)"
-
-# Install locally (symlink to ~/.local/bin)
-install:
+# Install the release CLI locally
+install: build
     @mkdir -p ~/.local/bin
-    @ln -sf $(pwd)/cli/zig-out/bin/ucharm ~/.local/bin/ucharm
+    @ln -sf "$(pwd)/target/release/ucharm" ~/.local/bin/ucharm
     @echo "Installed ucharm to ~/.local/bin/ucharm"
-    @echo "Make sure ~/.local/bin is in your PATH"
 
-# Uninstall local installation
+# Remove the local CLI symlink
 uninstall:
     @rm -f ~/.local/bin/ucharm
     @echo "Removed ucharm from ~/.local/bin"
 
-# Setup development environment
+# Check the Rust toolchain and build the project
 setup:
-    @echo "Checking dependencies..."
-    @which zig > /dev/null || (echo "Error: zig not found. Install from https://ziglang.org" && exit 1)
-    @echo "Building PocketPy runtime..."
-    @just build-pocketpy
-    @echo "Building CLI..."
+    @command -v cargo >/dev/null || (echo "Error: cargo not found. Install Rust with rustup." && exit 1)
     @just build
-    @echo ""
     @echo "Setup complete! Try: just demo"
 
-# Watch for changes and rebuild (requires watchexec)
+# Rebuild when Rust sources change (requires watchexec)
 watch:
-    watchexec -w cli/src -e zig -- just build
+    watchexec -w crates -e rs,toml -- just build
 
-# Generate Homebrew formula (after release)
+# Generate the Homebrew formula after a release
 homebrew version:
     ./scripts/update-homebrew.sh {{ version }}
