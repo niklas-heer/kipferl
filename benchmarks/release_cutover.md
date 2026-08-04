@@ -1,9 +1,9 @@
 # Rust Release Cutover
 
 Recorded on 2026-08-04 on macOS 26.5.1, Apple Silicon, using Rust 1.97.1.
-Linux artifacts were built in native ARM64 and emulated x86_64 Debian
-containers with the musl targets. GitHub's native runners remain authoritative
-for the final four-target release check.
+Linux ARM64 artifacts were built locally in a native Debian container. The
+Linux x86_64 figures below come from GitHub's native Ubuntu runner; the macOS
+figures come from local native and Rosetta-verified builds.
 
 ## Component artifacts
 
@@ -12,7 +12,7 @@ for the final four-target release check.
 | macOS ARM64 | 1,840,304 | 320,400 | 2,583,984 | Mach-O |
 | macOS x86_64 | 1,971,304 | 318,080 | 2,703,280 | Mach-O |
 | Linux ARM64 | 2,313,304 | 397,264 | 3,215,360 | static ELF |
-| Linux x86_64 | 2,321,680 | 417,768 | 3,268,616 | static ELF |
+| Linux x86_64 | 2,449,232 | 426,528 | 3,416,640 | static PIE ELF |
 
 The macOS runtime differs by 32 bytes from the network/database-wave sample
 because this table records the final public binary name and cutover rebuild.
@@ -24,7 +24,8 @@ on macOS, 2.5 MB runtime on static Linux, and 3.5 MB for the release CLI.
 - The first local x86_64 musl rebuild contained an ELF interpreter despite the
   musl target. It would not execute in a clean Debian container. Both Linux
   target configurations now explicitly enable static CRT linkage and pass a
-  CI guard requiring `statically linked` output with no `INTERP` segment.
+  CI guard that prints the human-readable `file` result and authoritatively
+  rejects any ELF containing an `INTERP` segment.
 - Replacing the small Zig loaders with all four Rust loaders initially grew the
   macOS ARM64 CLI to 3,723,328 bytes. The final CLI embeds only its host Rust
   runtime and loader; checksum-verified cross-target component pairs are read
@@ -45,9 +46,11 @@ on macOS, 2.5 MB runtime on static Linux, and 3.5 MB for the release CLI.
 | macOS ARM64 | 2,161,007 | Executed SQLite query and printed `42` |
 | macOS x86_64 | 2,289,687 | Executed under Rosetta and printed `42` |
 | Linux ARM64 | 2,710,740 | Executed in clean Debian and printed `Hello, World!` |
-| Linux x86_64 | 2,739,620 | Static layout verified; native CI execution required |
+| Linux x86_64 | 2,875,932 | Executed in native CI and printed `rust cutover` |
 
 Local gates passed: `cargo fmt`, strict workspace Clippy, all workspace tests,
 CLI end-to-end tests with Rust assets, optimized builds, and the full
 1,668/1,668 compatibility report. The canonical CI matrix additionally runs
-the universal build and execution smoke on every native release runner.
+the runtime, CLI, and universal build/execution smoke on every native release
+runner. The checked-in Linux x86_64 component pair is taken directly from that
+successful native run rather than an emulated local build.
