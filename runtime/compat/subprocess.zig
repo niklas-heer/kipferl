@@ -19,13 +19,111 @@ const PopenObj = struct {
 };
 
 const RunResult = struct {
-    stdout: []u8,
-    stderr: []u8,
+    stdout: []const u8,
+    stderr: []const u8,
     returncode: i64,
 };
 
-fn readAll(alloc: std.mem.Allocator, file: std.fs.File) []u8 {
-    return file.readToEndAlloc(alloc, 1024 * 1024) catch &[_]u8{};
+const max_output_bytes: usize = 1024 * 1024;
+
+fn appendCapped(alloc: std.mem.Allocator, buf: *std.ArrayList(u8), data: []const u8, cap: usize) void {
+    if (buf.items.len >= cap) return;
+    const space = cap - buf.items.len;
+    const to_copy = @min(space, data.len);
+    if (to_copy > 0) {
+        buf.appendSlice(alloc, data[0..to_copy]) catch {};
+    }
+}
+
+fn readAllCapped(alloc: std.mem.Allocator, file: std.fs.File, cap: usize) []const u8 {
+    var out = std.ArrayList(u8).empty;
+    defer out.deinit(alloc);
+
+    var tmp: [4096]u8 = undefined;
+    while (true) {
+        const n = file.read(&tmp) catch break;
+        if (n == 0) break;
+        appendCapped(alloc, &out, tmp[0..n], cap);
+    }
+    return out.toOwnedSlice(alloc) catch &[_]u8{};
+}
+
+fn setNonBlocking(fd: std.posix.fd_t) void {
+    const flags = std.posix.fcntl(fd, std.posix.F.GETFL, 0) catch return;
+    const nonblock = @as(usize, 1) << @bitOffsetOf(std.posix.O, "NONBLOCK");
+    _ = std.posix.fcntl(fd, std.posix.F.SETFL, flags | nonblock) catch {};
+}
+
+fn readPipedOutputs(
+    alloc: std.mem.Allocator,
+    stdout_file: ?std.fs.File,
+    stderr_file: ?std.fs.File,
+    cap: usize,
+) !struct { stdout: []const u8, stderr: []const u8 } {
+    if (builtin.os.tag == .windows or builtin.os.tag == .wasi) {
+        const out_bytes = if (stdout_file) |f| readAllCapped(alloc, f, cap) else &[_]u8{};
+        const err_bytes = if (stderr_file) |f| readAllCapped(alloc, f, cap) else &[_]u8{};
+        return .{ .stdout = out_bytes, .stderr = err_bytes };
+    }
+
+    var out = std.ArrayList(u8).empty;
+    var err = std.ArrayList(u8).empty;
+
+    var out_done = stdout_file == null;
+    var err_done = stderr_file == null;
+
+    const out_fd = if (stdout_file) |f| f.handle else -1;
+    const err_fd = if (stderr_file) |f| f.handle else -1;
+
+    if (!out_done) setNonBlocking(out_fd);
+    if (!err_done) setNonBlocking(err_fd);
+
+    var tmp: [4096]u8 = undefined;
+    while (!out_done or !err_done) {
+        var fds: [2]std.posix.pollfd = undefined;
+        var count: usize = 0;
+        if (!out_done) {
+            fds[count] = .{ .fd = out_fd, .events = std.posix.POLL.IN | std.posix.POLL.HUP, .revents = 0 };
+            count += 1;
+        }
+        if (!err_done) {
+            fds[count] = .{ .fd = err_fd, .events = std.posix.POLL.IN | std.posix.POLL.HUP, .revents = 0 };
+            count += 1;
+        }
+
+        _ = std.posix.poll(fds[0..count], -1) catch break;
+
+        var idx: usize = 0;
+        while (idx < count) : (idx += 1) {
+            if (fds[idx].revents & std.posix.POLL.IN == 0 and fds[idx].revents & std.posix.POLL.HUP == 0) continue;
+            const is_out = (!out_done and fds[idx].fd == out_fd);
+            const file = if (is_out) stdout_file.? else stderr_file.?;
+            if (fds[idx].revents & std.posix.POLL.HUP != 0 and fds[idx].revents & std.posix.POLL.IN == 0) {
+                if (is_out) out_done = true else err_done = true;
+                continue;
+            }
+            while (true) {
+                const n = file.read(&tmp) catch |err_read| {
+                    if (err_read == error.WouldBlock) break;
+                    if (is_out) out_done = true else err_done = true;
+                    break;
+                };
+                if (n == 0) {
+                    if (is_out) out_done = true else err_done = true;
+                    break;
+                }
+                if (is_out) {
+                    appendCapped(alloc, &out, tmp[0..n], cap);
+                } else {
+                    appendCapped(alloc, &err, tmp[0..n], cap);
+                }
+            }
+        }
+    }
+
+    const out_bytes = out.toOwnedSlice(alloc) catch &[_]u8{};
+    const err_bytes = err.toOwnedSlice(alloc) catch &[_]u8{};
+    return .{ .stdout = out_bytes, .stderr = err_bytes };
 }
 
 fn runChild(alloc: std.mem.Allocator, args: []const []const u8, capture: bool) !RunResult {
@@ -36,11 +134,12 @@ fn runChild(alloc: std.mem.Allocator, args: []const []const u8, capture: bool) !
 
     try child.spawn();
 
-    var stdout_bytes: []u8 = &[_]u8{};
-    var stderr_bytes: []u8 = &[_]u8{};
+    var stdout_bytes: []const u8 = &[_]u8{};
+    var stderr_bytes: []const u8 = &[_]u8{};
     if (capture) {
-        if (child.stdout) |file| stdout_bytes = readAll(alloc, file);
-        if (child.stderr) |file| stderr_bytes = readAll(alloc, file);
+        const outputs = try readPipedOutputs(alloc, child.stdout, child.stderr, max_output_bytes);
+        stdout_bytes = outputs.stdout;
+        stderr_bytes = outputs.stderr;
     }
 
     const term = try child.wait();
@@ -52,17 +151,28 @@ fn runChild(alloc: std.mem.Allocator, args: []const []const u8, capture: bool) !
     return .{ .stdout = stdout_bytes, .stderr = stderr_bytes, .returncode = returncode };
 }
 
-fn buildArgvFromList(alloc: std.mem.Allocator, list: c.py_Ref, out: *std.ArrayList([]const u8)) bool {
-    if (!c.py_checktype(list, c.tp_list)) return false;
-    const list_len = c.py_list_len(list);
-    if (list_len <= 0) return c.py_exception(c.tp_TypeError, "args must be a non-empty list");
+fn buildArgvFromSeq(alloc: std.mem.Allocator, seq: c.py_Ref, out: *std.ArrayList([]const u8)) bool {
+    const len: c_int = if (c.py_islist(seq)) c.py_list_len(seq) else c.py_tuple_len(seq);
+    if (len <= 0) return c.py_exception(c.tp_TypeError, "args must be a non-empty sequence");
     var i: c_int = 0;
-    while (i < list_len) : (i += 1) {
-        const item = c.py_list_getitem(list, i);
+    while (i < len) : (i += 1) {
+        const item = if (c.py_islist(seq)) c.py_list_getitem(seq, i) else c.py_tuple_getitem(seq, i);
         const cstr = c.py_tostr(item) orelse return c.py_exception(c.tp_TypeError, "args must be strings");
         out.append(alloc, std.mem.span(cstr)) catch return c.py_exception(c.tp_RuntimeError, "out of memory");
     }
     return true;
+}
+
+fn buildArgvFromArgs(alloc: std.mem.Allocator, args_val: c.py_Ref, out: *std.ArrayList([]const u8)) bool {
+    if (c.py_isstr(args_val)) {
+        const cstr = c.py_tostr(args_val) orelse return c.py_exception(c.tp_TypeError, "args must be a string");
+        out.append(alloc, std.mem.span(cstr)) catch return c.py_exception(c.tp_RuntimeError, "out of memory");
+        return true;
+    }
+    if (c.py_islist(args_val) or c.py_istuple(args_val)) {
+        return buildArgvFromSeq(alloc, args_val, out);
+    }
+    return c.py_exception(c.tp_TypeError, "args must be a string or sequence");
 }
 
 fn run(argc: c_int, argv: c.py_StackRef) callconv(.c) bool {
@@ -87,7 +197,7 @@ fn run(argc: c_int, argv: c.py_StackRef) callconv(.c) bool {
         argv_list.append(alloc, "-c") catch return c.py_exception(c.tp_RuntimeError, "out of memory");
         argv_list.append(alloc, std.mem.span(cmd_c)) catch return c.py_exception(c.tp_RuntimeError, "out of memory");
     } else {
-        if (!buildArgvFromList(alloc, args_val, &argv_list)) return false;
+        if (!buildArgvFromArgs(alloc, args_val, &argv_list)) return false;
     }
 
     const result = runChild(alloc, argv_list.items, capture_output) catch return c.py_exception(c.tp_RuntimeError, "failed to run process");
@@ -124,9 +234,9 @@ fn callFn(argc: c_int, argv: c.py_StackRef) callconv(.c) bool {
     // call(args) is run(args).returncode
     if (!run(1, argv)) return false;
     const dict = c.py_retval();
-    const rc = c.py_dict_getitem_by_str(dict, subprocess_returncode_key);
-    if (rc <= 0) return c.py_exception(c.tp_RuntimeError, "returncode missing");
-    pk.setRetval(c.py_retval());
+    if (c.py_dict_getitem_by_str(dict, subprocess_returncode_key) == 0) {
+        return c.py_exception(c.tp_RuntimeError, "returncode missing");
+    }
     return true;
 }
 
@@ -138,9 +248,12 @@ fn check_outputFn(argc: c_int, argv: c.py_StackRef) callconv(.c) bool {
 
     var argv_list: std.ArrayList([]const u8) = .empty;
     defer argv_list.deinit(alloc);
-    if (!buildArgvFromList(alloc, pk.argRef(argv, 0), &argv_list)) return false;
+    if (!buildArgvFromArgs(alloc, pk.argRef(argv, 0), &argv_list)) return false;
 
     const result = runChild(alloc, argv_list.items, true) catch return c.py_exception(c.tp_RuntimeError, "failed to run process");
+    if (result.returncode != 0) {
+        return c.py_exception(c.tp_RuntimeError, "process returned non-zero exit status");
+    }
     // Return a string to avoid relying on bytes.decode(encoding) support in PocketPy.
     const out_buf = c.py_newstrn(c.py_retval(), @intCast(result.stdout.len));
     if (result.stdout.len > 0) {
@@ -252,7 +365,7 @@ fn popenInit(argc: c_int, argv: c.py_StackRef) callconv(.c) bool {
         argv_list.append(alloc, "-c") catch return c.py_exception(c.tp_RuntimeError, "out of memory");
         argv_list.append(alloc, std.mem.span(cmd_c)) catch return c.py_exception(c.tp_RuntimeError, "out of memory");
     } else {
-        if (!buildArgvFromList(alloc, args_val, &argv_list)) return false;
+        if (!buildArgvFromArgs(alloc, args_val, &argv_list)) return false;
     }
 
     const ud = getPopen(self) orelse return c.py_exception(c.tp_RuntimeError, "invalid Popen");
@@ -293,11 +406,14 @@ fn popenCommunicate(argc: c_int, argv: c.py_StackRef) callconv(.c) bool {
     const ud = getPopen(self) orelse return c.py_exception(c.tp_RuntimeError, "invalid Popen");
     if (!ud.started) return c.py_exception(c.tp_RuntimeError, "process not started");
 
-    var out_bytes: []u8 = &[_]u8{};
-    var err_bytes: []u8 = &[_]u8{};
+    var out_bytes: []const u8 = &[_]u8{};
+    var err_bytes: []const u8 = &[_]u8{};
 
-    if (ud.child.stdout) |file| out_bytes = readAll(std.heap.c_allocator, file);
-    if (ud.child.stderr) |file| err_bytes = readAll(std.heap.c_allocator, file);
+    if (ud.child.stdout != null or ud.child.stderr != null) {
+        const outputs = readPipedOutputs(std.heap.c_allocator, ud.child.stdout, ud.child.stderr, max_output_bytes) catch return c.py_exception(c.tp_RuntimeError, "failed to read output");
+        out_bytes = outputs.stdout;
+        err_bytes = outputs.stderr;
+    }
 
     const term = ud.child.wait() catch return c.py_exception(c.tp_RuntimeError, "wait failed");
     var returncode: i64 = -1;

@@ -1,0 +1,296 @@
+# Rust Migration Plan
+
+## Decision
+
+μcharm will migrate its native implementation from Zig to stable Rust while
+keeping PocketPy as the embedded Python runtime.
+
+This is a host-language and toolchain migration, not a product rewrite. The
+Python-facing API, PocketPy compatibility work, universal-binary behavior, and
+product goals remain in place.
+
+The migration should be incremental. Zig feature work is frozen except for
+small correctness, security, and release-blocking fixes. New product features
+resume on the Rust implementation after the relevant component has crossed its
+parity gate.
+
+## Why Rust Fits This Repository Better
+
+- Rust has a stable language and standard-library contract. Edition changes
+  are opt-in, so routine compiler updates do not require source migrations.
+- PocketPy exposes a C API, which Rust can call through a small, auditable FFI
+  layer without changing the interpreter.
+- Cargo provides a mature dependency, workspace, test, and release model.
+- The supported μcharm targets all have Rust target support. Intel macOS needs
+  explicit CI attention because it is no longer a Rust Tier 1 host target.
+- Rust can still produce stripped, statically linked Linux binaries. Size and
+  startup must be measured rather than assumed, and are hard migration gates.
+- Rust's ownership model is a good fit for the resource-heavy parts of this
+  codebase: VM values, allocators, subprocess pipes, terminal state, temporary
+  files, and embedded runtime extraction.
+
+The decision does not depend on calling Zig a toy. Zig has real strengths,
+especially its cross-compilation and C integration. The repository-specific
+problem is that μcharm has more than 28,000 lines coupled to a pre-1.0 language
+and standard library. For example, the codebase pinned to Zig 0.15.2 does not
+build on Zig 0.16.0 without build API changes. That maintenance cost is now
+larger than the benefit of staying.
+
+## Current Inventory
+
+Tracked first-party Zig code at the start of the migration:
+
+| Area | Files | Lines | Responsibility |
+| --- | ---: | ---: | --- |
+| `runtime/` | 63 | 23,074 | PocketPy modules, TUI, stdlib compatibility |
+| `cli/` | 11 | 2,505 | `ucharm` commands, packaging, target downloads |
+| `pocketpy/` | 4 | 1,533 | VM wrapper, module registration, native build |
+| `loader/` | 4 | 623 | Universal-binary extraction and execution |
+| `shared/` | 1 | 454 | Shared terminal presentation helpers |
+| **Total** | **83** | **28,189** | |
+
+The runtime module layer is the dominant cost and risk. The loader is the
+smallest isolated production component, while the PocketPy FFI is the critical
+technical proof.
+
+Baseline artifacts and performance must be recorded per target in Phase 0.
+One local macOS `ReleaseSmall` build at the decision point produced a 2,313,264
+byte PocketPy runtime and a 98,200 byte loader; these are observations, not the
+cross-platform acceptance baseline.
+
+## Target Architecture
+
+Use one Cargo workspace with a deliberately small crate graph:
+
+```text
+Cargo.toml
+rust-toolchain.toml
+crates/
+├── pocketpy-sys/       # C compilation and raw PocketPy declarations
+├── ucharm-format/      # MCHARM01 trailer, hashes, target names
+├── ucharm-runtime/     # VM ownership and native module registration
+├── ucharm-loader/      # Standalone universal-binary loader
+└── ucharm-cli/         # new/init/run/build/test commands
+```
+
+Runtime modules live under `ucharm-runtime/src/modules/` until there is a
+measured reason to split them into more crates. Avoid recreating the current
+build file's one-module-per-build-node complexity.
+
+### Toolchain policy
+
+- Stable Rust only; no nightly features.
+- Pin an exact compiler in `rust-toolchain.toml` and update it intentionally.
+- Commit `Cargo.lock` and set `rust-version` for every workspace crate.
+- Use the 2024 edition unless a spike finds a concrete blocker.
+- Build release binaries with LTO, one codegen unit, symbol stripping, and
+  `panic = "abort"`; validate crash diagnostics before finalizing that profile.
+- Run `cargo fmt`, `cargo clippy --all-targets --all-features`, and
+  `cargo test --workspace` in CI.
+- Keep dependencies sparse. Prefer the standard library for the existing
+  hand-written CLI parser and binary format.
+
+### C and FFI policy
+
+- Compile PocketPy and the existing C dependencies with the `cc` crate.
+- Generate raw bindings with a pinned development tool, review them, and check
+  them into `pocketpy-sys`; release builds must not require libclang.
+- Keep all raw pointers and C calls inside `pocketpy-sys` and a narrow VM/value
+  wrapper in `ucharm-runtime`.
+- Document ownership for every PocketPy value and callback. No Rust reference
+  may outlive the VM or cross a VM call that can invalidate it.
+- Deny `unsafe_op_in_unsafe_fn` and explain every `unsafe` block with its
+  invariant.
+- Continue vendoring and verifying the PocketPy patch set before compilation.
+
+### Cross-compilation policy
+
+Do not adopt `cargo-zigbuild`; the completed release pipeline must not retain a
+Zig dependency.
+
+- Build macOS ARM64 natively.
+- Build macOS x86_64 on macOS with an explicit x86_64 target and matching C
+  compiler flags; keep it as a tested compatibility target.
+- Build Linux x86_64 with musl on x86_64 Linux.
+- Build Linux ARM64 with musl on an ARM64 runner. Use a conventional musl cross
+  compiler only if native CI is unavailable.
+- Produce hashes and artifact names identical to current releases until a
+  versioned format change is intentionally introduced.
+
+## Non-Negotiable Compatibility Gates
+
+Each cutover PR must preserve these contracts:
+
+1. `tests/compat_runner.py --report` stays at 100% for the currently targeted
+   module set.
+2. The Python imports, function signatures, return shapes, error behavior, and
+   TUI output remain compatible unless a separate product change is approved.
+3. A Rust CLI can consume the existing embedded loader/runtime assets during
+   the transition.
+4. A Rust loader can execute an existing `MCHARM01` universal binary, and a
+   Zig loader can execute one produced by the Rust packager.
+5. All four release targets build and pass smoke tests.
+6. Median warm startup remains at or below 10 ms on the benchmark hosts.
+7. A typical standalone app remains below 2 MB. A temporary exception requires
+   an explicit recorded decision and a size-recovery issue before cutover.
+8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
+   release path.
+
+Keep Zig and Rust jobs side by side until the relevant gate passes. Differential
+tests should run the same Python file through both runtimes and compare exit
+status, stdout, and stderr.
+
+## Execution Plan
+
+### Phase 0 — Freeze and baseline
+
+- Tag or record the last Zig baseline commit and pin Zig 0.15.2 for maintenance.
+- Record clean release sizes, startup distributions, memory use, compatibility
+  results, and universal-build smoke tests on all targets.
+- Add golden tests for the trailer format, CLI help/errors, and representative
+  TUI output before translating those components.
+- Classify every native module as pure computation, OS/terminal integration, or
+  external-C-backed so the port order is explicit.
+
+Exit gate: the baseline is reproducible in CI and contains enough fixtures to
+detect behavioral drift.
+
+### Phase 1 — Prove the Rust spine
+
+- Create the Cargo workspace and pinned toolchain.
+- Build the vendored PocketPy source from `pocketpy-sys`.
+- Implement VM startup, script execution, error propagation, and one trivial
+  native module through the safe wrapper.
+- Produce stripped macOS ARM64 and Linux x86_64 binaries and compare startup and
+  size with the baseline.
+- Prove that the C build can also target macOS x86_64 and Linux ARM64 before
+  broad module translation begins.
+
+Exit gate: a Python script runs through Rust-hosted PocketPy on all release
+targets, the FFI invariants are reviewed, and size/startup are within the
+budget or have a concrete measured recovery plan.
+
+### Phase 2 — Port the universal format and loader
+
+- Implement the 48-byte `MCHARM01` trailer in `ucharm-format` with byte-level
+  golden vectors shared with the Zig tests.
+- Port loader validation, hashing, cache naming, extraction, permissions,
+  cleanup, and `exec` behavior.
+- Test corrupted trailers, truncated binaries, hash mismatches, concurrent
+  launches, cache reuse, and paths containing spaces.
+- Cross-test Rust and Zig packager/loader combinations.
+
+Exit gate: the Rust loader is format-compatible and no slower or materially
+larger than the recorded baseline.
+
+### Phase 3 — Port the CLI around existing runtime assets
+
+- Port `new`, `init`, `run`, `build`, and `test` without redesigning their UX.
+- Embed the already released runtime and loader stubs first. This decouples the
+  CLI migration from native module translation.
+- Preserve target names, download URLs, SHA-256 verification, cache layout,
+  script transformation, exit codes, and diagnostic wording.
+- Add snapshot tests for help and errors plus end-to-end tests for all build
+  modes.
+
+Exit gate: the Rust CLI passes the current unit/e2e suite and can build and run
+universal apps using the existing runtime assets.
+
+### Phase 4 — Port the runtime foundation
+
+- Port the reusable ANSI, argument, TUI, and input core logic.
+- Implement a declarative module registration table so adding a module does not
+  require hundreds of build-script declarations.
+- Centralize PocketPy conversions for strings, bytes, lists, tuples, dicts,
+  callables, exceptions, and userdata.
+- Add leak checks, sanitizer runs for C code, and tests for callback/value
+  lifetime boundaries.
+
+Exit gate: representative `charm`, `input`, and compatibility modules register
+through one reviewed path and survive stress/error tests.
+
+### Phase 5 — Port native modules in risk-ordered waves
+
+Port behavior, not Zig syntax. Every module moves with its existing CPython
+fixture and a Zig-versus-Rust differential run.
+
+1. Pure and low-OS modules: `base64`, `binascii`, `copy`, `fnmatch`, `functools`,
+   `heapq`, `itertools`, `operator`, `statistics`, `textwrap`, `typing`.
+2. Data/model modules: `array`, `collections`, `csv`, `datetime`, `json`, `re`,
+   `struct`, `toml`, `uuid`, XML and dataclasses.
+3. Filesystem and process modules: `os`, `pathlib`, `glob`, `tempfile`, `shutil`,
+   `signal`, `subprocess`, logging, and terminal/input behavior.
+4. External-C-backed and network modules: BearSSL/fetch/HTTP, SQLite,
+   TinyTemplate, hashing/HMAC/secrets, and archive formats.
+5. μcharm presentation modules and interactive golden tests.
+
+Retire each Zig module from the Rust release only when its compatibility group
+returns to 100%.
+
+Exit gate: the complete compatibility suite and interactive/e2e suite pass on
+the Rust runtime for every release target.
+
+### Phase 6 — Cut over CI, packaging, and releases
+
+- Switch `justfile`, CI, release workflows, updater scripts, Homebrew formula,
+  docs, templates, and contributor instructions to Cargo.
+- Build the CLI, runtime, and loaders from Rust/C only and refresh embedded
+  stubs for all targets.
+- Run a release-candidate bake with artifact install, universal build, and
+  execution tests on clean machines.
+- Publish one prerelease before making the Rust artifacts the default stable
+  download.
+
+Exit gate: the normal CI and release workflows contain no Zig setup and all
+artifacts meet the compatibility, startup, and size gates.
+
+### Phase 7 — Remove Zig and resume the roadmap
+
+- Delete Zig sources, build files, caches, and stale embedded binaries only
+  after the Rust release is proven. Preserve the last Zig tag and migration
+  notes for archaeology.
+- Update architecture documentation and contributor guidance.
+- Resume roadmap work in this order:
+  1. canonical stub generation and CI drift checking;
+  2. compatibility report and PocketPy patch verification artifacts;
+  3. cross-target build reliability;
+  4. tree-shaking/module selection for size;
+  5. `ucharm dev` watch mode;
+  6. remaining networking, format, concurrency, and database work;
+  7. higher-level TUI features from `vision.md`.
+
+## Suggested PR Sequence
+
+Keep changes reviewable and reversible:
+
+1. Decision, baseline scripts, and golden fixtures.
+2. Cargo workspace plus `pocketpy-sys` proof.
+3. Rust loader and cross-format tests.
+4. Rust CLI using existing assets.
+5. Runtime wrapper and declarative registrar.
+6. One PR per module wave, split further when a wave is too large.
+7. Four-target release candidate and workflow cutover.
+8. Zig removal and documentation cleanup.
+
+Do not mix unrelated product redesigns into these PRs. A migration regression
+should be attributable to one boundary or module group.
+
+## Principal Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Rust binaries exceed the size goal | Measure in Phase 1; use LTO, aborting panics, stripping, dependency review, and feature-gated heavy modules. |
+| C cross-compilation is harder without Zig | Prove all four targets in Phase 1 and prefer native-architecture CI runners. |
+| Unsafe PocketPy bindings introduce lifetime bugs | Confine raw FFI, document invariants, add sanitizer/leak jobs, and review the wrapper before module scaling. |
+| A long dual implementation stalls the roadmap | Freeze Zig features, port in vertical slices, and enforce exit gates rather than an open-ended rewrite branch. |
+| Behavioral parity drifts silently | Reuse CPython fixtures and add Zig/Rust differential output tests. |
+| Intel macOS support degrades | Keep an explicit x86_64 build and smoke-test job; document its support tier honestly. |
+| Universal binaries become incompatible | Freeze `MCHARM01` as v1 and test both old/new packager-loader directions. |
+
+## Definition of Done
+
+The migration is complete when stable releases of `ucharm`, the PocketPy
+runtime, and all loader stubs are built with stable Rust plus the vendored C
+sources; all current tests pass on all release targets; existing universal
+binaries remain runnable; startup and size budgets are met; and the CI/release
+path contains no Zig dependency.

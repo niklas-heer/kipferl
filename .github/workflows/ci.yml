@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-15]
 
     steps:
       - uses: actions/checkout@v4
@@ -87,10 +87,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             target: aarch64-macos
             artifact: ucharm-macos-aarch64
-          - os: macos-latest
+          - os: macos-15
             target: x86_64-macos
             artifact: ucharm-macos-x86_64
           - os: ubuntu-latest
