@@ -1,4 +1,5 @@
 mod project;
+mod run_command;
 
 use std::fs;
 use std::io::{self, Write};
@@ -47,7 +48,8 @@ pub fn run(
         }
         "new" => run_new(&arguments[1..], current_directory, stdout, stderr),
         "init" => run_init(&arguments[1..], current_directory, stdout, stderr),
-        "build" | "run" | "test" => {
+        "run" => run_command::execute(&arguments[1..], current_directory, stdout, stderr),
+        "build" | "test" => {
             writeln!(
                 stderr,
                 "{RED}Error:{RESET} Command '{BOLD}{command}{RESET}' has not migrated to Rust yet"
@@ -305,7 +307,7 @@ fn init_help() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{init_help, main_help, new_help, project::sanitize_name};
+    use super::{init_help, main_help, new_help, project::sanitize_name, run_command};
 
     #[test]
     fn help_text_matches_the_zig_cli_snapshots() {
@@ -379,6 +381,26 @@ mod tests {
                 "    AGENTS.md                        Universal (Cursor, Windsurf, Zed)\n",
                 "    CLAUDE.md                        Claude Code\n",
                 "    .github/copilot-instructions.md  GitHub Copilot\n",
+            )
+        );
+        assert_eq!(
+            run_command::help(),
+            concat!(
+                "\x1b[1mμcharm run\x1b[0m - Run a Python script with pocketpy-ucharm\n\n",
+                "\x1b[2mUSAGE:\x1b[0m\n",
+                "    ucharm run <script.py> [args...]\n\n",
+                "\x1b[2mARGUMENTS:\x1b[0m\n",
+                "    <script.py>    Python script to run\n",
+                "    [args...]      Arguments passed to the script\n\n",
+                "\x1b[2mDESCRIPTION:\x1b[0m\n",
+                "    Runs your Python script using the embedded pocketpy-ucharm\n",
+                "    interpreter with all native μcharm modules available.\n\n",
+                "    The script is automatically transformed to use native modules\n",
+                "    instead of the ucharm Python package.\n\n",
+                "\x1b[2mEXAMPLES:\x1b[0m\n",
+                "    ucharm run app.py\n",
+                "    ucharm run app.py --verbose\n",
+                "    ucharm run examples/demo.py\n",
             )
         );
     }

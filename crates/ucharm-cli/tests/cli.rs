@@ -25,6 +25,67 @@ fn reports_version_help_unknown_and_unmigrated_commands() {
     let build = run(&temporary, &["build"]);
     assert!(!build.status.success());
     assert!(text(&build.stderr).contains("has not migrated to Rust yet"));
+
+    let run_help = run(&temporary, &["run", "--help"]);
+    assert!(run_help.status.success());
+    assert!(text(&run_help.stdout).contains("ucharm run <script.py> [args...]"));
+
+    let no_script = run(&temporary, &["run"]);
+    assert!(!no_script.status.success());
+    assert_eq!(
+        text(&no_script.stderr),
+        "\x1b[31mError:\x1b[0m No script specified\nUsage: ucharm run <script.py> [args...]\n"
+    );
+
+    let missing_script = run(&temporary, &["run", "missing.py"]);
+    assert!(!missing_script.status.success());
+    assert_eq!(
+        text(&missing_script.stderr),
+        "\x1b[31mError:\x1b[0m Script not found: missing.py\n"
+    );
+}
+
+#[test]
+fn run_transforms_a_script_and_forwards_arguments() {
+    let temporary = TestDirectory::new("run command");
+    fs::write(
+        temporary.path.join("argument test.py"),
+        "from ucharm import info\nimport sys\nprint(sys.argv[1])\nprint(sys.argv[2])\n",
+    )
+    .expect("write script");
+
+    let executed = run(
+        &temporary,
+        &["run", "argument test.py", "hello world", "--flag"],
+    );
+    assert!(executed.status.success(), "{}", text(&executed.stderr));
+    assert_eq!(text(&executed.stdout), "hello world\n--flag\n");
+    assert_eq!(text(&executed.stderr), "");
+
+    let cache_directories = fs::read_dir(temporary.path.join(".cache"))
+        .expect("read run cache")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("read cache entries");
+    assert_eq!(cache_directories.len(), 1);
+    let runtime = cache_directories[0].path().join("pocketpy-ucharm");
+    assert_ne!(
+        fs::metadata(runtime)
+            .expect("runtime metadata")
+            .permissions()
+            .mode()
+            & 0o111,
+        0
+    );
+
+    fs::write(
+        temporary.path.join("failure.py"),
+        "raise RuntimeError('expected failure')\n",
+    )
+    .expect("write failing script");
+    let failed = run(&temporary, &["run", "failure.py"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(text(&failed.stdout).contains("RuntimeError: expected failure"));
+    assert!(text(&failed.stderr).contains("PocketPyExecFailed"));
 }
 
 #[test]
@@ -108,6 +169,7 @@ fn run(temporary: &TestDirectory, arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_ucharm-rs"))
         .args(arguments)
         .current_dir(&temporary.path)
+        .env("UCHARM_CACHE_DIR", temporary.path.join(".cache"))
         .output()
         .expect("run Rust CLI")
 }

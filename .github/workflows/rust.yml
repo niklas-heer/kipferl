@@ -79,5 +79,5 @@ jobs:
           cli = Path("target/${{ matrix.target }}/release/ucharm-rs")
           cli_size = cli.stat().st_size
           print(f"{cli}: {cli_size:,} bytes")
-          assert cli_size < 1_500_000, f"Rust CLI exceeds 1.5 MB: {cli_size:,} bytes"
+          assert cli_size < 3_500_000, f"Rust CLI with embedded runtime exceeds 3.5 MB: {cli_size:,} bytes"
           PY
