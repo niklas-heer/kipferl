@@ -149,7 +149,14 @@ unsafe extern "C" {
     pub fn py_exception(type_: py_Type, fmt: *const ::core::ffi::c_char, ...) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " Create a `tuple` with `n` UNINITIALIZED elements.\n You should initialize all elements before using it."]
+    pub fn py_newtuple(arg1: py_OutRef, n: ::core::ffi::c_int) -> py_ObjectRef;
+}
+unsafe extern "C" {
     pub fn py_tuple_getitem(self_: py_Ref, i: ::core::ffi::c_int) -> py_ObjectRef;
+}
+unsafe extern "C" {
+    pub fn py_tuple_setitem(self_: py_Ref, i: ::core::ffi::c_int, val: py_Ref);
 }
 unsafe extern "C" {
     pub fn py_tuple_len(self_: py_Ref) -> ::core::ffi::c_int;
