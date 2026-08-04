@@ -1,13 +1,13 @@
 # μcharm Compatibility Report
 
-Generated: 2026-08-04 18:57:31
+Generated: 2026-08-04 19:16:48
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,285/1,668 (77.0%)
-- **Modules at 100%**: 35/52
+- **Tests passing**: 1,437/1,668 (86.2%)
+- **Modules at 100%**: 39/52
 - **Modules partial**: 5/52
 - **No baseline (host CPython)**: 1/52
 
@@ -41,14 +41,18 @@ Generated: 2026-08-04 18:57:31
 | io | stdlib | 53/53 | 53/53 | 100% | ✅ Full |
 | itertools | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | json | stdlib | 70/70 | 70/70 | 100% | ✅ Full |
+| logging | stdlib | 39/39 | 39/39 | 100% | ✅ Full |
 | operator | stdlib | 114/115 | 115/115 | 100% | ✅ Full |
 | os | stdlib | 45/45 | 45/45 | 100% | ✅ Full |
 | pathlib | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
 | random | stdlib | 46/46 | 46/46 | 100% | ✅ Full |
+| re | stdlib | 79/79 | 79/79 | 100% | ✅ Full |
 | secrets | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
 | shutil | stdlib | 6/6 | 6/6 | 100% | ✅ Full |
+| signal | stdlib | 15/15 | 15/15 | 100% | ✅ Full |
 | statistics | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | struct | stdlib | 68/68 | 68/68 | 100% | ✅ Full |
+| subprocess | stdlib | 19/19 | 19/19 | 100% | ✅ Full |
 | tarfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
 | tempfile | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
 | textwrap | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
@@ -64,11 +68,7 @@ Generated: 2026-08-04 18:57:31
 | argparse | stdlib | 26/26 | 0/26 | 0% | 1 skipped |
 | contextlib | stdlib | 10/10 | 0/10 | 0% | 1 failing |
 | http.client | stdlib | 8/8 | 0/8 | 0% |  |
-| logging | stdlib | 39/39 | 0/39 | 0% | 1 failing |
-| re | stdlib | 79/79 | 0/79 | 0% | 1 failing |
-| signal | stdlib | 15/15 | 0/15 | 0% | 1 failing |
 | sqlite3 | stdlib | 2/2 | 0/2 | 0% |  |
-| subprocess | stdlib | 19/19 | 0/19 | 0% | 1 failing |
 | tomllib | stdlib | 0/1 | 0/1 | 0% |  |
 | unittest | stdlib | 40/40 | 0/40 | 0% | 1 skipped |
 | xml.etree.ElementTree | stdlib | 12/12 | 0/12 | 0% |  |
@@ -85,29 +85,9 @@ Generated: 2026-08-04 18:57:31
 - `error: Python execution failed
 `
 
-### re
-
-- `error: Python execution failed
-`
-
 ### sys
 
 - `FAIL: version_info exists`
-
-### logging
-
-- `error: Python execution failed
-`
-
-### signal
-
-- `error: Python execution failed
-`
-
-### subprocess
-
-- `error: Python execution failed
-`
 
 ### unittest
 

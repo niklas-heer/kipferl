@@ -10,6 +10,7 @@ repository.workspace = true
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 libc = "0.2"
 md-5 = { version = "0.11.0", default-features = false }
+regex-lite = "0.1.9"
 sha1 = { version = "0.11.0", default-features = false }
 sha2 = { version = "0.11", default-features = false }
 ucharm-pocketpy-sys = { path = "../pocketpy-sys" }

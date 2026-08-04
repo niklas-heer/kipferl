@@ -194,7 +194,9 @@ status, stdout, and stderr.
   `dataclasses`, `datetime`, `json`, `random`, and `uuid`; and the binary-
   container wave: `array`, `struct`, and `secrets`; plus the crypto,
   compression, and archive wave: `hashlib`, `hmac`, `gzip`, `io`, `zipfile`,
-  and `tarfile`.
+  and `tarfile`; the filesystem wave: `os`, `os.path`, `pathlib`, `glob`,
+  `tempfile`, and `shutil`; and the process/regex/observability wave: `re`,
+  `logging`, `signal`, and `subprocess`.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -243,15 +245,22 @@ status, stdout, and stderr.
   path lifecycle and error stress, deterministic CPython path differentials,
   and release smoke tests on both macOS architectures. Its five fixtures pass
   109/109 raw checks; the conservative CPython-baselined report gains 100
-  checks. The full Rust result is now 1,285/1,668 (77.0%), up from the original
-  456/1,668, with 35 of 52 targeted modules at full parity.
+  checks. The process/regex/observability wave uses the size-oriented
+  `regex-lite` engine behind PocketPy-owned `Match` and `Pattern` objects,
+  PocketPy-owned logger/handler and signal state, and a Rust process boundary
+  with concurrent capped stdout/stderr draining. It passes 152/152 fixture
+  checks plus CPython regex/process differentials, logger output assertions,
+  repeated capture/state stress, invalid-input coverage, 1 MiB-per-stream cap
+  tests, and optimized dual-architecture smoke. The full Rust result is now
+  1,437/1,668 (86.2%), up from the original 456/1,668, with 39 of 52 targeted
+  modules at full parity.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 851,888 bytes on ARM64 and 934,784
+- The current stripped macOS runtime is 970,064 bytes on ARM64 and 1,043,792
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  On the latest 400-run warm-start sample, native Rust measured 4.298 ms median
-  and 5.241 ms p95; x86_64 Rust under Rosetta measured 11.107 ms median and
-  12.113 ms p95. The native ARM64 host remains below the 10 ms gate; native
+  On the latest 400-run warm-start sample, native Rust measured 4.558 ms median
+  and 5.852 ms p95; x86_64 Rust under Rosetta measured 11.078 ms median and
+  12.325 ms p95. The native ARM64 host remains below the 10 ms gate; native
   Intel CI remains the authoritative x86_64 execution environment.
 
 ### Phase 0 — Freeze and baseline

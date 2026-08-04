@@ -88,6 +88,11 @@ jobs:
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import glob, os, shutil, tempfile; from pathlib import Path; root = tempfile.mkdtemp("/tmp/ucharm-fs-smoke-"); nested = os.path.join(root, "nested"); os.makedirs(nested, exist_ok=True); source = os.path.join(nested, "source.txt"); file = open(source, "w"); file.write("ucharm"); file.close(); assert Path(source).is_file(); assert glob.glob(os.path.join(root, "**", "*.txt"), None, None, True) == [source]; copied = os.path.join(root, "copied.txt"); shutil.copy(source, copied); assert Path(copied).is_file(); shutil.rmtree(root); assert not os.path.exists(root)'
+      - name: Smoke-test Rust process-regex wave
+        shell: bash
+        run: >-
+          target/${{ matrix.target }}/release/pocketpy-ucharm-rs
+          -c 'import logging, re, signal, subprocess; found = re.search(r"(item)-(\d+)", "prefix item-42"); assert found.groups() == ("item", "42"); assert re.sub(r"(\w+)", r"[\1]", "hello") == "[hello]"; logger = logging.getLogger("smoke.child"); assert logger is logging.getLogger("smoke.child"); signal.signal(signal.SIGUSR1, signal.SIG_IGN); assert signal.getsignal(signal.SIGUSR1) == signal.SIG_IGN; result = subprocess.run(["sh", "-c", "printf ucharm"], capture_output=True); assert result["returncode"] == 0 and result["stdout"] == b"ucharm"'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"
