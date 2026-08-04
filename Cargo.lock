@@ -147,5 +147,6 @@ dependencies = [
 name = "ucharm-runtime"
 version = "0.5.0"
 dependencies = [
+ "libc",
  "ucharm-pocketpy-sys",
 ]

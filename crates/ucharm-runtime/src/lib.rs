@@ -1,4 +1,5 @@
 pub mod args_core;
+pub mod input_core;
 mod modules;
 mod native;
 
@@ -162,6 +163,7 @@ unsafe extern "C" fn probe_answer(_argc: i32, _argv: ffi::py_StackRef) -> bool {
 
 impl Drop for Vm {
     fn drop(&mut self) {
+        modules::shutdown_all();
         // SAFETY: `Vm` is the unique process-wide owner and finalization occurs
         // exactly once. PocketPy documents finalization as irreversible.
         unsafe { ffi::py_finalize() };

@@ -91,6 +91,14 @@ impl Value {
         Some(unsafe { ffi::py_toint(self.raw) })
     }
 
+    pub fn boolean(self) -> Option<bool> {
+        if !self.is_type(ffi::py_PredefinedType_tp_bool) {
+            return None;
+        }
+        // SAFETY: the exact type check above establishes a boolean value.
+        Some(unsafe { ffi::py_tobool(self.raw) })
+    }
+
     pub fn string(self) -> Option<String> {
         if !self.is_type(ffi::py_PredefinedType_tp_str) {
             return None;
@@ -171,6 +179,22 @@ impl Value {
         Some(Self {
             raw: unsafe { ffi::py_tuple_getitem(self.raw, index) },
         })
+    }
+
+    pub fn tuple_set(self, index: usize, value: Self) -> bool {
+        let Some(length) = self.tuple_len() else {
+            return false;
+        };
+        if index >= length {
+            return false;
+        }
+        let Ok(index) = c_int::try_from(index) else {
+            return false;
+        };
+        // SAFETY: the exact type and bounds checks establish a valid tuple
+        // slot, and both values remain rooted during the assignment.
+        unsafe { ffi::py_tuple_setitem(self.raw, index, value.raw) };
+        true
     }
 
     pub fn dict_set(self, key: Self, value: Self) -> bool {
@@ -257,6 +281,15 @@ impl RootFrame {
         root
     }
 
+    pub fn tuple(&mut self, length: usize) -> Option<Value> {
+        let length = c_int::try_from(length).ok()?;
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage and every tuple slot is
+        // initialized by the caller before the tuple becomes observable.
+        unsafe { ffi::py_newtuple(root.raw, length) };
+        Some(root)
+    }
+
     pub fn dict(&mut self) -> Value {
         let root = self.push();
         // SAFETY: `root` is writable VM stack storage.
@@ -303,6 +336,10 @@ pub(crate) fn return_value(value: Value) -> bool {
 }
 
 pub(crate) fn return_string(value: &str) -> bool {
+    return_string_bytes(value.as_bytes())
+}
+
+pub(crate) fn return_string_bytes(value: &[u8]) -> bool {
     let Ok(length) = c_int::try_from(value.len()) else {
         return type_error(c"return string is too large");
     };
