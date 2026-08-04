@@ -1,12 +1,12 @@
 # μcharm Compatibility Report
 
-Generated: 2025-12-21 03:06:57
+Generated: 2026-08-04 10:01:48
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,663/1,663 (100.0%)
+- **Tests passing**: 1,668/1,668 (100.0%)
 - **Modules at 100%**: 51/52
 - **Modules partial**: 0/52
 - **No baseline (host CPython)**: 1/52
@@ -58,7 +58,7 @@ Generated: 2025-12-21 03:06:57
 | sqlite3 | stdlib | 2/2 | 2/2 | 100% | ✅ Full |
 | statistics | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | struct | stdlib | 68/68 | 68/68 | 100% | ✅ Full |
-| subprocess | stdlib | 14/14 | 14/14 | 100% | ✅ Full |
+| subprocess | stdlib | 19/19 | 19/19 | 100% | ✅ Full |
 | sys | stdlib | 58/58 | 58/58 | 100% | ✅ Full |
 | tarfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
 | tempfile | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
