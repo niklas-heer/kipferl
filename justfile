@@ -6,6 +6,7 @@ default:
 
 # Format, lint, and test the Rust workspace
 check:
+    python3 scripts/generate_stubs.py --check
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
@@ -60,6 +61,14 @@ demo-full: build
 # Regenerate the checked-in PocketPy FFI declarations
 bindings:
     ./scripts/generate-rust-bindings.sh
+
+# Regenerate the Rust manifest that embeds every canonical root stub
+stubs:
+    python3 scripts/generate_stubs.py
+
+# Verify stub syntax and fail if the generated Rust manifest drifted
+stubs-check:
+    python3 scripts/generate_stubs.py --check
 
 # Verify the PocketPy vendor patches against upstream
 check-pocketpy:

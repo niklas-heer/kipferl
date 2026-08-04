@@ -11,12 +11,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      - name: Check canonical stub manifest
+        run: python3 scripts/generate_stubs.py --check
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: Test release tooling
         run: >-
           python3 -m unittest
+          scripts/test_generate_stubs.py
           scripts/test_release.py
           scripts/test_release_notes.py
 

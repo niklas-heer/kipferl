@@ -154,7 +154,7 @@ These unlock common workflows and popular CLI libraries.
 Useful for some apps but not required for most CLIs.
 
 - toml
-- http.client (or a small fetch module)
+- http.client
 - gzip, zipfile, tarfile
 - secrets, hmac
 - dataclasses

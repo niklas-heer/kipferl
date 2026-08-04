@@ -16,10 +16,8 @@ This project uses **ucharm** - a CLI toolkit for building beautiful command-line
 - `input` - Interactive prompts: select, multiselect, confirm, prompt, password
 - `term` - Terminal control (size, raw mode, cursor, colors)
 - `ansi` - ANSI escape codes for styling
-- `template` - Jinja-like templating (variables, conditionals, loops)
 
 ### Networking
-- `fetch` - HTTP/HTTPS client (get, post, request) with built-in TLS
 - `http.client` - Low-level HTTP client
 
 ### Standard Library (Native)
@@ -67,7 +65,7 @@ ucharm build myapp.py -o myapp --mode universal
 
 ## What NOT to Use
 
-- No `requests`, `httpx`, `aiohttp` (use `fetch` module instead)
+- No `requests`, `httpx`, `aiohttp` (use `http.client` instead)
 - No `numpy`, `pandas` (pure Python alternatives only)
 - No async/await (PocketPy has limited async support)
 - No type annotations at runtime (use for IDE only via stubs)

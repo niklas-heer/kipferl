@@ -6,7 +6,7 @@ This project uses ucharm (PocketPy + native Rust modules).
 
 - PocketPy runtime, not CPython
 - No pip packages with C extensions
-- 50+ native modules: tui, input, term, ansi, fetch, template, sqlite3, json, re, etc.
+- 50+ native modules: tui, input, term, ansi, http.client, sqlite3, json, re, etc.
 
 ## Preferred Patterns
 
@@ -25,17 +25,14 @@ tui.progress(5, 10, label="Loading", elapsed=2.5)
 tui.progress_done()
 
 # HTTP requests
-import fetch
-resp = fetch.get("https://api.example.com/data")
-print(resp["body"].decode())
-
-# Templating
-import template
-html = template.render("Hello {{name}}!", {"name": "World"})
+http = __import__("http.client")
+connection = http.HTTPSConnection("api.example.com")
+connection.request("GET", "/data")
+print(connection.getresponse().read().decode())
 ```
 
 ## Avoid
 
-- requests/httpx (use `fetch` module instead)
+- requests/httpx (use `http.client` instead)
 - numpy/pandas (pure Python alternatives)
 - async/await
