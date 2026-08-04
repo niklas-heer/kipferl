@@ -129,6 +129,13 @@ pub(crate) fn bind_type_method(value_type: ffi::py_Type, name: &'static CStr, ca
     unsafe { ffi::py_bindmethod(value_type, name.as_ptr(), Some(callback)) };
 }
 
+pub(crate) fn type_magic(value_type: ffi::py_Type, name: &'static CStr) -> Option<Value> {
+    // SAFETY: `value_type` identifies a live VM type and `name` has static
+    // storage. PocketPy returns a VM-global function or null when absent.
+    let raw = unsafe { ffi::py_tpfindmagic(value_type, ffi::py_name(name.as_ptr())) };
+    (!raw.is_null()).then_some(Value { raw })
+}
+
 pub(crate) struct Arguments {
     count: usize,
     values: ffi::py_StackRef,
@@ -556,6 +563,23 @@ pub(crate) fn call_one_bool(function: Value, argument: Value) -> Result<bool, ()
         return Err(());
     };
     Ok(value)
+}
+
+pub(crate) fn call(function: Value, arguments: &[Value]) -> bool {
+    let Ok(count) = c_int::try_from(arguments.len()) else {
+        return type_error(c"too many native call arguments");
+    };
+    // Copy every trivial value before entering PocketPy. The original values
+    // remain rooted by their callback stack or owning containers, and the
+    // local contiguous array stays at a stable address for the call.
+    let mut function = unsafe { *function.raw };
+    let mut copied = arguments
+        .iter()
+        .map(|value| unsafe { *value.raw })
+        .collect::<Vec<_>>();
+    // SAFETY: `function` and all `count` argument values are initialized. An
+    // empty slice is accepted with argc zero; current callers always pass self.
+    unsafe { ffi::py_call(&mut function, count, copied.as_mut_ptr()) }
 }
 
 /// A LIFO frame for PocketPy temporary stack roots.

@@ -6,6 +6,7 @@ mod binascii;
 mod charm;
 mod charm_core;
 mod encoding_core;
+mod errno;
 mod fnmatch;
 mod fnmatch_core;
 mod heapq;
@@ -13,6 +14,7 @@ mod input;
 mod itertools;
 mod statistics;
 mod statistics_core;
+mod string_methods;
 mod term;
 mod term_core;
 mod textwrap;
@@ -27,6 +29,7 @@ const MODULES: &[NativeModule] = &[
     base64::MODULE,
     binascii::MODULE,
     charm::MODULE,
+    errno::MODULE,
     fnmatch::MODULE,
     heapq::MODULE,
     input::MODULE,
@@ -38,6 +41,7 @@ const MODULES: &[NativeModule] = &[
 ];
 
 pub(crate) fn register_all() {
+    string_methods::register();
     register_modules(MODULES);
 }
 

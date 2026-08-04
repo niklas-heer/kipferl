@@ -171,6 +171,10 @@ unsafe extern "C" {
     pub fn py_isinstance(obj: py_Ref, type_: py_Type) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " Search the magic method from the given type to the base type.\n Return `NULL` if not found."]
+    pub fn py_tpfindmagic(arg1: py_Type, name: py_Name) -> py_GlobalRef;
+}
+unsafe extern "C" {
     #[doc = " Get the type object of the given type."]
     pub fn py_tpobject(type_: py_Type) -> py_GlobalRef;
 }
