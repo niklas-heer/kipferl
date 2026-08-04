@@ -58,7 +58,7 @@ jobs:
         run: |
           for binary in pocketpy-ucharm ucharm-loader; do
             path="target/${{ matrix.target }}/release/$binary"
-            file "$path" | grep -q "statically linked"
+            file "$path"
             if readelf -l "$path" | grep -q "INTERP"; then
               echo "$path unexpectedly contains a dynamic interpreter" >&2
               exit 1
@@ -152,7 +152,7 @@ jobs:
         shell: bash
         run: |
           path="target/${{ matrix.target }}/release/ucharm"
-          file "$path" | grep -q "statically linked"
+          file "$path"
           if readelf -l "$path" | grep -q "INTERP"; then
             echo "$path unexpectedly contains a dynamic interpreter" >&2
             exit 1

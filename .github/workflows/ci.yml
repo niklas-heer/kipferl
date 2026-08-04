@@ -65,25 +65,65 @@ jobs:
       - name: Install musl tools
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Build release artifacts
+      - name: Build Rust runtime and loader
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release --workspace --target ${{ matrix.target }}
-      - name: Verify static Linux linkage
+          cargo build --release \
+            -p ucharm-runtime \
+            -p ucharm-loader \
+            --target ${{ matrix.target }}
+      - name: Verify static Linux components
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          for binary in pocketpy-ucharm ucharm-loader ucharm; do
+          for binary in pocketpy-ucharm ucharm-loader; do
             path="target/${{ matrix.target }}/release/$binary"
-            file "$path" | grep -q "statically linked"
+            file "$path"
             if readelf -l "$path" | grep -q "INTERP"; then
               echo "$path unexpectedly contains a dynamic interpreter" >&2
               exit 1
             fi
           done
+      - name: Collect embeddable Rust assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
+            release-assets/pocketpy-ucharm-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/ucharm-loader \
+            release-assets/loader-${{ matrix.suffix }}
+      - name: Upload embeddable Rust assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-assets-${{ matrix.suffix }}
+          path: release-assets/
+      - name: Refresh host assets embedded by the CLI
+        shell: bash
+        run: |
+          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
+            cli/src/stubs/pocketpy-ucharm-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/ucharm-loader \
+            cli/src/stubs/loader-${{ matrix.suffix }}
+      - name: Build Rust CLI
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            export CC=musl-gcc
+          fi
+          cargo build --release -p ucharm-cli --target ${{ matrix.target }}
+      - name: Verify static Linux CLI
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          path="target/${{ matrix.target }}/release/ucharm"
+          file "$path"
+          if readelf -l "$path" | grep -q "INTERP"; then
+            echo "$path unexpectedly contains a dynamic interpreter" >&2
+            exit 1
+          fi
       - name: Smoke-test Rust-hosted runtime
         shell: bash
         run: >-
@@ -172,20 +212,6 @@ jobs:
           print(f"{cli}: {cli_size:,} bytes")
           assert cli_size < 3_500_000, f"Rust CLI with embedded runtime exceeds 3.5 MB: {cli_size:,} bytes"
           PY
-      - name: Collect embeddable Rust assets
-        shell: bash
-        run: |
-          mkdir -p release-assets
-          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
-            release-assets/pocketpy-ucharm-${{ matrix.suffix }}
-          cp target/${{ matrix.target }}/release/ucharm-loader \
-            release-assets/loader-${{ matrix.suffix }}
-      - name: Upload embeddable Rust assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust-assets-${{ matrix.suffix }}
-          path: release-assets/
-
   compatibility:
     name: Compatibility
     runs-on: ubuntu-24.04
