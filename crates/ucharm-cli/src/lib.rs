@@ -1,6 +1,7 @@
 mod build_command;
 mod project;
 mod run_command;
+mod test_command;
 
 use std::fs;
 use std::io::{self, Write};
@@ -51,17 +52,7 @@ pub fn run(
         "init" => run_init(&arguments[1..], current_directory, stdout, stderr),
         "run" => run_command::execute(&arguments[1..], current_directory, stdout, stderr),
         "build" => build_command::execute(&arguments[1..], current_directory, stdout, stderr),
-        "test" => {
-            writeln!(
-                stderr,
-                "{RED}Error:{RESET} Command '{BOLD}{command}{RESET}' has not migrated to Rust yet"
-            )?;
-            writeln!(
-                stderr,
-                "{DIM}Use the production Zig CLI for this command during the migration.{RESET}"
-            )?;
-            Ok(1)
-        }
+        "test" => test_command::execute(&arguments[1..], current_directory, stdout, stderr),
         unknown => {
             writeln!(
                 stderr,

@@ -129,7 +129,7 @@ pub fn help() -> String {
     )
 }
 
-fn prepare_runtime() -> io::Result<PathBuf> {
+pub(crate) fn prepare_runtime() -> io::Result<PathBuf> {
     if EMBEDDED_RUNTIME.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,

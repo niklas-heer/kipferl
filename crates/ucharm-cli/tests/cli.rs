@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
-fn reports_version_help_unknown_and_unmigrated_commands() {
+fn reports_version_help_and_unknown_commands() {
     let temporary = TestDirectory::new("dispatch");
 
     let version = run(&temporary, &["--version"]);
@@ -26,9 +26,9 @@ fn reports_version_help_unknown_and_unmigrated_commands() {
     assert!(build_help.status.success());
     assert!(text(&build_help.stdout).contains("Build standalone binaries"));
 
-    let test_command = run(&temporary, &["test"]);
-    assert!(!test_command.status.success());
-    assert!(text(&test_command.stderr).contains("has not migrated to Rust yet"));
+    let test_help = run(&temporary, &["test", "--help"]);
+    assert!(test_help.status.success());
+    assert!(text(&test_help.stdout).contains("CPython Compatibility Testing"));
 
     let run_help = run(&temporary, &["run", "--help"]);
     assert!(run_help.status.success());
@@ -47,6 +47,45 @@ fn reports_version_help_unknown_and_unmigrated_commands() {
         text(&missing_script.stderr),
         "\x1b[31mError:\x1b[0m Script not found: missing.py\n"
     );
+}
+
+#[test]
+fn test_runs_single_files_and_propagates_failures() {
+    let temporary = TestDirectory::new("test files");
+    fs::write(
+        temporary.path.join("passing test.py"),
+        "print('single test passed')\n",
+    )
+    .expect("write passing test");
+
+    let passed = run(&temporary, &["test", "passing test.py"]);
+    assert!(passed.status.success(), "{}", text(&passed.stderr));
+    assert_eq!(
+        text(&passed.stdout),
+        "Running passing test.py with pocketpy-ucharm...\n\nsingle test passed\n"
+    );
+    assert_eq!(text(&passed.stderr), "");
+
+    fs::write(
+        temporary.path.join("failing.py"),
+        "raise RuntimeError('expected test failure')\n",
+    )
+    .expect("write failing test");
+    let failed = run(&temporary, &["test", "failing.py"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(text(&failed.stdout).contains("RuntimeError: expected test failure"));
+    assert!(text(&failed.stderr).contains("PocketPyExecFailed"));
+}
+
+#[test]
+fn test_runs_the_compatibility_runner_with_the_resolved_runtime() {
+    let temporary = TestDirectory::new("compatibility");
+    let tested = run(&temporary, &["test", "--compat", "--module", "errno"]);
+
+    assert!(tested.status.success(), "{}", text(&tested.stderr));
+    assert!(text(&tested.stdout).contains("errno"));
+    assert!(text(&tested.stdout).contains("38/38"));
+    assert_eq!(text(&tested.stderr), "");
 }
 
 #[test]
