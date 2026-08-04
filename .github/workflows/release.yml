@@ -15,10 +15,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             target: aarch64-macos
             artifact: ucharm-macos-aarch64
-          - os: macos-latest
+          - os: macos-15
             target: x86_64-macos
             artifact: ucharm-macos-x86_64
           - os: ubuntu-latest
@@ -53,10 +53,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             target: aarch64-macos
             artifact: pocketpy-ucharm-macos-aarch64
-          - os: macos-latest
+          - os: macos-15
             target: x86_64-macos
             artifact: pocketpy-ucharm-macos-x86_64
           - os: ubuntu-latest
