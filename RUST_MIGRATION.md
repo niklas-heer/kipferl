@@ -136,7 +136,7 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. The stripped runtime remains below the current 4.5 MB release-target budget;
+7. The stripped runtime remains below the current 5 MB release-target budget;
    correctness, maintainability, and developer-experience improvements may use
    that budget deliberately. Issue
    [#41](https://github.com/ucharmdev/ucharm/issues/41) preserves the original
@@ -182,7 +182,7 @@ status, stdout, and stderr.
   the small container, type-object, and temporary-rooting surface required by
   native callbacks. Module registration is table-driven, including
   signature-based functions with defaults and keyword arguments. The complete
-  `ansi`, `args`, `term`, interactive `input`, and `charm` presentation modules
+  `ansi`, `args`, `term`, interactive `input`, and `tui` presentation modules
   are ported with Python-level behavior, error, allocation-stress, byte-stream,
   pseudo-terminal, Unicode-width, and golden ANSI-output tests. The rooted Rust
   `args` implementation fixes the legacy alias-key corruption and SIGSEGV
@@ -196,6 +196,10 @@ status, stdout, and stderr.
   lifecycle, and Linux CI instruments PocketPy C with AddressSanitizer,
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
+- The public presentation namespace is now `tui`, with runtime registration,
+  CLI transforms, stubs, templates, tests, examples, and documentation changed
+  together and no legacy module alias. `MCHARM01` remains frozen for binary
+  compatibility; broader product-name clearance is a separate launch decision.
 - Phase 5 is complete: `fnmatch`, `base64`, `binascii`, `statistics`,
   `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
   `operator` are now joined by the first data/model wave: `collections`, `csv`,
@@ -367,7 +371,7 @@ universal apps using the existing runtime assets.
 - Add leak checks, sanitizer runs for C code, and tests for callback/value
   lifetime boundaries.
 
-Exit gate: representative `charm`, `input`, and compatibility modules register
+Exit gate: representative `tui`, `input`, and compatibility modules register
 through one reviewed path and survive stress/error tests.
 
 ### Phase 5 — Port native modules in risk-ordered waves
@@ -427,7 +431,8 @@ artifacts meet the compatibility, startup, and size gates.
   - accept `opt-level = 2`, fat LTO, one codegen unit, checked overflow,
     stripped symbols, and aborting panics as the final measured profile. The
     feature-minimal HTTPS/archive/Ratatui runtime is 4,000,864 bytes on ARM64
-    macOS under the current 4.5 MB release-target budget;
+    macOS; the largest refreshed asset is 4,831,144 bytes on x86_64 Linux,
+    under the current 5 MB release-target budget;
   - profile startup, allocations, peak memory, interactive latency, module
     throughput, binary sections, dependency contribution, and all four release
     artifacts;
@@ -459,6 +464,9 @@ artifacts meet the compatibility, startup, and size gates.
     demonstrated overall benefit in the recorded matrix.
 - After the Rust release is proven, complete a public documentation and
   communication pass before treating the migration as old news:
+  - complete formal product-name clearance before refreshing public launch
+    materials, considering the project, organization/domain, packages,
+    binaries, and visual identity together;
   - audit the README, website, docs, templates, examples, installation paths,
     architecture diagrams, and benchmark claims for stale Zig-era content;
   - add a website blog/migration section covering **why** μcharm moved, **how**

@@ -20,7 +20,7 @@ Create `app.py`:
 
 ```python
 from ucharm import box, success, error, select, confirm
-import charm
+import tui
 
 # Show a welcome box
 box("Welcome to Hello CLI!", title="Hello", border_color="cyan")
@@ -37,10 +37,10 @@ if action == "Say hello":
     success(f"Hello, {name}!")
     
 elif action == "Show a table":
-    charm.table([
+    tui.table([
         ["Language", "Status"],
         ["Python", "Supported"],
-        ["Zig", "Native"],
+        ["Rust", "Native"],
     ], headers=True, border="rounded")
     
 elif action == "Exit":
@@ -70,7 +70,7 @@ ucharm build app.py -o hello --mode universal
 ## What's Next?
 
 <Cards>
-  <Card title="charm Module" href="/docs/modules/charm" />
+  <Card title="tui Module" href="/docs/modules/tui" />
   <Card title="input Module" href="/docs/modules/input" />
   <Card title="All Modules" href="/docs/modules" />
 </Cards>

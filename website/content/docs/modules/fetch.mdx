@@ -160,23 +160,23 @@ if download("https://example.com/file.zip", "file.zip"):
 ```python
 import fetch
 import json
-import charm
+import tui
 
 def safe_fetch(url):
     try:
         response = fetch.get(url)
         if response["status"] >= 400:
-            charm.error(f"HTTP {response['status']}")
+            tui.error(f"HTTP {response['status']}")
             return None
         return response
     except Exception as e:
-        charm.error(f"Request failed: {e}")
+        tui.error(f"Request failed: {e}")
         return None
 
 response = safe_fetch("https://api.github.com/users/octocat")
 if response:
     data = json.loads(response["body"].decode())
-    charm.success(f"Found user: {data['login']}")
+    tui.success(f"Found user: {data['login']}")
 ```
 
 ## HTTPS Support

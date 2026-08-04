@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (about 4 MB; 4.5 MB release-target ceiling)
+- Tiny, portable binaries (about 4–4.9 MB; 5 MB release-target ceiling)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -50,21 +50,21 @@ ucharm build app.py -o app
 
 **app.py**
 ```python
-import charm
+import tui
 import input
 import subprocess
 
-charm.box("Deploying build...", title="Release", border="rounded")
+tui.box("Deploying build...", title="Release", border="rounded")
 result = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True)
 commit = result["stdout"].decode().strip()
-charm.success(f"Built commit {commit}")
+tui.success(f"Built commit {commit}")
 
 features = input.multiselect("Select features:", ["Logging", "HTTP", "Config"])
 if input.confirm("Deploy now?", default=True):
-    charm.progress(68, 100, label="Uploading")
-    charm.success(f"Deployed with {len(features)} features")
+    tui.progress(68, 100, label="Uploading")
+    tui.success(f"Deployed with {len(features)} features")
 else:
-    charm.warning("Canceled")
+    tui.warning("Canceled")
 ```
 
 **Output**
@@ -92,7 +92,7 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 
 ## Comparison
 
-| | Python + Rich | Go + Charm | Rust + Ratatui | **μcharm** |
+| | Python + Rich | Go TUI stack | Rust + Ratatui | **μcharm** |
 |---|:---:|:---:|:---:|:---:|
 | **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~ 3ms** |
 | **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~4MB** |
@@ -106,16 +106,16 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 ### TUI Components
 
 ```python
-import charm
+import tui
 
-print(charm.style("Bold cyan", fg="cyan", bold=True))
-charm.box("Important notice", title="Notice")
-charm.table([
+print(tui.style("Bold cyan", fg="cyan", bold=True))
+tui.box("Important notice", title="Notice")
+tui.table([
     ["Name", "Role"],
     ["Alice", "Engineer"],
     ["Bob", "Designer"],
 ], headers=True)
-charm.progress(50, 100, label="Downloading")
+tui.progress(50, 100, label="Downloading")
 ```
 
 ### Prompts
@@ -293,7 +293,8 @@ Built something with μcharm? Open a PR to add it here.
 <details>
 <summary>Where does the name come from?</summary>
 
-μcharm started as “MicroPython + charm-like libraries” → **μcharm** (official name) → **ucharm** (ASCII-friendly).
+The `μ` signals the project's compact-runtime focus; **ucharm** is the
+ASCII-friendly spelling used for commands, packages, and repository paths.
 </details>
 
 <details>

@@ -4,7 +4,7 @@ use std::process::{Command, Output};
 fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
     let output = run(
         concat!(
-            "import ansi, args, array, base64, binascii, charm, collections, copy, csv, dataclasses, datetime, errno, fnmatch, functools, heapq, input, io, itertools, json, operator, random, secrets, statistics, struct, term, textwrap, typing, uuid\n",
+            "import ansi, args, array, base64, binascii, tui, collections, copy, csv, dataclasses, datetime, errno, fnmatch, functools, heapq, input, io, itertools, json, operator, random, secrets, statistics, struct, term, textwrap, typing, uuid\n",
             "spec = {\n",
             "    '--name': str,\n",
             "    '--count': (int, 0),\n",
@@ -152,9 +152,9 @@ fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
             "    assert textwrap.dedent('  alpha\\n  beta') == 'alpha\\nbeta'\n",
             "    assert textwrap.indent('alpha\\nbeta', '> ') == '> alpha\\n> beta'\n",
             "    assert textwrap.shorten('alpha beta gamma', 10) == 'alpha...'\n",
-            "    styled = charm.style('界', fg='#abc', bold=True)\n",
+            "    styled = tui.style('界', fg='#abc', bold=True)\n",
             "    assert styled == '\\x1b[1;38;2;170;187;204m界\\x1b[0m'\n",
-            "    assert charm.visible_len(styled) == 2\n",
+            "    assert tui.visible_len(styled) == 2\n",
             "    expected = '\\x1b[38;2;' + str(i % 256) + ';' + str((i + 1) % 256) + ';' + str((i + 2) % 256) + 'm'\n",
             "    assert ansi.rgb(i, i + 1, i + 2) == expected\n",
             "    assert input.select('', []) is None\n",
@@ -266,10 +266,10 @@ fn repeatedly_initializes_executes_and_finalizes_the_runtime_process() {
     for cycle in 0..24 {
         let output = run(
             concat!(
-                "import args, charm\n",
+                "import args, tui\n",
                 "for i in range(100):\n",
                 "    assert args.parse({'--value': (int, 7)}) == {'_': [], 'value': 9}\n",
-                "    assert charm.spinner_frame(i) == charm.spinner_frame(i + 10)",
+                "    assert tui.spinner_frame(i) == tui.spinner_frame(i + 10)",
             ),
             &["--value=9"],
         );

@@ -9,7 +9,7 @@ use ucharm_pocketpy_sys as ffi;
 
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
-use super::tui::{self, SelectionView};
+use super::selection_tui::{self, SelectionView};
 use crate::input_core::{clamp, wrap_index};
 use crate::native::{
     Arguments, NativeFunction, NativeModule, NativeSignature, RootFrame, Value, return_string,
@@ -468,13 +468,13 @@ fn run_ratatui_select(
     choices: &[String],
     initial: usize,
 ) -> io::Result<Option<usize>> {
-    let mut terminal = tui::open_selection_terminal(choices.len())?;
+    let mut terminal = selection_tui::open_selection_terminal(choices.len())?;
     terminal.hide_cursor()?;
     let _raw = RawModeGuard::enable();
     let mut cursor = initial;
     let no_color = std::env::var_os("NO_COLOR").is_some();
     loop {
-        tui::draw_selection(
+        selection_tui::draw_selection(
             &mut terminal,
             &SelectionView {
                 prompt,
@@ -499,13 +499,13 @@ fn run_ratatui_multiselect(
     choices: &[String],
     selected: &mut [bool],
 ) -> io::Result<bool> {
-    let mut terminal = tui::open_selection_terminal(choices.len())?;
+    let mut terminal = selection_tui::open_selection_terminal(choices.len())?;
     terminal.hide_cursor()?;
     let _raw = RawModeGuard::enable();
     let mut cursor = 0;
     let no_color = std::env::var_os("NO_COLOR").is_some();
     loop {
-        tui::draw_selection(
+        selection_tui::draw_selection(
             &mut terminal,
             &SelectionView {
                 prompt,

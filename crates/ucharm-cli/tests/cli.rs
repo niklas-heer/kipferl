@@ -125,7 +125,7 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
 
     let single = fs::read_to_string(temporary.path.join("app.single")).expect("read single");
     assert!(single.starts_with("#!/usr/bin/env pocketpy-ucharm\n"));
-    assert!(single.contains("from charm import"));
+    assert!(single.contains("from tui import"));
     assert!(!single.contains("from ucharm import"));
 
     let wrapper = fs::read_to_string(temporary.path.join("app.wrapper")).expect("read wrapper");

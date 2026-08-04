@@ -89,10 +89,19 @@ final host artifacts are:
 | Runtime (`pocketpy-ucharm`) | 4,000,864 bytes |
 | CLI (`ucharm`, before final asset refresh) | 2,914,016 bytes |
 
-The host runtime is approximately 4.0 MB, with a 4.5 MB cross-target regression
+The host runtime is approximately 4.0 MB, with a 5 MB cross-target regression
 ceiling. The budget is a guardrail rather than the primary product metric: a
 modest size increase is accepted when it materially improves correctness,
 maintainability, testability, or user/developer experience.
+
+The embedded runtime assets were refreshed after the `tui` interface rename:
+
+| Release target | Runtime size |
+| --- | ---: |
+| macOS ARM64 | 4,000,864 bytes |
+| macOS x86_64 | 4,432,008 bytes |
+| Linux ARM64 (static musl) | 4,356,864 bytes |
+| Linux x86_64 (static musl) | 4,831,144 bytes |
 
 ## Peak memory and interactive latency
 
@@ -110,7 +119,7 @@ from 6.223 ms to 5.500 ms (11.6%); p95 improved from 7.696 ms to 6.861 ms.
 
 ## Allocation and copying review
 
-`charm.style` was the clearest avoidable allocation chain in the current TUI
+`tui.style` was the clearest avoidable allocation chain in the current TUI
 core. It previously allocated a `Vec<String>`, one string per enabled attribute
 or color, a joined string, and the final ANSI-prefixed string. The accepted
 implementation writes every code into one lazily created `String`.

@@ -2,11 +2,11 @@ use std::process::{Command, Output};
 
 #[test]
 fn exposes_constants_styles_and_legacy_visible_width() {
-    let output = run("import charm\n\
-print([charm.BORDER_ROUNDED, charm.BORDER_SQUARE, charm.BORDER_DOUBLE, charm.BORDER_HEAVY, charm.BORDER_NONE, charm.ALIGN_LEFT, charm.ALIGN_RIGHT, charm.ALIGN_CENTER])\n\
-print(repr(charm.style('Hi', fg='red', bg='#abc', bold=True, underline=True)))\n\
-print(repr(charm.style('x', fg='purple')))\n\
-print(charm.visible_len('\\x1b[31mé界🙂\\x1b[0m'))");
+    let output = run("import tui\n\
+print([tui.BORDER_ROUNDED, tui.BORDER_SQUARE, tui.BORDER_DOUBLE, tui.BORDER_HEAVY, tui.BORDER_NONE, tui.ALIGN_LEFT, tui.ALIGN_RIGHT, tui.ALIGN_CENTER])\n\
+print(repr(tui.style('Hi', fg='red', bg='#abc', bold=True, underline=True)))\n\
+print(repr(tui.style('x', fg='purple')))\n\
+print(tui.visible_len('\\x1b[31mé界🙂\\x1b[0m'))");
 
     assert!(output.status.success(), "{}", text(&output.stderr));
     assert_eq!(
@@ -21,14 +21,14 @@ print(charm.visible_len('\\x1b[31mé界🙂\\x1b[0m'))");
 
 #[test]
 fn renders_status_messages_and_rules_byte_for_byte() {
-    let output = run("import charm\n\
-charm.success('ok')\n\
-charm.error('bad')\n\
-charm.warning('hmm')\n\
-charm.info('note')\n\
-charm.rule()\n\
-charm.rule('Title', width=12)\n\
-charm.rule('T', color='=', align='red', width=8)");
+    let output = run("import tui\n\
+tui.success('ok')\n\
+tui.error('bad')\n\
+tui.warning('hmm')\n\
+tui.info('note')\n\
+tui.rule()\n\
+tui.rule('Title', width=12)\n\
+tui.rule('T', color='=', align='red', width=8)");
 
     assert!(output.status.success(), "{}", text(&output.stderr));
     assert_eq!(
@@ -45,7 +45,7 @@ charm.rule('T', color='=', align='red', width=8)");
 
 #[test]
 fn renders_boxes_and_preserves_the_zig_keyword_binding() {
-    let titled = run("import charm; charm.box('Hi', title='T')");
+    let titled = run("import tui; tui.box('Hi', title='T')");
     assert!(titled.status.success(), "{}", text(&titled.stderr));
     assert_eq!(
         text(&titled.stdout),
@@ -55,7 +55,7 @@ fn renders_boxes_and_preserves_the_zig_keyword_binding() {
     // The production Zig signature names these slots differently from the
     // callback. Keep that observable behavior until a deliberate API break.
     let keyword_bound = run(
-        "import charm; charm.box('Hi', title='T', border_color='double', padding='red', border_style=2)",
+        "import tui; tui.box('Hi', title='T', border_color='double', padding='red', border_style=2)",
     );
     assert!(
         keyword_bound.status.success(),
@@ -72,12 +72,12 @@ fn renders_boxes_and_preserves_the_zig_keyword_binding() {
 
 #[test]
 fn renders_progress_spinners_and_tables_byte_for_byte() {
-    let progress = run("import charm\n\
-charm.progress(5, 10, 'Load', 10, 'cyan', 1.25)\n\
-charm.progress_done()\n\
-charm.spinner(13, 'Wait', '#abc')\n\
-charm.progress_done()\n\
-print(repr(charm.spinner_frame(13)))");
+    let progress = run("import tui\n\
+tui.progress(5, 10, 'Load', 10, 'cyan', 1.25)\n\
+tui.progress_done()\n\
+tui.spinner(13, 'Wait', '#abc')\n\
+tui.progress_done()\n\
+print(repr(tui.spinner_frame(13)))");
     assert!(progress.status.success(), "{}", text(&progress.stderr));
     assert_eq!(
         text(&progress.stdout),
@@ -86,7 +86,7 @@ print(repr(charm.spinner_frame(13)))");
 '⠸'\n"
     );
 
-    let table = run("import charm; charm.table([['Name','界'],['Ana','7']], True)");
+    let table = run("import tui; tui.table([['Name','界'],['Ana','7']], True)");
     assert!(table.status.success(), "{}", text(&table.stderr));
     assert_eq!(
         text(&table.stdout),
@@ -100,33 +100,30 @@ print(repr(charm.spinner_frame(13)))");
 
 #[test]
 fn preserves_empty_results_and_argument_errors() {
-    let empty = run("import charm; print(charm.table([])); print(charm.table([[]]))");
+    let empty = run("import tui; print(tui.table([])); print(tui.table([[]]))");
     assert!(empty.status.success(), "{}", text(&empty.stderr));
     assert_eq!(text(&empty.stdout), "None\nNone\n");
 
     for (source, expected) in [
         (
-            "import charm; charm.visible_len('x' * 4096)",
+            "import tui; tui.visible_len('x' * 4096)",
             "ValueError: text too long",
         ),
         (
-            "import charm; charm.style(1)",
+            "import tui; tui.style(1)",
             "TypeError: text must be a string",
         ),
         (
-            "import charm; charm.progress('1', 2)",
+            "import tui; tui.progress('1', 2)",
             "TypeError: current must be int",
         ),
         (
-            "import charm; charm.spinner_frame('1')",
+            "import tui; tui.spinner_frame('1')",
             "TypeError: index must be int",
         ),
+        ("import tui; tui.table(1)", "TypeError: rows must be a list"),
         (
-            "import charm; charm.table(1)",
-            "TypeError: rows must be a list",
-        ),
-        (
-            "import charm; charm.table([1])",
+            "import tui; tui.table([1])",
             "TypeError: each row must be a list",
         ),
     ] {

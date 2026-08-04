@@ -266,13 +266,13 @@ fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
     }
     let source = String::from_utf8(source)
         .map_err(|invalid| io::Error::new(io::ErrorKind::InvalidData, invalid))?;
-    let mut needs_charm = false;
+    let mut needs_tui = false;
     let mut needs_input = false;
 
     for line in source.split('\n') {
         let trimmed = line.trim_matches([' ', '\t']);
         if let Some(imports) = trimmed.strip_prefix("from ucharm import") {
-            needs_charm |= contains_any(
+            needs_tui |= contains_any(
                 imports,
                 &[
                     "style", "box", "rule", "success", "error", "warning", "info", "progress",
@@ -288,9 +288,9 @@ fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
             || trimmed.starts_with("from ucharm.style import")
             || trimmed.starts_with("from ucharm.table import")
         {
-            needs_charm = true;
+            needs_tui = true;
         } else if trimmed.starts_with("import ucharm") {
-            needs_charm = true;
+            needs_tui = true;
             needs_input = true;
         }
     }
@@ -298,15 +298,15 @@ fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
     let mut transformed = String::with_capacity(source.len() + 256);
     transformed.push_str("#!/usr/bin/env pocketpy-ucharm\n");
     transformed.push_str("# Built with ucharm - native modules edition\n\n");
-    if needs_charm {
+    if needs_tui {
         transformed.push_str(
-            "from charm import style, box, rule, success, error, warning, info, progress\n",
+            "from tui import style, box, rule, success, error, warning, info, progress\n",
         );
     }
     if needs_input {
         transformed.push_str("from input import select, multiselect, confirm, prompt, password\n");
     }
-    if needs_charm || needs_input {
+    if needs_tui || needs_input {
         transformed.push('\n');
     }
 

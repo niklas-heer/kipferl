@@ -271,7 +271,7 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]u8 {
     try output_buffer.appendSlice(allocator, "# Built with ucharm - native modules edition\n\n");
 
     // Track what needs to be imported from native modules
-    var needs_charm = false;
+    var needs_tui = false;
     var needs_input = false;
 
     // First pass: check what ucharm imports are used
@@ -283,7 +283,7 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]u8 {
             // Parse the imports to see what's needed
             const import_part = trimmed["from ucharm import".len..];
             if (containsAny(import_part, &.{ "style", "box", "rule", "success", "error", "warning", "info", "progress" })) {
-                needs_charm = true;
+                needs_tui = true;
             }
             if (containsAny(import_part, &.{ "select", "multiselect", "confirm", "prompt", "password" })) {
                 needs_input = true;
@@ -296,21 +296,21 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]u8 {
             std.mem.startsWith(u8, trimmed, "from ucharm.table import"))
         {
             // from ucharm.components/style/table import ...
-            needs_charm = true;
+            needs_tui = true;
         } else if (std.mem.startsWith(u8, trimmed, "import ucharm")) {
-            needs_charm = true;
+            needs_tui = true;
             needs_input = true;
         }
     }
 
     // Add native module imports if needed
-    if (needs_charm) {
-        try output_buffer.appendSlice(allocator, "from charm import style, box, rule, success, error, warning, info, progress\n");
+    if (needs_tui) {
+        try output_buffer.appendSlice(allocator, "from tui import style, box, rule, success, error, warning, info, progress\n");
     }
     if (needs_input) {
         try output_buffer.appendSlice(allocator, "from input import select, multiselect, confirm, prompt, password\n");
     }
-    if (needs_charm or needs_input) {
+    if (needs_tui or needs_input) {
         try output_buffer.appendSlice(allocator, "\n");
     }
 

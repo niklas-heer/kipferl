@@ -41,8 +41,8 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    const charm_core = b.createModule(.{
-        .root_source_file = b.path("../runtime/ucharm/charm_core.zig"),
+    const tui_core = b.createModule(.{
+        .root_source_file = b.path("../runtime/ucharm/tui_core.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -55,7 +55,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("pk", pk_mod);
     exe.root_module.addImport("ansi_core", ansi_core);
     exe.root_module.addImport("args_core", args_core);
-    exe.root_module.addImport("charm_core", charm_core);
+    exe.root_module.addImport("tui_core", tui_core);
     exe.root_module.addImport("input_core", input_core);
 
     // Compat modules
@@ -91,13 +91,13 @@ pub fn build(b: *std.Build) void {
     mod_args.addImport("pk", pk_mod);
     mod_args.addImport("args_core", args_core);
 
-    const mod_charm = b.createModule(.{
-        .root_source_file = b.path("../runtime/ucharm/charm.zig"),
+    const mod_tui = b.createModule(.{
+        .root_source_file = b.path("../runtime/ucharm/tui.zig"),
         .target = target,
         .optimize = optimize,
     });
-    mod_charm.addImport("pk", pk_mod);
-    mod_charm.addImport("charm_core", charm_core);
+    mod_tui.addImport("pk", pk_mod);
+    mod_tui.addImport("tui_core", tui_core);
 
     const mod_input = b.createModule(.{
         .root_source_file = b.path("../runtime/ucharm/input.zig"),
@@ -487,7 +487,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("mod_glob", mod_glob);
     exe.root_module.addImport("mod_ansi", mod_ansi);
     exe.root_module.addImport("mod_args", mod_args);
-    exe.root_module.addImport("mod_charm", mod_charm);
+    exe.root_module.addImport("mod_tui", mod_tui);
     exe.root_module.addImport("mod_input", mod_input);
     exe.root_module.addImport("mod_term", mod_term);
     exe.root_module.addImport("mod_sys", mod_sys);

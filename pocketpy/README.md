@@ -46,7 +46,7 @@ The runtime includes native Zig implementations of:
 **ucharm modules** (TUI/CLI):
 - `ansi` - ANSI escape codes
 - `args` - CLI argument parsing
-- `charm` - TUI components (boxes, rules, spinners)
+- `tui` - TUI components (boxes, rules, spinners)
 - `input` - Interactive prompts (select, confirm)
 - `term` - Terminal control
 

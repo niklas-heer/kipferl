@@ -12,7 +12,9 @@ This is the single source of truth for priorities and next steps.
 
 ## Current State (from the repo)
 
-- Native modules cover TUI (charm/input/ui), terminal + ANSI, and a growing stdlib set (copy, fnmatch, typing, csv, datetime, json, subprocess, signal, logging, etc.).
+- Native modules cover TUI presentation (`tui`) and interaction (`input`),
+  terminal + ANSI, and a growing stdlib set (copy, fnmatch, typing, csv,
+  datetime, json, subprocess, signal, logging, etc.).
 - The Rust loader and CLI build and run universal binaries; the Rust CLI tests and `tests/compat_runner.py` provide compatibility tooling.
 - Stubs exist in `stubs/` and `cli/src/stubs/`; there is a generator script in `scripts/generate_stubs.py`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
@@ -68,11 +70,11 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   by 7-14% over `s` for about 510 KiB. `-O3` added another 231 KiB without a
   measurable win, thin LTO regressed size and speed, and PGO's small,
   corpus-specific gains did not justify its training/toolchain burden.
-- Treat 4.5 MB as the cross-target regression ceiling, not as a goal to fill at
+- Treat 5 MB as the cross-target regression ceiling, not as a goal to fill at
   the expense of developer experience, correctness, or maintainability. The
   current optimized ARM64 runtime with SQLite, HTTPS, maintained archives, and
-  Ratatui is 4,000,864 bytes; the host CLI is 2,914,016 bytes before the final
-  embedded-asset refresh.
+  Ratatui is 4,000,864 bytes. The refreshed runtime assets range from 4,000,864
+  bytes on ARM64 macOS to 4,831,144 bytes on x86_64 Linux.
 - Ratatui 0.30.2 with its Crossterm backend is accepted for real interactive
   `input.select` and `input.multiselect` sessions. It uses an inline viewport to
   preserve scrollback, bounded list scrolling, visible keyboard help, semantic
@@ -81,7 +83,11 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   parsing; the legacy renderer remains for non-interactive sessions and the
   deterministic Zig-compatibility harness. Build future stateful screen APIs on
   the same renderer rather than introducing another terminal abstraction.
-- The first allocation cleanup replaces `charm.style`'s temporary vector,
+- The public presentation module is `tui`, with no legacy module alias. Runtime
+  registration, generated-project stubs, CLI transforms, tests, examples, and
+  documentation use the same name. The frozen `MCHARM01` binary format remains
+  unchanged until a separately versioned format migration is justified.
+- The first allocation cleanup replaces `tui.style`'s temporary vector,
   per-code strings, join, and final format with one lazy output buffer. It keeps
   the ARM64 runtime byte size unchanged and improves a 20,000-call style
   workload by 26.9% at the median with exact golden-output parity.
@@ -138,6 +144,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   baseline is committed for the public retrospective.
 
 ### Phase B: Migration documentation and public retrospective
+- Complete a formal product-name clearance review before the public launch
+  refresh. Treat the project name, organization/domain, package and binary
+  names, and visual identity as one decision; do not conflate that review with
+  the completed `tui` interface rename.
 - Revisit the README, website, and all user/contributor documentation once the
   Rust release is proven. Remove stale Zig architecture, commands, examples,
   screenshots, performance claims, and download instructions.

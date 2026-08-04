@@ -1,25 +1,25 @@
 # GitHub Copilot Instructions for ucharm
 
-This project uses ucharm (PocketPy + native Zig modules).
+This project uses ucharm (PocketPy + native Rust modules).
 
 ## Key Facts
 
 - PocketPy runtime, not CPython
 - No pip packages with C extensions
-- 50+ native modules: charm, input, term, ansi, fetch, template, sqlite3, json, re, etc.
+- 50+ native modules: tui, input, term, ansi, fetch, template, sqlite3, json, re, etc.
 
 ## Preferred Patterns
 
 ```python
 from ucharm import box, table, success, select, confirm
-import charm
+import tui
 
 # Tables
-charm.table([["Name", "Age"], ["Alice", "25"]], headers=True)
+tui.table([["Name", "Age"], ["Alice", "25"]], headers=True)
 
 # Progress with elapsed time
-charm.progress(5, 10, label="Loading", elapsed=2.5)
-charm.progress_done()
+tui.progress(5, 10, label="Loading", elapsed=2.5)
+tui.progress_done()
 
 # HTTP requests
 import fetch

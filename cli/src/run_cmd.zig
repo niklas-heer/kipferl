@@ -168,7 +168,7 @@ fn transformScript(allocator: Allocator, script_path: []const u8) ![]const u8 {
     try output_buffer.appendSlice(allocator, "# Transformed by ucharm run\n\n");
 
     // Always add native module imports (simpler and more robust)
-    try output_buffer.appendSlice(allocator, "from charm import style, box, rule, success, error, warning, info, progress, spinner_frame, visible_len\n");
+    try output_buffer.appendSlice(allocator, "from tui import style, box, rule, success, error, warning, info, progress, spinner_frame, visible_len\n");
     try output_buffer.appendSlice(allocator, "from input import select, multiselect, confirm, prompt, password\n");
     try output_buffer.appendSlice(allocator, "\n");
 

@@ -1,5 +1,5 @@
 """
-charm - Native UI components module for ucharm
+tui - Native UI components module for ucharm
 """
 
 from typing import Any, Callable, Iterable, Iterator, List, Optional, TypeVar
