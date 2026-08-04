@@ -189,8 +189,8 @@ status, stdout, and stderr.
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
 - Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
-  `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, and `functools`
-  are now on the Rust runtime.
+  `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
+  `operator` are now on the Rust runtime.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -200,8 +200,8 @@ status, stdout, and stderr.
   module's unrooted static return storage. The registrar can extend PocketPy's
   existing `base64` module and declare the `binascii.Error` and `Incomplete`
   exception aliases without custom setup code. The existing fixtures pass at
-  55/55, 18/18, 55/55, 28/28, 24/24, 42/42, 43/43, 33/33, 38/38, 33/33, and
-  40/40 respectively,
+  55/55, 18/18, 55/55, 28/28, 24/24, 42/42, 43/43, 33/33, 38/38, 33/33,
+  40/40, and 115/115 respectively,
   with byte-for-byte Zig/Rust output parity plus native error, bounds, CRC, identity,
   allocation-stress, and cross-target smoke tests. `typing` adds table-driven
   module initialization plus native type, instance, method, and attribute
@@ -217,16 +217,18 @@ status, stdout, and stderr.
   identity-preserving memoization. It also ports the fixture's narrow
   `bytearray` prerequisite and repairs the Zig runtime's circular-copy bus error
   and unbalanced tuple-copy stack. The full Rust compatibility result has risen
-  from 456/1,668 to 783/1,668. `functools` keeps PocketPy's correct `reduce` and
+  from 456/1,668 to 821/1,668. `functools` keeps PocketPy's correct `reduce` and
   `partial` core, then adds GC-owned comparison keys, wrapper metadata, keyword
   cache keys, recursive caching, bounded LRU eviction, counters, and clearing
-  through a Rust-registered module layer. `operator` is the final remaining
-  pure-module candidate in the first risk-ordered wave.
-- The current stripped macOS runtime is 701,424 bytes on ARM64 and 740,400
+  through a Rust-registered module layer. `operator` completes the first
+  risk-ordered pure-module wave with GC-owned getter/caller objects, nested
+  attributes, sequence helpers, length hints, and the remaining unary and
+  in-place aliases. The next wave starts with the data/model modules.
+- The current stripped macOS runtime is 717,952 bytes on ARM64 and 744,504
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  On the 400-run warm-start sample, native Rust measured 2.457 ms median and
-  2.595 ms p95, versus Zig's 3.604 ms median and 3.786 ms p95; x86_64 Rust
-  under Rosetta measured 7.636 ms median and 8.978 ms p95.
+  On the 400-run warm-start sample, native Rust measured 2.638 ms median and
+  2.779 ms p95, versus Zig's 3.479 ms median and 4.016 ms p95; x86_64 Rust
+  under Rosetta measured 7.779 ms median and 8.685 ms p95.
 
 ### Phase 0 — Freeze and baseline
 
