@@ -1,0 +1,236 @@
+use std::ffi::c_int;
+use std::io::{self, Read};
+use std::process::{Command, Stdio};
+
+use ucharm_pocketpy_sys as ffi;
+
+use crate::native::{
+    Arguments, NativeIntConstant, NativeModule, NativeModuleKind, NativeSignature, RootFrame,
+    Value, execute_module, return_value, runtime_error, type_error,
+};
+
+const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
+
+const CONSTANTS: &[NativeIntConstant] = &[
+    NativeIntConstant {
+        name: c"PIPE",
+        value: -1,
+    },
+    NativeIntConstant {
+        name: c"DEVNULL",
+        value: -2,
+    },
+];
+
+const SIGNATURES: &[NativeSignature] = &[NativeSignature {
+    signature: c"_run(args, capture_output=False, shell=False)",
+    callback: run,
+}];
+
+const COMPATIBILITY_SOURCE: &str = r#"
+class Popen:
+    def __init__(self, args, stdout=None, stderr=None, shell=False, text=False):
+        self.args = args
+        self._stdout_pipe = stdout == PIPE
+        self._stderr_pipe = stderr == PIPE
+        self.shell = shell
+        self.text = text
+        self.returncode = None
+        self._stdout = None
+        self._stderr = None
+
+    def communicate(self):
+        if self.returncode is None:
+            result = _run(self.args, self._stdout_pipe or self._stderr_pipe, self.shell)
+            self.returncode = result["returncode"]
+            self._stdout = result["stdout"] if self._stdout_pipe else None
+            self._stderr = result["stderr"] if self._stderr_pipe else None
+        return (self._stdout, self._stderr)
+
+    def wait(self):
+        if self.returncode is None:
+            result = _run(self.args, False, self.shell)
+            self.returncode = result["returncode"]
+        return self.returncode
+
+
+def run(args, capture_output=False, shell=False):
+    return _run(args, capture_output, shell)
+
+
+def call(args):
+    return _run(args, False, False)["returncode"]
+
+
+def check_output(args):
+    result = _run(args, True, False)
+    if result["returncode"] != 0:
+        raise RuntimeError("process returned non-zero exit status")
+    return result["stdout"]
+
+
+def getstatusoutput(command):
+    result = _run(command, True, True)
+    output = result["stdout"].decode()
+    if len(output) > 0 and output[-1] == "\n":
+        output = output[:-1]
+    return (result["returncode"], output)
+
+
+def getoutput(command):
+    return getstatusoutput(command)[1]
+"#;
+
+pub(super) const MODULE: NativeModule = NativeModule {
+    name: c"subprocess",
+    kind: NativeModuleKind::Create,
+    functions: &[],
+    signatures: SIGNATURES,
+    int_constants: CONSTANTS,
+    type_aliases: &[],
+    initializer: Some(initialize),
+};
+
+fn initialize(module: Value) {
+    if !execute_module(module, COMPATIBILITY_SOURCE) {
+        // SAFETY: initialization failed with a live PocketPy exception.
+        unsafe { ffi::py_printexc() };
+        panic!("embedded subprocess compatibility layer failed");
+    }
+}
+
+unsafe extern "C" fn run(argc: c_int, argv: ffi::py_StackRef) -> bool {
+    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let capture = arguments.get(1).and_then(Value::boolean).unwrap_or(false);
+    let shell = arguments.get(2).and_then(Value::boolean).unwrap_or(false);
+    let Some(argument) = arguments.get(0) else {
+        return type_error(c"args are required");
+    };
+
+    let command = if shell {
+        let Some(command) = argument.string() else {
+            return type_error(c"args must be a string when shell=True");
+        };
+        vec!["sh".to_owned(), "-c".to_owned(), command]
+    } else {
+        let Some(command) = command_arguments(argument) else {
+            return false;
+        };
+        command
+    };
+
+    let result = match execute(&command, capture) {
+        Ok(result) => result,
+        Err(_) => return runtime_error(c"failed to run process"),
+    };
+    return_result(result)
+}
+
+struct ProcessResult {
+    status: i64,
+    stdout: Option<Vec<u8>>,
+    stderr: Option<Vec<u8>>,
+}
+
+fn execute(arguments: &[String], capture: bool) -> io::Result<ProcessResult> {
+    let mut command = Command::new(&arguments[0]);
+    command.args(&arguments[1..]).stdin(Stdio::null());
+    if !capture {
+        let status = command
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        return Ok(ProcessResult {
+            status: i64::from(status.code().unwrap_or(-1)),
+            stdout: None,
+            stderr: None,
+        });
+    }
+
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let stdout = child.stdout.take().expect("piped stdout is available");
+    let stderr = child.stderr.take().expect("piped stderr is available");
+    let (status, stdout, stderr) = std::thread::scope(|scope| -> io::Result<_> {
+        let stdout_reader = scope.spawn(move || read_capped(stdout));
+        let stderr_reader = scope.spawn(move || read_capped(stderr));
+        let status = child.wait()?;
+        let stdout = stdout_reader.join().expect("stdout reader did not panic")?;
+        let stderr = stderr_reader.join().expect("stderr reader did not panic")?;
+        Ok((status, stdout, stderr))
+    })?;
+    Ok(ProcessResult {
+        status: i64::from(status.code().unwrap_or(-1)),
+        stdout: Some(stdout),
+        stderr: Some(stderr),
+    })
+}
+
+fn read_capped(mut reader: impl Read) -> io::Result<Vec<u8>> {
+    let mut output = Vec::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let count = reader.read(&mut buffer)?;
+        if count == 0 {
+            return Ok(output);
+        }
+        if output.len() < MAX_CAPTURE_BYTES {
+            let remaining = MAX_CAPTURE_BYTES - output.len();
+            output.extend_from_slice(&buffer[..count.min(remaining)]);
+        }
+    }
+}
+
+fn command_arguments(value: Value) -> Option<Vec<String>> {
+    if let Some(command) = value.string() {
+        return Some(vec![command]);
+    }
+    let length = value.list_len().or_else(|| value.tuple_len());
+    let Some(length) = length else {
+        type_error(c"args must be a string or sequence");
+        return None;
+    };
+    if length == 0 {
+        type_error(c"args must be a non-empty sequence");
+        return None;
+    }
+    let mut arguments = Vec::with_capacity(length);
+    for index in 0..length {
+        let item = value
+            .list_item(index)
+            .or_else(|| value.tuple_item(index))
+            .and_then(Value::string);
+        let Some(item) = item else {
+            type_error(c"args must be strings");
+            return None;
+        };
+        arguments.push(item);
+    }
+    Some(arguments)
+}
+
+fn return_result(result: ProcessResult) -> bool {
+    let mut roots = RootFrame::new();
+    let output = roots.dict();
+    let stdout_key = roots.string("stdout").expect("short key fits PocketPy");
+    let stderr_key = roots.string("stderr").expect("short key fits PocketPy");
+    let status_key = roots.string("returncode").expect("short key fits PocketPy");
+    let stdout = match result.stdout {
+        Some(bytes) => roots.bytes(&bytes).expect("captured output is bounded"),
+        None => roots.none(),
+    };
+    let stderr = match result.stderr {
+        Some(bytes) => roots.bytes(&bytes).expect("captured output is bounded"),
+        None => roots.none(),
+    };
+    let status = roots.integer(result.status);
+    if !output.dict_set(stdout_key, stdout)
+        || !output.dict_set(stderr_key, stderr)
+        || !output.dict_set(status_key, status)
+    {
+        return false;
+    }
+    return_value(output)
+}

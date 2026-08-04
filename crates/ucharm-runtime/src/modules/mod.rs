@@ -29,17 +29,21 @@ mod input;
 mod io;
 mod itertools;
 mod json;
+mod logging;
 mod operator;
 mod os;
 mod os_path;
 mod pathlib;
 mod random;
+mod re;
 mod secrets;
 mod shutil;
+mod signal;
 mod statistics;
 mod statistics_core;
 mod string_methods;
 mod struct_module;
+mod subprocess;
 mod tarfile;
 mod tempfile;
 mod term;
@@ -81,15 +85,19 @@ const MODULES: &[NativeModule] = &[
     input::MODULE,
     itertools::MODULE,
     json::MODULE,
+    logging::MODULE,
     operator::MODULE,
     random::MODULE,
+    re::MODULE,
     secrets::MODULE,
+    signal::MODULE,
     statistics::MODULE,
     shutil::MODULE,
     tarfile::MODULE,
     tempfile::MODULE,
     term::MODULE,
     textwrap::MODULE,
+    subprocess::MODULE,
     uuid::MODULE,
     zipfile::MODULE,
 ];
