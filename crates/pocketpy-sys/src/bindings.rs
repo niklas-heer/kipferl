@@ -139,6 +139,10 @@ unsafe extern "C" {
     pub fn py_tpobject(type_: py_Type) -> py_GlobalRef;
 }
 unsafe extern "C" {
+    #[doc = " Get the i-th register.\n All registers are located in a contiguous memory."]
+    pub fn py_getreg(i: ::core::ffi::c_int) -> py_GlobalRef;
+}
+unsafe extern "C" {
     #[doc = " Get the last return value.\n Please note that `py_retval()` cannot be used as input argument."]
     pub fn py_retval() -> py_GlobalRef;
 }
