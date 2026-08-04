@@ -1,4 +1,4 @@
-use std::ffi::{CStr, c_int, c_void};
+use std::ffi::{CStr, CString, c_int, c_void};
 use std::mem;
 use std::ptr;
 use std::slice;
@@ -30,6 +30,7 @@ pub(crate) struct NativeTypeAlias {
 pub(crate) enum NativeModuleKind {
     Create,
     Extend,
+    ImportAndExtend,
 }
 
 pub(crate) struct NativeModule {
@@ -59,6 +60,16 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
                     );
                     object
                 }
+                NativeModuleKind::ImportAndExtend => {
+                    let result = ffi::py_import(module.name.as_ptr());
+                    assert_eq!(result, 1, "native module import target is missing");
+                    let object = ffi::py_getmodule(module.name.as_ptr());
+                    assert!(
+                        !object.is_null(),
+                        "imported native module target is missing"
+                    );
+                    object
+                }
             };
             if let Some(initializer) = module.initializer {
                 initializer(Value { raw: object });
@@ -83,6 +94,20 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
                 );
             }
         }
+    }
+}
+
+pub(crate) fn execute_module(module: Value, source: &str) -> bool {
+    let source = CString::new(source).expect("embedded Python source contains no NUL bytes");
+    // SAFETY: `module` is active and rooted globally, the source CString lives
+    // through the call, and the static filename is NUL-terminated.
+    unsafe {
+        ffi::py_exec(
+            source.as_ptr(),
+            c"<rust-module>".as_ptr(),
+            ffi::py_CompileMode_EXEC_MODE,
+            module.raw,
+        )
     }
 }
 

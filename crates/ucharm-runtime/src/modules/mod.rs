@@ -11,6 +11,7 @@ mod encoding_core;
 mod errno;
 mod fnmatch;
 mod fnmatch_core;
+mod functools;
 mod heapq;
 mod input;
 mod itertools;
@@ -34,6 +35,7 @@ const MODULES: &[NativeModule] = &[
     copy::MODULE,
     errno::MODULE,
     fnmatch::MODULE,
+    functools::MODULE,
     heapq::MODULE,
     input::MODULE,
     itertools::MODULE,
