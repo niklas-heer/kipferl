@@ -190,7 +190,8 @@ status, stdout, and stderr.
   proof module has been retired.
 - Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
   `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
-  `operator` are now on the Rust runtime.
+  `operator` are now joined by the first data/model wave: `collections`, `csv`,
+  `dataclasses`, `datetime`, `json`, `random`, and `uuid`.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -199,10 +200,8 @@ status, stdout, and stderr.
   across subsequent Python comparisons rather than relying on the legacy
   module's unrooted static return storage. The registrar can extend PocketPy's
   existing `base64` module and declare the `binascii.Error` and `Incomplete`
-  exception aliases without custom setup code. The existing fixtures pass at
-  55/55, 18/18, 55/55, 28/28, 24/24, 42/42, 43/43, 33/33, 38/38, 33/33,
-  40/40, and 115/115 respectively,
-  with byte-for-byte Zig/Rust output parity plus native error, bounds, CRC, identity,
+  exception aliases without custom setup code. Every migrated fixture has
+  byte-for-byte Zig/Rust output parity plus native error, bounds, CRC, identity,
   allocation-stress, and cross-target smoke tests. `typing` adds table-driven
   module initialization plus native type, instance, method, and attribute
   construction while preserving its placeholder aliases, sentinel identity,
@@ -216,19 +215,25 @@ status, stdout, and stderr.
   optional-attribute lookup, rooted recursive container construction, and
   identity-preserving memoization. It also ports the fixture's narrow
   `bytearray` prerequisite and repairs the Zig runtime's circular-copy bus error
-  and unbalanced tuple-copy stack. The full Rust compatibility result has risen
-  from 456/1,668 to 821/1,668. `functools` keeps PocketPy's correct `reduce` and
+  and unbalanced tuple-copy stack. `functools` keeps PocketPy's correct `reduce` and
   `partial` core, then adds GC-owned comparison keys, wrapper metadata, keyword
   cache keys, recursive caching, bounded LRU eviction, counters, and clearing
   through a Rust-registered module layer. `operator` completes the first
   risk-ordered pure-module wave with GC-owned getter/caller objects, nested
   attributes, sequence helpers, length hints, and the remaining unary and
-  in-place aliases. The next wave starts with the data/model modules.
-- The current stripped macOS runtime is 717,952 bytes on ARM64 and 744,504
+  in-place aliases. The first data/model batch completes seven fixtures at
+  49/49, 24/24, 8/8, 21/21, 70/70, 46/46, and 18/18. It replaces fixed native
+  result arrays with GC-owned model, iterator, parser, and formatting state,
+  adds strict JSON errors/options, a minimal `StringIO` prerequisite for CSV,
+  OS-backed random helpers, and UUID parsing/generation. The full
+  Rust result is now 934/1,668 (56.0%), up from the original 456/1,668.
+  Related low-risk modules now move as validated waves; standalone PRs are
+  reserved for boundaries whose ownership or binary-format risk warrants them.
+- The current stripped macOS runtime is 734,560 bytes on ARM64 and 756,896
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  On the 400-run warm-start sample, native Rust measured 2.638 ms median and
-  2.779 ms p95, versus Zig's 3.479 ms median and 4.016 ms p95; x86_64 Rust
-  under Rosetta measured 7.779 ms median and 8.685 ms p95.
+  On the 400-run warm-start sample, native Rust measured 3.447 ms median and
+  4.324 ms p95, versus Zig's 3.353 ms median and 3.846 ms p95; x86_64 Rust
+  under Rosetta measured 9.081 ms median and 10.563 ms p95.
 
 ### Phase 0 — Freeze and baseline
 
