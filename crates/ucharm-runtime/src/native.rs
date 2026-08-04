@@ -514,6 +514,34 @@ pub(crate) fn return_string_bytes(value: &[u8]) -> bool {
     true
 }
 
+pub(crate) fn return_string_list(values: &[String]) -> bool {
+    // Global scratch registers have stable addresses and remain VM roots while
+    // list appends allocate. This avoids retaining pointers into PocketPy's
+    // movable value stack when a callback returns many strings.
+    let list = unsafe { ffi::py_getreg(0) };
+    let item = unsafe { ffi::py_getreg(1) };
+    unsafe { ffi::py_newlist(list) };
+    for value in values {
+        let Ok(length) = c_int::try_from(value.len()) else {
+            return type_error(c"return string is too large");
+        };
+        let destination = unsafe { ffi::py_newstrn(item, length) };
+        if !value.is_empty() {
+            // SAFETY: PocketPy reserved exactly `value.len()` writable bytes
+            // and the source and destination do not overlap.
+            unsafe {
+                ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len())
+            };
+        }
+        // SAFETY: both scratch registers contain initialized, globally rooted
+        // values and `list` is a list for the duration of this callback.
+        unsafe { ffi::py_list_append(list, item) };
+    }
+    // SAFETY: both locations contain initialized values and do not overlap.
+    unsafe { ptr::copy_nonoverlapping(list, ffi::py_retval(), 1) };
+    true
+}
+
 pub(crate) fn return_bytes(value: &[u8]) -> bool {
     let mut roots = RootFrame::new();
     let Some(value) = roots.bytes(value) else {
