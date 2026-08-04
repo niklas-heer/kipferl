@@ -398,8 +398,9 @@ Linux ARM64 CLI releases, and enforces genuinely static Linux linkage. The CLI
 embeds only its host component pair and obtains checksum-verified cross-target
 pairs on demand, reducing the ARM64 CLI from 3,723,328 to 2,583,984 bytes. Full
 measurements and the static-link finding are recorded in
-`benchmarks/release_cutover.md`. The native CI bake and prerelease remain before
-the phase exit gate can be marked complete.
+`benchmarks/release_cutover.md`. The native four-target CI bake is green. The
+remaining phase gate is a public prerelease with synchronized Cargo/public
+versions, prerelease metadata, and no Homebrew promotion.
 
 - Switch `justfile`, CI, release workflows, updater scripts, Homebrew formula,
   docs, templates, and contributor instructions to Cargo.

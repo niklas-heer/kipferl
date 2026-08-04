@@ -36,14 +36,20 @@ def get_current_version():
 
 
 def parse_version(version):
-    """Parse version string into components."""
-    parts = version.split(".")
-    return int(parts[0]), int(parts[1]), int(parts[2])
+    """Parse a stable or release-candidate version into components."""
+    version_parts = version.split("-")
+    if len(version_parts) > 2:
+        raise ValueError("version contains more than one prerelease separator")
+    parts = version_parts[0].split(".")
+    if len(parts) != 3:
+        raise ValueError("version must contain major, minor, and patch components")
+    prerelease = version_parts[1] if len(version_parts) == 2 else None
+    return int(parts[0]), int(parts[1]), int(parts[2]), prerelease
 
 
 def bump_version(version, bump_type):
     """Bump version based on type."""
-    major, minor, patch = parse_version(version)
+    major, minor, patch, _ = parse_version(version)
 
     if bump_type == "major":
         return f"{major + 1}.0.0"
@@ -51,6 +57,53 @@ def bump_version(version, bump_type):
         return f"{major}.{minor + 1}.0"
     else:  # patch
         return f"{major}.{minor}.{patch + 1}"
+
+
+def next_release_candidate(version):
+    """Return the next RC, starting a minor RC series from a stable tag."""
+    major, minor, patch, prerelease = parse_version(version)
+    if prerelease is None:
+        return f"{major}.{minor + 1}.0-rc.1"
+
+    prerelease_parts = prerelease.split(".")
+    valid_rc = len(prerelease_parts) == 2
+    valid_rc = valid_rc and prerelease_parts[0] == "rc"
+    valid_rc = valid_rc and prerelease_parts[1].isdigit()
+    if not valid_rc:
+        raise ValueError("only rc.N prerelease versions are supported")
+    return f"{major}.{minor}.{patch}-rc.{int(prerelease_parts[1]) + 1}"
+
+
+def final_version(version):
+    """Remove an RC suffix without changing the release number."""
+    major, minor, patch, _ = parse_version(version)
+    return f"{major}.{minor}.{patch}"
+
+
+def workspace_manifest_with_version(contents, new_version):
+    """Update only the workspace package version in Cargo.toml."""
+    marker = '[workspace.package]\nversion = "'
+    start = contents.find(marker)
+    if start == -1:
+        raise ValueError("Cargo.toml is missing the workspace package version")
+    value_start = start + len(marker)
+    relative_value_end = contents[value_start:].find('"')
+    if relative_value_end == -1:
+        raise ValueError("Cargo.toml has an unterminated workspace package version")
+    value_end = value_start + relative_value_end
+    return contents[:value_start] + new_version + contents[value_end:]
+
+
+def update_version_files(new_version):
+    """Keep the public and Cargo workspace versions synchronized."""
+    with open("VERSION", "w") as version_file:
+        version_file.write(new_version + "\n")
+
+    with open("Cargo.toml", "r") as manifest_file:
+        manifest = manifest_file.read()
+    updated_manifest = workspace_manifest_with_version(manifest, new_version)
+    with open("Cargo.toml", "w") as manifest_file:
+        manifest_file.write(updated_manifest)
 
 
 def has_uncommitted_changes():
@@ -107,13 +160,23 @@ def main():
     next_patch = bump_version(current, "patch")
     next_minor = bump_version(current, "minor")
     next_major = bump_version(current, "major")
+    next_rc = next_release_candidate(current)
+    _, _, _, current_prerelease = parse_version(current)
 
     # Version selection
-    choices = [
-        f"Patch  v{next_patch}  {style('(bug fixes)', fg='gray')}",
-        f"Minor  v{next_minor}  {style('(new features)', fg='gray')}",
-        f"Major  v{next_major}  {style('(breaking changes)', fg='gray')}",
-    ]
+    if current_prerelease is None:
+        choices = [
+            f"Release candidate  v{next_rc}  {style('(public bake)', fg='gray')}",
+            f"Patch  v{next_patch}  {style('(bug fixes)', fg='gray')}",
+            f"Minor  v{next_minor}  {style('(new features)', fg='gray')}",
+            f"Major  v{next_major}  {style('(breaking changes)', fg='gray')}",
+        ]
+    else:
+        stable_version = final_version(current)
+        choices = [
+            f"Release candidate  v{next_rc}  {style('(continue bake)', fg='gray')}",
+            f"Final  v{stable_version}  {style('(promote this RC)', fg='gray')}",
+        ]
 
     choice = select("Select version bump:", choices)
 
@@ -123,7 +186,11 @@ def main():
         sys.exit(0)
 
     # Map choice to version
-    if "Patch" in choice:
+    if "Release candidate" in choice:
+        new_version = next_rc
+    elif "Final" in choice:
+        new_version = final_version(current)
+    elif "Patch" in choice:
         new_version = next_patch
     elif "Minor" in choice:
         new_version = next_minor
@@ -146,25 +213,27 @@ def main():
 
     print()
 
-    # Update VERSION file
-    info("Updating VERSION file...")
+    # Keep VERSION, Cargo.toml, and Cargo.lock synchronized.
+    info("Updating version files...")
     try:
-        with open("VERSION", "w") as f:
-            f.write(new_version + "\n")
-        success("Updated VERSION file")
+        update_version_files(new_version)
+        _, code = run("cargo check --workspace")
+        if code != 0:
+            raise RuntimeError("cargo check failed while refreshing Cargo.lock")
+        success("Updated VERSION, Cargo.toml, and Cargo.lock")
     except Exception as e:
-        error(f"Failed to update VERSION file: {e}")
+        error(f"Failed to update version files: {e}")
+        run("git restore -- VERSION Cargo.toml Cargo.lock")
         sys.exit(1)
 
     # Commit VERSION change
     info("Committing version bump...")
     _, code = run(
-        f'git add VERSION && git commit -m "chore: bump version to {new_version}"'
+        f'git add VERSION Cargo.toml Cargo.lock && git commit -m "chore: bump version to {new_version}"'
     )
     if code != 0:
         error("Failed to commit version bump")
-        # Restore VERSION file
-        run("git checkout VERSION")
+        run("git restore -- VERSION Cargo.toml Cargo.lock")
         sys.exit(1)
     success("Committed version bump")
 
