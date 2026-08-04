@@ -151,23 +151,23 @@ fn build_packages_every_release_target_with_the_matching_assets() {
     const TARGETS: &[(&str, &[u8], &[u8])] = &[
         (
             "macos-aarch64",
-            include_bytes!("../../../cli/src/stubs/loader-macos-aarch64"),
-            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-aarch64"),
+            include_bytes!("../assets/loader-macos-aarch64"),
+            include_bytes!("../assets/pocketpy-ucharm-macos-aarch64"),
         ),
         (
             "macos-x86_64",
-            include_bytes!("../../../cli/src/stubs/loader-macos-x86_64"),
-            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-x86_64"),
+            include_bytes!("../assets/loader-macos-x86_64"),
+            include_bytes!("../assets/pocketpy-ucharm-macos-x86_64"),
         ),
         (
             "linux-x86_64",
-            include_bytes!("../../../cli/src/stubs/loader-linux-x86_64"),
-            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-x86_64"),
+            include_bytes!("../assets/loader-linux-x86_64"),
+            include_bytes!("../assets/pocketpy-ucharm-linux-x86_64"),
         ),
         (
             "linux-aarch64",
-            include_bytes!("../../../cli/src/stubs/loader-linux-aarch64"),
-            include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-aarch64"),
+            include_bytes!("../assets/loader-linux-aarch64"),
+            include_bytes!("../assets/pocketpy-ucharm-linux-aarch64"),
         ),
     ];
 

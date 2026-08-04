@@ -130,7 +130,7 @@ jobs:
         shell: bash
         run: |
           find release-inputs -type f ! -name '*.sha256' \
-            -exec cp {} cli/src/stubs/ \;
+            -exec cp {} crates/ucharm-cli/assets/ \;
 
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}

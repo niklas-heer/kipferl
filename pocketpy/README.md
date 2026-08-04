@@ -1,86 +1,37 @@
-# PocketPy Runtime
+# PocketPy Vendor
 
-This folder contains the **PocketPy-based Python runtime** for ucharm. PocketPy is the primary execution engine, replacing the previous MicroPython implementation.
+This directory contains the patched PocketPy C runtime embedded by μcharm’s
+Rust host.
 
-## What's in here?
+## Contents
 
-- `vendor/pocketpy.c` + `vendor/pocketpy.h`  
-  Vendored from PocketPy release (see `POCKETPY_VERSION` for current version).
+- `vendor/pocketpy.c` and `vendor/pocketpy.h`: the vendored interpreter source.
+- `POCKETPY_VERSION`: the tracked upstream revision.
+- `patches/`: μcharm’s ordered patch manifest and patch files.
 
-- `src/`  
-  Zig sources for the runtime:
-  - `main.zig` - Entry point, initializes PocketPy and runs scripts
-  - `runtime.zig` - Module registration for all native Zig modules
-  - `pk.zig` - High-level extension API for safer PocketPy bindings
-
-- `POCKETPY_VERSION`  
-  Tracks the current vendored PocketPy version.
-
-## Build
-
-```bash
-# Debug build
-zig build
-
-# Release build (smaller binary)
-zig build -Doptimize=ReleaseSmall
-
-# The binary is output to:
-# zig-out/bin/pocketpy-ucharm
-```
-
-## Usage
-
-```bash
-# Run a Python script
-./zig-out/bin/pocketpy-ucharm script.py
-
-# Run with arguments
-./zig-out/bin/pocketpy-ucharm script.py arg1 arg2
-```
-
-## Runtime Modules
-
-The runtime includes native Zig implementations of:
-
-**ucharm modules** (TUI/CLI):
-- `ansi` - ANSI escape codes
-- `args` - CLI argument parsing
-- `tui` - TUI components (boxes, rules, spinners)
-- `input` - Interactive prompts (select, confirm)
-- `term` - Terminal control
-
-**CPython compatibility modules** (in `runtime/compat/`):
-- Full implementations: `csv`, `datetime`, `errno`, `fnmatch`, `functools`, `glob`, `itertools`, `json`, `logging`, `pathlib`, `shutil`, `signal`, `statistics`, `subprocess`, `tempfile`, `textwrap`, `typing`
-- Extensions to built-in modules: `math`, `os`, `time`, `collections`
+Cargo compiles the interpreter through `crates/pocketpy-sys/build.rs`. The
+production host, module bindings, CLI, and universal loader are Rust; there is
+no separate PocketPy build command.
 
 ## Updating PocketPy
 
-Use the version check script:
+Check or update the vendored revision with:
 
 ```bash
-# Check for updates
 ./scripts/check-pocketpy-version.sh
-
-# Download and update
 ./scripts/check-pocketpy-version.sh --update
 ```
 
-After updating, re-apply the μcharm PocketPy patchset and rebuild:
+After an update, reapply and verify the tracked patchset:
 
 ```bash
 ./scripts/apply-pocketpy-patches.sh
-cd pocketpy && zig build -Doptimize=ReleaseSmall
+python3 scripts/verify-pocketpy-patches.py --check-upstream
+cargo test --workspace
 ```
 
-## Compatibility Testing
+Regenerate the checked-in Rust FFI declarations when the public C API changes:
 
 ```bash
-# Run CPython compatibility tests
-python3 tests/compat_runner.py --report
-
-# Test a specific module
-python3 tests/compat_runner.py -m json
+just bindings
 ```
-
-Current compatibility: 100% (all tests passing across 41 targeted modules).

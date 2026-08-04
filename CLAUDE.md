@@ -27,10 +27,9 @@ The Cargo workspace contains:
 - `crates/ucharm-loader`: extraction, cache, and execution of universal apps.
 - `crates/ucharm-cli`: `new`, `init`, `run`, `build`, and `test`.
 
-The historical `cli/`, `loader/`, `pocketpy/*.zig`, and `runtime/**/*.zig`
-sources are retained temporarily for migration archaeology. They are not part
-of the normal build, CI, packaging, or release path. Do not add production
-features to them.
+The production repository no longer contains the archived Zig implementation.
+Use the final Zig tag `v0.5.0` and the migration history when archaeology is
+needed; do not reintroduce Zig build paths into the working tree.
 
 ## Commands
 
@@ -87,10 +86,11 @@ bindings without updating their source or generator.
 ## Release assets
 
 The public executables are `ucharm`, `pocketpy-ucharm`, and `ucharm-loader`.
-The CLI embeds matching Rust runtime and loader assets for macOS ARM64, macOS
-x86_64, Linux ARM64 musl, and Linux x86_64 musl. CI publishes fresh component
-assets for review; the tagged release workflow rebuilds all four components,
-injects them into each CLI build, creates checksums, and updates Homebrew.
+The CLI embeds matching Rust runtime and loader assets from
+`crates/ucharm-cli/assets/` for macOS ARM64, macOS x86_64, Linux ARM64 musl,
+and Linux x86_64 musl. CI publishes fresh component assets for review; the
+tagged release workflow rebuilds all four components, injects them into each
+CLI build, creates checksums, and updates Homebrew only for stable tags.
 
 Do not restore Zig setup or `cargo-zigbuild` to the normal CI or release path.
 See `RUST_MIGRATION.md` and issue #13 for the recorded decisions and gates.

@@ -25,17 +25,13 @@ class Color: pass\n\n";
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-const EMBEDDED_RUNTIME: &[u8] =
-    include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-aarch64");
+const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-ucharm-macos-aarch64");
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-const EMBEDDED_RUNTIME: &[u8] =
-    include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-macos-x86_64");
+const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-ucharm-macos-x86_64");
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-const EMBEDDED_RUNTIME: &[u8] =
-    include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-aarch64");
+const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-ucharm-linux-aarch64");
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-const EMBEDDED_RUNTIME: &[u8] =
-    include_bytes!("../../../cli/src/stubs/pocketpy-ucharm-linux-x86_64");
+const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-ucharm-linux-x86_64");
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "macos", target_arch = "x86_64"),

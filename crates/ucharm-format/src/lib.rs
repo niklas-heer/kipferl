@@ -193,11 +193,11 @@ mod tests {
         for (trailer, fixture) in [
             (
                 STANDARD,
-                include_str!("../../../loader/src/fixtures/universal_trailer_v1_standard.hex"),
+                include_str!("../tests/fixtures/universal_trailer_v1_standard.hex"),
             ),
             (
                 SMALL,
-                include_str!("../../../loader/src/fixtures/universal_trailer_v1_small.hex"),
+                include_str!("../tests/fixtures/universal_trailer_v1_small.hex"),
             ),
         ] {
             let golden = decode_hex(fixture);
