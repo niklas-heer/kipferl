@@ -1,24 +1,6 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
 const COMPATIBILITY_SOURCE: &str = r#"
-import io
-
-
-class _RustStringIO:
-    def __init__(self, initial_value=""):
-        self._value = initial_value
-
-    def write(self, value):
-        self._value += value
-        return len(value)
-
-    def getvalue(self):
-        return self._value
-
-
-io.StringIO = _RustStringIO
-
-
 QUOTE_MINIMAL = 0
 QUOTE_ALL = 1
 QUOTE_NONNUMERIC = 2

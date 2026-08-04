@@ -1,14 +1,14 @@
 # μcharm Compatibility Report
 
-Generated: 2026-08-04 10:01:48
+Generated: 2026-08-04 18:40:11
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,668/1,668 (100.0%)
-- **Modules at 100%**: 51/52
-- **Modules partial**: 0/52
+- **Tests passing**: 1,185/1,668 (71.0%)
+- **Modules at 100%**: 30/52
+- **Modules partial**: 6/52
 - **No baseline (host CPython)**: 1/52
 
 ### CPython Stdlib Coverage
@@ -20,14 +20,11 @@ Generated: 2026-08-04 10:01:48
 
 | Module | Category | CPython | μcharm | Parity | Notes |
 |--------|----------|---------|--------|--------|-------|
-| argparse | stdlib | 26/26 | 26/26 | 100% | ✅ Full |
 | array | stdlib | 69/69 | 69/69 | 100% | ✅ Full |
 | base64 | stdlib | 18/18 | 18/18 | 100% | ✅ Full |
 | binascii | stdlib | 55/55 | 55/55 | 100% | ✅ Full |
 | bisect | stdlib | 58/58 | 58/58 | 100% | ✅ Full |
 | collections | stdlib | 49/49 | 49/49 | 100% | ✅ Full |
-| configparser | stdlib | 26/26 | 26/26 | 100% | ✅ Full |
-| contextlib | stdlib | 10/10 | 10/10 | 100% | ✅ Full |
 | copy | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | csv | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
 | dataclasses | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
@@ -36,46 +33,115 @@ Generated: 2026-08-04 10:01:48
 | errno | stdlib | 38/38 | 38/38 | 100% | ✅ Full |
 | fnmatch | stdlib | 55/55 | 55/55 | 100% | ✅ Full |
 | functools | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
-| glob | stdlib | 3/3 | 3/3 | 100% | ✅ Full |
 | gzip | stdlib | 6/6 | 6/6 | 100% | ✅ Full |
 | hashlib | stdlib | 29/29 | 29/29 | 100% | ✅ Full |
 | heapq | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | hmac | stdlib | 4/4 | 4/4 | 100% | ✅ Full |
-| http.client | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
 | io | stdlib | 53/53 | 53/53 | 100% | ✅ Full |
 | itertools | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | json | stdlib | 70/70 | 70/70 | 100% | ✅ Full |
-| logging | stdlib | 39/39 | 39/39 | 100% | ✅ Full |
-| math | stdlib | 82/82 | 82/82 | 100% | ✅ Full |
 | operator | stdlib | 114/115 | 115/115 | 100% | ✅ Full |
-| os | stdlib | 45/45 | 45/45 | 100% | ✅ Full |
-| pathlib | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
 | random | stdlib | 46/46 | 46/46 | 100% | ✅ Full |
-| re | stdlib | 79/79 | 79/79 | 100% | ✅ Full |
 | secrets | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
-| shutil | stdlib | 6/6 | 6/6 | 100% | ✅ Full |
-| signal | stdlib | 15/15 | 15/15 | 100% | ✅ Full |
-| sqlite3 | stdlib | 2/2 | 2/2 | 100% | ✅ Full |
 | statistics | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | struct | stdlib | 68/68 | 68/68 | 100% | ✅ Full |
-| subprocess | stdlib | 19/19 | 19/19 | 100% | ✅ Full |
-| sys | stdlib | 58/58 | 58/58 | 100% | ✅ Full |
 | tarfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
-| tempfile | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
 | textwrap | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
-| time | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | toml | stdlib | - | - | - | ✅ Full |
-| tomllib | stdlib | 0/1 | 1/1 | 100% | ✅ Full |
 | typing | stdlib | 43/43 | 43/43 | 100% | ✅ Full |
-| unittest | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
-| urllib_parse | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
 | uuid | stdlib | 18/18 | 18/18 | 100% | ✅ Full |
-| xml.etree.ElementTree | stdlib | 12/12 | 12/12 | 100% | ✅ Full |
 | zipfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
+| math | stdlib | 82/82 | 73/82 | 89% | 9 skipped |
+| time | stdlib | 42/42 | 22/42 | 52% | 6 skipped |
+| os | stdlib | 45/45 | 3/45 | 7% |  |
+| sys | stdlib | 58/58 | 3/58 | 5% | 1 failing |
+| urllib_parse | stdlib | 24/24 | 1/24 | 4% | 1 skipped |
+| configparser | stdlib | 26/26 | 1/26 | 4% | 1 skipped |
+| argparse | stdlib | 26/26 | 0/26 | 0% | 1 skipped |
+| contextlib | stdlib | 10/10 | 0/10 | 0% | 1 failing |
+| glob | stdlib | 3/3 | 0/3 | 0% | 1 failing |
+| http.client | stdlib | 8/8 | 0/8 | 0% |  |
+| logging | stdlib | 39/39 | 0/39 | 0% | 1 failing |
+| pathlib | stdlib | 40/40 | 0/40 | 0% | 1 skipped |
+| re | stdlib | 79/79 | 0/79 | 0% | 1 failing |
+| shutil | stdlib | 6/6 | 0/6 | 0% | 1 failing |
+| signal | stdlib | 15/15 | 0/15 | 0% | 1 failing |
+| sqlite3 | stdlib | 2/2 | 0/2 | 0% |  |
+| subprocess | stdlib | 19/19 | 0/19 | 0% | 1 failing |
+| tempfile | stdlib | 9/9 | 0/9 | 0% | 1 failing |
+| tomllib | stdlib | 0/1 | 0/1 | 0% |  |
+| unittest | stdlib | 40/40 | 0/40 | 0% | 1 skipped |
+| xml.etree.ElementTree | stdlib | 12/12 | 0/12 | 0% |  |
+
+## Failed Tests
+
+### argparse
+
+- `error: Python execution failed
+`
+
+### contextlib
+
+- `error: Python execution failed
+`
+
+### re
+
+- `error: Python execution failed
+`
+
+### sys
+
+- `FAIL: version_info exists`
+
+### glob
+
+- `error: Python execution failed
+`
+
+### logging
+
+- `error: Python execution failed
+`
+
+### pathlib
+
+- `error: Python execution failed
+`
+
+### shutil
+
+- `error: Python execution failed
+`
+
+### signal
+
+- `error: Python execution failed
+`
+
+### subprocess
+
+- `error: Python execution failed
+`
+
+### tempfile
+
+- `error: Python execution failed
+`
+
+### unittest
+
+- `error: Python execution failed
+`
+
 
 ## Skipped Tests
 
 These tests require features not available in pocketpy-ucharm:
+
+### argparse
+
+- 1 tests skipped
 
 ### bisect
 
@@ -85,15 +151,39 @@ These tests require features not available in pocketpy-ucharm:
 
 - 4 tests skipped
 
-### contextlib
+### configparser
 
-- 4 tests skipped
+- 1 tests skipped
 
 ### enum
 
 - 8 tests skipped
 
 ### json
+
+- 1 tests skipped
+
+### math
+
+- 9 tests skipped
+
+### time
+
+- 6 tests skipped
+
+### urllib_parse
+
+- 1 tests skipped
+
+### pathlib
+
+- 1 tests skipped
+
+### toml
+
+- 1 tests skipped
+
+### unittest
 
 - 1 tests skipped
 
