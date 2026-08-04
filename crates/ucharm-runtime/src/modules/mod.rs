@@ -33,6 +33,7 @@ mod io;
 mod itertools;
 mod json;
 mod logging;
+mod math;
 mod operator;
 mod os;
 mod os_path;
@@ -47,12 +48,14 @@ mod statistics_core;
 mod string_methods;
 mod struct_module;
 mod subprocess;
+mod sys;
 mod tarfile;
 mod tempfile;
 mod term;
 mod term_core;
 mod textwrap;
 mod textwrap_core;
+mod time;
 mod tomllib;
 mod typing;
 mod unittest;
@@ -96,6 +99,7 @@ const MODULES: &[NativeModule] = &[
     itertools::MODULE,
     json::MODULE,
     logging::MODULE,
+    math::MODULE,
     operator::MODULE,
     random::MODULE,
     re::MODULE,
@@ -107,8 +111,10 @@ const MODULES: &[NativeModule] = &[
     tempfile::MODULE,
     term::MODULE,
     textwrap::MODULE,
+    time::MODULE,
     tomllib::MODULE,
     subprocess::MODULE,
+    sys::MODULE,
     unittest::MODULE,
     urllib_parse::MODULE,
     uuid::MODULE,
