@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 pub(super) const BORDER_ROUNDED: i64 = 0;
 pub(super) const BORDER_SQUARE: i64 = 1;
 pub(super) const BORDER_DOUBLE: i64 = 2;
@@ -230,40 +232,57 @@ pub(super) fn style_code(
     underline: bool,
     strikethrough: bool,
 ) -> String {
-    let mut codes = Vec::new();
+    let mut output = String::new();
     if bold {
-        codes.push("1".to_owned());
+        push_style_separator(&mut output);
+        output.push('1');
     }
     if dim {
-        codes.push("2".to_owned());
+        push_style_separator(&mut output);
+        output.push('2');
     }
     if italic {
-        codes.push("3".to_owned());
+        push_style_separator(&mut output);
+        output.push('3');
     }
     if underline {
-        codes.push("4".to_owned());
+        push_style_separator(&mut output);
+        output.push('4');
     }
     if strikethrough {
-        codes.push("9".to_owned());
+        push_style_separator(&mut output);
+        output.push('9');
     }
     if let Some(foreground) = foreground {
         if let Some(code) = color_code(foreground) {
-            codes.push(code.to_string());
+            push_style_separator(&mut output);
+            write!(&mut output, "{code}").expect("writing to a String cannot fail");
         } else if let Some((r, g, b)) = parse_hex(foreground) {
-            codes.push(format!("38;2;{r};{g};{b}"));
+            push_style_separator(&mut output);
+            write!(&mut output, "38;2;{r};{g};{b}").expect("writing to a String cannot fail");
         }
     }
     if let Some(background) = background {
         if let Some(code) = color_code(background) {
-            codes.push((code + 10).to_string());
+            push_style_separator(&mut output);
+            write!(&mut output, "{}", code + 10).expect("writing to a String cannot fail");
         } else if let Some((r, g, b)) = parse_hex(background) {
-            codes.push(format!("48;2;{r};{g};{b}"));
+            push_style_separator(&mut output);
+            write!(&mut output, "48;2;{r};{g};{b}").expect("writing to a String cannot fail");
         }
     }
-    if codes.is_empty() {
-        String::new()
+
+    if !output.is_empty() {
+        output.push('m');
+    }
+    output
+}
+
+fn push_style_separator(output: &mut String) {
+    if output.is_empty() {
+        output.push_str("\x1b[");
     } else {
-        format!("\x1b[{}m", codes.join(";"))
+        output.push(';');
     }
 }
 

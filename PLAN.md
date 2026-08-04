@@ -68,6 +68,20 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   Static Linux ARM64 remains 2,378,840 bytes. Keep 2.5 MB as the practical
   runtime target and 3 MB as the Linux regression ceiling; do not optimize for
   the former 2 MB aspiration at the expense of material runtime performance.
+- The bounded terminal-library spike rejects Crossterm and Ratatui for the
+  current API. The feature-relevant Crossterm event build adds 69,056 bytes and
+  21 dependency entries over its control; backend-free Ratatui layout/widgets
+  add 82,672 bytes and 52 entries while still requiring compatibility adapters.
+  Reconsider them only if μcharm grows into a stateful full-screen framework.
+- The first allocation cleanup replaces `charm.style`'s temporary vector,
+  per-code strings, join, and final format with one lazy output buffer. It keeps
+  the ARM64 runtime byte size unchanged and improves a 20,000-call style
+  workload by 26.9% at the median with exact golden-output parity.
+- Treat borrowed callback values, VM globals, and rooted values as distinct
+  states in any future FFI type redesign. A single lifetime on the current
+  `Value` wrapper is insufficient because PocketPy allocations can invalidate
+  unrooted slots; implement the split only as a dedicated compatibility-gated
+  refactor.
 - Freeze a reproducible post-cutover baseline before optimizing: compatibility,
   startup distributions, peak memory and allocations, interactive latency,
   representative module throughput, binary sections, dependency contribution,

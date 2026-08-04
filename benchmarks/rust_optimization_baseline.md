@@ -54,6 +54,33 @@ executes in a clean Debian ARM64 container. These application sizes include the
 loader, embedded runtime, trailer, and test payload rather than only the runtime
 shown above.
 
+## Peak memory and interactive latency
+
+Peak resident memory was sampled with macOS `/usr/bin/time -l`. The empty
+process used a median 5,685,248 bytes under the `z` control and 5,718,016 bytes
+under the accepted `s` profile over 30 runs, a 32 KiB (0.6%) increase. The
+10,000-parse JSON workload used median peaks of 12,386,304 and 12,435,456 bytes
+over 15 runs, a 48 KiB (0.4%) increase. This is within run-to-run allocator and
+loader variance and shows no material memory regression from the profile
+change.
+
+The test-key-driven interactive path was also compared over 100 randomized
+round-robin runs using `input.select` with two choices. Median wall time improved
+from 6.223 ms to 5.500 ms (11.6%); p95 improved from 7.696 ms to 6.861 ms.
+
+## Allocation and copying review
+
+`charm.style` was the clearest avoidable allocation chain in the current TUI
+core. It previously allocated a `Vec<String>`, one string per enabled attribute
+or color, a joined string, and the final ANSI-prefixed string. The accepted
+implementation writes every code into one lazily created `String`.
+
+The existing golden output tests pass unchanged and the stripped ARM64 runtime
+remains exactly 2,131,168 bytes. Over 60 randomized round-robin runs, a workload
+that constructs 20,000 fully styled strings improves from 18.238 ms median and
+19.569 ms p95 to 13.331 ms median and 14.027 ms p95. That is a 26.9% median
+throughput improvement with no artifact-size cost.
+
 ## Dependency and section audit
 
 - `Cargo.lock` contains 54 packages and `cargo tree --duplicates` reports no
@@ -73,6 +100,34 @@ No dependency replacement is accepted in this pass. The graph is already
 small, has no duplicated versions, and the previously measured pure-Rust Turso
 spike remains substantially worse for size and dependency count.
 
+## Terminal and TUI library spike
+
+Crossterm 0.29.0 and Ratatui 0.30.2 were built in isolated macOS programs with
+the same `s`, fat-LTO, one-codegen-unit, aborting-panic, and stripping profile as
+the runtime. The control wrote representative ANSI bytes directly and was
+285,936 bytes.
+
+| Candidate | Binary | Added bytes | Unique tree entries |
+| --- | ---: | ---: | ---: |
+| direct ANSI control | 285,936 | — | 1 |
+| Crossterm output + raw mode | 303,024 | 17,088 (6.0%) | 14 |
+| Crossterm with events | 354,992 | 69,056 (24.2%) | 22 |
+| Ratatui core layout + widgets, no backend | 368,608 | 82,672 (28.9%) | 53 |
+
+The tree count includes each local spike crate. Crossterm's event path—the
+relevant comparison for μcharm input—adds Mio, signal-hook, signal-hook-mio,
+Rustix, parking_lot, and supporting crates. The Ratatui measurement does not
+include a terminal backend, yet already adds 52 dependency entries beyond the
+control.
+
+Neither library is accepted. The current terminal surface is a small set of
+exact ANSI sequences plus `/dev/tty`, process-group, timed-read, and restoration
+behavior covered by byte-stream and pseudo-terminal tests. The presentation
+surface deliberately preserves μcharm-specific width and rendering semantics.
+The spikes add graph and artifact cost without removing those compatibility
+requirements. Reconsider a library if the product grows into a stateful,
+full-screen application framework rather than for the current bounded API.
+
 ## Rust safety audit
 
 The runtime already uses RAII for VM shutdown, PocketPy temporary root frames,
@@ -85,3 +140,13 @@ PocketPy callback-stack conversion, raw value access, global register use, and
 FFI operation has an immediately attached safety statement. Strict workspace
 Clippy, tests, sanitizers, and compatibility remain the behavioral guards; the
 new lint prevents unexplained unsafe code from entering future migration work.
+
+A deeper lifetime audit found that the current `Value` wrapper represents three
+different states: a borrowed callback stack slot, a process-global VM value,
+and a value rooted in a `RootFrame`. Adding one lifetime parameter would not
+model invalidation across allocating PocketPy calls and would provide false
+confidence. The sound Rust-native direction is separate borrowed and rooted
+types plus a higher-ranked callback wrapper that prevents borrowed values from
+escaping. That is deferred as its own compatibility-gated refactor rather than
+mixed into profile optimization; the immediate documented-unsafe enforcement
+is complete.
