@@ -71,9 +71,11 @@ const FUNCTIONS: &[NativeFunction] = &[
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"term",
+    kind: crate::native::NativeModuleKind::Create,
     functions: FUNCTIONS,
     signatures: &[],
     int_constants: &[],
+    type_aliases: &[],
 };
 
 #[derive(Default)]

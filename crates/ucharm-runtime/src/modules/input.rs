@@ -50,9 +50,11 @@ const SIGNATURES: &[NativeSignature] = &[
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"input",
+    kind: crate::native::NativeModuleKind::Create,
     functions: FUNCTIONS,
     signatures: SIGNATURES,
     int_constants: &[],
+    type_aliases: &[],
 };
 
 struct InputState {

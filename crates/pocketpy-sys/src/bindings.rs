@@ -83,6 +83,10 @@ unsafe extern "C" {
     pub fn py_newstrn(arg1: py_OutRef, arg2: ::core::ffi::c_int) -> *mut ::core::ffi::c_char;
 }
 unsafe extern "C" {
+    #[doc = " Create a `bytes` object with `n` UNINITIALIZED bytes."]
+    pub fn py_newbytes(arg1: py_OutRef, n: ::core::ffi::c_int) -> *mut ::core::ffi::c_uchar;
+}
+unsafe extern "C" {
     #[doc = " Create a `None` object."]
     pub fn py_newnone(arg1: py_OutRef);
 }
@@ -113,6 +117,10 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Convert a `str` object in python to char array."]
     pub fn py_tostrn(arg1: py_Ref, size: *mut ::core::ffi::c_int) -> *const ::core::ffi::c_char;
+}
+unsafe extern "C" {
+    #[doc = " Convert a `bytes` object in python to char array."]
+    pub fn py_tobytes(arg1: py_Ref, size: *mut ::core::ffi::c_int) -> *mut ::core::ffi::c_uchar;
 }
 unsafe extern "C" {
     #[doc = " Check if the object is exactly the given type."]
