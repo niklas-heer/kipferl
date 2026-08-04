@@ -3,6 +3,8 @@ mod ansi_core;
 mod args;
 mod charm;
 mod charm_core;
+mod fnmatch;
+mod fnmatch_core;
 mod input;
 mod term;
 mod term_core;
@@ -13,6 +15,7 @@ const MODULES: &[NativeModule] = &[
     ansi::MODULE,
     args::MODULE,
     charm::MODULE,
+    fnmatch::MODULE,
     input::MODULE,
     term::MODULE,
 ];
