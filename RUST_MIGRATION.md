@@ -136,7 +136,7 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. The stripped runtime remains below the current 4 MB release-target budget;
+7. The stripped runtime remains below the current 4.5 MB release-target budget;
    correctness, maintainability, and developer-experience improvements may use
    that budget deliberately. Issue
    [#41](https://github.com/ucharmdev/ucharm/issues/41) preserves the original
@@ -280,8 +280,8 @@ status, stdout, and stderr.
   1,000-round math/interning stress, CPython differential output, IANA and
   POSIX `TZ` DST regression coverage, calendar round-trips, domain/type
   failures, exact stream bytes, and dual-architecture release smoke. The final
-  network/database wave keeps HTTP/1.1 on `std::net` with bounded
-  content-length/chunked response parsing and no new networking dependency.
+  network/database wave now delegates HTTP/1.1, HTTPS, TLS, response framing,
+  and bounded body reads to feature-minimal Ureq/Rustls.
   SQLite uses feature-minimal `rusqlite` with a statically linked, trimmed
   SQLite amalgamation and preserves in-memory, file-backed, positional-binding,
   scalar/blob/null, join, fetch, and lifecycle behavior. A pure-Rust Turso
@@ -426,8 +426,8 @@ artifacts meet the compatibility, startup, and size gates.
   and dependency review against a frozen post-cutover baseline:
   - accept `opt-level = 2`, fat LTO, one codegen unit, checked overflow,
     stripped symbols, and aborting panics as the final measured profile. The
-    feature-minimal HTTPS/archive runtime is 3,801,664 bytes on ARM64 macOS
-    under the current 4 MB release-target budget;
+    feature-minimal HTTPS/archive/Ratatui runtime is 4,000,864 bytes on ARM64
+    macOS under the current 4.5 MB release-target budget;
   - profile startup, allocations, peak memory, interactive latency, module
     throughput, binary sections, dependency contribution, and all four release
     artifacts;
@@ -442,9 +442,9 @@ artifacts meet the compatibility, startup, and size gates.
   - audit duplicate crates and default features, attribute release size with
     `cargo-bloat`, and compare release-profile/PGO variants using the same
     compatibility, startup, size, memory, and throughput corpus;
-  - spike a feature-minimal Crossterm substrate and selected Ratatui primitives
-    behind the existing terminal and μcharm APIs; preserve exact golden output
-    and adopt neither wholesale merely to reduce local code;
+  - adopt Ratatui/Crossterm for interactive selection through an inline
+    viewport, with TestBackend, PTY restoration, resize, compact-layout, and
+    `NO_COLOR` coverage; extend that substrate for future stateful screens;
   - retain the measured `rusqlite` plus statically bundled SQLite decision for
     this release. Re-evaluate the pure-Rust Turso Database after cutover only
     if its production maturity, compatibility, dependency graph, startup, and

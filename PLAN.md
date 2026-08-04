@@ -68,17 +68,19 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   by 7-14% over `s` for about 510 KiB. `-O3` added another 231 KiB without a
   measurable win, thin LTO regressed size and speed, and PGO's small,
   corpus-specific gains did not justify its training/toolchain burden.
-- Treat 4 MB as a regression budget for current runtime artifacts, not as a
-  goal to minimize at the expense of developer experience, correctness, or a
-  maintained implementation. The current optimized ARM64 runtime with SQLite,
-  HTTPS, and maintained ZIP/TAR readers is 3,801,664 bytes; the host CLI is
-  2,914,016 bytes before the final embedded-asset refresh.
-- The bounded terminal-library spike does not force Crossterm or Ratatui under
-  the current stateless compatibility API, because most of the product-specific
-  prompt state and PocketPy binding would remain. Ratatui is the preferred
-  foundation for a future stateful/responsive screen API: its buffer model,
-  TestBackend, layout/widgets, resize handling, and accessibility conventions
-  can improve both user experience and testability enough to justify its size.
+- Treat 4.5 MB as the cross-target regression ceiling, not as a goal to fill at
+  the expense of developer experience, correctness, or maintainability. The
+  current optimized ARM64 runtime with SQLite, HTTPS, maintained archives, and
+  Ratatui is 4,000,864 bytes; the host CLI is 2,914,016 bytes before the final
+  embedded-asset refresh.
+- Ratatui 0.30.2 with its Crossterm backend is accepted for real interactive
+  `input.select` and `input.multiselect` sessions. It uses an inline viewport to
+  preserve scrollback, bounded list scrolling, visible keyboard help, semantic
+  focus styling, `NO_COLOR`, responsive compact/minimum-size modes, and
+  TestBackend plus PTY coverage. Crossterm owns interactive key and resize event
+  parsing; the legacy renderer remains for non-interactive sessions and the
+  deterministic Zig-compatibility harness. Build future stateful screen APIs on
+  the same renderer rather than introducing another terminal abstraction.
 - The first allocation cleanup replaces `charm.style`'s temporary vector,
   per-code strings, join, and final format with one lazy output buffer. It keeps
   the ARM64 runtime byte size unchanged and improves a 20,000-call style
@@ -108,11 +110,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   profile comparison covers `s`, `O2`, `O3`, fat/thin LTO, overflow checks, and
   PGO against the same startup and throughput corpus.
 - Run isolated library spikes behind the existing Python API and golden tests:
-  - compare the current terminal/raw-mode/event code with a feature-minimal
-    [`Crossterm`](https://github.com/crossterm-rs/crossterm) substrate, and
-    compare selected layout/widget primitives with
-    [`Ratatui`](https://ratatui.rs/) rather than replacing μcharm's presentation
-    model wholesale;
+  - accept [`Ratatui`](https://ratatui.rs/) with its Crossterm backend for
+    interactive selection. The first production slice keeps the PocketPy API
+    stable while replacing rendering/layout and retaining μcharm's tested raw
+    input and cleanup guards;
   - retain feature-minimal `rusqlite` plus statically bundled SQLite. A current
     Turso 0.8.0-pre.2 spike with public defaults disabled produced a 9,576,960
     byte binary and 257 dependency-tree entries, so it increases size and
@@ -124,7 +125,7 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
     succeeds;
   - accept feature-minimal `zip` and `tar` readers. They replace handwritten
     central-directory, chunk, header, and member-boundary parsing for about
-    66 KiB in the complete runtime; the final ARM64 runtime is 3,801,664 bytes;
+    66 KiB in the pre-Ratatui runtime;
   - inventory focused crates for remaining process, signal, regex, and format
     modules, disabling default features and rejecting a dependency when
     the standard library or current implementation is clearer.

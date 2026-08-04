@@ -86,13 +86,13 @@ final host artifacts are:
 
 | Artifact | ARM64 macOS size |
 | --- | ---: |
-| Runtime (`pocketpy-ucharm`) | 3,801,664 bytes |
+| Runtime (`pocketpy-ucharm`) | 4,000,864 bytes |
 | CLI (`ucharm`, before final asset refresh) | 2,914,016 bytes |
 
-The runtime remains below the 4 MB current-target regression budget. The budget
-is a guardrail rather than the primary product metric: a modest size increase is
-accepted when it materially improves correctness, maintainability, testability,
-or user/developer experience.
+The host runtime is approximately 4.0 MB, with a 4.5 MB cross-target regression
+ceiling. The budget is a guardrail rather than the primary product metric: a
+modest size increase is accepted when it materially improves correctness,
+maintainability, testability, or user/developer experience.
 
 ## Peak memory and interactive latency
 
@@ -124,8 +124,10 @@ throughput improvement with no artifact-size cost.
 ## Dependency and section audit
 
 - Before the dependency adoptions, `Cargo.lock` contained 54 packages. The
-  accepted Ureq/Rustls and archive stacks bring the final graph to 92 packages;
-  `cargo tree --duplicates` still reports no duplicate versions.
+  accepted Ureq/Rustls, archive, and Ratatui/Crossterm stacks bring the final
+  graph to 162 packages. `cargo tree --duplicates` reports two unavoidable
+  families in the selected upstream graphs: `hashbrown` 0.16/0.17 and `syn`
+  2/3; only the target-relevant normal dependencies ship in the binary.
 - `cargo audit` reports no known vulnerabilities.
 - Every runtime dependency has default features disabled or an intentionally
   narrow feature set where the crate offers one. The SQLite dependency remains
@@ -174,6 +176,7 @@ directory/member parser and TAR header/member-boundary parser.
 | `ureq` + Rustls | Adopt | Transfers HTTP framing, parsing, bounded-body plumbing, TLS, and certificate roots to maintained crates |
 | `zip` | Adopt, deflate only | Transfers ZIP variants, central-directory validation, CRC, and member bounds upstream |
 | `tar` | Adopt, no xattrs | Transfers TAR header/path/member parsing upstream without extraction-only features |
+| `ratatui` + Crossterm | Adopt, feature-minimal | Provides responsive layout, buffered rendering, inline viewports, focus styling, and TestBackend coverage for interactive selection |
 | `ucharm-pocketpy-sys` + `cc` | Retain | Required local FFI boundary and build path for the embedded PocketPy C runtime |
 
 CLI/loader dependencies remain limited to the shared format crate and the
@@ -202,17 +205,27 @@ Rustix, parking_lot, and supporting crates. The Ratatui measurement does not
 include a terminal backend, yet already adds 52 dependency entries beyond the
 control.
 
-Neither library is forced underneath the current stateless compatibility API.
-That surface still needs μcharm-specific prompt state, PocketPy bindings,
-`/dev/tty`, timed reads, restoration behavior, and exact width/rendering
-semantics, so a backend substitution would not yet remove enough local code.
+The initial spike was deferred because silently replacing every stateless
+renderer would retain most of μcharm's product-specific code. The later product
+decision instead adopts Ratatui where its model is immediately valuable:
+`input.select` and `input.multiselect` now use a real inline Ratatui viewport in
+interactive terminals while preserving the public Python API.
 
-This is not a size-only rejection. Ratatui is the preferred foundation for a
-future stateful/responsive screen API where its buffered rendering,
-`TestBackend`, layout/widgets, resize/focus model, keyboard discoverability, and
-accessibility patterns can materially improve both user experience and
-testability. That product layer should be designed around Ratatui rather than
-retrofitting it invisibly beneath the existing calls.
+The production integration adds 199,200 bytes to the complete `O2` runtime
+(3,801,664 to 4,000,864 bytes) and brings the lockfile from 92 to 162 packages.
+In return it provides buffered rendering, bounded scrolling, responsive normal
+and compact layouts, a minimum-size message, visible keyboard help, semantic
+focus styling, `NO_COLOR`, and reusable TestBackend infrastructure. The inline
+viewport preserves shell scrollback; Crossterm handles interactive key and
+resize events, while μcharm's existing `/dev/tty`, batched legacy input,
+raw-mode, and shutdown guards remain the compatibility/cleanup substrate.
+
+Three TestBackend cases cover 80-column, compact, monochrome, and too-small
+rendering. Real 80×24 PTY tests answer Crossterm's cursor query, send batched
+selection and multiselection keys, verify the Ratatui border and discoverable
+footer, check the returned Python values, and confirm cursor and termios
+restoration. The byte-for-byte legacy renderer remains for non-interactive
+sessions and deterministic Zig-compatibility fixtures.
 
 ## Rust safety audit
 

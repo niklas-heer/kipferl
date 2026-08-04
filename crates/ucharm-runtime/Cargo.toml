@@ -11,6 +11,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 jiff = { version = "0.2.35", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
 libc = "0.2"
 md-5 = { version = "0.11.0", default-features = false }
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm_0_29"] }
 regex-lite = "0.1.9"
 rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
 sha1 = { version = "0.11.0", default-features = false }

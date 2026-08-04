@@ -197,7 +197,7 @@ jobs:
           binary = Path("target/${{ matrix.target }}/release/pocketpy-ucharm")
           size = binary.stat().st_size
           target = "${{ matrix.target }}"
-          runtime_limit = 4_000_000
+          runtime_limit = 4_500_000
           print(f"{binary}: {size:,} bytes (limit: {runtime_limit:,})")
           assert size < runtime_limit, (
               f"Rust runtime exceeds the {runtime_limit:,}-byte {target} budget: "

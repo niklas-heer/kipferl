@@ -59,6 +59,7 @@ mod textwrap;
 mod textwrap_core;
 mod time;
 mod tomllib;
+mod tui;
 mod typing;
 mod unittest;
 mod urllib_parse;

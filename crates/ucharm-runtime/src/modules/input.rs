@@ -1,11 +1,15 @@
+use std::collections::VecDeque;
 use std::ffi::c_int;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::mem::MaybeUninit;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::{Mutex, MutexGuard};
 
 use ucharm_pocketpy_sys as ffi;
 
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+
+use super::tui::{self, SelectionView};
 use crate::input_core::{clamp, wrap_index};
 use crate::native::{
     Arguments, NativeFunction, NativeModule, NativeSignature, RootFrame, Value, return_string,
@@ -65,6 +69,7 @@ struct InputState {
     test_keys: Option<Vec<u8>>,
     test_position: usize,
     test_initialized: bool,
+    pending_keys: VecDeque<u8>,
 }
 
 static INPUT_STATE: Mutex<InputState> = Mutex::new(InputState {
@@ -74,6 +79,7 @@ static INPUT_STATE: Mutex<InputState> = Mutex::new(InputState {
     test_keys: None,
     test_position: 0,
     test_initialized: false,
+    pending_keys: VecDeque::new(),
 });
 
 fn input_state() -> MutexGuard<'static, InputState> {
@@ -231,6 +237,9 @@ fn read_key() -> u8 {
     if state.test_keys.is_some() {
         return read_test_token(&mut state, false);
     }
+    if let Some(key) = state.pending_keys.pop_front() {
+        return key;
+    }
 
     let fd = ensure_tty_fd(&mut state);
     let mut buffer = [0_u8; 8];
@@ -244,43 +253,54 @@ fn read_key() -> u8 {
         return 0;
     }
 
-    if buffer[0] == 0x1b {
-        let mut total = count;
-        if count == 1 {
-            let end = buffer.len() - 1;
-            let remaining = end - 1;
-            // SAFETY: the remaining buffer is writable and `fd` is valid.
-            let extra = unsafe { libc::read(fd, buffer[1..end].as_mut_ptr().cast(), remaining) };
-            if let Ok(extra) = usize::try_from(extra) {
-                total += extra;
-            }
-            if total == 1 {
-                return b'q';
-            }
+    let mut total = count;
+    if buffer[0] == 0x1b && count == 1 {
+        let end = buffer.len() - 1;
+        let remaining = end - 1;
+        // SAFETY: the remaining buffer is writable and `fd` is valid.
+        let extra = unsafe { libc::read(fd, buffer[1..end].as_mut_ptr().cast(), remaining) };
+        if let Ok(extra) = usize::try_from(extra) {
+            total += extra;
         }
-        if total >= 3 && buffer[1] == b'[' {
-            return match buffer[2] {
-                b'A' => b'u',
-                b'B' => b'd',
-                _ => 0,
-            };
-        }
-        return 0;
     }
+    queue_keys(&buffer[..total], &mut state.pending_keys);
+    state.pending_keys.pop_front().unwrap_or(0)
+}
 
-    if count == 1 {
-        return match buffer[0] {
+fn queue_keys(bytes: &[u8], output: &mut VecDeque<u8>) {
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == 0x1b {
+            if let Some(code) = bytes
+                .get(index + 2)
+                .filter(|_| bytes.get(index + 1) == Some(&b'['))
+            {
+                if let Some(key) = match code {
+                    b'A' => Some(b'u'),
+                    b'B' => Some(b'd'),
+                    _ => None,
+                } {
+                    output.push_back(key);
+                }
+                index += 3;
+                continue;
+            }
+            output.push_back(b'q');
+            index += 1;
+            continue;
+        }
+        output.push_back(match bytes[index] {
             b'\r' | b'\n' => b'e',
             b' ' => b's',
             b'j' => b'd',
             b'k' => b'u',
             b'q' | 0x03 => b'q',
-            b'y' | b'Y' | b'n' | b'N' => buffer[0],
+            b'y' | b'Y' | b'n' | b'N' => bytes[index],
             0x7f | 0x08 => b'b',
             byte => byte,
-        };
+        });
+        index += 1;
     }
-    0
 }
 
 fn enable_raw_mode() {
@@ -380,6 +400,7 @@ pub(super) fn shutdown() {
     state.test_keys = None;
     state.test_position = 0;
     state.test_initialized = false;
+    state.pending_keys.clear();
 }
 
 fn sequence_len(value: Value) -> Option<usize> {
@@ -402,6 +423,107 @@ fn return_none() -> bool {
     let mut roots = RootFrame::new();
     let none = roots.none();
     return_value(none)
+}
+
+fn use_ratatui() -> bool {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        return false;
+    }
+    let mut state = input_state();
+    initialize_test_mode(&mut state);
+    state.test_keys.is_none()
+}
+
+fn choice_texts(choices: Value, length: usize) -> Vec<String> {
+    (0..length)
+        .map(|index| {
+            sequence_item(choices, index)
+                .and_then(display_text)
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+fn read_tui_key() -> io::Result<Option<u8>> {
+    let Event::Key(key) = event::read()? else {
+        return Ok(None);
+    };
+    if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
+        return Ok(None);
+    }
+    let mapped = match key.code {
+        KeyCode::Up | KeyCode::Char('k') => Some(b'u'),
+        KeyCode::Down | KeyCode::Char('j') => Some(b'd'),
+        KeyCode::Enter => Some(b'e'),
+        KeyCode::Char(' ') => Some(b's'),
+        KeyCode::Esc | KeyCode::Char('q') => Some(b'q'),
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(b'q'),
+        _ => None,
+    };
+    Ok(mapped)
+}
+
+fn run_ratatui_select(
+    prompt: &str,
+    choices: &[String],
+    initial: usize,
+) -> io::Result<Option<usize>> {
+    let mut terminal = tui::open_selection_terminal(choices.len())?;
+    terminal.hide_cursor()?;
+    let _raw = RawModeGuard::enable();
+    let mut cursor = initial;
+    let no_color = std::env::var_os("NO_COLOR").is_some();
+    loop {
+        tui::draw_selection(
+            &mut terminal,
+            &SelectionView {
+                prompt,
+                choices,
+                cursor,
+                selected: None,
+                no_color,
+            },
+        )?;
+        match read_tui_key()? {
+            Some(b'd') => cursor = (cursor + 1) % choices.len(),
+            Some(b'u') => cursor = cursor.checked_sub(1).unwrap_or(choices.len() - 1),
+            Some(b'e' | b's') => return Ok(Some(cursor)),
+            Some(b'q') => return Ok(None),
+            _ => {}
+        }
+    }
+}
+
+fn run_ratatui_multiselect(
+    prompt: &str,
+    choices: &[String],
+    selected: &mut [bool],
+) -> io::Result<bool> {
+    let mut terminal = tui::open_selection_terminal(choices.len())?;
+    terminal.hide_cursor()?;
+    let _raw = RawModeGuard::enable();
+    let mut cursor = 0;
+    let no_color = std::env::var_os("NO_COLOR").is_some();
+    loop {
+        tui::draw_selection(
+            &mut terminal,
+            &SelectionView {
+                prompt,
+                choices,
+                cursor,
+                selected: Some(selected),
+                no_color,
+            },
+        )?;
+        match read_tui_key()? {
+            Some(b'd') => cursor = (cursor + 1) % choices.len(),
+            Some(b'u') => cursor = cursor.checked_sub(1).unwrap_or(choices.len() - 1),
+            Some(b's') => selected[cursor] = !selected[cursor],
+            Some(b'e') => return Ok(true),
+            Some(b'q') => return Ok(false),
+            _ => {}
+        }
+    }
 }
 
 fn render_select(choices: Value, length: usize, selected: i32, clear: bool) {
@@ -452,6 +574,21 @@ unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
         .unwrap_or(0)
         .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
     let mut selected = clamp(requested, 0, maximum);
+
+    if use_ratatui() {
+        let choice_texts = choice_texts(choices, length);
+        if let Ok(result) = run_ratatui_select(
+            &prompt,
+            &choice_texts,
+            usize::try_from(selected).unwrap_or(0),
+        ) {
+            return if let Some(result) = result.and_then(|index| sequence_item(choices, index)) {
+                return_value(result)
+            } else {
+                return_none()
+            };
+        }
+    }
 
     write_output(CYAN);
     write_output(BOLD);
@@ -551,6 +688,24 @@ unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
                     break;
                 }
             }
+        }
+    }
+
+    if use_ratatui() {
+        let choice_texts = choice_texts(choices, visible_length);
+        if let Ok(confirmed) =
+            run_ratatui_multiselect(&prompt, &choice_texts, &mut selected[..visible_length])
+        {
+            let mut roots = RootFrame::new();
+            let result = roots.list();
+            if confirmed {
+                for (index, is_selected) in selected.iter().enumerate().take(visible_length) {
+                    if *is_selected && let Some(choice) = sequence_item(choices, index) {
+                        result.list_append(choice);
+                    }
+                }
+            }
+            return return_value(result);
         }
     }
 
@@ -746,7 +901,9 @@ unsafe extern "C" fn password(argc: c_int, argv: ffi::py_StackRef) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{map_key_name, map_raw_key_name};
+    use std::collections::VecDeque;
+
+    use super::{map_key_name, map_raw_key_name, queue_keys};
 
     #[test]
     fn maps_navigation_test_tokens() {
@@ -759,6 +916,13 @@ mod tests {
         assert_eq!(map_key_name(b"j"), b'd');
         assert_eq!(map_key_name(b"k"), b'u');
         assert_eq!(map_key_name(b"yes"), 0);
+    }
+
+    #[test]
+    fn queues_batched_terminal_keys_and_arrow_sequences() {
+        let mut keys = VecDeque::new();
+        queue_keys(b"j\r\x1b[A \x1b", &mut keys);
+        assert_eq!(keys.into_iter().collect::<Vec<_>>(), b"deusq");
     }
 
     #[test]

@@ -26,7 +26,7 @@
 μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and μcharm ships them as single-file binaries that start instantly.
 
-- Tiny, portable binaries (under a 4 MB runtime budget on current release targets)
+- Tiny, portable binaries (about 4 MB; 4.5 MB release-target ceiling)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -310,7 +310,8 @@ The current native ARM64 median is 6.986ms. Fast startup comes from:
 <details>
 <summary>Why is the binary so small?</summary>
 
-About 4MB for the optimized ARM64 runtime (SQLite and HTTPS enabled) because:
+About 4MB for the optimized ARM64 runtime (SQLite, HTTPS, and Ratatui enabled)
+because:
 
 1. PocketPy core is small
 2. The Rust release profile uses `-O2`, fat LTO, one codegen unit, overflow
@@ -318,6 +319,8 @@ About 4MB for the optimized ARM64 runtime (SQLite and HTTPS enabled) because:
 3. Curated stdlib surface (no bloat) while still bundling useful extras like `sqlite3`
 4. SQLite is statically bundled with unused extensions disabled, and HTTPS uses
    a feature-minimal Rustls/Ureq stack
+5. Ratatui powers interactive selection with an inline, scrollback-preserving
+   viewport and a single Crossterm backend
 </details>
 
 <details>
