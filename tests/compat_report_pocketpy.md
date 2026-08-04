@@ -1,13 +1,13 @@
 # μcharm Compatibility Report
 
-Generated: 2026-08-04 20:32:35
+Generated: 2026-08-04 21:01:55
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,658/1,668 (99.4%)
-- **Modules at 100%**: 49/52
+- **Tests passing**: 1,668/1,668 (100.0%)
+- **Modules at 100%**: 51/52
 - **Modules partial**: 0/52
 - **No baseline (host CPython)**: 1/52
 
@@ -41,6 +41,7 @@ Generated: 2026-08-04 20:32:35
 | hashlib | stdlib | 29/29 | 29/29 | 100% | ✅ Full |
 | heapq | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | hmac | stdlib | 4/4 | 4/4 | 100% | ✅ Full |
+| http.client | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
 | io | stdlib | 53/53 | 53/53 | 100% | ✅ Full |
 | itertools | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | json | stdlib | 70/70 | 70/70 | 100% | ✅ Full |
@@ -54,6 +55,7 @@ Generated: 2026-08-04 20:32:35
 | secrets | stdlib | 8/8 | 8/8 | 100% | ✅ Full |
 | shutil | stdlib | 6/6 | 6/6 | 100% | ✅ Full |
 | signal | stdlib | 15/15 | 15/15 | 100% | ✅ Full |
+| sqlite3 | stdlib | 2/2 | 2/2 | 100% | ✅ Full |
 | statistics | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | struct | stdlib | 68/68 | 68/68 | 100% | ✅ Full |
 | subprocess | stdlib | 19/19 | 19/19 | 100% | ✅ Full |
@@ -70,8 +72,6 @@ Generated: 2026-08-04 20:32:35
 | uuid | stdlib | 18/18 | 18/18 | 100% | ✅ Full |
 | xml.etree.ElementTree | stdlib | 12/12 | 12/12 | 100% | ✅ Full |
 | zipfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
-| http.client | stdlib | 8/8 | 0/8 | 0% |  |
-| sqlite3 | stdlib | 2/2 | 0/2 | 0% |  |
 
 ## Skipped Tests
 

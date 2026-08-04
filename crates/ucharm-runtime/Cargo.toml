@@ -12,6 +12,7 @@ jiff = { version = "0.2.35", default-features = false, features = ["std", "tz-sy
 libc = "0.2"
 md-5 = { version = "0.11.0", default-features = false }
 regex-lite = "0.1.9"
+rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
 sha1 = { version = "0.11.0", default-features = false }
 sha2 = { version = "0.11", default-features = false }
 ucharm-pocketpy-sys = { path = "../pocketpy-sys" }

@@ -5,9 +5,9 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, and 49 fully compatible stdlib targets are implemented while the remaining native modules migrate from Zig.
+- Runtime: PocketPy; the Rust host, loader, CLI, and 51 fully compatible stdlib targets are implemented while the remaining release cutover work migrates from Zig.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust migration runtime passes 1,658/1,668 checks (99.4%), with 49/52 targeted modules at 100% parity and no partial modules. Refresh with `python3 tests/compat_runner.py --runtime target/debug/pocketpy-ucharm-rs --report`.
+- Compatibility status: the Rust migration runtime passes 1,668/1,668 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm-rs --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -47,8 +47,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## What to Focus on Next
 
-1. Finish the remaining Rust runtime module waves without regressing the 1,668-check baseline.
-2. Run a four-target release candidate and cut CI, packaging, and releases fully to Rust.
+1. Keep the completed Rust runtime surface at the 1,668/1,668 baseline while closing release-cutover gaps.
+2. Run the final four-target release candidate and cut CI, packaging, and releases fully to Rust.
 3. Remove Zig after the Rust release is proven, then continue the product roadmap below.
 
 ## Product Roadmap After the Rust Cutover
@@ -80,13 +80,12 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
     compare selected layout/widget primitives with
     [`Ratatui`](https://ratatui.rs/) rather than replacing μcharm's presentation
     model wholesale;
-  - for `sqlite3`, compare mature
-    [`rusqlite`](https://github.com/rusqlite/rusqlite) with bundled SQLite
-    against the pure-Rust
-    [`Turso Database`](https://github.com/tursodatabase/turso). Recheck Turso's
-    maturity and SQLite-compatibility matrix at spike time, and keep database
-    support optional if its artifact cost conflicts with μcharm's tiny-binary
-    goal;
+  - retain the accepted feature-minimal `rusqlite` plus statically bundled
+    SQLite implementation. The August 2026 Turso spike added 211 lockfile
+    packages and produced a 5,420,336-byte runtime, so the pure-Rust engine was
+    rejected for this release. Recheck Turso's maturity, compatibility, and
+    artifact cost after the cutover; the measurements and decision are in
+    `benchmarks/network_database_wave.md`;
   - inventory focused crates for remaining process, signal, regex, networking,
     archive, and format modules, disabling default features and rejecting a
     dependency when the standard library or current implementation is clearer.
@@ -119,7 +118,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   engineering case study rather than erasing the project history.
 
 ### Phase C: Close feature gap (Vision)
-- Maintain the Vision “nice-to-have” surface; remaining gaps include `toml`/`tomllib`, `http.client`, `xml.etree`, and `sqlite3`.
+- Maintain the Vision “nice-to-have” surface. `tomllib`, `http.client`,
+  `xml.etree`, and the basic `sqlite3` DB-API subset are now present; remaining
+  work includes the separate third-party `toml` package, HTTPS/TLS, YAML, and
+  deeper API coverage where product demand justifies it.
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase D: Developer experience
@@ -136,6 +138,6 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 - Tree-shaking or module selection for smaller binaries.
 - `ucharm dev` (watch mode / hot reload).
-- Networking and formats: `http.client`, `toml`, `yaml`.
+- Networking and formats: HTTPS/TLS, third-party `toml`, and YAML.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
-- Database: `sqlite3` (likely large; consider an optional build flag / separate release flavor).
+- Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

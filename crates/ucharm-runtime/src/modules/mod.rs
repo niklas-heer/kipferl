@@ -28,6 +28,7 @@ mod hash_core;
 mod hashlib;
 mod heapq;
 mod hmac;
+mod http_client;
 mod input;
 mod io;
 mod itertools;
@@ -43,6 +44,7 @@ mod re;
 mod secrets;
 mod shutil;
 mod signal;
+mod sqlite3;
 mod statistics;
 mod statistics_core;
 mod string_methods;
@@ -95,6 +97,7 @@ const MODULES: &[NativeModule] = &[
     hashlib::MODULE,
     heapq::MODULE,
     hmac::MODULE,
+    http_client::MODULE,
     input::MODULE,
     itertools::MODULE,
     json::MODULE,
@@ -105,6 +108,7 @@ const MODULES: &[NativeModule] = &[
     re::MODULE,
     secrets::MODULE,
     signal::MODULE,
+    sqlite3::MODULE,
     statistics::MODULE,
     shutil::MODULE,
     tarfile::MODULE,
