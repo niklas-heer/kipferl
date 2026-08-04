@@ -984,6 +984,18 @@ pub(crate) fn runtime_error(message: &'static CStr) -> bool {
     }
 }
 
+pub(crate) fn os_error(message: &'static CStr) -> bool {
+    // SAFETY: the VM is active during a callback. The format string and message
+    // have static storage and match PocketPy's `%s` vararg contract.
+    unsafe {
+        ffi::py_exception(
+            ffi::py_PredefinedType_tp_OSError as ffi::py_Type,
+            c"%s".as_ptr(),
+            message.as_ptr(),
+        )
+    }
+}
+
 pub(crate) fn value_error(message: &'static CStr) -> bool {
     // SAFETY: the VM is active during a callback. The format string and message
     // have static storage and match PocketPy's `%s` vararg contract.

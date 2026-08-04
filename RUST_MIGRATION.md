@@ -238,14 +238,20 @@ status, stdout, and stderr.
   full in-memory byte/text buffers, stored/deflated ZIP reads, and USTAR reads.
   It completes 106 additional compatibility checks, with CPython differential,
   allocation-stress, invalid-input, and cross-target smoke coverage. The full
-  Rust result is now 1,185/1,668 (71.0%), up from the original 456/1,668.
+  filesystem wave adds `os`, `os.path`, `pathlib`, `glob`, `tempfile`, and
+  `shutil`, including real environment exposure, script `__file__`, recursive
+  path lifecycle and error stress, deterministic CPython path differentials,
+  and release smoke tests on both macOS architectures. Its five fixtures pass
+  109/109 raw checks; the conservative CPython-baselined report gains 100
+  checks. The full Rust result is now 1,285/1,668 (77.0%), up from the original
+  456/1,668, with 35 of 52 targeted modules at full parity.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 817,648 bytes on ARM64 and 900,768
+- The current stripped macOS runtime is 851,888 bytes on ARM64 and 934,784
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  On the latest 400-run warm-start sample, native Rust measured 4.740 ms median
-  and 5.521 ms p95; x86_64 Rust under Rosetta measured 12.435 ms median and
-  17.032 ms p95. The native ARM64 host remains below the 10 ms gate; native
+  On the latest 400-run warm-start sample, native Rust measured 4.298 ms median
+  and 5.241 ms p95; x86_64 Rust under Rosetta measured 11.107 ms median and
+  12.113 ms p95. The native ARM64 host remains below the 10 ms gate; native
   Intel CI remains the authoritative x86_64 execution environment.
 
 ### Phase 0 — Freeze and baseline
@@ -356,14 +362,27 @@ artifacts meet the compatibility, startup, and size gates.
   after the Rust release is proven. Preserve the last Zig tag and migration
   notes for archaeology.
 - Update architecture documentation and contributor guidance.
+- After the Rust release is proven, complete a public documentation and
+  communication pass before treating the migration as old news:
+  - audit the README, website, docs, templates, examples, installation paths,
+    architecture diagrams, and benchmark claims for stale Zig-era content;
+  - add a website blog/migration section covering **why** μcharm moved, **how**
+    the incremental rewrite worked, and **what the outcome was**;
+  - publish reproducible final statistics and polished charts for compatibility
+    progress, migrated surface area, binary size, startup distributions,
+    four-target CI, dependencies, and migration-discovered defects;
+  - link the numbers back to committed reports and benchmarks, preserve the
+    final Zig tag and migration tracker, and report regressions and tradeoffs as
+    explicitly as improvements.
 - Resume roadmap work in this order:
-  1. canonical stub generation and CI drift checking;
-  2. compatibility report and PocketPy patch verification artifacts;
-  3. cross-target build reliability;
-  4. tree-shaking/module selection for size;
-  5. `ucharm dev` watch mode;
-  6. remaining networking, format, concurrency, and database work;
-  7. higher-level TUI features from `vision.md`.
+  1. README/website/docs refresh and the migration retrospective;
+  2. canonical stub generation and CI drift checking;
+  3. compatibility report and PocketPy patch verification artifacts;
+  4. cross-target build reliability;
+  5. tree-shaking/module selection for size;
+  6. `ucharm dev` watch mode;
+  7. remaining networking, format, concurrency, and database work;
+  8. higher-level TUI features from `vision.md`.
 
 ## Suggested PR Sequence
 

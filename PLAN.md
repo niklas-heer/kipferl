@@ -5,9 +5,9 @@ This is the single source of truth for priorities and next steps.
 ## Snapshot
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as tiny, fast binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, and 30 fully compatible stdlib targets are implemented while the remaining native modules migrate from Zig.
+- Runtime: PocketPy; the Rust host, loader, CLI, and 35 fully compatible stdlib targets are implemented while the remaining native modules migrate from Zig.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust migration runtime passes 1,185/1,668 checks (71.0%), with 30/52 targeted modules at 100% parity. Refresh with `python3 tests/compat_runner.py --runtime target/debug/pocketpy-ucharm-rs --report`.
+- Compatibility status: the Rust migration runtime passes 1,285/1,668 checks (77.0%), with 35/52 targeted modules at 100% parity. Refresh with `python3 tests/compat_runner.py --runtime target/debug/pocketpy-ucharm-rs --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -53,15 +53,35 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## Product Roadmap After the Rust Cutover
 
-### Phase A: Close feature gap (Vision)
+### Phase A: Migration documentation and public retrospective
+- Revisit the README, website, and all user/contributor documentation once the
+  Rust release is proven. Remove stale Zig architecture, commands, examples,
+  screenshots, performance claims, and download instructions.
+- Add a migration section to the website and publish a polished retrospective,
+  either as a three-part series or one long-form article with clear sections:
+  1. **Why** — repository-specific maintenance, ownership, ecosystem, and
+     governance reasons, while acknowledging Zig's strengths.
+  2. **How** — the incremental architecture, compatibility gates, FFI safety,
+     differential tests, four-target CI, and release cutover.
+  3. **Outcome** — what improved, what regressed, what remains, and what we
+     would do differently.
+- Finish with reproducible, well-presented statistics and charts: compatibility
+  over time, migrated modules and lines, binary sizes, startup distributions,
+  CI/target coverage, defects found during migration, dependencies, and the
+  final Zig-versus-Rust artifact comparison. Link every headline number to its
+  committed benchmark or compatibility source.
+- Preserve the migration issue, plan, final Zig tag, and major PRs as an
+  engineering case study rather than erasing the project history.
+
+### Phase B: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface; remaining gaps include `toml`/`tomllib`, `http.client`, `xml.etree`, and `sqlite3`.
 - Keep the suite honest by expanding tests when behavior changes.
 
-### Phase B: Developer experience
+### Phase C: Developer experience
 - Decide the canonical stub source (Rust registration metadata or `stubs/`) and wire `scripts/generate_stubs.py` or a CLI command to regenerate them.
 - Update templates and docs to reference the canonical stubs and correct import paths.
 
-### Phase C: Packaging + release hygiene
+### Phase D: Packaging + release hygiene
 - Add a CI step that runs `python3 tests/compat_runner.py --report` and uploads the report as an artifact.
 - Add a CI step that runs `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 - Validate cross-target build support (`ucharm build --targets` and a sample `--target` build).
