@@ -184,21 +184,22 @@ status, stdout, and stderr.
   The reusable Rust TUI core preserves the Zig runtime's byte-oriented width,
   color, border, progress, spinner, and table behavior, including its historical
   keyword-binding quirks. Allocation and exception stress crosses every
-  production Rust callback module, explicit
-  tests enforce the one-owner VM lifecycle, and Linux CI instruments PocketPy C
-  with AddressSanitizer, UndefinedBehaviorSanitizer, and leak detection. The
-  original `_ucharm_rust` proof module has been retired.
-- Phase 5 is in progress: `fnmatch`, `base64`, and `binascii` are now on the
-  Rust runtime. The shared boundary copies PocketPy bytes into owned Rust
-  buffers before allocation and roots exact-size byte results in the VM. The
-  registrar can extend PocketPy's existing `base64` module and declare the
-  `binascii.Error` and `Incomplete` exception aliases without custom setup
-  code. The existing fixtures pass at 55/55, 18/18, and 55/55 respectively,
-  with byte-for-byte Zig/Rust output parity plus native error, size-boundary,
-  CRC, allocation-stress, and cross-target smoke tests. The full Rust
-  compatibility result has risen from 456/1,668 to 572/1,668. `statistics` is
-  the next dependency-light candidate; `copy` requires a broader object-call
-  and attribute-access boundary.
+  production Rust callback module. Explicit tests enforce the one-owner VM
+  lifecycle, and Linux CI instruments PocketPy C with AddressSanitizer,
+  UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
+  proof module has been retired.
+- Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, and `statistics` are
+  now on the Rust runtime. The shared boundary copies PocketPy bytes into owned
+  Rust buffers before allocation, roots exact-size byte and float results, and
+  supports equality with a LIFO-safe snapshot-to-root handoff for retained
+  mode values. The registrar can extend PocketPy's existing `base64` module and
+  declare the `binascii.Error` and `Incomplete` exception aliases without
+  custom setup code. The existing fixtures pass at 55/55, 18/18, 55/55, and
+  28/28 respectively, with byte-for-byte Zig/Rust output parity plus native
+  error, size-boundary, CRC, identity, allocation-stress, and cross-target smoke
+  tests. The full Rust compatibility result has risen from 456/1,668 to
+  600/1,668. `textwrap` is the next dependency-light candidate; `copy` requires
+  a broader object-call and attribute-access boundary.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

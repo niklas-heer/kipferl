@@ -125,6 +125,11 @@ pub(crate) struct Value {
     raw: ffi::py_Ref,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ValueSnapshot {
+    raw: ffi::py_TValue,
+}
+
 impl Value {
     /// # Safety
     ///
@@ -160,6 +165,37 @@ impl Value {
             return Some(unsafe { ffi::py_tofloat(self.raw) });
         }
         None
+    }
+
+    pub fn cast_number(self) -> Result<f64, ()> {
+        let mut output = 0.0;
+        // SAFETY: `self.raw` is initialized and `output` is writable. PocketPy
+        // accepts integers or floats and raises TypeError for other types.
+        if unsafe { ffi::py_castfloat(self.raw, &mut output) } {
+            Ok(output)
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn equals(self, other: Self) -> Result<bool, ()> {
+        // SAFETY: both values remain VM-rooted for the duration of equality,
+        // which may invoke Python code and allocate.
+        match unsafe { ffi::py_equal(self.raw, other.raw) } {
+            -1 => Err(()),
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(()),
+        }
+    }
+
+    pub fn snapshot(self) -> ValueSnapshot {
+        // SAFETY: `self.raw` points to one initialized value. The snapshot is
+        // not a VM root and must not cross an allocating call before being
+        // restored into a `RootFrame`.
+        ValueSnapshot {
+            raw: unsafe { *self.raw },
+        }
     }
 
     pub fn is_none(self) -> bool {
@@ -321,6 +357,25 @@ impl RootFrame {
         root
     }
 
+    pub fn copy(&mut self, value: Value) -> Value {
+        // Copy before pushing because a VM stack growth could otherwise move
+        // the source slot supplied by another temporary root.
+        let copied = unsafe { *value.raw };
+        let root = self.push();
+        // SAFETY: `root.raw` points to writable storage for one value.
+        unsafe { ptr::write(root.raw, copied) };
+        root
+    }
+
+    pub fn restore(&mut self, snapshot: ValueSnapshot) -> Value {
+        let root = self.push();
+        // SAFETY: `root.raw` points to writable storage for one value. The
+        // caller guarantees no allocation occurred while the snapshot was
+        // temporarily unrooted.
+        unsafe { ptr::write(root.raw, snapshot.raw) };
+        root
+    }
+
     pub fn string(&mut self, value: &str) -> Option<Value> {
         let length = c_int::try_from(value.len()).ok()?;
         let root = self.push();
@@ -355,6 +410,13 @@ impl RootFrame {
         let root = self.push();
         // SAFETY: `root` is writable VM stack storage.
         unsafe { ffi::py_newint(root.raw, value) };
+        root
+    }
+
+    pub fn number(&mut self, value: f64) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage.
+        unsafe { ffi::py_newfloat(root.raw, value) };
         root
     }
 
@@ -457,6 +519,12 @@ pub(crate) fn return_bytes(value: &[u8]) -> bool {
     let Some(value) = roots.bytes(value) else {
         return value_error(c"return bytes are too large");
     };
+    return_value(value)
+}
+
+pub(crate) fn return_number(value: f64) -> bool {
+    let mut roots = RootFrame::new();
+    let value = roots.number(value);
     return_value(value)
 }
 
