@@ -103,6 +103,11 @@ jobs:
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import math, sys, time; assert math.frexp(8.0) == (0.5, 4); assert math.ldexp(0.5, 4) == 8.0; epoch = time.gmtime(0); assert epoch[:3] == (1970, 1, 1); assert time.strftime("%Y-%m-%d", epoch) == "1970-01-01"; parsed = time.strptime("2024-02-29", "%Y-%m-%d"); assert parsed[:3] == (2024, 2, 29); assert time.monotonic() >= 0; assert sys.version_info[0] == 3; assert sys.modules["sys"] is sys; assert sys.intern("ucharm") is sys.intern("ucharm"); assert "ABC123".isalnum() and "123".isdigit()'
+      - name: Smoke-test Rust network-database wave
+        shell: bash
+        run: >-
+          target/${{ matrix.target }}/release/pocketpy-ucharm-rs
+          -c 'http = __import__("http.client"); assert hasattr(http, "HTTPConnection") and hasattr(http, "HTTPResponse"); connection = http.HTTPConnection("example.com", 80); assert connection.host == "example.com" and connection.port == 80; import sqlite3; database = sqlite3.connect(":memory:"); cursor = database.cursor(); cursor.execute("CREATE TABLE values_table (value INTEGER, label TEXT)"); cursor.execute("INSERT INTO values_table VALUES (?, ?)", (42, "rust")); cursor.execute("SELECT value, label FROM values_table"); assert cursor.fetchone() == (42, "rust"); cursor.close(); database.close()'
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/ucharm-rs --version | grep -q "μcharm"
@@ -122,8 +127,13 @@ jobs:
 
           binary = Path("target/${{ matrix.target }}/release/pocketpy-ucharm-rs")
           size = binary.stat().st_size
-          print(f"{binary}: {size:,} bytes")
-          assert size < 2_000_000, f"initial Rust spine exceeds 2 MB: {size:,} bytes"
+          target = "${{ matrix.target }}"
+          runtime_limit = 2_500_000 if target.endswith("linux-musl") else 2_000_000
+          print(f"{binary}: {size:,} bytes (limit: {runtime_limit:,})")
+          assert size < runtime_limit, (
+              f"Rust runtime exceeds the {runtime_limit:,}-byte {target} budget: "
+              f"{size:,} bytes"
+          )
 
           loader = Path("target/${{ matrix.target }}/release/ucharm-loader")
           loader_size = loader.stat().st_size

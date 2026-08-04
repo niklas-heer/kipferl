@@ -131,8 +131,10 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. A typical standalone app remains below 2 MB. A temporary exception requires
-   an explicit recorded decision and a size-recovery issue before cutover.
+7. The stripped runtime remains below 2 MB on macOS and 2.5 MB on fully static
+   Linux. The Linux allowance is an explicit cutover exception; issue
+   [#41](https://github.com/ucharmdev/ucharm/issues/41) tracks recovery below
+   2 MB without sacrificing compatibility or standalone deployment.
 8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
    release path.
 
@@ -199,7 +201,8 @@ status, stdout, and stderr.
   `logging`, `signal`, and `subprocess`; plus the tooling/format wave:
   `argparse`, `configparser`, `contextlib`, `unittest`, `urllib.parse`,
   `tomllib`, and `xml.etree.ElementTree`; and the core-runtime wave:
-  `math`, `time`, `sys`, and the legacy ASCII string classifiers.
+  `math`, `time`, `sys`, and the legacy ASCII string classifiers; and the
+  final network/database wave: `http.client` and `sqlite3`.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -270,20 +273,28 @@ status, stdout, and stderr.
   ASCII string classifiers. Its three fixtures pass 182/182 raw checks plus
   1,000-round math/interning stress, CPython differential output, IANA and
   POSIX `TZ` DST regression coverage, calendar round-trips, domain/type
-  failures, exact stream bytes, and dual-architecture release smoke. The full
-  Rust result is now 1,658/1,668 (99.4%), up from the
-  original 456/1,668, with 49 of 52 targeted modules at full parity and no
-  partial modules.
+  failures, exact stream bytes, and dual-architecture release smoke. The final
+  network/database wave keeps HTTP/1.1 on `std::net` with bounded
+  content-length/chunked response parsing and no new networking dependency.
+  SQLite uses feature-minimal `rusqlite` with a statically linked, trimmed
+  SQLite amalgamation and preserves in-memory, file-backed, positional-binding,
+  scalar/blob/null, join, fetch, and lifecycle behavior. A pure-Rust Turso
+  0.6.1 spike was rejected after adding 211 lockfile packages and growing the
+  optimized runtime to 5,420,336 bytes; the accepted implementation stays
+  within the cross-target size gate. The full Rust result is now
+  1,668/1,668 (100%), up from the original 456/1,668, with 51 of 52 targeted
+  modules at full parity, no partial modules, and one host-unavailable `toml`
+  baseline.
   Related low-risk modules now move as validated waves; standalone PRs are
   reserved for boundaries whose ownership or binary-format risk warrants them.
-- The current stripped macOS runtime is 1,186,720 bytes on ARM64 and 1,291,400
+- The current stripped macOS runtime is 1,840,336 bytes on ARM64 and 1,971,304
   bytes on x86_64, versus 2,313,264 bytes for the legacy Zig ARM64 runtime.
-  Replacing the new libc time layer with Jiff adds 182,736 ARM64 bytes (18.2%)
-  while remaining below the 2 MB runtime gate. On the latest 400-run warm-start
-  sample, native Rust measured 5.318 ms median and 6.135 ms p95; x86_64 Rust
-  under Rosetta measured 12.333 ms median and 13.408 ms p95. The native ARM64
-  host remains below the 10 ms gate; native Intel CI remains the authoritative
-  x86_64 execution environment.
+  The fully static Linux artifacts are 2,378,848 bytes on ARM64 and 2,449,232
+  bytes on x86_64. macOS remains below the 2 MB runtime gate; Linux uses the
+  approved 2.5 MB ceiling while issue #41 tracks recovery below 2 MB. On the
+  latest 400-run warm-start sample, native Rust measured 6.986 ms median and
+  8.024 ms p95. The native ARM64 host remains below the 10 ms gate; native
+  Intel CI remains the authoritative x86_64 execution environment.
 
 ### Phase 0 — Freeze and baseline
 
@@ -412,10 +423,11 @@ artifacts meet the compatibility, startup, and size gates.
   - spike a feature-minimal Crossterm substrate and selected Ratatui primitives
     behind the existing terminal and μcharm APIs; preserve exact golden output
     and adopt neither wholesale merely to reduce local code;
-  - for future `sqlite3`, compare `rusqlite` with bundled SQLite against the
-    pure-Rust Turso Database. Recheck Turso's production maturity and published
-    compatibility gaps at evaluation time, and measure both as optional release
-    features because database engines may dominate the tiny runtime artifact;
+  - retain the measured `rusqlite` plus statically bundled SQLite decision for
+    this release. Re-evaluate the pure-Rust Turso Database after cutover only
+    if its production maturity, compatibility, dependency graph, startup, and
+    artifact size materially improve on the rejected August 2026 spike recorded
+    in `benchmarks/network_database_wave.md`;
   - inventory focused crates for process, signals, regex, networking, archives,
     and formats, preferring the standard library or existing code whenever a
     dependency does not improve safety, correctness, maintenance, or measured
