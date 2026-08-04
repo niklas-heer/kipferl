@@ -189,7 +189,8 @@ status, stdout, and stderr.
   UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
   proof module has been retired.
 - Phase 5 is in progress: `fnmatch`, `base64`, `binascii`, `statistics`,
-  `textwrap`, `heapq`, `typing`, `itertools`, and `errno` are now on the Rust runtime.
+  `textwrap`, `heapq`, `typing`, `itertools`, `errno`, and `copy` are now on the
+  Rust runtime.
   The shared boundary copies PocketPy bytes into owned Rust buffers before
   allocation, roots
   exact-size byte and float results, supports equality and ordered comparison,
@@ -199,7 +200,8 @@ status, stdout, and stderr.
   module's unrooted static return storage. The registrar can extend PocketPy's
   existing `base64` module and declare the `binascii.Error` and `Incomplete`
   exception aliases without custom setup code. The existing fixtures pass at
-  55/55, 18/18, 55/55, 28/28, 24/24, 42/42, 43/43, 33/33, and 38/38 respectively,
+  55/55, 18/18, 55/55, 28/28, 24/24, 42/42, 43/43, 33/33, 38/38, and 33/33
+  respectively,
   with byte-for-byte Zig/Rust output parity plus native error, bounds, CRC, identity,
   allocation-stress, and cross-target smoke tests. `typing` adds table-driven
   module initialization plus native type, instance, method, and attribute
@@ -210,9 +212,13 @@ status, stdout, and stderr.
   helpers and restricted iterable inputs. `errno` adds platform-native POSIX
   constants, the reverse `errorcode` mapping, safe multi-value calls into base
   exception initializers, and the ASCII `str.isupper` prerequisite previously
-  supplied by the Zig monolith. The full Rust compatibility result has risen
-  from 456/1,668 to 725/1,668. `copy` is the next candidate and will establish
-  the broader object-call and attribute-access boundary.
+  supplied by the Zig monolith. `copy` adds type-constructor calls, dynamic
+  optional-attribute lookup, rooted recursive container construction, and
+  identity-preserving memoization. It also ports the fixture's narrow
+  `bytearray` prerequisite and repairs the Zig runtime's circular-copy bus error
+  and unbalanced tuple-copy stack. The full Rust compatibility result has risen
+  from 456/1,668 to 758/1,668. `functools` is the next pure-module candidate and
+  will build on the new callable and attribute boundary.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

@@ -87,14 +87,22 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
 }
 
 pub(crate) fn create_type(module: Value, name: &'static CStr) -> ffi::py_Type {
+    create_type_with_destructor(module, name, None)
+}
+
+pub(crate) fn create_type_with_destructor(
+    module: Value,
+    name: &'static CStr,
+    destructor: ffi::py_Dtor,
+) -> ffi::py_Type {
     // SAFETY: `module` is the active module object, `name` has static storage,
-    // and the object base type and null destructor require no custom lifetime.
+    // and the destructor, when present, follows PocketPy's userdata ABI.
     unsafe {
         ffi::py_newtype(
             name.as_ptr(),
             ffi::py_PredefinedType_tp_object as ffi::py_Type,
             module.raw,
-            None,
+            destructor,
         )
     }
 }
@@ -324,6 +332,17 @@ impl Value {
         // SAFETY: `self.raw` is initialized and `value_type` identifies a live
         // type in the active VM.
         unsafe { ffi::py_isinstance(self.raw, value_type) }
+    }
+
+    pub fn value_type(self) -> ffi::py_Type {
+        // SAFETY: `self.raw` points to one initialized PocketPy value.
+        unsafe { ffi::py_typeof(self.raw) }
+    }
+
+    pub fn is_identical(self, other: Self) -> bool {
+        // SAFETY: both values remain alive for the duration of the identity
+        // comparison, which cannot allocate or invoke Python code.
+        unsafe { ffi::py_isidentical(self.raw, other.raw) }
     }
 
     pub fn cast_integer(self) -> Result<i64, ()> {
@@ -580,6 +599,47 @@ pub(crate) fn call(function: Value, arguments: &[Value]) -> bool {
     // SAFETY: `function` and all `count` argument values are initialized. An
     // empty slice is accepted with argc zero; current callers always pass self.
     unsafe { ffi::py_call(&mut function, count, copied.as_mut_ptr()) }
+}
+
+pub(crate) fn call_type(value_type: ffi::py_Type, arguments: &[Value]) -> bool {
+    let Ok(count) = c_int::try_from(arguments.len()) else {
+        return type_error(c"too many native call arguments");
+    };
+    let mut copied = arguments
+        .iter()
+        .map(|value| unsafe { *value.raw })
+        .collect::<Vec<_>>();
+    // SAFETY: `value_type` identifies a live type and the local contiguous
+    // argument array contains `count` initialized values.
+    unsafe { ffi::py_tpcall(value_type, count, copied.as_mut_ptr()) }
+}
+
+pub(crate) fn optional_attribute(
+    roots: &mut RootFrame,
+    object: Value,
+    name: &'static CStr,
+) -> Result<Option<Value>, ()> {
+    // SAFETY: `object` is rooted and `name` has static storage. A successful
+    // lookup initializes the return register, which is copied immediately.
+    if unsafe { ffi::py_getattr(object.raw, ffi::py_name(name.as_ptr())) } {
+        return Ok(Some(roots.copy_returned()));
+    }
+    // Missing optional hooks are expected. Preserve every other exception,
+    // including failures raised by a user-defined `__getattr__`.
+    if unsafe { ffi::py_matchexc(ffi::py_PredefinedType_tp_AttributeError as ffi::py_Type) } {
+        // SAFETY: the matched AttributeError is intentionally discarded and
+        // no stack unwinding point is required for `py_getattr`.
+        unsafe { ffi::py_clearexc(ptr::null_mut()) };
+        Ok(None)
+    } else {
+        Err(())
+    }
+}
+
+pub(crate) fn clear_exception() {
+    // SAFETY: callers use this only to implement an explicitly documented
+    // fallback after a failed PocketPy operation.
+    unsafe { ffi::py_clearexc(ptr::null_mut()) };
 }
 
 /// A LIFO frame for PocketPy temporary stack roots.
