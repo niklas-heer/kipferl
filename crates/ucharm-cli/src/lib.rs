@@ -1,3 +1,4 @@
+mod build_command;
 mod project;
 mod run_command;
 
@@ -49,7 +50,8 @@ pub fn run(
         "new" => run_new(&arguments[1..], current_directory, stdout, stderr),
         "init" => run_init(&arguments[1..], current_directory, stdout, stderr),
         "run" => run_command::execute(&arguments[1..], current_directory, stdout, stderr),
-        "build" | "test" => {
+        "build" => build_command::execute(&arguments[1..], current_directory, stdout, stderr),
+        "test" => {
             writeln!(
                 stderr,
                 "{RED}Error:{RESET} Command '{BOLD}{command}{RESET}' has not migrated to Rust yet"
@@ -307,7 +309,9 @@ fn init_help() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{init_help, main_help, new_help, project::sanitize_name, run_command};
+    use super::{
+        build_command, init_help, main_help, new_help, project::sanitize_name, run_command,
+    };
 
     #[test]
     fn help_text_matches_the_zig_cli_snapshots() {
@@ -401,6 +405,35 @@ mod tests {
                 "    ucharm run app.py\n",
                 "    ucharm run app.py --verbose\n",
                 "    ucharm run examples/demo.py\n",
+            )
+        );
+        assert_eq!(
+            build_command::help(),
+            concat!(
+                "\x1b[1mμcharm build\x1b[0m - Build standalone binaries from Python scripts\n\n",
+                "\x1b[2mUSAGE:\x1b[0m\n",
+                "    ucharm build <script.py> -o <output> [OPTIONS]\n\n",
+                "\x1b[2mOPTIONS:\x1b[0m\n",
+                "    -o, --output <path>    Output file path (required)\n",
+                "    -m, --mode <mode>      Build mode: universal, executable, single\n",
+                "                           (default: universal)\n",
+                "    -t, --target <target>  Target platform for cross-compilation\n",
+                "                           (default: current platform)\n",
+                "    --targets              List available targets\n",
+                "    -h, --help             Show this help\n\n",
+                "\x1b[2mTARGETS:\x1b[0m\n",
+                "    macos-aarch64          macOS on Apple Silicon\n",
+                "    macos-x86_64           macOS on Intel\n",
+                "    linux-x86_64           Linux on x86_64\n",
+                "    linux-aarch64          Linux on ARM64\n\n",
+                "\x1b[2mMODES:\x1b[0m\n",
+                "    universal              Standalone binary (~900KB, no dependencies)\n",
+                "    executable             Shell wrapper (requires pocketpy-ucharm)\n",
+                "    single                 Transformed .py file (requires pocketpy-ucharm)\n\n",
+                "\x1b[2mEXAMPLES:\x1b[0m\n",
+                "    ucharm build app.py -o app\n",
+                "    ucharm build app.py -o app-linux --target linux-x86_64\n",
+                "    ucharm build app.py -o app.py --mode single\n",
             )
         );
     }

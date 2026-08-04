@@ -59,6 +59,23 @@ const EMBEDDED_RUNTIME: &[u8] = &[];
 )))]
 const EMBEDDED_RUNTIME_KEY: u64 = 0;
 
+pub(crate) fn embedded_runtime() -> &'static [u8] {
+    EMBEDDED_RUNTIME
+}
+
+pub(crate) fn embedded_runtime_target() -> &'static str {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    return "macos-aarch64";
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    return "macos-x86_64";
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    return "linux-aarch64";
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    return "linux-x86_64";
+    #[allow(unreachable_code)]
+    "unsupported"
+}
+
 pub fn execute(
     arguments: &[String],
     current_directory: &Path,
