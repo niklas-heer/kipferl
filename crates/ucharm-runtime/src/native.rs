@@ -1,4 +1,4 @@
-use std::ffi::{CStr, c_int};
+use std::ffi::{CStr, c_int, c_void};
 use std::ptr;
 use std::slice;
 
@@ -75,6 +75,14 @@ pub(crate) struct Value {
 }
 
 impl Value {
+    /// # Safety
+    ///
+    /// `raw` must point to an initialized PocketPy value that remains alive
+    /// for every use of the returned wrapper.
+    pub unsafe fn from_raw(raw: ffi::py_Ref) -> Self {
+        Self { raw }
+    }
+
     pub fn integer(self) -> Option<i64> {
         if !self.is_type(ffi::py_PredefinedType_tp_int) {
             return None;
@@ -106,11 +114,192 @@ impl Value {
         unsafe { ffi::py_tobool(self.raw) }
     }
 
-    fn is_type(self, value_type: ffi::py_PredefinedType) -> bool {
+    pub fn is_type(self, value_type: ffi::py_PredefinedType) -> bool {
         // SAFETY: `self.raw` points to an initialized callback argument, and
         // predefined type identifiers fit PocketPy's `py_Type` representation.
         unsafe { ffi::py_istype(self.raw, value_type as ffi::py_Type) }
     }
+
+    pub fn is_type_object(self, value_type: ffi::py_PredefinedType) -> bool {
+        // SAFETY: `self.raw` is initialized and `py_tpobject` returns a
+        // process-global type object for a predefined type.
+        unsafe { ffi::py_isidentical(self.raw, ffi::py_tpobject(value_type as ffi::py_Type)) }
+    }
+
+    pub fn list_len(self) -> Option<usize> {
+        if !self.is_type(ffi::py_PredefinedType_tp_list) {
+            return None;
+        }
+        // SAFETY: the exact type check above establishes a list.
+        usize::try_from(unsafe { ffi::py_list_len(self.raw) }).ok()
+    }
+
+    pub fn list_item(self, index: usize) -> Option<Self> {
+        let length = self.list_len()?;
+        if index >= length {
+            return None;
+        }
+        let index = c_int::try_from(index).ok()?;
+        // SAFETY: the exact type and bounds checks establish a valid item.
+        Some(Self {
+            raw: unsafe { ffi::py_list_getitem(self.raw, index) },
+        })
+    }
+
+    pub fn list_append(self, value: Self) {
+        debug_assert!(self.is_type(ffi::py_PredefinedType_tp_list));
+        // SAFETY: `self` is a list and both values remain VM-rooted for the
+        // duration of the operation.
+        unsafe { ffi::py_list_append(self.raw, value.raw) };
+    }
+
+    pub fn tuple_len(self) -> Option<usize> {
+        if !self.is_type(ffi::py_PredefinedType_tp_tuple) {
+            return None;
+        }
+        // SAFETY: the exact type check above establishes a tuple.
+        usize::try_from(unsafe { ffi::py_tuple_len(self.raw) }).ok()
+    }
+
+    pub fn tuple_item(self, index: usize) -> Option<Self> {
+        let length = self.tuple_len()?;
+        if index >= length {
+            return None;
+        }
+        let index = c_int::try_from(index).ok()?;
+        // SAFETY: the exact type and bounds checks establish a valid item.
+        Some(Self {
+            raw: unsafe { ffi::py_tuple_getitem(self.raw, index) },
+        })
+    }
+
+    pub fn dict_set(self, key: Self, value: Self) -> bool {
+        debug_assert!(self.is_type(ffi::py_PredefinedType_tp_dict));
+        // SAFETY: `self` is a dictionary and all values remain VM-rooted for
+        // the duration of the operation.
+        unsafe { ffi::py_dict_setitem(self.raw, key.raw, value.raw) }
+    }
+}
+
+/// A LIFO frame for PocketPy temporary stack roots.
+///
+/// Values created by native callbacks must live on PocketPy's stack—not only
+/// on Rust's stack—while later VM calls may allocate. This frame owns those
+/// roots and releases them in one place when the callback finishes.
+pub(crate) struct RootFrame {
+    count: usize,
+}
+
+impl RootFrame {
+    pub fn new() -> Self {
+        Self { count: 0 }
+    }
+
+    fn push(&mut self) -> Value {
+        // SAFETY: native callbacks run with the VM active. Each successful
+        // push is paired with one `py_pop` in this frame's `Drop`.
+        let raw = unsafe { ffi::py_pushtmp() };
+        self.count += 1;
+        Value { raw }
+    }
+
+    pub fn copy_returned(&mut self) -> Value {
+        // Copy the return register before any other PocketPy call can replace
+        // it. The copied value is then installed in a VM-visible root.
+        let returned = unsafe { *ffi::py_retval() };
+        let root = self.push();
+        // SAFETY: `root.raw` points to writable storage for one value.
+        unsafe { ptr::write(root.raw, returned) };
+        root
+    }
+
+    pub fn string(&mut self, value: &str) -> Option<Value> {
+        let length = c_int::try_from(value.len()).ok()?;
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage and PocketPy reserves
+        // exactly `length` bytes plus its trailing NUL.
+        let destination = unsafe { ffi::py_newstrn(root.raw, length) };
+        if !value.is_empty() {
+            // SAFETY: both buffers are valid for `value.len()` bytes and do
+            // not overlap.
+            unsafe {
+                ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len())
+            };
+        }
+        Some(root)
+    }
+
+    pub fn integer(&mut self, value: i64) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage.
+        unsafe { ffi::py_newint(root.raw, value) };
+        root
+    }
+
+    pub fn boolean(&mut self, value: bool) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage.
+        unsafe { ffi::py_newbool(root.raw, value) };
+        root
+    }
+
+    pub fn none(&mut self) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage.
+        unsafe { ffi::py_newnone(root.raw) };
+        root
+    }
+
+    pub fn list(&mut self) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage.
+        unsafe { ffi::py_newlist(root.raw) };
+        root
+    }
+
+    pub fn dict(&mut self) -> Value {
+        let root = self.push();
+        // SAFETY: `root` is writable VM stack storage.
+        unsafe { ffi::py_newdict(root.raw) };
+        root
+    }
+
+    pub fn dict_get(&mut self, dict: Value, key: Value) -> Result<Option<Value>, ()> {
+        debug_assert!(dict.is_type(ffi::py_PredefinedType_tp_dict));
+        // SAFETY: `dict` and `key` remain rooted throughout the operation.
+        match unsafe { ffi::py_dict_getitem(dict.raw, key.raw) } {
+            -1 => Err(()),
+            0 => Ok(None),
+            1 => Ok(Some(self.copy_returned())),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Drop for RootFrame {
+    fn drop(&mut self) {
+        for _ in 0..self.count {
+            // SAFETY: `count` exactly tracks roots pushed by this frame and
+            // frames are dropped in lexical LIFO order.
+            unsafe { ffi::py_pop() };
+        }
+    }
+}
+
+pub(crate) type DictCallback = unsafe extern "C" fn(ffi::py_Ref, ffi::py_Ref, *mut c_void) -> bool;
+
+pub(crate) fn dict_apply(dict: Value, callback: DictCallback, context: *mut c_void) -> bool {
+    debug_assert!(dict.is_type(ffi::py_PredefinedType_tp_dict));
+    // SAFETY: `dict` remains rooted for the call and `context` is supplied by
+    // the caller with a lifetime covering the synchronous traversal.
+    unsafe { ffi::py_dict_apply(dict.raw, Some(callback), context) }
+}
+
+pub(crate) fn return_value(value: Value) -> bool {
+    // SAFETY: the value and return register are initialized storage for one
+    // `py_TValue`; `ptr::copy` permits overlap.
+    unsafe { ptr::copy(value.raw, ffi::py_retval(), 1) };
+    true
 }
 
 pub(crate) fn return_string(value: &str) -> bool {
@@ -134,6 +323,18 @@ pub(crate) fn type_error(message: &'static CStr) -> bool {
     unsafe {
         ffi::py_exception(
             ffi::py_PredefinedType_tp_TypeError as ffi::py_Type,
+            c"%s".as_ptr(),
+            message.as_ptr(),
+        )
+    }
+}
+
+pub(crate) fn runtime_error(message: &'static CStr) -> bool {
+    // SAFETY: the VM is active during a callback. The format string and message
+    // have static storage and match PocketPy's `%s` vararg contract.
+    unsafe {
+        ffi::py_exception(
+            ffi::py_PredefinedType_tp_RuntimeError as ffi::py_Type,
             c"%s".as_ptr(),
             message.as_ptr(),
         )
