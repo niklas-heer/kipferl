@@ -1,0 +1,92 @@
+use std::process::{Command, Output};
+
+#[test]
+fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
+    let output = run(
+        concat!(
+            "import ansi, args, charm, input, term\n",
+            "spec = {\n",
+            "    '--name': str,\n",
+            "    '--count': (int, 0),\n",
+            "    '--verbose': bool,\n",
+            "    '-n': '--name',\n",
+            "}\n",
+            "retained = []\n",
+            "for i in range(4000):\n",
+            "    parsed = args.parse(spec)\n",
+            "    assert parsed['name'] == 'alice'\n",
+            "    assert parsed['count'] == 42\n",
+            "    assert parsed['verbose'] is True\n",
+            "    assert parsed['_'] == ['tail']\n",
+            "    retained.append(parsed)\n",
+            "    if len(retained) == 32:\n",
+            "        for value in retained:\n",
+            "            assert value['name'] == 'alice'\n",
+            "            assert value['count'] == 42\n",
+            "        retained = []\n",
+            "    styled = charm.style('界', fg='#abc', bold=True)\n",
+            "    assert styled == '\\x1b[1;38;2;170;187;204m界\\x1b[0m'\n",
+            "    assert charm.visible_len(styled) == 2\n",
+            "    expected = '\\x1b[38;2;' + str(i % 256) + ';' + str((i + 1) % 256) + ';' + str((i + 2) % 256) + 'm'\n",
+            "    assert ansi.rgb(i, i + 1, i + 2) == expected\n",
+            "    assert input.select('', []) is None\n",
+            "    assert input.multiselect('', []) == []\n",
+            "    assert len(term.size()) == 2\n",
+            "    caught = False\n",
+            "    try:\n",
+            "        args.get('bad index')\n",
+            "    except TypeError:\n",
+            "        caught = True\n",
+            "    assert caught\n",
+            "assert len(retained) == 0",
+        ),
+        &["--name=alice", "--count", "42", "--verbose", "tail"],
+    );
+
+    assert!(output.status.success(), "{}", diagnostic(&output));
+    assert_eq!(text(&output.stdout), "");
+    assert_eq!(text(&output.stderr), "");
+}
+
+#[test]
+fn repeatedly_initializes_executes_and_finalizes_the_runtime_process() {
+    for cycle in 0..24 {
+        let output = run(
+            concat!(
+                "import args, charm\n",
+                "for i in range(100):\n",
+                "    assert args.parse({'--value': (int, 7)}) == {'_': [], 'value': 9}\n",
+                "    assert charm.spinner_frame(i) == charm.spinner_frame(i + 10)",
+            ),
+            &["--value=9"],
+        );
+        assert!(
+            output.status.success(),
+            "runtime cycle {cycle} failed:\n{}",
+            diagnostic(&output)
+        );
+        assert_eq!(text(&output.stdout), "");
+        assert_eq!(text(&output.stderr), "");
+    }
+}
+
+fn run(source: &str, arguments: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pocketpy-ucharm-rs"))
+        .args(["-c", source])
+        .args(arguments)
+        .output()
+        .expect("run Rust PocketPy runtime")
+}
+
+fn text(output: &impl AsRef<[u8]>) -> String {
+    String::from_utf8_lossy(output.as_ref()).into_owned()
+}
+
+fn diagnostic(output: &Output) -> String {
+    format!(
+        "status: {}\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        text(&output.stdout),
+        text(&output.stderr)
+    )
+}
