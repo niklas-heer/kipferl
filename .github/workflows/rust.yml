@@ -43,12 +43,20 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release -p ucharm-runtime --target ${{ matrix.target }}
+          cargo build --release --workspace --target ${{ matrix.target }}
       - name: Smoke-test Rust-hosted runtime
         shell: bash
         run: >-
           target/${{ matrix.target }}/release/pocketpy-ucharm-rs
           -c 'import _ucharm_rust; assert _ucharm_rust.answer() == 42'
+      - name: Smoke-test bare loader diagnostics
+        shell: bash
+        run: |
+          if target/${{ matrix.target }}/release/ucharm-loader >loader.out 2>&1; then
+            echo "bare loader unexpectedly succeeded"
+            exit 1
+          fi
+          grep -q "invalid universal trailer" loader.out
       - name: Enforce initial runtime size budget
         shell: bash
         run: |
@@ -59,4 +67,9 @@ jobs:
           size = binary.stat().st_size
           print(f"{binary}: {size:,} bytes")
           assert size < 2_000_000, f"initial Rust spine exceeds 2 MB: {size:,} bytes"
+
+          loader = Path("target/${{ matrix.target }}/release/ucharm-loader")
+          loader_size = loader.stat().st_size
+          print(f"{loader}: {loader_size:,} bytes")
+          assert loader_size < 1_000_000, f"Rust loader exceeds 1 MB: {loader_size:,} bytes"
           PY

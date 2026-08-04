@@ -109,4 +109,14 @@ pub fn build(b: *std.Build) void {
     });
     const run_trailer_tests = b.addRunArtifact(trailer_tests);
     test_step.dependOn(&run_trailer_tests.step);
+
+    const executor_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/executor.zig"),
+            .target = host_target,
+            .optimize = optimize,
+        }),
+    });
+    const run_executor_tests = b.addRunArtifact(executor_tests);
+    test_step.dependOn(&run_executor_tests.step);
 }
