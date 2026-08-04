@@ -134,8 +134,16 @@ unsafe extern "C" {
     pub fn py_castfloat(arg1: py_Ref, out: *mut py_f64) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " Cast a `int` object in python to `int64_t`."]
+    pub fn py_castint(arg1: py_Ref, out: *mut py_i64) -> bool;
+}
+unsafe extern "C" {
     #[doc = " Convert a `bool` object in python to `bool`."]
     pub fn py_tobool(arg1: py_Ref) -> bool;
+}
+unsafe extern "C" {
+    #[doc = " Convert a user-defined object to its userdata."]
+    pub fn py_touserdata(arg1: py_Ref) -> *mut ::core::ffi::c_void;
 }
 unsafe extern "C" {
     #[doc = " Convert a `str` object in python to char array."]
@@ -159,6 +167,10 @@ unsafe extern "C" {
     pub fn py_istype(arg1: py_Ref, arg2: py_Type) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " Check if the object is an instance of the given type."]
+    pub fn py_isinstance(obj: py_Ref, type_: py_Type) -> bool;
+}
+unsafe extern "C" {
     #[doc = " Get the type object of the given type."]
     pub fn py_tpobject(type_: py_Type) -> py_GlobalRef;
 }
@@ -179,12 +191,28 @@ unsafe extern "C" {
     pub fn py_setdict(self_: py_Ref, name: py_Name, val: py_Ref);
 }
 unsafe extern "C" {
+    #[doc = " Get the i-th slot of the object.\n The object must have slots and `i` must be in valid range."]
+    pub fn py_getslot(self_: py_Ref, i: ::core::ffi::c_int) -> py_ObjectRef;
+}
+unsafe extern "C" {
+    #[doc = " Set the i-th slot of the object."]
+    pub fn py_setslot(self_: py_Ref, i: ::core::ffi::c_int, val: py_Ref);
+}
+unsafe extern "C" {
+    #[doc = " Get the i-th object from the top of the stack.\n `i` should be negative, e.g. (-1) means TOS."]
+    pub fn py_peek(i: ::core::ffi::c_int) -> py_StackRef;
+}
+unsafe extern "C" {
     #[doc = " Pop an object from the stack."]
     pub fn py_pop();
 }
 unsafe extern "C" {
     #[doc = " Get a temporary variable from the stack."]
     pub fn py_pushtmp() -> py_StackRef;
+}
+unsafe extern "C" {
+    #[doc = " Call a function.\n It prepares the stack and then performs a `vectorcall(argc, 0, false)`.\n The result will be set to `py_retval()`.\n The stack remains unchanged if successful."]
+    pub fn py_call(f: py_Ref, argc: ::core::ffi::c_int, argv: py_Ref) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Python equivalent to `lhs is rhs`."]

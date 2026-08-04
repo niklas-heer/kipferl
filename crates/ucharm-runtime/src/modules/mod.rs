@@ -10,6 +10,7 @@ mod fnmatch;
 mod fnmatch_core;
 mod heapq;
 mod input;
+mod itertools;
 mod statistics;
 mod statistics_core;
 mod term;
@@ -29,6 +30,7 @@ const MODULES: &[NativeModule] = &[
     fnmatch::MODULE,
     heapq::MODULE,
     input::MODULE,
+    itertools::MODULE,
     statistics::MODULE,
     term::MODULE,
     textwrap::MODULE,
