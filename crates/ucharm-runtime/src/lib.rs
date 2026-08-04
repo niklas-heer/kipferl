@@ -1,3 +1,6 @@
+mod modules;
+mod native;
+
 use std::error::Error;
 use std::ffi::{CStr, CString, NulError, c_char};
 use std::fmt;
@@ -88,6 +91,7 @@ impl Vm {
                     _not_send_or_sync: PhantomData,
                 };
                 vm.register_probe_module();
+                modules::register_all();
                 Ok(vm)
             }
             Err(VM_ACTIVE) => Err(InitializeError::AlreadyActive),
@@ -176,7 +180,13 @@ mod tests {
         let arguments = [CString::new("-c").expect("valid C string")];
         vm.set_argv(&arguments);
         vm.execute_str(
-            "import _ucharm_rust, sys\nassert _ucharm_rust.answer() == 42\nassert sys.argv == ['-c']",
+            "import _ucharm_rust, ansi, sys\n\
+assert _ucharm_rust.answer() == 42\n\
+assert sys.argv == ['-c']\n\
+assert ansi.fg('red') == '\\x1b[31m'\n\
+assert ansi.bg('#f50') == '\\x1b[48;2;255;85;0m'\n\
+assert ansi.rgb(1, 2, 3, True) == '\\x1b[48;2;1;2;3m'\n\
+assert ansi.strikethrough() == '\\x1b[9m'",
             "<rust-test>",
         )
         .expect("execute Python");
