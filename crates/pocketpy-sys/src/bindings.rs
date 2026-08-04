@@ -11,6 +11,8 @@ pub type py_Name = *mut py_OpaqueName;
 pub type py_Type = i16;
 #[doc = " A 64-bit integer type. Corresponds to `int` in python."]
 pub type py_i64 = i64;
+#[doc = " A 64-bit floating-point type. Corresponds to `float` in python."]
+pub type py_f64 = f64;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct py_TValue {
@@ -101,6 +103,10 @@ unsafe extern "C" {
     pub fn py_toint(arg1: py_Ref) -> py_i64;
 }
 unsafe extern "C" {
+    #[doc = " Convert a `float` object in python to `double`."]
+    pub fn py_tofloat(arg1: py_Ref) -> py_f64;
+}
+unsafe extern "C" {
     #[doc = " Convert a `bool` object in python to `bool`."]
     pub fn py_tobool(arg1: py_Ref) -> bool;
 }
@@ -123,6 +129,10 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Get an item from the object's `__dict__`.\n Return `NULL` if not found."]
     pub fn py_getdict(self_: py_Ref, name: py_Name) -> py_ItemRef;
+}
+unsafe extern "C" {
+    #[doc = " Set an item to the object's `__dict__`."]
+    pub fn py_setdict(self_: py_Ref, name: py_Name, val: py_Ref);
 }
 unsafe extern "C" {
     #[doc = " Pop an object from the stack."]
