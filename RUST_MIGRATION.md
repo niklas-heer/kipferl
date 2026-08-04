@@ -149,6 +149,9 @@ status, stdout, and stderr.
 - Phase 1 is in progress: the Cargo workspace builds vendored PocketPy through
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
+- Phase 2 is in progress: `ucharm-format` encodes and decodes the exact
+  `MCHARM01` wire format, validates payload ranges, and shares byte-level golden
+  vectors with the Zig loader tests.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.
