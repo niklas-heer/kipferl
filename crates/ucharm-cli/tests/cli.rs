@@ -282,7 +282,28 @@ fn init_installs_stubs_and_ai_files_without_overwriting_instructions() {
     );
 
     let stubs = temporary.path.join(".ucharm/stubs");
-    assert_eq!(fs::read_dir(stubs).expect("read stubs").count(), 24);
+    let canonical = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../stubs");
+    let mut installed_names = fs::read_dir(&stubs)
+        .expect("read installed stubs")
+        .map(|entry| entry.expect("read installed stub entry").file_name())
+        .collect::<Vec<_>>();
+    let mut canonical_names = fs::read_dir(&canonical)
+        .expect("read canonical stubs")
+        .filter_map(|entry| {
+            let entry = entry.expect("read canonical stub entry");
+            (entry.path().extension().and_then(|value| value.to_str()) == Some("pyi"))
+                .then(|| entry.file_name())
+        })
+        .collect::<Vec<_>>();
+    installed_names.sort();
+    canonical_names.sort();
+    assert_eq!(installed_names, canonical_names);
+    for name in canonical_names {
+        assert_eq!(
+            fs::read(stubs.join(&name)).expect("read installed stub"),
+            fs::read(canonical.join(name)).expect("read canonical stub")
+        );
+    }
     assert!(temporary.path.join("pyrightconfig.json").is_file());
     assert!(temporary.path.join("AGENTS.md").is_file());
     assert!(temporary.path.join("CLAUDE.md").is_file());

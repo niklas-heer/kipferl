@@ -1,457 +1,228 @@
 #!/usr/bin/env python3
-"""
-Generate Python type stubs (.pyi) from runtime legacy C module source files.
+"""Generate and validate μcharm's canonical Python stub manifest.
 
-Note: μcharm's production runtime modules are implemented in Rust. This script
-only supports the historical C declaration format; if no matching legacy
-sources exist, it emits no stubs and the checked-in stubs must be maintained
-from the Rust API surface.
-
-Parses:
-- Function signatures from mp_arg_t allowed_args[] arrays
-- Docstrings from structured comments:
-    /// @brief Short description
-    /// @param name Description of parameter
-    /// @return Description of return value
-- Simple functions from MPY_FUNC_* macros
-- Signature hints from // module.func(args) -> type comments
+The hand-authored ``stubs/*.pyi`` files are the single source of truth. This
+script verifies that every stub names a registered Rust runtime module, then
+generates the small Rust manifest that embeds every canonical stub in the CLI.
+It can also copy the canonical set into another directory for tools or
+packaging workflows.
 
 Usage:
-    python scripts/generate_stubs.py [--output stubs/]
+    python3 scripts/generate_stubs.py
+    python3 scripts/generate_stubs.py --check
+    python3 scripts/generate_stubs.py --output /tmp/ucharm-stubs
+    python3 scripts/generate_stubs.py --check --output /tmp/ucharm-stubs
 """
 
-import os
+from __future__ import annotations
+
+import argparse
+import ast
+import difflib
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
-@dataclass
-class Argument:
-    name: str
-    type: str
-    required: bool = False
-    default: Optional[str] = None
-    doc: str = ""
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CANONICAL_DIRECTORY = PROJECT_ROOT / "stubs"
+RUST_MANIFEST = PROJECT_ROOT / "crates/ucharm-cli/src/generated_stubs.rs"
+RUNTIME_REGISTRY = PROJECT_ROOT / "crates/ucharm-runtime/src/modules/mod.rs"
+MODULE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-@dataclass
-class Function:
-    name: str
-    args: list[Argument] = field(default_factory=list)
-    returns: str = "None"
-    doc: str = ""
-    brief: str = ""
-    is_method: bool = False
+@dataclass(frozen=True)
+class Stub:
+    filename: str
+    content: str
 
 
-@dataclass
-class Constant:
-    name: str
-    type: str
-    value: Optional[str] = None
-    doc: str = ""
+class StubError(ValueError):
+    """Raised when the canonical stub set is invalid."""
 
 
-@dataclass
-class Module:
-    name: str
-    doc: str = ""
-    functions: list[Function] = field(default_factory=list)
-    constants: list[Constant] = field(default_factory=list)
+def load_stubs(directory: Path = CANONICAL_DIRECTORY) -> tuple[Stub, ...]:
+    """Load and validate the canonical stubs in deterministic order."""
+    if not directory.is_dir():
+        raise StubError(f"stub directory does not exist: {directory}")
+
+    stubs = []
+    for path in sorted(directory.glob("*.pyi"), key=lambda item: item.name):
+        if not MODULE_NAME.fullmatch(path.stem):
+            raise StubError(f"invalid Python module filename: {path.name}")
+
+        content = path.read_text(encoding="utf-8")
+        if not content.endswith("\n"):
+            raise StubError(f"{path.name} must end with a newline")
+        try:
+            ast.parse(content, filename=str(path))
+        except SyntaxError as error:
+            raise StubError(f"invalid Python syntax in {path.name}: {error}") from error
+        stubs.append(Stub(path.name, content))
+
+    if not stubs:
+        raise StubError(f"no .pyi files found in {directory}")
+    return tuple(stubs)
 
 
-def parse_mp_arg_type(type_str: str) -> tuple[str, bool, Optional[str]]:
-    """Parse MP_ARG_* type to Python type, required flag, and default."""
-    required = "MP_ARG_REQUIRED" in type_str
+def load_registered_modules(registry: Path = RUNTIME_REGISTRY) -> frozenset[str]:
+    """Read the public module names from the Rust runtime registry."""
+    content = registry.read_text(encoding="utf-8")
+    match = re.search(r"const MODULES:.*?=\s*&\[(.*?)\];", content, re.DOTALL)
+    if match is None:
+        raise StubError(f"could not find the runtime module registry in {registry}")
 
-    if "MP_ARG_BOOL" in type_str:
-        py_type = "bool"
-        default = "False" if not required else None
-    elif "MP_ARG_INT" in type_str:
-        py_type = "int"
-        default = "0" if not required else None
-    elif "MP_ARG_OBJ" in type_str:
-        py_type = "Optional[str]"  # Most OBJ args are strings or None
-        default = "None" if not required else None
-    else:
-        py_type = "Any"
-        default = None
-
-    return py_type, required, default
-
-
-def parse_allowed_args(content: str, func_name: str) -> list[Argument]:
-    """Parse mp_arg_t allowed_args[] array for a function."""
-    # Find the function and its allowed_args
-    pattern = rf"{func_name}\s*\([^)]*\)\s*\{{\s*static\s+const\s+mp_arg_t\s+allowed_args\[\]\s*=\s*\{{([^;]+)\}};"
-    match = re.search(pattern, content, re.DOTALL)
-
-    if not match:
-        return []
-
-    args_block = match.group(1)
-    args = []
-
-    # Parse each argument: { MP_QSTR_name, MP_ARG_TYPE, {.u_xxx = default} }
-    arg_pattern = r"\{\s*MP_QSTR_(\w+)\s*,\s*([^,]+)\s*,\s*\{[^}]*\}\s*\}"
-
-    for m in re.finditer(arg_pattern, args_block):
-        name = m.group(1)
-        type_flags = m.group(2)
-        py_type, required, default = parse_mp_arg_type(type_flags)
-
-        # Adjust type based on common patterns
-        if name in ("fg", "bg", "color", "border_color"):
-            py_type = "Optional[str]"
-        elif name in ("text", "content", "message", "msg", "title", "label", "prompt"):
-            py_type = "str" if required else "Optional[str]"
-        elif name in ("width", "height", "padding", "current", "total", "index"):
-            py_type = "int"
-        elif name in ("bold", "dim", "italic", "underline", "strikethrough"):
-            py_type = "bool"
-        elif name == "border":
-            py_type = "str"  # Border style name
-        elif name == "options":
-            py_type = "list[str]"
-        elif name == "default":
-            py_type = "Optional[Any]"
-
-        args.append(
-            Argument(name=name, type=py_type, required=required, default=default)
-        )
-
-    return args
-
-
-def parse_function_comment(
-    content: str, func_name: str, module_name: str
-) -> tuple[str, str, str]:
-    """Extract signature hint, docstring and return type from comment above function.
-
-    Looks for patterns like:
-        // ============================================================================
-        // module.func(args) -> return_type
-        // Brief description of the function.
-        // @param name Description of parameter
-        // @return Description of return value
-        // ============================================================================
-
-    Returns: (brief, doc, returns)
-    """
-    # Find the comment block before this function
-    # Allow any amount of whitespace and additional comment lines between the doc block and function
-    func_pattern = rf"((?://[^\n]*\n)+)(?:\s*(?://[^\n]*\n)*\s*)?(?:static\s+)?mp_obj_t\s+{func_name}"
-    match = re.search(func_pattern, content)
-
-    brief = ""
-    doc = ""
-    returns = "None"
-
-    if match:
-        comment_block = match.group(1)
-
-        # Extract signature line: // module.func(...) -> type
-        sig_match = re.search(
-            r"//\s*\w+\.(\w+)\(([^)]*)\)(?:\s*->\s*(\w+))?", comment_block
-        )
-        if sig_match:
-            returns = sig_match.group(3) or "None"
-
-        # Extract brief description (first non-signature, non-separator comment line)
-        for line in comment_block.split("\n"):
-            line = line.strip()
-            if line.startswith("//"):
-                text = line[2:].strip()
-                # Skip separator lines and signature lines
-                if (
-                    text.startswith("=")
-                    or text.startswith(module_name + ".")
-                    or text.startswith("@")
-                ):
-                    continue
-                if text and not text.startswith("Using "):  # Skip implementation notes
-                    brief = text
-                    break
-
-    return brief, doc, returns
-
-
-def parse_function_comment_for_macro(
-    content: str, module_name: str, func_name: str
-) -> tuple[str, str, str]:
-    """Extract signature hint, docstring and return type from comment above MPY_FUNC_* macro.
-
-    Looks for patterns like:
-        // ============================================================================
-        // module.func(arg) -> return_type
-        // Brief description of the function.
-        // ============================================================================
-        MPY_FUNC_1(module, func) {
-
-    Returns: (brief, doc, returns)
-    """
-    # Find the comment block before this MPY_FUNC_* macro
-    func_pattern = (
-        rf"((?://[^\n]*\n)+)\s*MPY_FUNC_[01]\(\s*{module_name}\s*,\s*{func_name}\s*\)"
+    identifiers = re.findall(
+        r"^\s*([A-Za-z_][A-Za-z0-9_]*)::MODULE,", match.group(1), re.MULTILINE
     )
-    match = re.search(func_pattern, content)
+    if not identifiers:
+        raise StubError(f"runtime module registry is empty in {registry}")
 
-    brief = ""
-    doc = ""
-    returns = "None"
-
-    if match:
-        comment_block = match.group(1)
-
-        # Extract signature line: // module.func(...) -> type
-        sig_match = re.search(
-            rf"//\s*{module_name}\.{func_name}\([^)]*\)(?:\s*->\s*(\w+))?",
-            comment_block,
+    modules = set()
+    module_directory = registry.parent
+    for identifier in identifiers:
+        source = module_directory / f"{identifier}.rs"
+        module_content = source.read_text(encoding="utf-8")
+        name_match = re.search(
+            r"pub\(super\)\s+const\s+MODULE:.*?\{.*?name:\s*c\"([^\"]+)\"",
+            module_content,
+            re.DOTALL,
         )
-        if sig_match:
-            returns = sig_match.group(1) or "None"
-
-        # Extract brief description (first non-signature, non-separator comment line)
-        for line in comment_block.split("\n"):
-            line = line.strip()
-            if line.startswith("//"):
-                text = line[2:].strip()
-                # Skip separator lines and signature lines
-                if (
-                    text.startswith("=")
-                    or text.startswith(module_name + ".")
-                    or text.startswith("@")
-                ):
-                    continue
-                if text and not text.startswith("Using "):  # Skip implementation notes
-                    brief = text
-                    break
-
-    return brief, doc, returns
+        if name_match is None:
+            raise StubError(f"could not find NativeModule.name in {source}")
+        modules.add(name_match.group(1))
+    return frozenset(modules)
 
 
-def parse_simple_func(content: str, macro_match: re.Match) -> Optional[Function]:
-    """Parse MPY_FUNC_1 or MPY_FUNC_0 style functions."""
-    macro = macro_match.group(0)
-
-    if "MPY_FUNC_0" in macro:
-        # No args function
-        module = macro_match.group(1)
-        name = macro_match.group(2)
-        return Function(name=name, args=[], returns="Any")
-    elif "MPY_FUNC_1" in macro:
-        # Single arg function
-        module = macro_match.group(1)
-        name = macro_match.group(2)
-        return Function(
-            name=name,
-            args=[Argument(name="arg", type="Any", required=True)],
-            returns="Any",
-        )
-
-    return None
-
-
-def parse_module_constants(content: str) -> list[Constant]:
-    """Parse MPY_MODULE_INT and other constant definitions."""
-    constants = []
-
-    # MPY_MODULE_INT(NAME, value)
-    for m in re.finditer(r"MPY_MODULE_INT\(\s*(\w+)\s*,\s*(\d+)\s*\)", content):
-        constants.append(Constant(name=m.group(1), type="int", value=m.group(2)))
-
-    # MPY_MODULE_STR(NAME, "value")
-    for m in re.finditer(r'MPY_MODULE_STR\(\s*(\w+)\s*,\s*"([^"]*)"\s*\)', content):
-        constants.append(Constant(name=m.group(1), type="str", value=f'"{m.group(2)}"'))
-
-    return constants
-
-
-def parse_c_module(filepath: Path) -> Optional[Module]:
-    """Parse a C module file and extract function/constant definitions."""
-    content = filepath.read_text()
-
-    # Extract module name from MPY_MODULE_BEGIN(name) or filename
-    mod_match = re.search(r"MPY_MODULE_BEGIN\(\s*(\w+)\s*\)", content)
-    if not mod_match:
-        return None
-
-    module_name = mod_match.group(1)
-    module = Module(name=module_name)
-
-    # Extract module docstring from file header comment
-    header_match = re.search(r"/\*\s*\n\s*\*\s*(\w+\.c)\s*-\s*([^\n]+)", content)
-    if header_match:
-        module.doc = header_match.group(2).strip()
-
-    # Parse constants
-    module.constants = parse_module_constants(content)
-
-    # Find all function definitions in the module table
-    # Look for entries like: { MP_ROM_QSTR(MP_QSTR_func), MP_ROM_PTR(&module_func_obj) }
-    # or MPY_MODULE_FUNC(module, func)
-
-    func_entries = re.findall(
-        r"MP_ROM_QSTR\(MP_QSTR_(\w+)\)\s*,\s*MP_ROM_PTR\(&(\w+)_obj\)", content
+def validate_runtime_modules(
+    stubs: tuple[Stub, ...], registered_modules: frozenset[str]
+) -> None:
+    """Reject editor APIs for modules that the runtime cannot import."""
+    unsupported = sorted(
+        stub.filename.removesuffix(".pyi")
+        for stub in stubs
+        if stub.filename.removesuffix(".pyi") not in registered_modules
     )
-    func_entries += [
-        (m.group(2), f"{m.group(1)}_{m.group(2)}")
-        for m in re.finditer(r"MPY_MODULE_FUNC\(\s*(\w+)\s*,\s*(\w+)\s*\)", content)
+    if unsupported:
+        raise StubError(f"stubs have no registered Rust runtime module: {unsupported}")
+
+
+def render_rust_manifest(stubs: tuple[Stub, ...]) -> str:
+    """Render the checked-in Rust include manifest."""
+    lines = [
+        "// @generated by scripts/generate_stubs.py; DO NOT EDIT.",
+        "// Canonical sources live in the repository root stubs/ directory.",
+        "",
+        "pub(crate) const STUBS: &[(&str, &str)] = &[",
     ]
-
-    for py_name, c_func_base in func_entries:
-        func = Function(name=py_name)
-
-        # Try to find the actual function implementation
-        c_func_name = f"{module_name}_{py_name}_func"
-
-        # Parse arguments from allowed_args if it's a KW function
-        func.args = parse_allowed_args(content, c_func_name)
-
-        # Get brief description and return type hint from comment
-        brief, _, returns = parse_function_comment(content, c_func_name, module_name)
-        func.brief = brief
-        func.returns = returns
-
-        # If no args found, check if it's a simple function
-        if not func.args:
-            # Check for MPY_FUNC_1 pattern
-            simple_match = re.search(
-                rf"MPY_FUNC_1\(\s*{module_name}\s*,\s*{py_name}\s*\)", content
-            )
-            if simple_match:
-                func.args = [Argument(name="value", type="Any", required=True)]
-                # Also try to get comment from MPY_FUNC_1 declaration
-                if not func.brief:
-                    brief, _, returns = parse_function_comment_for_macro(
-                        content, module_name, py_name
-                    )
-                    func.brief = brief
-                    if returns != "None":
-                        func.returns = returns
-
-            simple_match = re.search(
-                rf"MPY_FUNC_0\(\s*{module_name}\s*,\s*{py_name}\s*\)", content
-            )
-            if simple_match:
-                func.args = []
-                # Also try to get comment from MPY_FUNC_0 declaration
-                if not func.brief:
-                    brief, _, returns = parse_function_comment_for_macro(
-                        content, module_name, py_name
-                    )
-                    func.brief = brief
-                    if returns != "None":
-                        func.returns = returns
-
-        module.functions.append(func)
-
-    return module
+    for stub in stubs:
+        lines.append(
+            f'    ("{stub.filename}", include_str!("../../../stubs/{stub.filename}")),'
+        )
+    lines.extend(["];"])
+    return "\n".join(lines) + "\n"
 
 
-def generate_stub(module: Module) -> str:
-    """Generate .pyi stub content for a module."""
-    lines = ['"""']
-    lines.append(f"{module.name} - {module.doc or 'Native module'}")
-    lines.append('"""')
-    lines.append("")
-    lines.append(
-        "from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator"
+def unified_diff(expected: str, actual: str, destination: Path) -> str:
+    """Return a readable diff for a stale generated file."""
+    return "".join(
+        difflib.unified_diff(
+            actual.splitlines(keepends=True),
+            expected.splitlines(keepends=True),
+            fromfile=str(destination),
+            tofile=f"generated:{destination}",
+        )
     )
-    lines.append("")
 
-    # Constants
-    if module.constants:
-        for const in module.constants:
-            if const.doc:
-                lines.append(f"# {const.doc}")
-            lines.append(f"{const.name}: {const.type}")
-        lines.append("")
 
-    # Functions
-    for func in module.functions:
-        # Build argument string
-        arg_parts = []
-        kwarg_parts = []
+def check_manifest(expected: str, destination: Path = RUST_MANIFEST) -> None:
+    """Fail when the checked-in Rust manifest is missing or stale."""
+    actual = destination.read_text(encoding="utf-8") if destination.exists() else ""
+    if actual != expected:
+        diff = unified_diff(expected, actual, destination)
+        raise StubError(
+            f"generated stub manifest is stale; run scripts/generate_stubs.py\n{diff}"
+        )
 
-        for arg in func.args:
-            if arg.required:
-                arg_parts.append(f"{arg.name}: {arg.type}")
-            else:
-                default = arg.default or "None"
-                kwarg_parts.append(f"{arg.name}: {arg.type} = {default}")
 
-        # Add * separator for keyword-only args if we have both positional and kwargs
-        if arg_parts and kwarg_parts:
-            all_parts = arg_parts + ["*"] + kwarg_parts
+def write_manifest(content: str, destination: Path = RUST_MANIFEST) -> None:
+    """Write the deterministic Rust manifest."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(content, encoding="utf-8")
+
+
+def check_output(stubs: tuple[Stub, ...], output: Path) -> None:
+    """Fail when an exported stub directory differs from the canonical set."""
+    expected_names = {stub.filename for stub in stubs}
+    actual_names = {path.name for path in output.glob("*.pyi")} if output.is_dir() else set()
+    if actual_names != expected_names:
+        missing = sorted(expected_names - actual_names)
+        extra = sorted(actual_names - expected_names)
+        raise StubError(f"stub export drift in {output}: missing={missing}, extra={extra}")
+
+    for stub in stubs:
+        destination = output / stub.filename
+        actual = destination.read_text(encoding="utf-8")
+        if actual != stub.content:
+            raise StubError(
+                f"stub export drift in {destination}\n"
+                + unified_diff(stub.content, actual, destination)
+            )
+
+
+def write_output(stubs: tuple[Stub, ...], output: Path) -> None:
+    """Synchronize an exported directory to the canonical stub set."""
+    if output.resolve() == CANONICAL_DIRECTORY.resolve():
+        return
+    output.mkdir(parents=True, exist_ok=True)
+    expected_names = {stub.filename for stub in stubs}
+    for stale in output.glob("*.pyi"):
+        if stale.name not in expected_names:
+            stale.unlink()
+    for stub in stubs:
+        (output / stub.filename).write_text(stub.content, encoding="utf-8")
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify generated files without changing them",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="also synchronize or verify a directory containing the canonical .pyi files",
+    )
+    return parser.parse_args(argv)
+
+
+def run(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    try:
+        stubs = load_stubs()
+        validate_runtime_modules(stubs, load_registered_modules())
+        manifest = render_rust_manifest(stubs)
+        if args.check:
+            check_manifest(manifest)
+            if args.output is not None:
+                check_output(stubs, args.output)
+            action = "Verified"
         else:
-            all_parts = arg_parts + kwarg_parts
+            write_manifest(manifest)
+            if args.output is not None:
+                write_output(stubs, args.output)
+            action = "Generated"
+    except (OSError, StubError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
 
-        args_str = ", ".join(all_parts)
-        lines.append(f"def {func.name}({args_str}) -> {func.returns}:")
-
-        # Build docstring
-        if func.brief or func.doc or any(arg.doc for arg in func.args):
-            lines.append('    """')
-            if func.brief:
-                lines.append(f"    {func.brief}")
-            elif func.doc:
-                lines.append(f"    {func.doc}")
-
-            # Add args documentation
-            args_with_docs = [arg for arg in func.args if arg.doc]
-            if args_with_docs:
-                lines.append("")
-                lines.append("    Args:")
-                for arg in args_with_docs:
-                    lines.append(f"        {arg.name}: {arg.doc}")
-
-            lines.append('    """')
-
-        lines.append("    ...")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-def main():
-    script_dir = Path(__file__).parent
-    project_root = script_dir.parent
-    native_dir = project_root / "runtime"
-    output_dir = project_root / "stubs"
-
-    # Parse command line args
-    if "--output" in sys.argv:
-        idx = sys.argv.index("--output")
-        if idx + 1 < len(sys.argv):
-            output_dir = Path(sys.argv[idx + 1])
-
-    output_dir.mkdir(exist_ok=True)
-
-    # Find all mod*.c files
-    modules = []
-    for mod_file in native_dir.glob("*/legacy/mod*.c"):
-        print(f"Parsing {mod_file.relative_to(project_root)}...")
-        module = parse_c_module(mod_file)
-        if module:
-            modules.append(module)
-            print(f"  Found module: {module.name}")
-            print(f"    Functions: {[f.name for f in module.functions]}")
-            print(f"    Constants: {[c.name for c in module.constants]}")
-
-    # Generate stubs
-    print(f"\nGenerating stubs in {output_dir}/")
-    for module in modules:
-        stub_content = generate_stub(module)
-        stub_file = output_dir / f"{module.name}.pyi"
-        stub_file.write_text(stub_content)
-        print(f"  Generated {stub_file.name}")
-
-    print(f"\nGenerated {len(modules)} stub files.")
+    suffix = f" and {args.output}" if args.output is not None else ""
+    print(f"{action} {len(stubs)} canonical stubs in {RUST_MANIFEST}{suffix}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run())

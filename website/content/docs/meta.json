@@ -11,7 +11,6 @@
     "modules/input",
     "modules/term",
     "modules/ansi",
-    "modules/fetch",
     "---Guides---",
     "guides/index"
   ]

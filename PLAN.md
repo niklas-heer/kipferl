@@ -66,8 +66,9 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 3. The archived Zig implementation is removed. The public README, website,
    docs, templates, and examples now describe the Rust architecture and RC;
    the website publishes the measured migration retrospective below.
-4. Continue with canonical stub generation and CI drift checking, then promote
-   0.6 after the remaining prerelease feedback and product-name review.
+4. Canonical stub generation and CI drift checking are complete. Continue with
+   release-artifact/report verification, then promote 0.6 after the remaining
+   prerelease feedback and product-name review.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -189,8 +190,16 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase D: Developer experience
-- Decide the canonical stub source (Rust registration metadata or `stubs/`) and wire `scripts/generate_stubs.py` or a CLI command to regenerate them.
-- Update templates and docs to reference the canonical stubs and correct import paths.
+- **Complete:** root `stubs/*.pyi` files are the single source of truth.
+  `scripts/generate_stubs.py` validates their syntax and runtime registration,
+  deterministically generates the Rust include manifest, supports exact
+  directory exports, and fails CI on drift. The CLI now installs the entire
+  canonical set instead of maintaining a partial handwritten list. Stale
+  `fetch` and `template` editor/documentation APIs were removed because the
+  Rust runtime does not register those modules; supported networking examples
+  now use `http.client`.
+- **Complete:** templates and docs reference the canonical stubs and direct
+  `tui`/`input` import paths.
 
 ### Phase E: Packaging + release hygiene
 - Add a CI step that runs `python3 tests/compat_runner.py --report` and uploads the report as an artifact.

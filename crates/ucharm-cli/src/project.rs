@@ -3,48 +3,11 @@ use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
+include!("generated_stubs.rs");
+
 const RESET: &str = "\x1b[0m";
 const DIM: &str = "\x1b[2m";
 const GREEN: &str = "\x1b[32m";
-
-const STUBS: &[(&str, &str)] = &[
-    ("ansi.pyi", include_str!("../../../stubs/ansi.pyi")),
-    ("args.pyi", include_str!("../../../stubs/args.pyi")),
-    ("base64.pyi", include_str!("../../../stubs/base64.pyi")),
-    ("tui.pyi", include_str!("../../../stubs/tui.pyi")),
-    ("copy.pyi", include_str!("../../../stubs/copy.pyi")),
-    ("csv.pyi", include_str!("../../../stubs/csv.pyi")),
-    ("datetime.pyi", include_str!("../../../stubs/datetime.pyi")),
-    ("fnmatch.pyi", include_str!("../../../stubs/fnmatch.pyi")),
-    (
-        "functools.pyi",
-        include_str!("../../../stubs/functools.pyi"),
-    ),
-    ("glob.pyi", include_str!("../../../stubs/glob.pyi")),
-    ("heapq.pyi", include_str!("../../../stubs/heapq.pyi")),
-    ("input.pyi", include_str!("../../../stubs/input.pyi")),
-    (
-        "itertools.pyi",
-        include_str!("../../../stubs/itertools.pyi"),
-    ),
-    ("logging.pyi", include_str!("../../../stubs/logging.pyi")),
-    ("operator.pyi", include_str!("../../../stubs/operator.pyi")),
-    ("random.pyi", include_str!("../../../stubs/random.pyi")),
-    ("shutil.pyi", include_str!("../../../stubs/shutil.pyi")),
-    ("signal.pyi", include_str!("../../../stubs/signal.pyi")),
-    (
-        "statistics.pyi",
-        include_str!("../../../stubs/statistics.pyi"),
-    ),
-    (
-        "subprocess.pyi",
-        include_str!("../../../stubs/subprocess.pyi"),
-    ),
-    ("tempfile.pyi", include_str!("../../../stubs/tempfile.pyi")),
-    ("term.pyi", include_str!("../../../stubs/term.pyi")),
-    ("textwrap.pyi", include_str!("../../../stubs/textwrap.pyi")),
-    ("typing.pyi", include_str!("../../../stubs/typing.pyi")),
-];
 
 const PYRIGHT_CONFIG: &str = r#"{
   "include": ["."],

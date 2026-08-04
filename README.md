@@ -138,22 +138,15 @@ result = subprocess.run(["echo", "Fast!"], capture_output=True)
 print(result["stdout"].decode().strip())
 ```
 
-### Templating
+### HTTP and HTTPS
 
 ```python
-import template
+http = __import__("http.client")
 
-src = "{% for p in posts %}- {{p.title}}\\n{% end %}"
-print(template.render(src, {"posts": [{"title": "a"}, {"title": "b"}]}))
-```
-
-### HTTP (fetch)
-
-```python
-import fetch
-
-r = fetch.get("https://example.com/", verify=True)
-print(r["status"], len(r["body"]))
+connection = http.HTTPSConnection("example.com")
+connection.request("GET", "/")
+response = connection.getresponse()
+print(response.status, len(response.read()))
 ```
 
 ---
@@ -258,6 +251,10 @@ just setup
 just demo
 just test
 ```
+
+The hand-authored `stubs/*.pyi` files are canonical. After adding or removing a
+stub, run `just stubs`; `just check` and CI verify Python syntax and ensure the
+CLI's generated include manifest has not drifted.
 
 ### Project Structure
 

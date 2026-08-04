@@ -492,7 +492,7 @@ artifacts meet the compatibility, startup, and size gates.
 - Resume roadmap work in this order:
   1. Rust-native optimization and dependency review — complete;
   2. README/website/docs refresh and the migration retrospective;
-  3. canonical stub generation and CI drift checking;
+  3. canonical stub generation and CI drift checking — complete;
   4. compatibility report and PocketPy patch verification artifacts;
   5. cross-target build reliability;
   6. tree-shaking/module selection for size;

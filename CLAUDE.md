@@ -35,7 +35,7 @@ needed; do not reintroduce Zig build paths into the working tree.
 
 ```bash
 just setup                  # Check Cargo and build the release workspace
-just check                  # rustfmt, strict Clippy, and workspace tests
+just check                  # Stub drift, rustfmt, strict Clippy, and tests
 just compat                 # Full 1,669-check compatibility report
 just demo                   # Run the example through the public Rust CLI
 just build-app app.py app   # Build a standalone universal executable
@@ -82,6 +82,14 @@ python3 scripts/verify-pocketpy-patches.py --check-upstream
 
 Regenerate FFI declarations with `just bindings`; never hand-edit generated
 bindings without updating their source or generator.
+
+## Python stubs
+
+The hand-authored `stubs/*.pyi` files are the canonical editor API. The CLI
+embeds every file through `crates/ucharm-cli/src/generated_stubs.rs`; do not add
+a second handwritten list. Run `just stubs` after adding or removing a stub and
+commit the generated manifest. `just stubs-check` and CI validate stub syntax
+and reject manifest drift.
 
 ## Release assets
 
