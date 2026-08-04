@@ -16,10 +16,16 @@ pub(crate) struct NativeSignature {
     pub callback: Callback,
 }
 
+pub(crate) struct NativeIntConstant {
+    pub name: &'static CStr,
+    pub value: i64,
+}
+
 pub(crate) struct NativeModule {
     pub name: &'static CStr,
     pub functions: &'static [NativeFunction],
     pub signatures: &'static [NativeSignature],
+    pub int_constants: &'static [NativeIntConstant],
 }
 
 pub(crate) fn register_modules(modules: &[NativeModule]) {
@@ -34,6 +40,12 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
             }
             for function in module.signatures {
                 ffi::py_bind(object, function.signature.as_ptr(), Some(function.callback));
+            }
+            for constant in module.int_constants {
+                let value = ffi::py_pushtmp();
+                ffi::py_newint(value, constant.value);
+                ffi::py_setdict(object, ffi::py_name(constant.name.as_ptr()), value);
+                ffi::py_pop();
             }
         }
     }
@@ -106,6 +118,18 @@ impl Value {
         }
         // SAFETY: the exact type check above establishes a boolean value.
         Some(unsafe { ffi::py_tobool(self.raw) })
+    }
+
+    pub fn number(self) -> Option<f64> {
+        if self.is_type(ffi::py_PredefinedType_tp_int) {
+            // SAFETY: the exact type check above establishes an integer value.
+            return Some(unsafe { ffi::py_toint(self.raw) } as f64);
+        }
+        if self.is_type(ffi::py_PredefinedType_tp_float) {
+            // SAFETY: the exact type check above establishes a float value.
+            return Some(unsafe { ffi::py_tofloat(self.raw) });
+        }
+        None
     }
 
     pub fn is_none(self) -> bool {
@@ -385,6 +409,18 @@ pub(crate) fn runtime_error(message: &'static CStr) -> bool {
     unsafe {
         ffi::py_exception(
             ffi::py_PredefinedType_tp_RuntimeError as ffi::py_Type,
+            c"%s".as_ptr(),
+            message.as_ptr(),
+        )
+    }
+}
+
+pub(crate) fn value_error(message: &'static CStr) -> bool {
+    // SAFETY: the VM is active during a callback. The format string and message
+    // have static storage and match PocketPy's `%s` vararg contract.
+    unsafe {
+        ffi::py_exception(
+            ffi::py_PredefinedType_tp_ValueError as ffi::py_Type,
             c"%s".as_ptr(),
             message.as_ptr(),
         )

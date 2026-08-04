@@ -60,6 +60,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     name: c"ansi",
     functions: FUNCTIONS,
     signatures: &[],
+    int_constants: &[],
 };
 
 unsafe extern "C" fn reset(argc: c_int, argv: ffi::py_StackRef) -> bool {

@@ -174,15 +174,18 @@ status, stdout, and stderr.
   container, type-object, and temporary-rooting surface required by native
   callbacks. Module registration is table-driven, including signature-based
   functions with defaults and keyword arguments. The complete `ansi`, `args`,
-  `term`, and interactive `input` modules are ported with Python-level behavior,
-  error, allocation-stress, byte-stream, and pseudo-terminal tests. The rooted
-  Rust `args` implementation fixes the legacy alias-key corruption and SIGSEGV
-  exposed by combined alias/default parsing. Rust owns raw terminal state and
-  restores it during VM teardown and after every interactive input path; exact
-  selection, confirmation, editing, cancellation, and password screen bytes
-  match Zig. The `charm` presentation module and its reusable TUI core are the
-  next representative Phase 4 slice. The `_ucharm_rust` probe remains
-  temporarily as an FFI smoke test while production modules cross the boundary.
+  `term`, interactive `input`, and `charm` presentation modules are ported with
+  Python-level behavior, error, allocation-stress, byte-stream, pseudo-terminal,
+  Unicode-width, and golden ANSI-output tests. The rooted Rust `args`
+  implementation fixes the legacy alias-key corruption and SIGSEGV exposed by
+  combined alias/default parsing. Rust owns raw terminal state and restores it
+  during VM teardown and after every interactive input path; exact selection,
+  confirmation, editing, cancellation, and password screen bytes match Zig.
+  The reusable Rust TUI core preserves the Zig runtime's byte-oriented width,
+  color, border, progress, spinner, and table behavior, including its historical
+  keyword-binding quirks. The representative Phase 4 module gate is now met;
+  leak/sanitizer and callback-lifetime hardening are next. The `_ucharm_rust`
+  probe remains temporarily as an FFI smoke test while that hardening finishes.
 - The initial stripped macOS ARM64 Rust spine is about 600 KB before μcharm's
   native modules and external C dependencies are added. This is an early
   feasibility signal, not a final size comparison.

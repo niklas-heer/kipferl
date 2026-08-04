@@ -52,6 +52,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     name: c"input",
     functions: FUNCTIONS,
     signatures: SIGNATURES,
+    int_constants: &[],
 };
 
 struct InputState {

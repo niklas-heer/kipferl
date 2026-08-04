@@ -73,6 +73,7 @@ pub(super) const MODULE: NativeModule = NativeModule {
     name: c"term",
     functions: FUNCTIONS,
     signatures: &[],
+    int_constants: &[],
 };
 
 #[derive(Default)]
