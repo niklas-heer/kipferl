@@ -95,8 +95,8 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 Kipferl is the new name for μcharm beginning with the Rust-based 0.6 release.
 The pastry name is a small nod to Bun and a literal fit for the product: Kipferl
 *bakes* a Python-style CLI into one portable executable. The repository, binary,
-packages, and documentation now share the same spelling, and the planned public
-home is [getkipferl.org](https://getkipferl.org).
+packages, and documentation now share the same spelling, with
+[kipferl.dev](https://kipferl.dev) as the public home.
 
 Existing 0.5 users have a gentle transition. The 0.6 release accepts old
 `from ucharm ...` imports and environment variables, publishes temporary
@@ -307,7 +307,7 @@ The shipping implementation is Rust around an embedded PocketPy C runtime:
 The migration was compatibility-gated rather than rewritten behind a flag day.
 Read [the migration plan](RUST_MIGRATION.md), the
 [optimization record](benchmarks/rust_optimization_baseline.md), and the
-[public retrospective](https://getkipferl.org/blog/rust-migration) for the why,
+[public retrospective](https://kipferl.dev/blog/rust-migration) for the why,
 the incremental process, accepted tradeoffs, and final measurements.
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
@@ -402,7 +402,7 @@ See `tests/compat_report_pocketpy.md` for detailed module compatibility.
 
 ## Docs
 
-- [Website documentation](https://getkipferl.org/docs)
+- [Website documentation](https://kipferl.dev/docs)
 - [Product direction](vision.md)
 - [Implementation priorities](PLAN.md)
 - [Rust migration record](RUST_MIGRATION.md)

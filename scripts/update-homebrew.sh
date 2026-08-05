@@ -44,7 +44,7 @@ mkdir -p "$(dirname "$FORMULA_PATH")"
 cat > "$FORMULA_PATH" << EOF
 class Kipferl < Formula
   desc "Bake Python CLI apps into fast standalone binaries"
-  homepage "https://getkipferl.org"
+  homepage "https://kipferl.dev"
   version "$VERSION"
   license "MIT"
 

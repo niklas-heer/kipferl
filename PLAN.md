@@ -163,10 +163,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 - **Engineering rename complete:** the project is now Kipferl, the repository
   lives at `niklas-heer/kipferl`, and the Rust packages, binaries, release
   assets, site, docs, templates, and visual identity use the new name. Package
-  namespaces and the planned `getkipferl.org` home were available when checked.
-  Register the domain and complete formal legal clearance before the public
-  stable launch. Keep the compatibility aliases for the documented 0.6 window;
-  the frozen `MCHARM01` format remains unchanged.
+  namespaces were available when checked, and `kipferl.dev` is now registered
+  as the public home. Complete formal legal clearance before the public stable
+  launch. Keep the compatibility aliases for the documented 0.6 window; the
+  frozen `MCHARM01` format remains unchanged.
 - **Complete:** the README, website, user docs, generated-project templates,
   and examples now use the Rust architecture, direct `tui`/`input` imports,
   measured performance/size claims, and real architecture-specific RC assets.
