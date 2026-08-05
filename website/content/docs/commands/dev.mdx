@@ -1,0 +1,153 @@
+---
+title: Development server
+description: Run a Kipferl app and restart it automatically when project files change
+---
+
+# `kipferl dev`
+
+`kipferl dev` runs an application immediately and restarts it when a watched
+file changes. It is intended for the edit-run-feedback loop while building a
+Kipferl application.
+
+```bash
+kipferl dev [OPTIONS] <script.py> [--] [args...]
+```
+
+For a single run without watching files, use `kipferl run <script.py>`.
+
+## Basic usage
+
+```bash
+# Run app.py and restart when project files change
+kipferl dev app.py
+
+# Clear the terminal before every restart
+kipferl dev --clear app.py
+
+# Also watch a template directory and an external configuration file
+kipferl dev --watch templates --watch ../settings.toml app.py
+
+# Pass arguments to the application
+kipferl dev app.py -- --verbose --port 8080
+```
+
+Options must appear before the script path. Everything after the script path is
+passed to the application. The `--` separator is optional, but recommended when
+application arguments begin with a hyphen.
+
+## Options
+
+| Option | Default | Description |
+|---|---:|---|
+| `-w, --watch <path>` | None | Watch an additional file or directory. Repeat the option to add multiple paths. |
+| `--clear` | Off | Clear the terminal before each restart. The first run does not clear it. |
+| `--debounce <ms>` | `150` | Wait for filesystem writes to settle before restarting. Accepts `0` through `60000` milliseconds. |
+| `-h, --help` | | Print the command help and exit. |
+
+`<script.py>` must exist when the command starts. Relative script and watch
+paths are resolved from the directory where `kipferl dev` is invoked.
+
+## What is watched by default
+
+The script's directory is watched recursively. Kipferl restarts for changes to
+the following project files:
+
+| Kind | Extensions or names |
+|---|---|
+| Python | `.py`, `.pyi` |
+| Configuration and data | `.toml`, `.json`, `.yaml`, `.yml`, `.xml`, `.csv`, `.kdl`, `.ini`, `.cfg`, `.conf`, `.env` |
+| Web and templates | `.html`, `.htm`, `.css`, `.jinja`, `.jinja2`, `.j2` |
+
+Extension matching is case-insensitive. Access-only filesystem events are
+ignored; creating, changing, renaming, or removing a matching file schedules a
+restart.
+
+The default project watch ignores generated, dependency, cache, virtual
+environment, and version-control paths:
+
+```text
+.git  .hg  .svn  .kipferl  .venv  venv  target
+__pycache__  node_modules  .DS_Store
+```
+
+Keeping generated application output in an ignored directory prevents a
+program from restarting itself when it writes files.
+
+## Additional watch paths
+
+Use `--watch` or `-w` for files outside the script directory or for file types
+that are not in the default list.
+
+```bash
+kipferl dev \
+  --watch ../shared/settings.toml \
+  --watch assets \
+  app.py
+```
+
+An explicitly watched file is monitored regardless of its extension. An
+explicitly watched directory is recursive and accepts every file type, while
+still ignoring the generated and dependency directories listed above. Each
+additional path must already exist when the command starts.
+
+Be careful when watching an entire output directory: if the application writes
+there on every run, it can create a restart loop. Watch a specific input file
+or narrower directory when possible.
+
+## Restart lifecycle
+
+1. Kipferl starts the script immediately.
+2. A relevant filesystem event resets the debounce timer.
+3. When writes have been quiet for the configured interval, Kipferl stops the
+   current process and starts it again.
+4. If the application exits normally or with an error, the watcher stays alive
+   and the next relevant edit starts it again.
+
+The application inherits the terminal's standard input, output, and error
+streams and runs with the directory where `kipferl dev` was invoked as its
+working directory. Stop the development session with `Ctrl-C`.
+
+Interactive applications may enable raw mode, hide the cursor, or otherwise
+change terminal settings. Kipferl captures the terminal state before the first
+run and restores it when a process exits and before a restart, including after
+the running process is stopped for an edit.
+
+## Choosing a debounce value
+
+The default `150` milliseconds works well for ordinary editors. Increase it if
+a formatter, generator, or synchronization tool produces several related
+writes:
+
+```bash
+kipferl dev --debounce 500 app.py
+```
+
+Use `--debounce 0` only when every filesystem event should restart the app
+immediately. The maximum accepted value is `60000` milliseconds.
+
+## Troubleshooting
+
+### A file change does not restart the app
+
+- Confirm that the file is beneath the script directory and has a default
+  project extension.
+- Check that none of its parent directories are ignored.
+- Add the exact file or its directory with `--watch` when it is elsewhere or
+  uses another extension.
+
+### The app restarts more than once for a save
+
+Editors and generators can emit several filesystem events for one logical
+save. Increase `--debounce` so the restart happens after the writes settle.
+
+### The app continually restarts
+
+The application is probably writing to a watched path. Move generated output
+to `.kipferl`, `target`, or another unwatched location, or replace a broad
+additional directory watch with a specific input-file watch.
+
+### An additional path cannot be watched
+
+Additional paths are validated when the command starts. Create the file or
+directory first, and resolve permission or filesystem-watcher errors reported
+by the command.

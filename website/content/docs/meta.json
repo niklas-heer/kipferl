@@ -5,6 +5,8 @@
     "---Getting Started---",
     "getting-started/installation",
     "getting-started/quick-start",
+    "---CLI---",
+    "commands/dev",
     "---Modules---",
     "modules/index",
     "modules/data-formats",
