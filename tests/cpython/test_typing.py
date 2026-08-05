@@ -1,5 +1,5 @@
 """
-Simplified typing module tests for ucharm compatibility testing.
+Simplified typing module tests for kipferl compatibility testing.
 Works on both CPython and PocketPy.
 
 The typing module provides type hints for Python code.

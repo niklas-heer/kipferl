@@ -1,0 +1,15 @@
+[package]
+name = "kipferl-loader"
+description = "Universal executable loader for Kipferl applications"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+md-5 = { version = "0.11.0", default-features = false }
+kipferl-format = { path = "../kipferl-format" }
+
+[lints]
+workspace = true

@@ -39,14 +39,14 @@ else
 
 	        echo "$LATEST_VERSION" > "$VERSION_FILE"
 
-	        echo "Applying μcharm PocketPy patchset..."
+	        echo "Applying Kipferl PocketPy patchset..."
 	        "$PROJECT_ROOT/scripts/apply-pocketpy-patches.sh"
 
 	        echo "Updated to v$LATEST_VERSION"
 	        echo ""
 	        echo "Rebuild and test:"
-	        echo "  cargo build --release -p ucharm-runtime"
-	        echo "  python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report"
+	        echo "  cargo build --release -p kipferl-runtime"
+	        echo "  python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report"
 	    else
 	        echo "Run with --update to download the new version."
 	        exit 1

@@ -7,7 +7,7 @@ index d5f8802..31597a3 100644
  
  static bool bytes_decode(int argc, py_Ref argv) {
 -    PY_CHECK_ARGC(1);
-+    // ucharm patch: bytes.decode accepts encoding/errors args for CPython compatibility
++    // kipferl patch: bytes.decode accepts encoding/errors args for CPython compatibility
 +    if(argc > 3) return TypeError("decode() takes at most 2 arguments (%d given)", argc - 1);
 +    if(argc >= 2 && !py_isnone(argv + 1)) {
 +        PY_CHECK_ARG_TYPE(1, tp_str);

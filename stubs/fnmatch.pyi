@@ -1,5 +1,5 @@
 """
-fnmatch - Native fnmatch module for ucharm
+fnmatch - Native fnmatch module for kipferl
 """
 
 from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator

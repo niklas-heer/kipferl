@@ -1,5 +1,5 @@
 """
-Minimal xml.etree.ElementTree tests for ucharm compatibility testing.
+Minimal xml.etree.ElementTree tests for kipferl compatibility testing.
 
 PocketPy doesn't support dotted import statements, so we import via __import__
 and resolve attributes when available.

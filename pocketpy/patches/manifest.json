@@ -1,18 +1,18 @@
 {
-  "patchset_id": "ucharm-pocketpy-vendor-patches",
+  "patchset_id": "kipferl-pocketpy-vendor-patches",
   "patchset_version": 2,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
       "anchors": [
-        "ucharm patch: allow 'match' soft keyword as attribute name",
-        "ucharm patch: allow function attributes (__dict__) for CPython compatibility",
-        "ucharm patch: allow setting function.__doc__ for CPython compatibility",
-        "ucharm patch: allow setting function.__name__ for CPython compatibility",
-        "ucharm patch: bytes.decode accepts encoding/errors args for CPython compatibility",
-        "ucharm patch: WITH_EXIT_EXC opcode for exception-aware __exit__",
-        "ucharm patch: ensure __exit__ runs on exceptions and can suppress",
-        "ucharm patch: compile 'with' to call __exit__ on exceptions (and allow suppression)"
+        "kipferl patch: allow 'match' soft keyword as attribute name",
+        "kipferl patch: allow function attributes (__dict__) for CPython compatibility",
+        "kipferl patch: allow setting function.__doc__ for CPython compatibility",
+        "kipferl patch: allow setting function.__name__ for CPython compatibility",
+        "kipferl patch: bytes.decode accepts encoding/errors args for CPython compatibility",
+        "kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__",
+        "kipferl patch: ensure __exit__ runs on exceptions and can suppress",
+        "kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)"
       ]
     }
   ],

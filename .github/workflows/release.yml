@@ -48,15 +48,15 @@ jobs:
             export CC=musl-gcc
           fi
           cargo build --release \
-            -p ucharm-runtime \
-            -p ucharm-loader \
+            -p kipferl-runtime \
+            -p kipferl-loader \
             --target ${{ matrix.target }}
 
       - name: Verify static Linux components
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          for binary in pocketpy-ucharm ucharm-loader; do
+          for binary in pocketpy-kipferl kipferl-loader; do
             path="target/${{ matrix.target }}/release/$binary"
             file "$path"
             if readelf -l "$path" | grep -q "INTERP"; then
@@ -69,17 +69,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
-            release-assets/pocketpy-ucharm-${{ matrix.suffix }}
-          cp target/${{ matrix.target }}/release/ucharm-loader \
-            release-assets/loader-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/pocketpy-kipferl \
+            release-assets/pocketpy-kipferl-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/kipferl-loader \
+            release-assets/kipferl-loader-${{ matrix.suffix }}
           python3 - <<'PY'
           import hashlib
           from pathlib import Path
 
           for component in [
-              Path("release-assets/pocketpy-ucharm-${{ matrix.suffix }}"),
-              Path("release-assets/loader-${{ matrix.suffix }}"),
+              Path("release-assets/pocketpy-kipferl-${{ matrix.suffix }}"),
+              Path("release-assets/kipferl-loader-${{ matrix.suffix }}"),
           ]:
               digest = hashlib.sha256(component.read_bytes()).hexdigest()
               component.with_name(component.name + ".sha256").write_text(
@@ -130,7 +130,7 @@ jobs:
         shell: bash
         run: |
           find release-inputs -type f ! -name '*.sha256' \
-            -exec cp {} crates/ucharm-cli/assets/ \;
+            -exec cp {} crates/kipferl-cli/assets/ \;
 
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}
@@ -145,13 +145,13 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release -p ucharm-cli --target ${{ matrix.target }}
+          cargo build --release -p kipferl-cli --target ${{ matrix.target }}
 
       - name: Verify static Linux CLI
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          path="target/${{ matrix.target }}/release/ucharm"
+          path="target/${{ matrix.target }}/release/kipferl"
           file "$path"
           if readelf -l "$path" | grep -q "INTERP"; then
             echo "$path unexpectedly contains a dynamic interpreter" >&2
@@ -161,9 +161,9 @@ jobs:
       - name: Smoke-test release candidate
         shell: bash
         run: |
-          cli="target/${{ matrix.target }}/release/ucharm"
-          "$cli" --version | grep -q "μcharm"
-          smoke_dir="$RUNNER_TEMP/ucharm-release-smoke"
+          cli="target/${{ matrix.target }}/release/kipferl"
+          "$cli" --version | grep -q "Kipferl"
+          smoke_dir="$RUNNER_TEMP/kipferl-release-smoke"
           mkdir -p "$smoke_dir"
           printf '%s\n' 'print("rust release")' > "$smoke_dir/app.py"
           "$cli" build "$smoke_dir/app.py" \
@@ -175,17 +175,22 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          cp target/${{ matrix.target }}/release/ucharm \
+          cp target/${{ matrix.target }}/release/kipferl \
+            release-assets/kipferl-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/kipferl \
             release-assets/ucharm-${{ matrix.suffix }}
           python3 - <<'PY'
           import hashlib
           from pathlib import Path
 
-          cli = Path("release-assets/ucharm-${{ matrix.suffix }}")
-          digest = hashlib.sha256(cli.read_bytes()).hexdigest()
-          cli.with_name(cli.name + ".sha256").write_text(
-              f"{digest}  {cli.name}\n"
-          )
+          for cli in [
+              Path("release-assets/kipferl-${{ matrix.suffix }}"),
+              Path("release-assets/ucharm-${{ matrix.suffix }}"),
+          ]:
+              digest = hashlib.sha256(cli.read_bytes()).hexdigest()
+              cli.with_name(cli.name + ".sha256").write_text(
+                  f"{digest}  {cli.name}\n"
+              )
           PY
 
       - name: Upload CLI asset
@@ -208,13 +213,18 @@ jobs:
           --check-upstream
           --report release-evidence/pocketpy-patch-verification.json
       - name: Build canonical runtime
-        run: cargo build --release -p ucharm-runtime
+        run: cargo build --release -p kipferl-runtime
       - name: Generate and enforce compatibility report
         run: >-
           python3 tests/compat_runner.py
-          --runtime target/release/pocketpy-ucharm
+          --runtime target/release/pocketpy-kipferl
           --report
           --output release-evidence/compatibility-report.md
+      - name: Generate and enforce Vision report
+        run: >-
+          python3 tests/vision/run_vision.py
+          --runtime target/release/pocketpy-kipferl
+          --report release-evidence/vision-report.md
       - name: Upload release evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -242,16 +252,18 @@ jobs:
         run: |
           mkdir -p release
           find artifacts -type f \( \
+            -name 'kipferl-*' -o \
             -name 'ucharm-*' -o \
-            -name 'pocketpy-ucharm-*' -o \
-            -name 'loader-*' -o \
+            -name 'pocketpy-kipferl-*' -o \
+            -name 'kipferl-loader-*' -o \
             -name 'compatibility-report.md' -o \
             -name 'pocketpy-patch-verification.json' \
           \) -exec cp {} release/ \;
           find release -type f \( \
+            -name 'kipferl-*' -o \
             -name 'ucharm-*' -o \
-            -name 'pocketpy-ucharm-*' -o \
-            -name 'loader-*' \
+            -name 'pocketpy-kipferl-*' -o \
+            -name 'kipferl-loader-*' \
           \) ! -name '*.sha256' -exec chmod +x {} +
           ls -la release
 
@@ -297,15 +309,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout ucharm repository
+      - name: Checkout kipferl repository
         uses: actions/checkout@v5
         with:
-          path: ucharm
+          path: kipferl
 
       - name: Checkout homebrew-tap repository
         uses: actions/checkout@v5
         with:
-          repository: ucharmdev/homebrew-tap
+          repository: niklas-heer/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: homebrew-tap
 
@@ -320,7 +332,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          cd ucharm
+          cd kipferl
           ./scripts/update-homebrew.sh "$VERSION"
 
       - name: Commit and push changes
@@ -328,11 +340,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/ucharm.rb
+          git add Formula/kipferl.rb
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: update ucharm to v${{ steps.version.outputs.version }}"
+            git commit -m "chore: update kipferl to v${{ steps.version.outputs.version }}"
             git push
           fi
 
@@ -343,5 +355,5 @@ jobs:
           echo "Formula updated to version **v${{ steps.version.outputs.version }}**" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
-          echo "brew install ucharmdev/tap/ucharm" >> "$GITHUB_STEP_SUMMARY"
+          echo "brew install niklas-heer/tap/kipferl" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"

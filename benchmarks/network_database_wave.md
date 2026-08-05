@@ -24,7 +24,7 @@ static musl artifact with bundled SQLite. The post-cutover optimization review
 relaxes the aspirational 2 MB target: 2.5 MB is the practical runtime goal and
 3 MB is the Linux regression ceiling. This keeps performance and the standalone
 deployment model ahead of arbitrary byte shaving; the history remains in
-[issue #41](https://github.com/ucharmdev/ucharm/issues/41).
+[issue #41](https://github.com/niklas-heer/kipferl/issues/41).
 
 - `http.client` uses `std::net` and adds no runtime dependency. It supports the
   compatibility API, plain HTTP/1.1, bounded 8 MiB responses, content length,
@@ -47,7 +47,7 @@ features disabled. It passed the focused
 SQLite compatibility and file-backed join scenarios, but it added 211 packages
 to `Cargo.lock` and produced a 5,420,336-byte optimized ARM64 runtime. That is
 2.7 times the 2 MB runtime gate and materially increased build and process
-startup cost. Turso also documents the engine as beta, so μcharm rejected it
+startup cost. Turso also documents the engine as beta, so Kipferl rejected it
 for this cutover despite the attractive pure-Rust implementation.
 
 Reconsider Turso only after re-running the same compatibility, dependency,

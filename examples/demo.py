@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""μcharm demo showcasing the current native tui and input modules."""
+"""Kipferl demo showcasing the current native tui and input modules."""
 
 import time
 
@@ -10,7 +10,7 @@ import tui
 def main():
     print()
     tui.box(
-        "μcharm v0.6.0-rc.1\nBeautiful CLIs with PocketPy and Rust\nFast startup | Standalone binaries | Python syntax",
+        "Kipferl v0.6.0-rc.2\nBeautiful CLIs with PocketPy and Rust\nFast startup | Standalone binaries | Python syntax",
         title="Welcome",
         border_color="cyan",
     )
@@ -49,7 +49,7 @@ def main():
     tui.rule("Measured Release", color="magenta")
     tui.table(
         [
-            ["Metric", "v0.6.0-rc.1"],
+            ["Metric", "v0.6.0-rc.2"],
             ["Compatibility", "1,669 / 1,669"],
             ["Median startup", "7.044 ms"],
             ["ARM64 minimal app", "4.3 MB"],

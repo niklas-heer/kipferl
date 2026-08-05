@@ -1,12 +1,12 @@
-# ucharm Vision
+# kipferl Vision
 
 This document captures the product vision, the CLI experience we want, and the
-minimum module surface needed to make ucharm a great choice for shipping CLI
+minimum module surface needed to make kipferl a great choice for shipping CLI
 apps as tiny, fast, standalone binaries.
 
 ## Vision
 
-ucharm makes it easy to build great command-line apps with Python syntax and
+kipferl makes it easy to build great command-line apps with Python syntax and
 ship them as single-file binaries that start instantly and work anywhere.
 
 We will not chase full CPython or pip compatibility. The goal is a focused,
@@ -172,7 +172,7 @@ Low value for typical CLI apps or too heavy to justify.
 
 ## Positioning
 
-ucharm is for CLI tools that want:
+kipferl is for CLI tools that want:
 
 - Python ergonomics
 - small, portable binaries
@@ -191,7 +191,7 @@ It is not a drop-in replacement for CPython or pip.
 
 ## Runtime Decision (PocketPy)
 
-PocketPy is the runtime base for ucharm.
+PocketPy is the runtime base for kipferl.
 
 Why:
 - Velocity: the Rust host passes 1,669/1,669 available checks in the curated
@@ -208,7 +208,7 @@ Decision implications:
 
 ## Future Features (Wishlist)
 
-Features inspired by popular CLI frameworks (Rich, Inquirer, BubbleTea, listr2) that would enhance ucharm.
+Features inspired by popular CLI frameworks (Rich, Inquirer, BubbleTea, listr2) that would enhance kipferl.
 
 ### High Priority
 

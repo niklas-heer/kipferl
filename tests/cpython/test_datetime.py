@@ -1,5 +1,5 @@
 """
-Simplified datetime module tests for ucharm compatibility testing.
+Simplified datetime module tests for kipferl compatibility testing.
 Works on both CPython and PocketPy.
 
 Based on CPython's Lib/test/test_datetime.py

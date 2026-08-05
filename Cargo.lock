@@ -521,6 +521,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "kipferl-cli"
+version = "0.6.0-rc.2"
+dependencies = [
+ "kipferl-format",
+ "sha2",
+]
+
+[[package]]
+name = "kipferl-format"
+version = "0.6.0-rc.2"
+
+[[package]]
+name = "kipferl-loader"
+version = "0.6.0-rc.2"
+dependencies = [
+ "kipferl-format",
+ "md-5",
+]
+
+[[package]]
+name = "kipferl-pocketpy-sys"
+version = "0.6.0-rc.2"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "kipferl-runtime"
+version = "0.6.0-rc.2"
+dependencies = [
+ "flate2",
+ "jiff",
+ "kipferl-pocketpy-sys",
+ "libc",
+ "md-5",
+ "ratatui",
+ "regex-lite",
+ "rusqlite",
+ "sha1",
+ "sha2",
+ "tar",
+ "ureq",
+ "zip",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1176,52 +1222,6 @@ name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
-
-[[package]]
-name = "ucharm-cli"
-version = "0.6.0-rc.1"
-dependencies = [
- "sha2",
- "ucharm-format",
-]
-
-[[package]]
-name = "ucharm-format"
-version = "0.6.0-rc.1"
-
-[[package]]
-name = "ucharm-loader"
-version = "0.6.0-rc.1"
-dependencies = [
- "md-5",
- "ucharm-format",
-]
-
-[[package]]
-name = "ucharm-pocketpy-sys"
-version = "0.6.0-rc.1"
-dependencies = [
- "cc",
-]
-
-[[package]]
-name = "ucharm-runtime"
-version = "0.6.0-rc.1"
-dependencies = [
- "flate2",
- "jiff",
- "libc",
- "md-5",
- "ratatui",
- "regex-lite",
- "rusqlite",
- "sha1",
- "sha2",
- "tar",
- "ucharm-pocketpy-sys",
- "ureq",
- "zip",
-]
 
 [[package]]
 name = "unicode-ident"

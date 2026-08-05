@@ -6,7 +6,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
  
  static Error* exprAttrib(Compiler* self) {
 -    consume(TK_ID);
-+    // ucharm patch: allow 'match' soft keyword as attribute name (for re.match, etc.)
++    // kipferl patch: allow 'match' soft keyword as attribute name (for re.match, etc.)
 +    if(curr()->type == TK_MATCH) {
 +        advance();
 +    } else {

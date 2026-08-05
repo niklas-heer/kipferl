@@ -51,11 +51,11 @@ def parse_commits(raw_commits: str) -> list[dict]:
 def installation_guidance(current_tag: str) -> str:
     """Return release-note installation rules for stable or prerelease tags."""
     if "-" in current_tag:
-        return """This is a prerelease. Do not suggest Homebrew, because prereleases do not update the stable formula. Tell users to download the matching `ucharm-*` asset and adjacent `.sha256` file from the GitHub release."""
+        return """This is a prerelease. Do not suggest Homebrew, because prereleases do not update the stable formula. Tell users to download the matching `kipferl-*` asset and adjacent `.sha256` file from the GitHub release. Mention that temporary `ucharm-*` compatibility assets are also published for existing automation."""
     return """Use the stable Homebrew commands:
 ```bash
-brew install ucharmdev/tap/ucharm
-brew upgrade ucharm
+brew install niklas-heer/tap/kipferl
+brew upgrade kipferl
 ```"""
 
 
@@ -81,7 +81,7 @@ def generate_release_notes_with_ai(
 
     installation = installation_guidance(current_tag)
 
-    prompt = f"""You are writing release notes for "ucharm" (μcharm), a CLI toolkit for building beautiful, fast command-line applications with Python syntax. The production CLI, universal loader, native modules, and PocketPy host are implemented in Rust. PocketPy itself is vendored C. Supported release targets are macOS ARM64, macOS x86_64, Linux ARM64 musl, and Linux x86_64 musl. Typical runtime artifacts are 4-5 MB and start in about 8 ms on Apple Silicon.
+    prompt = f"""You are writing release notes for "kipferl" (Kipferl), a CLI toolkit for building beautiful, fast command-line applications with Python syntax. The production CLI, universal loader, native modules, and PocketPy host are implemented in Rust. PocketPy itself is vendored C. Supported release targets are macOS ARM64, macOS x86_64, Linux ARM64 musl, and Linux x86_64 musl. Typical runtime artifacts are 4-5 MB and start in about 8 ms on Apple Silicon.
 
 # Commits:
 
@@ -124,7 +124,7 @@ Interactive prompts have arrived! Build beautiful CLI experiences with select me
 
 - Add **input** module with `select()`, `confirm()`, `prompt()`, and `password()`
 - Add **tui.spinner_frame()** for animated loading indicators
-- New `ucharm init --ai` command generates AI assistant instructions
+- New `kipferl init --ai` command generates AI assistant instructions
 
 ### ⚡ Improvements
 
@@ -150,7 +150,7 @@ Generate the release notes now, starting with the opening tagline."""
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": f"https://github.com/{repo}",
-            "X-Title": "ucharm Release Notes Generator",
+            "X-Title": "kipferl Release Notes Generator",
         },
         json={
             "model": model,

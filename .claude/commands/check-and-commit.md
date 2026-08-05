@@ -11,20 +11,11 @@ Work through each item sequentially. Fix any issues found before proceeding.
 First, run the project's test suites to catch regressions:
 
 ```bash
-# Build PocketPy runtime
-cd pocketpy && zig build -Doptimize=ReleaseSmall
-
-# Build the CLI
-cd cli && zig build -Doptimize=ReleaseSmall
-
-# Run end-to-end tests
-cd cli && ./test_e2e.sh
-
-# Run CPython compatibility tests (PocketPy runtime)
-python3 tests/compat_runner.py --report --runtime ./pocketpy/zig-out/bin/pocketpy-ucharm
+# Format, lint, unit/integration test, build, and run CPython compatibility
+just test
 
 # Run Vision tests
-python3 tests/vision/run_vision.py --timeout 20 --runtime ./pocketpy/zig-out/bin/pocketpy-ucharm
+python3 tests/vision/run_vision.py --timeout 20 --runtime target/release/pocketpy-kipferl
 
 # Verify PocketPy vendor patchset (if PocketPy was updated)
 python3 scripts/verify-pocketpy-patches.py
@@ -38,24 +29,22 @@ If tests fail, fix the issues before continuing.
 If any runtime modules were added or modified, update stubs:
 
 ```bash
-# Update stubs (manual edits for Zig modules)
-# or update scripts/generate_stubs.py if you add a new generator.
-
-# Copy to CLI for embedding
-cp stubs/*.pyi cli/src/stubs/
+# Edit the canonical files in stubs/, then regenerate and verify the manifest.
+python3 scripts/generate_stubs.py
+python3 scripts/generate_stubs.py --check
 ```
 
 ### 3. Update AI Instruction Templates
 
-Review and update the AI instruction templates in `cli/src/templates/` if:
+Review and update the AI instruction templates in `crates/kipferl-cli/templates/` if:
 - New runtime modules were added
 - TUI functions were added/changed
 - Import patterns or APIs changed
 
 Files to check:
-- `cli/src/templates/AGENTS.md` - Universal (Cursor, Windsurf, Zed)
-- `cli/src/templates/CLAUDE.md` - Claude Code instructions
-- `cli/src/templates/copilot-instructions.md` - GitHub Copilot
+- `crates/kipferl-cli/templates/AGENTS.md` - Universal (Cursor, Windsurf, Zed)
+- `crates/kipferl-cli/templates/CLAUDE.md` - Claude Code instructions
+- `crates/kipferl-cli/templates/copilot-instructions.md` - GitHub Copilot
 
 ### 4. Update Project Documentation
 
@@ -74,8 +63,9 @@ Review and update if the changes affect:
 
 ### 5. Update CLI Templates
 
-If TUI APIs changed, update the `ucharm new` template:
-- `cli/src/new_cmd.zig` - The project template
+If TUI APIs changed, update the `kipferl new` template:
+- `crates/kipferl-cli/src/project.rs` - Project generation
+- `crates/kipferl-cli/templates/` - Generated instruction files
 
 ### 6. Update Website Documentation
 
@@ -91,8 +81,7 @@ The website is deployed via Vercel from the `website/` directory.
 After any changes to embedded files (stubs, templates):
 
 ```bash
-cp VERSION cli/src/VERSION
-cd cli && zig build -Doptimize=ReleaseSmall
+cargo build --release --workspace
 ```
 
 ### 8. Review Changes

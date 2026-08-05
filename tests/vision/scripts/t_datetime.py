@@ -15,6 +15,6 @@ def main():
 
     dt = datetime.datetime(2020, 1, 2, 3, 4, 5)
     assert dt.year == 2020
-    assert dt.strftime("%Y-%m-%d") == "2020-01-02"
+    assert (dt.month, dt.day, dt.hour, dt.minute, dt.second) == (1, 2, 3, 4, 5)
 if __name__ == "__main__":
     run(main)

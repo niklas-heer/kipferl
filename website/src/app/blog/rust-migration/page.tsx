@@ -4,10 +4,11 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "From Zig to Rust",
   description:
-    "Why μcharm moved to Rust, how the incremental migration worked, and the measured outcome.",
+    "Why Kipferl moved to Rust, how the incremental migration worked, and the measured outcome.",
 };
 
-const evidenceRoot = "https://github.com/ucharmdev/ucharm/blob/main/benchmarks";
+const evidenceRoot =
+  "https://github.com/niklas-heer/kipferl/blob/main/benchmarks";
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (
@@ -44,7 +45,7 @@ export default function RustMigrationPage() {
       <article className="max-w-4xl mx-auto">
         <nav className="flex items-center gap-3 text-sm text-gray-500 mb-14">
           <Link href="/" className="hover:text-cyan-500">
-            μcharm
+            Kipferl
           </Link>
           <span>/</span>
           <Link href="/blog" className="hover:text-cyan-500">
@@ -60,9 +61,10 @@ export default function RustMigrationPage() {
             From Zig to Rust without stopping the roadmap
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 leading-relaxed">
-            μcharm changed its implementation language, runtime host, release
-            pipeline, and dependency strategy—without changing its promise:
-            write a focused Python CLI and ship one fast native file.
+            The project formerly known as μcharm became Kipferl while changing
+            its implementation language, runtime host, release pipeline, and
+            dependency strategy—without changing its promise: write a focused
+            Python CLI and ship one fast native file.
           </p>
         </header>
 
@@ -102,6 +104,26 @@ export default function RustMigrationPage() {
           </p>
         </section>
 
+        <section className="prose prose-lg dark:prose-invert max-w-none mb-20">
+          <p className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
+            THE NAME
+          </p>
+          <h2>Why Kipferl?</h2>
+          <p>
+            The Rust release was also the right boundary for a clearer product
+            name. A Kipferl is a crescent-shaped pastry, giving a small nod to
+            Bun and matching the product metaphor: we bake a Python-style CLI
+            into one portable executable. The repository, command, packages, and
+            planned home at getkipferl.org now use one memorable spelling.
+          </p>
+          <p>
+            The rename is intentionally compatible. Version 0.6 keeps the old
+            command, import forms, environment variables, and release-asset
+            aliases for a transition window. The MCHARM01 binary format stays
+            frozen, so the new identity does not invalidate existing apps.
+          </p>
+        </section>
+
         <section className="mb-20">
           <p className="text-sm font-mono text-cyan-600 dark:text-cyan-400 mb-4">
             THE HOW
@@ -126,7 +148,7 @@ export default function RustMigrationPage() {
           <Phase number="03" title="Port behavior in compatibility waves">
             <p>
               The CLI and runtime modules moved in risk-ordered batches. Every
-              batch ran the same Python under CPython and μcharm, comparing
+              batch ran the same Python under CPython and Kipferl, comparing
               status, stdout, and stderr. The suite expanded from the original
               456-check baseline to 1,669 passing checks.
             </p>
@@ -236,13 +258,13 @@ export default function RustMigrationPage() {
             <Link href={`${evidenceRoot}/release_cutover.md`}>
               Release cutover report →
             </Link>
-            <Link href="https://github.com/ucharmdev/ucharm/blob/main/tests/compat_report_pocketpy.md">
+            <Link href="https://github.com/niklas-heer/kipferl/blob/main/tests/compat_report_pocketpy.md">
               Compatibility report →
             </Link>
-            <Link href="https://github.com/ucharmdev/ucharm/issues/13">
+            <Link href="https://github.com/niklas-heer/kipferl/issues/13">
               Migration tracker →
             </Link>
-            <Link href="https://github.com/ucharmdev/ucharm/releases/tag/v0.6.0-rc.1">
+            <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.6.0-rc.1">
               v0.6.0-rc.1 release →
             </Link>
           </div>

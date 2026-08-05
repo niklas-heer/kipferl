@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A small command-line application built with μcharm."""
+"""A small command-line application built with Kipferl."""
 
 import sys
 import time
@@ -12,7 +12,7 @@ def cmd_greet(name=None):
     if not name:
         name = input.prompt("What is your name?", default="World")
     tui.box(
-        f"Hello, {name}!\nWelcome to μcharm.",
+        f"Hello, {name}!\nWelcome to Kipferl.",
         title="Greeting",
         border_color="cyan",
     )
@@ -63,7 +63,7 @@ def show_help():
 
 
 def interactive_mode():
-    tui.box("Simple CLI Example\nBuilt with μcharm", title="Welcome")
+    tui.box("Simple CLI Example\nBuilt with Kipferl", title="Welcome")
     command = input.select(
         "What would you like to do?",
         ["Greet someone", "Check status", "Process files", "Exit"],

@@ -5,7 +5,7 @@ import input
 import tui
 
 # Welcome box
-tui.box("Welcome to μcharm!", title="Hello", border_color="cyan")
+tui.box("Welcome to Kipferl!", title="Hello", border_color="cyan")
 print()
 
 # Interactive select

@@ -6,7 +6,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
          case OP_LOAD_FUNCTION: {
              FuncDecl_ decl = c11__getitem(FuncDecl_, &frame->co->func_decls, byte.arg);
 -            Function* ud = py_newobject(SP(), tp_function, 0, sizeof(Function));
-+            // ucharm patch: allow function attributes (__dict__) for CPython compatibility
++            // kipferl patch: allow function attributes (__dict__) for CPython compatibility
 +            Function* ud = py_newobject(SP(), tp_function, -1, sizeof(Function));
              Function__ctor(ud, decl, frame->module, frame->globals);
              if(decl->nested) {
@@ -15,7 +15,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
      return true;
  }
  
-+// ucharm patch: allow setting function.__doc__ for CPython compatibility
++// kipferl patch: allow setting function.__doc__ for CPython compatibility
 +static bool function__doc__set(int argc, py_Ref argv) {
 +    PY_CHECK_ARGC(2);
 +    Function* func = py_touserdata(py_arg(0));
@@ -38,7 +38,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
      return true;
  }
  
-+// ucharm patch: allow setting function.__name__ for CPython compatibility
++// kipferl patch: allow setting function.__name__ for CPython compatibility
 +static bool function__name__set(int argc, py_Ref argv) {
 +    PY_CHECK_ARGC(2);
 +    Function* func = py_touserdata(py_arg(0));

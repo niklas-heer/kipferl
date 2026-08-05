@@ -21,8 +21,8 @@ class InstallationGuidanceTests(unittest.TestCase):
     def test_stable_release_uses_homebrew(self):
         guidance = release_notes.installation_guidance("v0.6.0")
 
-        self.assertIn("brew install ucharmdev/tap/ucharm", guidance)
-        self.assertIn("brew upgrade ucharm", guidance)
+        self.assertIn("brew install niklas-heer/tap/kipferl", guidance)
+        self.assertIn("brew upgrade kipferl", guidance)
 
 
 if __name__ == "__main__":

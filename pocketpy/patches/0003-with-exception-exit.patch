@@ -5,7 +5,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
  /**************************/
  OPCODE(WITH_ENTER)
  OPCODE(WITH_EXIT)
-+// ucharm patch: WITH_EXIT_EXC opcode for exception-aware __exit__
++// kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__
 +OPCODE(WITH_EXIT_EXC)
  /**************************/
  OPCODE(BEGIN_TRY)
@@ -14,7 +14,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
              POP();
              DISPATCH();
          }
-+        // ucharm patch: ensure __exit__ runs on exceptions and can suppress
++        // kipferl patch: ensure __exit__ runs on exceptions and can suppress
 +        case OP_WITH_EXIT_EXC: {
 +            // [expr] -> [suppress]
 +            FrameExcInfo* info = Frame__top_exc_info(frame);
@@ -39,7 +39,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
  /**************************/
  OPCODE(WITH_ENTER)
  OPCODE(WITH_EXIT)
-+// ucharm patch: WITH_EXIT_EXC opcode for exception-aware __exit__
++// kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__
 +OPCODE(WITH_EXIT_EXC)
  /**************************/
  OPCODE(BEGIN_TRY)
@@ -48,7 +48,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
                  // discard `__enter__()`'s return value
                  Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
              }
-+            // ucharm patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
++            // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
 +            Ctx__enter_block(ctx(), CodeBlockType_TRY);
 +            Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
              check(compile_block_body(self));

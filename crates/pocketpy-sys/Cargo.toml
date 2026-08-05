@@ -1,5 +1,5 @@
 [package]
-name = "ucharm-pocketpy-sys"
+name = "kipferl-pocketpy-sys"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

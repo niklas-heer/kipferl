@@ -1,5 +1,5 @@
 """
-tui - Native UI components module for ucharm
+tui - Native UI components module for kipferl
 """
 
 from typing import Any, Callable, Iterable, Iterator, List, Optional, TypeVar

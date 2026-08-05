@@ -25,7 +25,7 @@ def _download_pocketpy_c(version: str) -> str:
     url = (
         f"https://github.com/pocketpy/pocketpy/releases/download/v{version}/pocketpy.c"
     )
-    req = urllib.request.Request(url, headers={"User-Agent": "ucharm/patch-verify"})
+    req = urllib.request.Request(url, headers={"User-Agent": "kipferl/patch-verify"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = resp.read()
     return data.decode("utf-8", errors="replace")
@@ -178,7 +178,7 @@ def _write_report(path: Path, report: dict) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Verify μcharm PocketPy vendor patchset.")
+    parser = argparse.ArgumentParser(description="Verify Kipferl PocketPy vendor patchset.")
     parser.add_argument(
         "--check-upstream",
         action="store_true",
@@ -254,8 +254,8 @@ def main(argv: list[str] | None = None) -> int:
                     failures.append(
                         f"upstream contains vendor anchor unexpectedly: {anchor}"
                     )
-            if "ucharm patch:" in upstream_text:
-                failures.append("upstream contains 'ucharm patch:' markers unexpectedly")
+            if "kipferl patch:" in upstream_text:
+                failures.append("upstream contains 'kipferl patch:' markers unexpectedly")
             replay_matches_vendor = _replay_patchset(
                 repo_root, upstream_text, patch_paths, tracked, failures
             )

@@ -71,8 +71,8 @@ jobs:
 
             3. Build and test:
                \`\`\`bash
-               cargo build --release -p ucharm-runtime
-               python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report
+               cargo build --release -p kipferl-runtime
+               python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report
                \`\`\`
 
             4. Refresh the four Rust runtime assets embedded by the CLI.

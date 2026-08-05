@@ -1,6 +1,6 @@
 """
-Simplified os module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Simplified os module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 
 Based on CPython's Lib/test/test_os.py
 """
@@ -169,7 +169,7 @@ test("linesep is newline", os.linesep in ["\n", "\r\n", "\r"])
 print("\n=== File operations ===")
 
 # mkdir/rmdir
-test_dir = "/tmp/ucharm_test_dir_12345"
+test_dir = "/tmp/kipferl_test_dir_12345"
 try:
     if os.path.exists(test_dir):
         os.rmdir(test_dir)
@@ -181,7 +181,7 @@ except (OSError, PermissionError) as e:
     skip("mkdir/rmdir", str(e))
 
 # remove/unlink
-test_file = "/tmp/ucharm_test_file_12345.txt"
+test_file = "/tmp/kipferl_test_file_12345.txt"
 try:
     with open(test_file, "w") as f:
         f.write("test")

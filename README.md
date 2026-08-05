@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="assets/logo.png" alt="μcharm logo" width="200">
+  <img src="assets/kipferl-logo.png" alt="Kipferl logo" width="200">
 </p>
 
-<h1 align="center">μcharm</h1>
+<h1 align="center">Kipferl</h1>
 
 <p align="center">
   <strong>Python CLIs. Standalone binaries. Fast startup.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ucharmdev/ucharm/actions/workflows/ci.yml"><img src="https://github.com/ucharmdev/ucharm/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/ucharmdev/ucharm/releases"><img src="https://github.com/ucharmdev/ucharm/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/niklas-heer/kipferl/actions/workflows/ci.yml"><img src="https://github.com/niklas-heer/kipferl/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/niklas-heer/kipferl/releases"><img src="https://github.com/niklas-heer/kipferl/actions/workflows/release.yml/badge.svg" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
@@ -23,8 +23,8 @@
 ╰─────────────────────────────────────────────────╯
 ```
 
-μcharm is a focused runtime for beautiful, fast CLI apps. You write Python-style
-scripts, and μcharm ships them as single-file binaries that start instantly.
+Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-style
+scripts, and Kipferl ships them as single-file binaries that start instantly.
 
 - Standalone, target-specific binaries (about 4.3–5.3 MB for a minimal app)
 - Beautiful TUI output (boxes, tables, prompts, progress)
@@ -37,10 +37,10 @@ scripts, and μcharm ships them as single-file binaries that start instantly.
 
 ```bash
 # Run a script
-ucharm run app.py
+kipferl run app.py
 
 # Build a standalone binary
-ucharm build app.py -o app
+kipferl build app.py -o app
 ./app
 ```
 
@@ -82,7 +82,7 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 
 ---
 
-## Why μcharm
+## Why Kipferl
 
 - Python ergonomics with Go-style shipping
 - Compact binaries, fast startup
@@ -90,9 +90,23 @@ Uploading  [███████████░░░░░░] 68%  3.2s
 - No runtime dependency chain
 - Honest, curated stdlib compatibility
 
+### From μcharm to Kipferl
+
+Kipferl is the new name for μcharm beginning with the Rust-based 0.6 release.
+The pastry name is a small nod to Bun and a literal fit for the product: Kipferl
+*bakes* a Python-style CLI into one portable executable. The repository, binary,
+packages, and documentation now share the same spelling, and the planned public
+home is [getkipferl.org](https://getkipferl.org).
+
+Existing 0.5 users have a gentle transition. The 0.6 release accepts old
+`from ucharm ...` imports and environment variables, publishes temporary
+`ucharm-*` download aliases, and installs `ucharm` as a deprecated command alias.
+The `MCHARM01` application format is deliberately unchanged, so existing
+standalone binaries and caches remain compatible.
+
 ## Comparison
 
-| | Python + Rich | Go TUI stack | Rust + Ratatui | **μcharm** |
+| | Python + Rich | Go TUI stack | Rust + Ratatui | **Kipferl** |
 |---|:---:|:---:|:---:|:---:|
 | **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~8ms** |
 | **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~4MB** |
@@ -153,7 +167,7 @@ print(response.status, len(response.read()))
 
 ## Standard Library Support
 
-μcharm targets a CLI-focused subset of CPython. See `tests/compat_report_pocketpy.md` for current compatibility and gaps.
+Kipferl targets a CLI-focused subset of CPython. See `tests/compat_report_pocketpy.md` for current compatibility and gaps.
 
 **Essential for CLI apps:**
 argparse, os, sys, time, pathlib, glob, fnmatch, subprocess, signal, json, csv,
@@ -174,39 +188,43 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ### Rust release candidate (recommended for testing)
 
-The Rust rewrite is available as `v0.6.0-rc.1`. Pick the CLI matching your
+The renamed Rust release is available as `v0.6.0-rc.2`. Pick the CLI matching your
 machine; each download is a standalone executable that embeds its matching
 runtime.
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-aarch64 -o ucharm
-chmod +x ucharm
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-aarch64 -o kipferl
+chmod +x kipferl
 
 # macOS (Intel)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-x86_64 -o ucharm
-chmod +x ucharm
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-x86_64 -o kipferl
+chmod +x kipferl
 
 # Linux (x86_64, static musl)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-x86_64 -o ucharm
-chmod +x ucharm
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-x86_64 -o kipferl
+chmod +x kipferl
 
 # Linux (ARM64, static musl)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-aarch64 -o ucharm
-chmod +x ucharm
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-aarch64 -o kipferl
+chmod +x kipferl
 ```
 
 Move the downloaded file somewhere on your `PATH`, then confirm it with
-`ucharm --version`.
+`kipferl --version`.
 
 ### Homebrew stable (macOS/Linux)
 
-Homebrew remains on the previous stable release until Rust 0.6 is promoted out
-of prerelease:
+The previous μcharm `v0.5` formula remains available during the RC. After
+Kipferl `v0.6` is promoted to stable, install the renamed formula with:
 
 ```bash
-brew install ucharmdev/tap/ucharm
+brew install niklas-heer/tap/kipferl
 ```
+
+Until then, existing users can continue using `brew install
+ucharmdev/tap/ucharm`. Kipferl 0.6 keeps `ucharm` as a deprecated command alias
+for one release cycle.
 
 ---
 
@@ -215,21 +233,21 @@ brew install ucharmdev/tap/ucharm
 | Mode | Size | Dependencies | Use case |
 |------|------|--------------|----------|
 | `universal` | ~4.3-5.3MB | None | Production deployment |
-| `executable` | ~3KB | pocketpy-ucharm | Dev machines with runtime |
-| `single` | ~2KB | pocketpy-ucharm | Scripting |
+| `executable` | ~3KB | pocketpy-kipferl | Dev machines with runtime |
+| `single` | ~2KB | pocketpy-kipferl | Scripting |
 
 ```bash
 # Fully standalone binary (recommended)
-ucharm build app.py -o app --mode universal
+kipferl build app.py -o app --mode universal
 
 # Cross-compile for another platform (downloads the target components once, with SHA-256 verification)
-ucharm build app.py -o app-linux --target linux-x86_64
+kipferl build app.py -o app-linux --target linux-x86_64
 
-# Shell wrapper (needs pocketpy-ucharm installed)
-ucharm build app.py -o app --mode executable
+# Shell wrapper (needs pocketpy-kipferl installed)
+kipferl build app.py -o app --mode executable
 
 # Just transform the Python file
-ucharm build app.py -o app.py --mode single
+kipferl build app.py -o app.py --mode single
 ```
 
 ---
@@ -244,8 +262,8 @@ ucharm build app.py -o app.py --mode single
 ### Quick Start
 
 ```bash
-git clone https://github.com/ucharmdev/ucharm
-cd ucharm
+git clone https://github.com/niklas-heer/kipferl
+cd kipferl
 
 just setup
 just demo
@@ -259,7 +277,7 @@ CLI's generated include manifest has not drifted.
 ### Project Structure
 
 ```
-ucharm/
+kipferl/
 ├── crates/        # Rust CLI, runtime, loader, format, and PocketPy FFI
 ├── pocketpy/      # Vendored PocketPy sources and tracked patches
 ├── tests/         # Test suite
@@ -272,7 +290,7 @@ ucharm/
 
 ## Compatibility and Limitations
 
-- μcharm is not a drop-in replacement for CPython.
+- Kipferl is not a drop-in replacement for CPython.
 - No pip or C-extension support.
 - Pure-Python packages may work if compatible with PocketPy.
 - See `tests/compat_report_pocketpy.md` for current parity.
@@ -281,15 +299,15 @@ ucharm/
 
 The shipping implementation is Rust around an embedded PocketPy C runtime:
 
-- `ucharm-cli` owns project generation, execution, and cross-target builds.
-- `ucharm-runtime` provides the Python VM host and curated native modules.
-- `ucharm-loader` and `ucharm-format` own the standalone application format.
+- `kipferl-cli` owns project generation, execution, and cross-target builds.
+- `kipferl-runtime` provides the Python VM host and curated native modules.
+- `kipferl-loader` and `kipferl-format` own the standalone application format.
 - `pocketpy-sys` is the narrow, audited C FFI boundary.
 
 The migration was compatibility-gated rather than rewritten behind a flag day.
 Read [the migration plan](RUST_MIGRATION.md), the
 [optimization record](benchmarks/rust_optimization_baseline.md), and the
-[public retrospective](https://ucharm.dev/blog/rust-migration) for the why,
+[public retrospective](https://getkipferl.org/blog/rust-migration) for the why,
 the incremental process, accepted tradeoffs, and final measurements.
 
 Current compatibility summary (from `tests/compat_report_pocketpy.md`):
@@ -307,7 +325,7 @@ pristine upstream release.
 
 ## Showcase
 
-Built something with μcharm? Open a PR to add it here.
+Built something with Kipferl? Open a PR to add it here.
 
 - (your app)
 
@@ -318,8 +336,9 @@ Built something with μcharm? Open a PR to add it here.
 <details>
 <summary>Where does the name come from?</summary>
 
-The `μ` signals the project's compact-runtime focus; **ucharm** is the
-ASCII-friendly spelling used for commands, packages, and repository paths.
+A Kipferl is a crescent-shaped pastry. The name gives a playful nod to Bun and
+fits what the tool does: it bakes a Python-style CLI into a compact standalone
+binary. Before 0.6, the project was called μcharm.
 </details>
 
 <details>
@@ -383,7 +402,7 @@ See `tests/compat_report_pocketpy.md` for detailed module compatibility.
 
 ## Docs
 
-- [Website documentation](https://ucharm.dev/docs)
+- [Website documentation](https://getkipferl.org/docs)
 - [Product direction](vision.md)
 - [Implementation priorities](PLAN.md)
 - [Rust migration record](RUST_MIGRATION.md)
@@ -407,5 +426,5 @@ Contributions are welcome. Areas that help the most:
 MIT License. See `LICENSE` for details.
 
 <p align="center">
-  <strong>μcharm</strong> — Python CLIs, native speed
+  <strong>Kipferl</strong> — Python CLIs, native speed
 </p>

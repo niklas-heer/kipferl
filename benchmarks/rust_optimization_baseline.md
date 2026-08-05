@@ -86,8 +86,8 @@ final host artifacts are:
 
 | Artifact | ARM64 macOS size |
 | --- | ---: |
-| Runtime (`pocketpy-ucharm`) | 4,000,864 bytes |
-| CLI (`ucharm`, before final asset refresh) | 2,914,016 bytes |
+| Runtime (`pocketpy-kipferl`) | 4,000,864 bytes |
+| CLI (`kipferl`, before final asset refresh) | 2,914,016 bytes |
 
 The host runtime is approximately 4.0 MB, with a 5 MB cross-target regression
 ceiling. The budget is a guardrail rather than the primary product metric: a
@@ -112,8 +112,8 @@ p95**. The release artifacts on this host are:
 
 | Artifact | Size |
 | --- | ---: |
-| Runtime (`pocketpy-ucharm`) | 4,000,864 bytes |
-| CLI (`ucharm`, with compressed cross-target assets) | 4,796,384 bytes |
+| Runtime (`pocketpy-kipferl`) | 4,000,864 bytes |
+| CLI (`kipferl`, with compressed cross-target assets) | 4,796,384 bytes |
 | Universal loader | 336,864 bytes |
 | Minimal universal application | 4,321,388 bytes |
 
@@ -183,7 +183,7 @@ throughput improvement with no artifact-size cost.
 - The final `cargo bloat --crates` pass reports a 2.9 MiB `.text` section. Its
   largest attributions are 1.1 MiB of C/unknown symbols (primarily PocketPy and
   bundled SQLite), 451.6 KiB of `std`, 264.1 KiB of Rustls, 213.3 KiB of
-  μcharm runtime code, 182.3 KiB of the PocketPy system crate, 127.9 KiB of
+  Kipferl runtime code, 182.3 KiB of the PocketPy system crate, 127.9 KiB of
   Ring, 92.6 KiB of Ureq, and 82.7 KiB of Jiff. Ratatui core contributes
   27.7 KiB and Crossterm 22.7 KiB. These estimates are directional because
   stripped C symbols cannot all be assigned precisely. The normal stripped
@@ -227,7 +227,7 @@ directory/member parser and TAR header/member-boundary parser.
 | `zip` | Adopt, deflate only | Transfers ZIP variants, central-directory validation, CRC, and member bounds upstream |
 | `tar` | Adopt, no xattrs | Transfers TAR header/path/member parsing upstream without extraction-only features |
 | `ratatui` + Crossterm | Adopt, feature-minimal | Provides responsive layout, buffered rendering, inline viewports, focus styling, and TestBackend coverage for interactive selection |
-| `ucharm-pocketpy-sys` + `cc` | Retain | Required local FFI boundary and build path for the embedded PocketPy C runtime |
+| `kipferl-pocketpy-sys` + `cc` | Retain | Required local FFI boundary and build path for the embedded PocketPy C runtime |
 
 CLI/loader dependencies remain limited to the shared format crate and the
 existing RustCrypto hashes used by stable cache/integrity formats. General CLI
@@ -250,13 +250,13 @@ the runtime. The control wrote representative ANSI bytes directly and was
 | Ratatui core layout + widgets, no backend | 368,608 | 82,672 (28.9%) | 53 |
 
 The tree count includes each local spike crate. Crossterm's event path—the
-relevant comparison for μcharm input—adds Mio, signal-hook, signal-hook-mio,
+relevant comparison for Kipferl input—adds Mio, signal-hook, signal-hook-mio,
 Rustix, parking_lot, and supporting crates. The Ratatui measurement does not
 include a terminal backend, yet already adds 52 dependency entries beyond the
 control.
 
 The initial spike was deferred because silently replacing every stateless
-renderer would retain most of μcharm's product-specific code. The later product
+renderer would retain most of Kipferl's product-specific code. The later product
 decision instead adopts Ratatui where its model is immediately valuable:
 `input.select` and `input.multiselect` now use a real inline Ratatui viewport in
 interactive terminals while preserving the public Python API.
@@ -267,7 +267,7 @@ In return it provides buffered rendering, bounded scrolling, responsive normal
 and compact layouts, a minimum-size message, visible keyboard help, semantic
 focus styling, `NO_COLOR`, and reusable TestBackend infrastructure. The inline
 viewport preserves shell scrollback; Crossterm handles interactive key and
-resize events, while μcharm's existing `/dev/tty`, batched legacy input,
+resize events, while Kipferl's existing `/dev/tty`, batched legacy input,
 raw-mode, and shutdown guards remain the compatibility/cleanup substrate.
 
 Three TestBackend cases cover 80-column, compact, monochrome, and too-small

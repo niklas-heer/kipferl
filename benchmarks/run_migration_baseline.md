@@ -1,7 +1,7 @@
 # CLI `run` Migration Baseline
 
 Recorded on 2026-08-04 on macOS 26.5.1, Apple Silicon. Both CLIs used the
-released `pocketpy-ucharm-macos-aarch64` runtime and ran
+released `pocketpy-kipferl-macos-aarch64` runtime and ran
 `tests/vision/scripts/t_errno.py` from a warm cache. Timings are 30 measured
 runs after five warmups.
 

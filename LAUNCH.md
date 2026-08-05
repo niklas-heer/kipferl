@@ -1,4 +1,4 @@
-# μcharm Launch Plan
+# Kipferl Launch Plan
 
 This document is a lightweight go-to-market plan focused on developer
 adoption for CLI tools.
@@ -47,7 +47,7 @@ adoption for CLI tools.
 
 - 60-90s demo video (build -> run -> binary size -> startup time).
 - Comparison table vs Python+Rich, Go+Cobra, Rust+Ratatui.
-- "Built with μcharm" gallery section.
+- "Built with Kipferl" gallery section.
 
 ## Channels
 
@@ -57,7 +57,7 @@ adoption for CLI tools.
 
 ## Success Metrics
 
-- Time to first successful `ucharm build` < 5 minutes.
+- Time to first successful `kipferl build` < 5 minutes.
 - > 30% of visitors complete the Quickstart.
 - 3-5 showcase apps in the first month.
 - Sustained weekly downloads from releases.

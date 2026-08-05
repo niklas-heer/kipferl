@@ -1,6 +1,6 @@
 """
-Minimal gzip module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Minimal gzip module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 """
 
 import sys
@@ -41,7 +41,7 @@ if HAS_GZIP:
     test("has compress", hasattr(gzip, "compress") and callable(gzip.compress))
     test("has decompress", hasattr(gzip, "decompress") and callable(gzip.decompress))
     try:
-        data = b"hello ucharm"
+        data = b"hello kipferl"
         compressed = gzip.compress(data)
         test("compress returns bytes", isinstance(compressed, (bytes, bytearray)))
         test(

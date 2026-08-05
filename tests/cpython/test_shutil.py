@@ -1,6 +1,6 @@
 """
-Simplified shutil module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Simplified shutil module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 
 Based on CPython's Lib/test/test_shutil.py
 """
@@ -123,7 +123,7 @@ test("rmtree removes dir", not path_exists(rm_dir))
 
 
 # ============================================================================
-# shutil.exists() tests (ucharm extension)
+# shutil.exists() tests (kipferl extension)
 # ============================================================================
 
 print("\n=== shutil.exists() tests ===")

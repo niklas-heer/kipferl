@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-ucharm CPython Compatibility Test Runner
+kipferl CPython Compatibility Test Runner
 
-This script runs the full CPython test suite against pocketpy-ucharm
+This script runs the full CPython test suite against pocketpy-kipferl
 and generates a detailed compatibility report.
 
 Usage:
     python tests/compat_runner.py [--module MODULE] [--verbose] [--report]
 
 Like Bun does with Node.js tests, we:
-1. Run the same tests on both CPython and pocketpy-ucharm
+1. Run the same tests on both CPython and pocketpy-kipferl
 2. Track what passes/fails/skips on each
 3. Calculate compatibility percentages
 4. Generate a detailed report with specific failure information
@@ -60,15 +60,15 @@ class ModuleResult:
     """Result of testing a module."""
 
     name: str
-    category: str  # 'stdlib' or 'ucharm'
+    category: str  # 'stdlib' or 'kipferl'
     cpython_tests: list = field(default_factory=list)
-    ucharm_tests: list = field(default_factory=list)
+    kipferl_tests: list = field(default_factory=list)
     cpython_passed: int = 0
     cpython_failed: int = 0
     cpython_skipped: int = 0
-    ucharm_passed: int = 0
-    ucharm_failed: int = 0
-    ucharm_skipped: int = 0
+    kipferl_passed: int = 0
+    kipferl_failed: int = 0
+    kipferl_skipped: int = 0
     failures: list = field(default_factory=list)
     skipped_reasons: list = field(default_factory=list)
     duration_ms: float = 0
@@ -79,26 +79,26 @@ class ModuleResult:
         return self.cpython_passed + self.cpython_failed
 
     @property
-    def ucharm_compared_passed(self) -> int:
+    def kipferl_compared_passed(self) -> int:
         # When running this suite on an older CPython (e.g. 3.9),
-        # μcharm may legitimately exercise more tests than CPython.
+        # Kipferl may legitimately exercise more tests than CPython.
         # Cap to the CPython baseline so totals/parity remain meaningful.
         if self.cpython_total == 0:
             return 0
-        return min(self.ucharm_passed, self.cpython_total)
+        return min(self.kipferl_passed, self.cpython_total)
 
     @property
-    def ucharm_total(self) -> int:
-        return self.ucharm_passed + self.ucharm_failed
+    def kipferl_total(self) -> int:
+        return self.kipferl_passed + self.kipferl_failed
 
     @property
     def parity_percent(self) -> float:
         if self.cpython_total == 0:
             return 100.0
-        return (self.ucharm_compared_passed / self.cpython_total) * 100
+        return (self.kipferl_compared_passed / self.cpython_total) * 100
 
 
-# All modules available in pocketpy-ucharm
+# All modules available in pocketpy-kipferl
 # Organized by category for testing
 
 # CPython standard library modules we are ACTIVELY TARGETING for compatibility
@@ -129,7 +129,7 @@ STDLIB_MODULES = [
     "time",
     "urllib_parse",
     "uuid",
-    # Modules with native μcharm Rust implementations
+    # Modules with native Kipferl Rust implementations
     "base64",
     "copy",
     "csv",
@@ -347,9 +347,9 @@ CPYTHON_STDLIB_ALL = {
     "importlib.metadata": "Package metadata",
 }
 
-# ucharm-specific runtime modules - these are OUR libraries, not CPython stdlib
+# kipferl-specific runtime modules - these are OUR libraries, not CPython stdlib
 # No compatibility comparison needed - they're accepted as-is
-UCHARM_MODULES = [
+KIPFERL_MODULES = [
     "ansi",  # ANSI color codes
     "args",  # CLI argument parsing
     "tui",  # TUI components (box, rule, progress, etc.)
@@ -372,21 +372,21 @@ SKIP_MODULES = [
 
 
 def get_runtime_path() -> str:
-    """Find pocketpy-ucharm binary."""
+    """Find pocketpy-kipferl binary."""
     script_dir = Path(__file__).resolve().parent.parent
 
     # Canonical optimized Rust build
-    release_path = script_dir / "target" / "release" / "pocketpy-ucharm"
+    release_path = script_dir / "target" / "release" / "pocketpy-kipferl"
     if release_path.exists():
         return str(release_path.resolve())
 
     # Development Rust build
-    debug_path = script_dir / "target" / "debug" / "pocketpy-ucharm"
+    debug_path = script_dir / "target" / "debug" / "pocketpy-kipferl"
     if debug_path.exists():
         return str(debug_path.resolve())
 
     # Fallback to PATH
-    return "pocketpy-ucharm"
+    return "pocketpy-kipferl"
 
 
 def print_header():
@@ -394,7 +394,7 @@ def print_header():
     print()
     print(f"{CYAN}{BOLD}╭{'─' * 58}╮{RESET}")
     print(
-        f"{CYAN}{BOLD}│{RESET}  {BOLD}μcharm CPython Compatibility Test Suite{RESET}                 {CYAN}{BOLD}│{RESET}"
+        f"{CYAN}{BOLD}│{RESET}  {BOLD}Kipferl CPython Compatibility Test Suite{RESET}                 {CYAN}{BOLD}│{RESET}"
     )
     print(
         f"{CYAN}{BOLD}│{RESET}  {DIM}Testing against CPython test suite{RESET}                      {CYAN}{BOLD}│{RESET}"
@@ -539,7 +539,7 @@ def parse_test_output(
 def test_module(
     module: str, category: str, test_dir: Path, mpy_path: str, verbose: bool = False
 ) -> ModuleResult:
-    """Test a single module against both CPython and pocketpy-ucharm."""
+    """Test a single module against both CPython and pocketpy-kipferl."""
     result = ModuleResult(name=module, category=category)
 
     # Find test file
@@ -561,22 +561,22 @@ def test_module(
     result.cpython_failed = failed
     result.cpython_skipped = skipped
 
-    # Run with pocketpy-ucharm
+    # Run with pocketpy-kipferl
     stdout, stderr, code, duration = run_test_file(mpy_path, str(test_file))
     passed, failed, skipped, failures = parse_test_output(stdout, stderr, code)
-    result.ucharm_passed = passed
-    result.ucharm_failed = failed
-    result.ucharm_skipped = skipped
+    result.kipferl_passed = passed
+    result.kipferl_failed = failed
+    result.kipferl_skipped = skipped
     result.failures = failures
 
     result.duration_ms = (time.time() - start_time) * 1000
 
     # Print result
     cpython_str = f"{result.cpython_passed}/{result.cpython_total}"
-    ucharm_str = f"{result.ucharm_compared_passed}/{result.cpython_total}"
+    kipferl_str = f"{result.kipferl_compared_passed}/{result.cpython_total}"
     parity = result.parity_percent
 
-    bar = progress_bar(result.ucharm_compared_passed, result.cpython_total, 20)
+    bar = progress_bar(result.kipferl_compared_passed, result.cpython_total, 20)
 
     if parity >= 100:
         status = f"{GREEN}✓{RESET}"
@@ -591,7 +591,7 @@ def test_module(
     # Format parity - need to account for ANSI codes in format_percent
     parity_formatted = format_percent(parity)
     print(
-        f"{bar_color}{bar}{RESET}  {cpython_str:>7} → {ucharm_str:>7}  {parity_formatted}  {status}"
+        f"{bar_color}{bar}{RESET}  {cpython_str:>7} → {kipferl_str:>7}  {parity_formatted}  {status}"
     )
 
     if verbose and result.failures:
@@ -606,7 +606,7 @@ def print_category_header(title: str):
     print(f"\n{BOLD}{title}{RESET}")
     print(f"{DIM}{'─' * 75}{RESET}")
     print(
-        f"  {'Module':<15} {'Progress':<21}  {'CPython':>7}   {'μcharm':>7}  {'Parity'}  Status"
+        f"  {'Module':<15} {'Progress':<21}  {'CPython':>7}   {'Kipferl':>7}  {'Parity'}  Status"
     )
     print(f"{DIM}{'─' * 75}{RESET}")
 
@@ -624,7 +624,7 @@ def run_all_tests(
         result = test_module(module, "stdlib", test_dir, mpy_path, verbose)
         results.append(result)
 
-    # Note: ucharm-specific modules (ansi, tui, input, term, args, path) are
+    # Note: kipferl-specific modules (ansi, tui, input, term, args, path) are
     # our own libraries - no CPython equivalent exists, so no comparison needed.
     # They are accepted as-is.
 
@@ -635,15 +635,15 @@ def print_summary(results: list[ModuleResult]):
     """Print test summary."""
     baseline = [r for r in results if r.cpython_total > 0]
     total_cpython = sum(r.cpython_total for r in baseline)
-    total_ucharm_passed = sum(r.ucharm_compared_passed for r in baseline)
-    total_ucharm_failed = sum(r.ucharm_failed for r in baseline)
-    total_skipped = sum(r.ucharm_skipped for r in baseline)
+    total_kipferl_passed = sum(r.kipferl_compared_passed for r in baseline)
+    total_kipferl_failed = sum(r.kipferl_failed for r in baseline)
+    total_skipped = sum(r.kipferl_skipped for r in baseline)
     no_baseline = sum(
         1 for r in results if r.cpython_total == 0 and r.category == "stdlib"
     )
 
     overall_parity = (
-        (total_ucharm_passed / total_cpython * 100) if total_cpython > 0 else 0
+        (total_kipferl_passed / total_cpython * 100) if total_cpython > 0 else 0
     )
 
     passed_modules = sum(
@@ -653,7 +653,7 @@ def print_summary(results: list[ModuleResult]):
     failed_modules = sum(
         1 for r in results if r.parity_percent == 0 and r.cpython_total > 0
     )
-    # Only count stdlib modules as "missing" - ucharm modules don't need CPython tests
+    # Only count stdlib modules as "missing" - kipferl modules don't need CPython tests
     missing_modules = sum(1 for r in results if r.error and r.category == "stdlib")
 
     print()
@@ -663,7 +663,7 @@ def print_summary(results: list[ModuleResult]):
     print()
 
     # Big progress bar
-    bar = progress_bar(total_ucharm_passed, total_cpython, 50)
+    bar = progress_bar(total_kipferl_passed, total_cpython, 50)
     if overall_parity >= 90:
         bar_color = GREEN
     elif overall_parity >= 70:
@@ -673,7 +673,7 @@ def print_summary(results: list[ModuleResult]):
 
     print(f"  {bar_color}{bar}{RESET}")
     print(
-        f"  {BOLD}{total_ucharm_passed:,}{RESET} / {total_cpython:,} tests passing ({format_percent(overall_parity)})"
+        f"  {BOLD}{total_kipferl_passed:,}{RESET} / {total_cpython:,} tests passing ({format_percent(overall_parity)})"
     )
     print()
 
@@ -711,9 +711,9 @@ def generate_report(results: list[ModuleResult], output_path: Path):
     """Generate markdown compatibility report."""
     baseline = [r for r in results if r.cpython_total > 0]
     total_cpython = sum(r.cpython_total for r in baseline)
-    total_ucharm_passed = sum(r.ucharm_compared_passed for r in baseline)
+    total_kipferl_passed = sum(r.kipferl_compared_passed for r in baseline)
     overall_parity = (
-        (total_ucharm_passed / total_cpython * 100) if total_cpython > 0 else 0
+        (total_kipferl_passed / total_cpython * 100) if total_cpython > 0 else 0
     )
 
     passed_modules = sum(
@@ -730,7 +730,7 @@ def generate_report(results: list[ModuleResult], output_path: Path):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
-        "# μcharm Compatibility Report",
+        "# Kipferl Compatibility Report",
         "",
         f"Generated: {timestamp}",
         "",
@@ -738,7 +738,7 @@ def generate_report(results: list[ModuleResult], output_path: Path):
         "",
         "### Targeted Modules",
         "",
-        f"- **Tests passing**: {total_ucharm_passed:,}/{total_cpython:,} ({overall_parity:.1f}%)",
+        f"- **Tests passing**: {total_kipferl_passed:,}/{total_cpython:,} ({overall_parity:.1f}%)",
         f"- **Modules at 100%**: {passed_modules}/{len(STDLIB_MODULES)}",
         f"- **Modules partial**: {partial_modules}/{len(STDLIB_MODULES)}",
         (
@@ -754,7 +754,7 @@ def generate_report(results: list[ModuleResult], output_path: Path):
         "",
         "## Targeted Module Status",
         "",
-        "| Module | Category | CPython | μcharm | Parity | Notes |",
+        "| Module | Category | CPython | Kipferl | Parity | Notes |",
         "|--------|----------|---------|--------|--------|-------|",
     ]
 
@@ -763,25 +763,25 @@ def generate_report(results: list[ModuleResult], output_path: Path):
             notes = f"⚠️ {r.error}"
         elif r.parity_percent >= 100:
             notes = "✅ Full"
-        elif r.ucharm_skipped > 0:
-            notes = f"{r.ucharm_skipped} skipped"
-        elif r.ucharm_failed > 0:
-            notes = f"{r.ucharm_failed} failing"
+        elif r.kipferl_skipped > 0:
+            notes = f"{r.kipferl_skipped} skipped"
+        elif r.kipferl_failed > 0:
+            notes = f"{r.kipferl_failed} failing"
         else:
             notes = ""
 
         cpython_str = (
             f"{r.cpython_passed}/{r.cpython_total}" if r.cpython_total > 0 else "-"
         )
-        ucharm_str = (
-            f"{r.ucharm_compared_passed}/{r.cpython_total}"
+        kipferl_str = (
+            f"{r.kipferl_compared_passed}/{r.cpython_total}"
             if r.cpython_total > 0
             else "-"
         )
         parity_str = f"{r.parity_percent:.0f}%" if r.cpython_total > 0 else "-"
 
         lines.append(
-            f"| {r.name} | {r.category} | {cpython_str} | {ucharm_str} | {parity_str} | {notes} |"
+            f"| {r.name} | {r.category} | {cpython_str} | {kipferl_str} | {parity_str} | {notes} |"
         )
 
     # Failures section
@@ -804,30 +804,30 @@ def generate_report(results: list[ModuleResult], output_path: Path):
                 lines.append("")
 
     # Skipped section
-    skipped_exist = any(r.ucharm_skipped > 0 for r in results)
+    skipped_exist = any(r.kipferl_skipped > 0 for r in results)
     if skipped_exist:
         lines.extend(
             [
                 "",
                 "## Skipped Tests",
                 "",
-                "These tests require features not available in pocketpy-ucharm:",
+                "These tests require features not available in pocketpy-kipferl:",
                 "",
             ]
         )
 
         for r in results:
-            if r.ucharm_skipped > 0:
+            if r.kipferl_skipped > 0:
                 lines.append(f"### {r.name}")
                 lines.append("")
-                lines.append(f"- {r.ucharm_skipped} tests skipped")
+                lines.append(f"- {r.kipferl_skipped} tests skipped")
                 if r.skipped_reasons:
                     for reason in r.skipped_reasons:
                         lines.append(f"  - {reason}")
                 lines.append("")
 
     # Missing tests section - only show stdlib modules that are missing tests
-    # (ucharm modules don't need CPython comparison)
+    # (kipferl modules don't need CPython comparison)
     missing = [r for r in results if r.error and r.category == "stdlib"]
     if missing:
         lines.extend(
@@ -1007,7 +1007,7 @@ def generate_report(results: list[ModuleResult], output_path: Path):
             "",
             "- Tests are adapted from CPython's test suite",
             "- Some tests require features not available in PocketPy (threading, gc introspection)",
-            "- μcharm-specific modules (ansi, tui, input, term, args) have custom tests",
+            "- Kipferl-specific modules (ansi, tui, input, term, args) have custom tests",
             "- Report generated by `python3 tests/compat_runner.py --report`",
         ]
     )
@@ -1020,7 +1020,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="ucharm CPython compatibility test runner"
+        description="kipferl CPython compatibility test runner"
     )
     parser.add_argument("--module", "-m", help="Test only this module")
     parser.add_argument(
@@ -1037,7 +1037,7 @@ def main():
     )
     parser.add_argument(
         "--runtime",
-        help="Path to runtime binary (defaults to pocketpy-ucharm)",
+        help="Path to runtime binary (defaults to pocketpy-kipferl)",
     )
     parser.add_argument(
         "--ci",
@@ -1051,7 +1051,7 @@ def main():
 
     print_header()
 
-    # Check pocketpy-ucharm exists
+    # Check pocketpy-kipferl exists
     mpy_path = args.runtime or get_runtime_path()
     try:
         mpy_path = str(Path(mpy_path).expanduser().resolve())
@@ -1067,8 +1067,8 @@ def main():
             smoke.write_text("print('ok')\n")
             subprocess.run([mpy_path, str(smoke)], capture_output=True, timeout=5)
     except Exception as e:
-        print(f"{RED}Error: pocketpy-ucharm not found at {mpy_path}{RESET}")
-        print(f"{DIM}Build it with: cargo build --release -p ucharm-runtime{RESET}")
+        print(f"{RED}Error: pocketpy-kipferl not found at {mpy_path}{RESET}")
+        print(f"{DIM}Build it with: cargo build --release -p kipferl-runtime{RESET}")
         sys.exit(1)
 
     # Run tests
@@ -1076,8 +1076,8 @@ def main():
         # Determine category for single module
         if args.module in STDLIB_MODULES:
             category = "stdlib"
-        elif args.module in UCHARM_MODULES:
-            category = "ucharm"
+        elif args.module in KIPFERL_MODULES:
+            category = "kipferl"
         elif args.module in SKIP_MODULES:
             print(f"{YELLOW}Module '{args.module}' is in skip list (not tested){RESET}")
             sys.exit(0)
@@ -1100,7 +1100,7 @@ def main():
         # In CI mode, always exit 0 - we're tracking progress, not gating on 100%
         sys.exit(0)
     else:
-        total_failed = sum(r.ucharm_failed for r in results)
+        total_failed = sum(r.kipferl_failed for r in results)
         sys.exit(1 if total_failed > 0 else 0)
 
 

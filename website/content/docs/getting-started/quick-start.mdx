@@ -1,17 +1,17 @@
 ---
 title: Quick Start
-description: Create your first ucharm app in 5 minutes
+description: Create your first kipferl app in 5 minutes
 ---
 
 # Quick Start
 
-Let's build a simple CLI app that demonstrates ucharm's key features.
+Let's build a simple CLI app that demonstrates kipferl's key features.
 
 ## Create a Project
 
 ```bash
 mkdir hello-cli && cd hello-cli
-ucharm init
+kipferl init
 ```
 
 ## Write Your App
@@ -51,20 +51,20 @@ elif action == "Exit":
 ## Run It
 
 ```bash
-ucharm run app.py
+kipferl run app.py
 ```
 
 ## Build a Binary
 
 ```bash
 # Build for current platform
-ucharm build app.py -o hello
+kipferl build app.py -o hello
 
 # Build a standalone binary for this machine
-ucharm build app.py -o hello --mode universal
+kipferl build app.py -o hello --mode universal
 
 # Or target another supported platform
-ucharm build app.py -o hello-linux --target linux-x86_64
+kipferl build app.py -o hello-linux --target linux-x86_64
 
 # Run the binary
 ./hello

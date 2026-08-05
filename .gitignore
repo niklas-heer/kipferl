@@ -48,7 +48,7 @@ native/dist/
 _tmp*
 
 # Test artifacts
-tests/cpython/__ucharm_*
+tests/cpython/__kipferl_*
 tests/vision/vision_report.md
 
 # Claude Code local settings (user-specific)

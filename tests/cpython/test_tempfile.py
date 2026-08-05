@@ -1,6 +1,6 @@
 """
-Simplified tempfile module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Simplified tempfile module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 
 Based on CPython's Lib/test/test_tempfile.py
 """
@@ -146,9 +146,9 @@ print("\n=== tempfile.mkdtemp() tests ===")
 
 if hasattr(tempfile, "mkdtemp"):
     try:
-        # pocketpy-ucharm mkdtemp requires an absolute path prefix
+        # pocketpy-kipferl mkdtemp requires an absolute path prefix
         # since it doesn't have a default temp directory
-        dpath = tempfile.mkdtemp("/tmp/ucharm_test_")
+        dpath = tempfile.mkdtemp("/tmp/kipferl_test_")
         test("mkdtemp returns string", isinstance(dpath, str))
         test("mkdtemp dir exists", path_exists(dpath))
         test("mkdtemp is dir", path_isdir(dpath))

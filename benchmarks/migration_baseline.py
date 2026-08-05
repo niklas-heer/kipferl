@@ -65,7 +65,7 @@ def main() -> None:
     parser.add_argument(
         "--rust",
         type=Path,
-        default=Path("target/release/pocketpy-ucharm"),
+        default=Path("target/release/pocketpy-kipferl"),
     )
     parser.add_argument(
         "--candidate",

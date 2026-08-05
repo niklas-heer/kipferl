@@ -1,5 +1,5 @@
 """
-Simplified signal module tests for ucharm compatibility testing.
+Simplified signal module tests for kipferl compatibility testing.
 Works on both CPython and PocketPy.
 
 Based on Python's signal module functionality.
