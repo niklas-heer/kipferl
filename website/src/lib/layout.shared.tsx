@@ -1,11 +1,19 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+import Image from "next/image";
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
       title: (
-        <span className="font-bold">
-          <span className="text-cyan-500">u</span>charm
+        <span className="flex items-center gap-2 font-bold">
+          <Image
+            src="/kipferl-logo.png"
+            alt=""
+            width={28}
+            height={28}
+            className="size-7"
+          />
+          <span>Kipferl</span>
         </span>
       ),
     },

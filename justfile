@@ -58,6 +58,13 @@ demo: build
 demo-full: build
     target/release/kipferl run examples/simple_cli.py
 
+# Regenerate the branded README and website demo recording
+demo-gif: build
+    @command -v vhs >/dev/null || (echo "Error: vhs not found. Install it with Homebrew." && exit 1)
+    VHS_NO_SANDBOX=1 vhs demo.tape
+    cp demo.gif website/public/demo.gif
+    @echo "Updated demo.gif and website/public/demo.gif"
+
 # Regenerate the checked-in PocketPy FFI declarations
 bindings:
     ./scripts/generate-rust-bindings.sh
