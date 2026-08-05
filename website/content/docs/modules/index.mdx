@@ -7,6 +7,11 @@ description: Overview of all kipferl runtime modules
 
 kipferl includes 50+ native modules implemented in Rust for performance, safety, and a compact binary.
 
+Standalone builds include the common core directly and add the complete runtime
+when imports need an optional capability. The module APIs do not change between
+profiles. See [Tree-shaken builds](/docs/commands/build#runtime-profiles) for the
+profile assigned to each module group.
+
 ## TUI Components
 
 | Module | Description |

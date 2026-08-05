@@ -26,7 +26,8 @@
 Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and Kipferl ships them as single-file binaries that start instantly.
 
-- Standalone, target-specific binaries (about 4.8–5.9 MB for a minimal app)
+- Tree-shaken standalone binaries (1.4 MB for a minimal app on Apple Silicon;
+  the complete runtime remains available when needed)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -273,7 +274,7 @@ for one release cycle.
 
 | Mode | Size | Dependencies | Use case |
 |------|------|--------------|----------|
-| `universal` | ~4.8-5.9MB | None | Production deployment |
+| `universal` | ~1.4–5.9 MB | None | Tree-shaken production deployment |
 | `executable` | ~3KB | pocketpy-kipferl | Dev machines with runtime |
 | `single` | ~2KB | pocketpy-kipferl | Scripting |
 
@@ -284,12 +285,24 @@ kipferl build app.py -o app --mode universal
 # Cross-compile for another platform (downloads the target components once, with SHA-256 verification)
 kipferl build app.py -o app-linux --target linux-x86_64
 
+# Keep every optional capability when imports cannot be analyzed statically
+kipferl build app.py -o app --full-runtime
+
 # Shell wrapper (needs pocketpy-kipferl installed)
 kipferl build app.py -o app --mode executable
 
 # Just transform the Python file
 kipferl build app.py -o app.py --mode single
 ```
+
+Universal builds inspect imports and choose the smallest prebuilt Rust runtime
+that is safe for the application. JSON, CSV, XML, INI, filesystem, subprocess,
+and presentation APIs fit in the core profile. Imports such as `sqlite3`,
+`http.client`, `input`, YAML/TOML/KDL, regex, crypto, and archives select the
+complete profile. Dynamic or relative imports also choose the complete profile
+conservatively; no Rust compiler or linker is required on the user's machine.
+See the [build reference](https://kipferl.dev/docs/commands/build) for the exact
+rules and diagnostics.
 
 ---
 

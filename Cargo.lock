@@ -564,6 +564,7 @@ dependencies = [
 name = "kipferl-cli"
 version = "0.6.0-rc.2"
 dependencies = [
+ "flate2",
  "kipferl-format",
  "libc",
  "notify",

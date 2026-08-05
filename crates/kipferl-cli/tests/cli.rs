@@ -194,6 +194,9 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
             &["build", "app.py", "-o", output, "--mode", mode],
         );
         assert!(built.status.success(), "{}", text(&built.stderr));
+        if mode == "universal" {
+            assert!(text(&built.stdout).contains("Runtime profile \x1b[1mcore"));
+        }
         let output_path = temporary.path.join(output);
         assert!(output_path.is_file());
         assert_ne!(
@@ -231,26 +234,31 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
 
 #[test]
 fn build_packages_every_release_target_with_the_matching_assets() {
-    const TARGETS: &[(&str, &[u8], &[u8])] = &[
+    type TargetAssets = (&'static str, &'static [u8], &'static [u8], &'static [u8]);
+    const TARGETS: &[TargetAssets] = &[
         (
             "macos-aarch64",
             include_bytes!("../assets/kipferl-loader-macos-aarch64"),
             include_bytes!("../assets/pocketpy-kipferl-macos-aarch64"),
+            include_bytes!("../assets/pocketpy-kipferl-core-macos-aarch64"),
         ),
         (
             "macos-x86_64",
             include_bytes!("../assets/kipferl-loader-macos-x86_64"),
             include_bytes!("../assets/pocketpy-kipferl-macos-x86_64"),
+            include_bytes!("../assets/pocketpy-kipferl-core-macos-x86_64"),
         ),
         (
             "linux-x86_64",
             include_bytes!("../assets/kipferl-loader-linux-x86_64"),
             include_bytes!("../assets/pocketpy-kipferl-linux-x86_64"),
+            include_bytes!("../assets/pocketpy-kipferl-core-linux-x86_64"),
         ),
         (
             "linux-aarch64",
             include_bytes!("../assets/kipferl-loader-linux-aarch64"),
             include_bytes!("../assets/pocketpy-kipferl-linux-aarch64"),
+            include_bytes!("../assets/pocketpy-kipferl-core-linux-aarch64"),
         ),
     ];
 
@@ -258,11 +266,19 @@ fn build_packages_every_release_target_with_the_matching_assets() {
     fs::write(temporary.path.join("app.py"), "print('cross target')\n")
         .expect("write build fixture");
 
-    for &(target, loader, runtime) in TARGETS {
+    for &(target, loader, runtime, core_runtime) in TARGETS {
         let output = format!("app-{target}");
         let built = run(
             &temporary,
-            &["build", "app.py", "-o", &output, "--target", target],
+            &[
+                "build",
+                "app.py",
+                "-o",
+                &output,
+                "--target",
+                target,
+                "--full-runtime",
+            ],
         );
         assert!(built.status.success(), "{target}: {}", text(&built.stderr));
 
@@ -276,7 +292,68 @@ fn build_packages_every_release_target_with_the_matching_assets() {
             &artifact[loader.len()..loader.len() + runtime.len()],
             runtime
         );
+
+        let core_output = format!("app-{target}-core");
+        let core_built = run(
+            &temporary,
+            &["build", "app.py", "-o", &core_output, "--target", target],
+        );
+        assert!(
+            core_built.status.success(),
+            "{target}: {}",
+            text(&core_built.stderr)
+        );
+        assert!(text(&core_built.stdout).contains("Runtime profile \x1b[1mcore"));
+
+        let core_artifact = fs::read(temporary.path.join(core_output)).expect("read core artifact");
+        let core_trailer =
+            kipferl_format::Trailer::decode_from_end(&core_artifact).expect("decode core trailer");
+        assert_eq!(core_trailer.runtime_offset, loader.len() as u64);
+        assert_eq!(core_trailer.runtime_size, core_runtime.len() as u64);
+        assert_eq!(
+            &core_artifact[loader.len()..loader.len() + core_runtime.len()],
+            core_runtime
+        );
     }
+}
+
+#[test]
+fn build_selects_full_runtime_for_optional_or_dynamic_imports() {
+    let temporary = TestDirectory::new("runtime profiles");
+    for (name, source) in [
+        (
+            "sqlite",
+            "import sqlite3\ndb = sqlite3.connect(':memory:')\nprint('sqlite ok')\n",
+        ),
+        (
+            "dynamic",
+            "name = 'json'\nmodule = __import__(name)\nprint(module.dumps(1))\n",
+        ),
+    ] {
+        let script = format!("{name}.py");
+        let output = format!("{name}.app");
+        fs::write(temporary.path.join(&script), source).expect("write profile fixture");
+        let built = run(&temporary, &["build", &script, "-o", &output]);
+        assert!(built.status.success(), "{}", text(&built.stderr));
+        assert!(text(&built.stdout).contains("Runtime profile \x1b[1mfull"));
+
+        let artifact = fs::read(temporary.path.join(output)).expect("read full artifact");
+        let trailer = kipferl_format::Trailer::decode_from_end(&artifact).expect("decode trailer");
+        assert_eq!(trailer.runtime_size, crate_runtime().len() as u64, "{name}");
+    }
+}
+
+fn crate_runtime() -> &'static [u8] {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-macos-aarch64");
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-macos-x86_64");
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-linux-aarch64");
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-linux-x86_64");
+    #[allow(unreachable_code)]
+    &[]
 }
 
 #[test]

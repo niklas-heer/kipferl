@@ -1024,6 +1024,7 @@ pub(crate) fn value_error(message: &'static CStr) -> bool {
     }
 }
 
+#[cfg(feature = "formats")]
 pub(crate) fn value_error_message(message: &str) -> bool {
     let message = CString::new(message).unwrap_or_else(|_| {
         CString::new("invalid value (error contains a NUL byte)").expect("static CString")

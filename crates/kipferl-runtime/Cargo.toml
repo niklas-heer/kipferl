@@ -6,24 +6,45 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["full-runtime"]
+full-runtime = [
+    "archives",
+    "crypto",
+    "formats",
+    "http",
+    "interactive",
+    "regex",
+    "sqlite",
+    "timezone",
+]
+archives = ["dep:flate2", "dep:tar", "dep:zip"]
+crypto = ["dep:md-5", "dep:sha1", "dep:sha2"]
+formats = ["dep:kdl", "dep:serde_json", "dep:toml", "dep:yaml_serde"]
+http = ["dep:ureq"]
+interactive = ["dep:ratatui"]
+regex = ["dep:regex-lite"]
+sqlite = ["dep:rusqlite"]
+timezone = ["dep:jiff"]
+
 [dependencies]
-flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
-jiff = { version = "0.2.35", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"] }
-kdl = { version = "6.7.1", default-features = false }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"], optional = true }
+jiff = { version = "0.2.35", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo"], optional = true }
+kdl = { version = "6.7.1", default-features = false, optional = true }
 libc = "0.2"
-md-5 = { version = "0.11.0", default-features = false }
-ratatui = { version = "0.30.2", default-features = false, features = ["crossterm_0_29"] }
-regex-lite = "0.1.9"
-rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"] }
-serde_json = "1"
-sha1 = { version = "0.11.0", default-features = false }
-sha2 = { version = "0.11", default-features = false }
-tar = { version = "0.4.46", default-features = false }
+md-5 = { version = "0.11.0", default-features = false, optional = true }
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm_0_29"], optional = true }
+regex-lite = { version = "0.1.9", optional = true }
+rusqlite = { version = "0.40.1", default-features = false, features = ["bundled"], optional = true }
+serde_json = { version = "1", optional = true }
+sha1 = { version = "0.11.0", default-features = false, optional = true }
+sha2 = { version = "0.11", default-features = false, optional = true }
+tar = { version = "0.4.46", default-features = false, optional = true }
 kipferl-pocketpy-sys = { path = "../pocketpy-sys" }
-toml = "1.1.4"
-ureq = { version = "3.3.0", default-features = false, features = ["rustls"] }
-yaml_serde = "0.10.4"
-zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"] }
+toml = { version = "1.1.4", optional = true }
+ureq = { version = "3.3.0", default-features = false, features = ["rustls"], optional = true }
+yaml_serde = { version = "0.10.4", optional = true }
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"], optional = true }
 
 [lints]
 workspace = true

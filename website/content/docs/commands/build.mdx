@@ -1,0 +1,92 @@
+---
+title: Build standalone apps
+description: Package a Kipferl app as a tree-shaken, dependency-free executable.
+---
+
+# `kipferl build`
+
+`kipferl build` packages a Python script for macOS or Linux. The default
+`universal` mode produces one executable containing the loader, Rust-hosted
+PocketPy runtime, and transformed application. The target machine does not need
+Kipferl, Python, Rust, Cargo, libc, or musl installed.
+
+```bash
+kipferl build app.py -o app
+./app
+```
+
+## Runtime profiles
+
+Kipferl analyzes static imports and selects one of two prebuilt runtimes. This
+is profile-based tree shaking: optional Rust dependency trees are removed at
+compile time, while users still get a fast build without installing a compiler.
+
+| Profile | Selected for | Apple Silicon example |
+|---------|--------------|-----------------------|
+| `core` | Common CLI, filesystem, process, data, and presentation modules | 1.451 MB app |
+| `full` | Optional capabilities, dynamic code/imports, or an explicit override | 4.818 MB app |
+
+The measurements above use the same minimal application and the v0.6 release
+profile. Exact size varies by target and source payload.
+
+The core profile includes JSON, CSV, XML, INI/configparser, argparse,
+collections, filesystem/path APIs, subprocess, signals, logging, `tui`, and the
+rest of the dependency-light runtime surface. These imports select the full
+profile:
+
+| Capability | Imports |
+|------------|---------|
+| Archives | `gzip`, `tarfile`, `zipfile` |
+| Cryptography | `hashlib`, `hmac` |
+| HTTP and TLS | `http.client` |
+| Interactive Ratatui prompts | `input` |
+| Extended formats | `kdl`, `toml`, `tomllib`, `yaml` |
+| Regular expressions | `re` |
+| Database | `sqlite3` |
+| Timezone data | `time` |
+
+Kipferl chooses the full profile when it sees `__import__`, `importlib`, `exec`,
+`eval`, a relative import, or syntax it cannot resolve safely. A conservative
+fallback makes the result larger, never knowingly incomplete. The build output
+shows the selected profile and every reason for choosing `full`.
+
+```text
+✓ Runtime profile full (complete compatibility)
+  Full runtime: sqlite3 requires the SQLite capability
+```
+
+Use `--full-runtime` as an escape hatch for imports hidden behind application
+logic or generated at runtime:
+
+```bash
+kipferl build app.py -o app --full-runtime
+```
+
+## Targets
+
+```bash
+kipferl build app.py -o app-macos --target macos-aarch64
+kipferl build app.py -o app-intel --target macos-x86_64
+kipferl build app.py -o app-linux --target linux-x86_64
+kipferl build app.py -o app-linux-arm --target linux-aarch64
+```
+
+Cross-builds download signed-release components once and verify their SHA-256
+checksums before packaging. Linux artifacts are statically linked with musl and
+do not depend on a target system libc.
+
+## Other modes
+
+| Mode | Output | Runtime requirement |
+|------|--------|---------------------|
+| `universal` | Native standalone executable | None |
+| `executable` | Shell wrapper | `pocketpy-kipferl` on `PATH` |
+| `single` | Transformed Python source | `pocketpy-kipferl` on `PATH` |
+
+```bash
+kipferl build app.py -o app --mode executable
+kipferl build app.py -o app.py --mode single
+```
+
+`--full-runtime` only applies to universal builds because the other modes do not
+embed a runtime.

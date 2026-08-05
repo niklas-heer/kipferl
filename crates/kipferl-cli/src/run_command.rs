@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::embedded_runtime;
+
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
 const DIM: &str = "\x1b[2m";
@@ -24,26 +26,8 @@ class Color: pass\n\n";
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-kipferl-macos-aarch64");
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-kipferl-macos-x86_64");
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-kipferl-linux-aarch64");
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-const EMBEDDED_RUNTIME: &[u8] = include_bytes!("../assets/pocketpy-kipferl-linux-x86_64");
-#[cfg(not(any(
-    all(target_os = "macos", target_arch = "aarch64"),
-    all(target_os = "macos", target_arch = "x86_64"),
-    all(target_os = "linux", target_arch = "aarch64"),
-    all(target_os = "linux", target_arch = "x86_64")
-)))]
-const EMBEDDED_RUNTIME: &[u8] = &[];
-
-include!(concat!(env!("OUT_DIR"), "/embedded_runtime_key.rs"));
-
 pub(crate) fn embedded_runtime() -> &'static [u8] {
-    EMBEDDED_RUNTIME
+    embedded_runtime::full()
 }
 
 pub(crate) fn embedded_runtime_target() -> &'static str {
@@ -113,7 +97,8 @@ pub fn help() -> String {
 }
 
 pub(crate) fn prepare_runtime() -> io::Result<PathBuf> {
-    if EMBEDDED_RUNTIME.is_empty() {
+    let runtime = embedded_runtime();
+    if runtime.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "no embedded runtime for this target",
@@ -124,7 +109,7 @@ pub(crate) fn prepare_runtime() -> io::Result<PathBuf> {
     ensure_private_directory(&cache_directory)?;
 
     let runtime_path = cache_directory.join("pocketpy-kipferl");
-    prepare_cached_file(&runtime_path, EMBEDDED_RUNTIME, 0o755)?;
+    prepare_cached_file(&runtime_path, runtime, 0o755)?;
     Ok(runtime_path)
 }
 
@@ -156,7 +141,7 @@ fn cache_directory() -> PathBuf {
         .or_else(|| env::var_os("UCHARM_CACHE_DIR"))
         .map(PathBuf::from)
         .unwrap_or_else(env::temp_dir);
-    cache_root.join(format!("kipferl-run-{EMBEDDED_RUNTIME_KEY:016x}"))
+    cache_root.join(format!("kipferl-run-{:016x}", embedded_runtime::full_key()))
 }
 
 fn transform_script(source: &str) -> String {
@@ -263,7 +248,7 @@ fn write_atomically(destination: &Path, content: &[u8], mode: u32) -> io::Result
     }
 }
 
-fn stable_hash(content: &[u8]) -> u64 {
+pub(crate) fn stable_hash(content: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in content {
         hash ^= u64::from(*byte);
@@ -274,9 +259,7 @@ fn stable_hash(content: &[u8]) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        EMBEDDED_RUNTIME, EMBEDDED_RUNTIME_KEY, TRANSFORM_HEADER, stable_hash, transform_script,
-    };
+    use super::{TRANSFORM_HEADER, embedded_runtime, stable_hash, transform_script};
 
     #[test]
     fn transforms_imports_like_the_zig_cli() {
@@ -306,7 +289,10 @@ print(sys.argv)\n";
 
     #[test]
     fn embedded_runtime_key_matches_its_content() {
-        assert!(!EMBEDDED_RUNTIME.is_empty());
-        assert_eq!(stable_hash(EMBEDDED_RUNTIME), EMBEDDED_RUNTIME_KEY);
+        assert!(!embedded_runtime().is_empty());
+        assert_eq!(
+            stable_hash(embedded_runtime()),
+            crate::embedded_runtime::full_key()
+        );
     }
 }

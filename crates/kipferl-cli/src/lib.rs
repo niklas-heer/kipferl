@@ -1,8 +1,10 @@
 mod build_command;
 mod dev_command;
+mod embedded_runtime;
 mod project;
 mod run_command;
 mod test_command;
+mod tree_shake;
 
 use std::fs;
 use std::io::{self, Write};
@@ -437,6 +439,7 @@ mod tests {
                 "                           (default: universal)\n",
                 "    -t, --target <target>  Target platform for cross-compilation\n",
                 "                           (default: current platform)\n",
+                "    --full-runtime         Disable tree shaking for universal builds\n",
                 "    --targets              List available targets\n",
                 "    -h, --help             Show this help\n\n",
                 "\x1b[2mTARGETS:\x1b[0m\n",
@@ -445,12 +448,13 @@ mod tests {
                 "    linux-x86_64           Linux on x86_64\n",
                 "    linux-aarch64          Linux on ARM64\n\n",
                 "\x1b[2mMODES:\x1b[0m\n",
-                "    universal              Standalone binary (~5-6MB, no dependencies)\n",
+                "    universal              Tree-shaken standalone binary, no dependencies\n",
                 "    executable             Shell wrapper (requires pocketpy-kipferl)\n",
                 "    single                 Transformed .py file (requires pocketpy-kipferl)\n\n",
                 "\x1b[2mEXAMPLES:\x1b[0m\n",
                 "    kipferl build app.py -o app\n",
                 "    kipferl build app.py -o app-linux --target linux-x86_64\n",
+                "    kipferl build app.py -o app-full --full-runtime\n",
                 "    kipferl build app.py -o app.py --mode single\n",
             )
         );

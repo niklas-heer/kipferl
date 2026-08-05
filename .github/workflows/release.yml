@@ -52,19 +52,6 @@ jobs:
             -p kipferl-loader \
             --target ${{ matrix.target }}
 
-      - name: Verify static Linux components
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          for binary in pocketpy-kipferl kipferl-loader; do
-            path="target/${{ matrix.target }}/release/$binary"
-            file "$path"
-            if readelf -l "$path" | grep -q "INTERP"; then
-              echo "$path unexpectedly contains a dynamic interpreter" >&2
-              exit 1
-            fi
-          done
-
       - name: Collect component assets
         shell: bash
         run: |
@@ -73,12 +60,45 @@ jobs:
             release-assets/pocketpy-kipferl-${{ matrix.suffix }}
           cp target/${{ matrix.target }}/release/kipferl-loader \
             release-assets/kipferl-loader-${{ matrix.suffix }}
+
+      - name: Build tree-shaken core runtime
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            export CC=musl-gcc
+          fi
+          cargo build --release \
+            -p kipferl-runtime \
+            --no-default-features \
+            --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/pocketpy-kipferl \
+            release-assets/pocketpy-kipferl-core-${{ matrix.suffix }}
+
+      - name: Verify static Linux components
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          for path in \
+            release-assets/pocketpy-kipferl-${{ matrix.suffix }} \
+            release-assets/pocketpy-kipferl-core-${{ matrix.suffix }} \
+            release-assets/kipferl-loader-${{ matrix.suffix }}; do
+            file "$path"
+            if readelf -l "$path" | grep -q "INTERP"; then
+              echo "$path unexpectedly contains a dynamic interpreter" >&2
+              exit 1
+            fi
+          done
+
+      - name: Checksum component assets
+        shell: bash
+        run: |
           python3 - <<'PY'
           import hashlib
           from pathlib import Path
 
           for component in [
               Path("release-assets/pocketpy-kipferl-${{ matrix.suffix }}"),
+              Path("release-assets/pocketpy-kipferl-core-${{ matrix.suffix }}"),
               Path("release-assets/kipferl-loader-${{ matrix.suffix }}"),
           ]:
               digest = hashlib.sha256(component.read_bytes()).hexdigest()
