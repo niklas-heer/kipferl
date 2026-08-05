@@ -1,8 +1,11 @@
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc;
+use std::time::Duration;
 
 static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -45,6 +48,10 @@ fn reports_version_help_and_unknown_commands() {
     assert!(run_help.status.success());
     assert!(text(&run_help.stdout).contains("kipferl run <script.py> [args...]"));
 
+    let dev_help = run(&temporary, &["dev", "--help"]);
+    assert!(dev_help.status.success());
+    assert!(text(&dev_help.stdout).contains("kipferl dev [OPTIONS] <script.py>"));
+
     let no_script = run(&temporary, &["run"]);
     assert!(!no_script.status.success());
     assert_eq!(
@@ -58,6 +65,53 @@ fn reports_version_help_and_unknown_commands() {
         text(&missing_script.stderr),
         "\x1b[31mError:\x1b[0m Script not found: missing.py\n"
     );
+}
+
+#[test]
+fn dev_runs_immediately_and_restarts_after_an_edit() {
+    let temporary = TestDirectory::new("dev restart");
+    let project = temporary.path.join("project");
+    fs::create_dir(&project).expect("create project directory");
+    let script = project.join("app.py");
+    let config = temporary.path.join("settings.txt");
+    fs::write(&script, "print('first run')\n").expect("write initial script");
+    fs::write(&config, "initial settings\n").expect("write watched config");
+
+    let process = Command::new(env!("CARGO_BIN_EXE_kipferl"))
+        .args([
+            "dev",
+            "--debounce",
+            "25",
+            "--watch",
+            "settings.txt",
+            "project/app.py",
+        ])
+        .current_dir(&temporary.path)
+        .env("KIPFERL_CACHE_DIR", temporary.path.join(".cache"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start dev command");
+    let mut process = ChildGuard(process);
+    let stdout = process.0.stdout.take().expect("capture dev stdout");
+    let (lines, received) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+            if lines.send(line).is_err() {
+                break;
+            }
+        }
+    });
+
+    wait_for_output(&received, "first run");
+    fs::write(&config, "changed settings\n").expect("edit extra watched file");
+    wait_for_output(&received, "Change detected, restarting");
+    wait_for_output(&received, "first run");
+    fs::write(&script, "print('script edit')\n").expect("edit watched script");
+    wait_for_output(&received, "Change detected, restarting");
+    wait_for_output(&received, "script edit");
+
+    process.stop();
 }
 
 #[test]
@@ -379,8 +433,39 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+fn wait_for_output(lines: &mpsc::Receiver<String>, expected: &str) {
+    let mut observed = Vec::new();
+    loop {
+        let line = lines
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|error| {
+                panic!("timed out waiting for {expected:?}: {error}; output: {observed:?}")
+            });
+        let matches = line.contains(expected);
+        observed.push(line);
+        if matches {
+            return;
+        }
+    }
+}
+
 struct TestDirectory {
     path: PathBuf,
+}
+
+struct ChildGuard(std::process::Child);
+
+impl ChildGuard {
+    fn stop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        self.stop();
+    }
 }
 
 impl TestDirectory {

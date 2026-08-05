@@ -36,13 +36,19 @@ scripts, and Kipferl ships them as single-file binaries that start instantly.
 ## Quickstart
 
 ```bash
-# Run a script
-kipferl run app.py
+# Develop with automatic restart on every edit
+kipferl dev app.py
 
 # Build a standalone binary
 kipferl build app.py -o app
 ./app
 ```
+
+`kipferl dev` watches Python, config, and template files under the script
+directory and keeps waiting after the program exits. Use `--watch <path>` for
+additional files or directories (including other file types),
+`--clear` for a clean screen on each restart, or `--debounce <ms>` for tools
+that write files in bursts. Run `kipferl dev --help` for the complete interface.
 
 ---
 

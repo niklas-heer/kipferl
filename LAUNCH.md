@@ -24,10 +24,11 @@ adoption for CLI tools.
 - Robust subprocess (argv fidelity, large output handling).
 - Config parsing: `configparser` plus `toml` or a tiny `fetch` module.
 - Unicode width handling for aligned tables/boxes.
+- Fast local feedback through `kipferl dev` watch/restart mode.
 
 ### Docs
 
-- Quickstart (hello + build + run).
+- Quickstart (hello + develop + build + run).
 - Limitations (no pip) and module tiers.
 - CLI cookbook (common patterns: config, logging, subprocess, progress).
 

@@ -170,7 +170,9 @@ export function Terminal({
 
 // Pre-styled terminal output examples
 export function TerminalDemo() {
-  const demoOutput = `\x1b[36m$\x1b[0m kipferl run demo.py
+  const demoOutput = `\x1b[36m$\x1b[0m kipferl dev demo.py
+\x1b[1;32mKipferl dev\x1b[0m \x1b[2mwatching ./\x1b[0m
+\x1b[36m→\x1b[0m Running \x1b[1mdemo.py\x1b[0m
 
 \x1b[1;34m╭─ Release ─────────────────────────────╮\x1b[0m
 \x1b[1;34m│\x1b[0m Deploying build...                    \x1b[1;34m│\x1b[0m

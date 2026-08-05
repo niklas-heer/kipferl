@@ -27,6 +27,9 @@ This is the single source of truth for priorities and next steps.
 - Phase 6 has cut the canonical CI, release workflow, embedded assets, public
   binary names, local commands, and contributor guidance over to Rust/Cargo.
 - The Rust optimization, safety, native CI, and prerelease gates are complete.
+- `kipferl dev` provides a Rust-native watch/restart loop with debounced native
+  filesystem events, extra watch paths, terminal clearing, and terminal-state
+  restoration for interactive applications.
 - The archived Zig implementation has been removed from the working tree; use
   final Zig tag `v0.5.0` for archaeology.
 - Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
@@ -71,8 +74,9 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
    docs, templates, and examples now describe the Rust architecture and RC;
    the website publishes the measured migration retrospective below.
 4. Canonical stub generation, release evidence, and cross-target build
-   verification are complete. Promote 0.6 after the remaining prerelease
-   feedback and product-name review.
+   verification are complete. Publish and validate `v0.6.0-rc.2` with
+   `kipferl dev`, allow a short feedback window, then promote the same proven
+   Rust line to stable `v0.6.0`.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -207,6 +211,11 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   now use `http.client`.
 - **Complete:** templates and docs reference the canonical stubs and direct
   `tui`/`input` import paths.
+- **Complete:** `kipferl dev` runs a script immediately, watches its project
+  directory through `notify`'s native macOS/Linux backends, debounces editor
+  event bursts, supports repeatable `--watch` paths and `--clear`, remains
+  alive after script exit, and restores terminal settings between interactive
+  restarts. Parser, filtering, help, and real edit/restart behavior are tested.
 
 ### Phase E: Packaging + release hygiene
 - **Complete:** CI runs the full compatibility report as a regression gate and
@@ -222,8 +231,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## Backlog (ordered)
 
-- Tree-shaking or module selection for smaller binaries.
-- `kipferl dev` (watch mode / hot reload).
+- Publish and validate `v0.6.0-rc.2`, then promote the proven Rust release to
+  stable `v0.6.0` after its feedback window.
+- Tree-shaking or module selection for smaller binaries, after stable; pursue
+  it only when the DX and maintenance tradeoff is favorable.
 - Formats: third-party `toml` and YAML.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

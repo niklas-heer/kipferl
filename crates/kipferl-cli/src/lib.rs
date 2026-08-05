@@ -1,4 +1,5 @@
 mod build_command;
+mod dev_command;
 mod project;
 mod run_command;
 mod test_command;
@@ -51,6 +52,7 @@ pub fn run(
         "new" => run_new(&arguments[1..], current_directory, stdout, stderr),
         "init" => run_init(&arguments[1..], current_directory, stdout, stderr),
         "run" => run_command::execute(&arguments[1..], current_directory, stdout, stderr),
+        "dev" => dev_command::execute(&arguments[1..], current_directory, stdout, stderr),
         "build" => build_command::execute(&arguments[1..], current_directory, stdout, stderr),
         "test" => test_command::execute(&arguments[1..], current_directory, stdout, stderr),
         unknown => {
@@ -282,7 +284,7 @@ fn print_new_logo(output: &mut dyn Write) -> io::Result<()> {
 
 fn main_help() -> String {
     format!(
-        "{BOLD}USAGE{RESET}\n    kipferl {CYAN}<command>{RESET} [options]\n\n{BOLD}COMMANDS{RESET}\n    {CYAN}new{RESET} {DIM}<name>{RESET}        Create a new project\n    {CYAN}run{RESET} {DIM}<file>{RESET}        Run a script with pocketpy\n    {CYAN}build{RESET} {DIM}<file>{RESET}      Build a standalone binary\n    {CYAN}init{RESET}              Initialize kipferl in current directory\n    {CYAN}test{RESET}              Run compatibility tests\n\n{BOLD}OPTIONS{RESET}\n    {CYAN}-h{RESET}, {CYAN}--help{RESET}        Show this help\n    {CYAN}-v{RESET}, {CYAN}--version{RESET}     Show version\n\n{BOLD}EXAMPLES{RESET}\n    {DIM}${RESET} kipferl new myapp                  {DIM}# Create new project{RESET}\n    {DIM}${RESET} kipferl run app.py                 {DIM}# Run with pocketpy{RESET}\n    {DIM}${RESET} kipferl build app.py -o app        {DIM}# Build universal binary{RESET}\n    {DIM}${RESET} kipferl init --stubs --ai claude   {DIM}# Add IDE support{RESET}\n\n{DIM}    Docs: https://github.com/niklas-heer/kipferl{RESET}\n"
+        "{BOLD}USAGE{RESET}\n    kipferl {CYAN}<command>{RESET} [options]\n\n{BOLD}COMMANDS{RESET}\n    {CYAN}new{RESET} {DIM}<name>{RESET}        Create a new project\n    {CYAN}run{RESET} {DIM}<file>{RESET}        Run a script with pocketpy\n    {CYAN}dev{RESET} {DIM}<file>{RESET}        Run and restart when files change\n    {CYAN}build{RESET} {DIM}<file>{RESET}      Build a standalone binary\n    {CYAN}init{RESET}              Initialize kipferl in current directory\n    {CYAN}test{RESET}              Run compatibility tests\n\n{BOLD}OPTIONS{RESET}\n    {CYAN}-h{RESET}, {CYAN}--help{RESET}        Show this help\n    {CYAN}-v{RESET}, {CYAN}--version{RESET}     Show version\n\n{BOLD}EXAMPLES{RESET}\n    {DIM}${RESET} kipferl new myapp                  {DIM}# Create new project{RESET}\n    {DIM}${RESET} kipferl dev app.py                 {DIM}# Develop with live restart{RESET}\n    {DIM}${RESET} kipferl build app.py -o app        {DIM}# Build universal binary{RESET}\n    {DIM}${RESET} kipferl init --stubs --ai claude   {DIM}# Add IDE support{RESET}\n\n{DIM}    Docs: https://kipferl.dev{RESET}\n"
     )
 }
 
@@ -301,7 +303,8 @@ fn init_help() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_command, init_help, main_help, new_help, project::sanitize_name, run_command,
+        build_command, dev_command, init_help, main_help, new_help, project::sanitize_name,
+        run_command,
     };
 
     #[test]
@@ -314,6 +317,7 @@ mod tests {
                 "\x1b[1mCOMMANDS\x1b[0m\n",
                 "    \x1b[36mnew\x1b[0m \x1b[2m<name>\x1b[0m        Create a new project\n",
                 "    \x1b[36mrun\x1b[0m \x1b[2m<file>\x1b[0m        Run a script with pocketpy\n",
+                "    \x1b[36mdev\x1b[0m \x1b[2m<file>\x1b[0m        Run and restart when files change\n",
                 "    \x1b[36mbuild\x1b[0m \x1b[2m<file>\x1b[0m      Build a standalone binary\n",
                 "    \x1b[36minit\x1b[0m              Initialize kipferl in current directory\n",
                 "    \x1b[36mtest\x1b[0m              Run compatibility tests\n\n",
@@ -322,10 +326,10 @@ mod tests {
                 "    \x1b[36m-v\x1b[0m, \x1b[36m--version\x1b[0m     Show version\n\n",
                 "\x1b[1mEXAMPLES\x1b[0m\n",
                 "    \x1b[2m$\x1b[0m kipferl new myapp                  \x1b[2m# Create new project\x1b[0m\n",
-                "    \x1b[2m$\x1b[0m kipferl run app.py                 \x1b[2m# Run with pocketpy\x1b[0m\n",
+                "    \x1b[2m$\x1b[0m kipferl dev app.py                 \x1b[2m# Develop with live restart\x1b[0m\n",
                 "    \x1b[2m$\x1b[0m kipferl build app.py -o app        \x1b[2m# Build universal binary\x1b[0m\n",
                 "    \x1b[2m$\x1b[0m kipferl init --stubs --ai claude   \x1b[2m# Add IDE support\x1b[0m\n\n",
-                "\x1b[2m    Docs: https://github.com/niklas-heer/kipferl\x1b[0m\n",
+                "\x1b[2m    Docs: https://kipferl.dev\x1b[0m\n",
             )
         );
         assert_eq!(
@@ -396,6 +400,27 @@ mod tests {
                 "    kipferl run app.py\n",
                 "    kipferl run app.py --verbose\n",
                 "    kipferl run examples/demo.py\n",
+            )
+        );
+        assert_eq!(
+            dev_command::help(),
+            concat!(
+                "\x1b[1mKipferl dev\x1b[0m - Restart a script when project files change\n\n",
+                "\x1b[2mUSAGE:\x1b[0m\n",
+                "    kipferl dev [OPTIONS] <script.py> [--] [args...]\n\n",
+                "\x1b[2mOPTIONS:\x1b[0m\n",
+                "    -w, --watch <path>    Watch an additional file or directory\n",
+                "    --clear               Clear the terminal before each restart\n",
+                "    --debounce <ms>       Wait for writes to settle (default: 150)\n",
+                "    -h, --help            Show this help\n\n",
+                "\x1b[2mDESCRIPTION:\x1b[0m\n",
+                "    Runs the script immediately, then watches its directory recursively.\n",
+                "    The watcher stays alive when the script exits so the next edit runs it\n",
+                "    again. Generated, cache, virtual-environment, and VCS paths are ignored.\n\n",
+                "\x1b[2mEXAMPLES:\x1b[0m\n",
+                "    kipferl dev app.py\n",
+                "    kipferl dev --clear app.py\n",
+                "    kipferl dev --watch templates --watch settings.toml app.py -- --verbose\n",
             )
         );
         assert_eq!(
