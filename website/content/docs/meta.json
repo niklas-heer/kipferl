@@ -6,6 +6,7 @@
     "getting-started/installation",
     "getting-started/quick-start",
     "---CLI---",
+    "commands/build",
     "commands/dev",
     "---Modules---",
     "modules/index",

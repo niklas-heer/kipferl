@@ -29,25 +29,47 @@ export default function BlogPage() {
           </p>
         </div>
 
-        <Link
-          href="/blog/rust-migration"
-          className="group block rounded-3xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 p-8 md:p-12 hover:border-cyan-500/50 transition-colors"
-        >
-          <div className="font-mono text-sm text-gray-500 mb-5">
-            AUGUST 2026 · MIGRATION RETROSPECTIVE
-          </div>
-          <h2 className="text-3xl md:text-5xl font-bold mb-5 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
-            From Zig to Rust without stopping the roadmap
-          </h2>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl leading-relaxed mb-8">
-            Why we changed foundations, how compatibility gates made an
-            incremental rewrite possible, and what the public Rust release
-            candidate actually costs and improves.
-          </p>
-          <span className="font-semibold text-cyan-600 dark:text-cyan-400">
-            Read the story →
-          </span>
-        </Link>
+        <div className="space-y-6">
+          <Link
+            href="/blog/tree-shaken-builds"
+            className="group block rounded-3xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-amber-500/10 via-transparent to-cyan-500/10 p-8 md:p-12 hover:border-amber-500/50 transition-colors"
+          >
+            <div className="font-mono text-sm text-gray-500 mb-5">
+              AUGUST 2026 · BUILD ENGINEERING
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold mb-5 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+              A 1.4 MB Kipferl without putting Rust on your machine
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl leading-relaxed mb-8">
+              How conservative import analysis and prebuilt Rust profiles cut a
+              minimal standalone app by 69.9% while preserving the full runtime
+              as a safe fallback.
+            </p>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">
+              Read the implementation story →
+            </span>
+          </Link>
+
+          <Link
+            href="/blog/rust-migration"
+            className="group block rounded-3xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-cyan-500/10 via-transparent to-blue-500/10 p-8 md:p-12 hover:border-cyan-500/50 transition-colors"
+          >
+            <div className="font-mono text-sm text-gray-500 mb-5">
+              AUGUST 2026 · MIGRATION RETROSPECTIVE
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold mb-5 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+              From Zig to Rust without stopping the roadmap
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl leading-relaxed mb-8">
+              Why we changed foundations, how compatibility gates made an
+              incremental rewrite possible, and what the public Rust release
+              candidate actually costs and improves.
+            </p>
+            <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+              Read the story →
+            </span>
+          </Link>
+        </div>
       </div>
     </main>
   );

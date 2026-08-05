@@ -7,7 +7,7 @@ description: Build beautiful CLI apps with Python syntax and ship them as compac
 
 **kipferl** is a CLI toolkit for building beautiful command-line applications with Python syntax, powered by [PocketPy](https://pocketpy.dev).
 
-Write in familiar Python, ship as target-specific standalone executables around 4.8–5.9 MB that start in under 10 ms on the measured Apple Silicon baseline.
+Write in familiar Python, ship as target-specific standalone executables as small as 1.4 MB that start in under 10 ms on the measured Apple Silicon baseline.
 
 ## Why kipferl?
 
@@ -47,7 +47,7 @@ kipferl is **not** a drop-in replacement for CPython. It's a focused runtime opt
 | Feature | kipferl | CPython |
 |---------|--------|---------|
 | Startup time | 7.044 ms median | ~50ms+ |
-| Binary size | ~4.8–5.9 MB | ~100MB+ |
+| Binary size | ~1.4–5.9 MB | ~100MB+ |
 | Dependencies | None | pip ecosystem |
 | TUI components | Built-in | Requires packages |
 
@@ -56,6 +56,7 @@ kipferl is **not** a drop-in replacement for CPython. It's a focused runtime opt
 <Cards>
   <Card title="Installation" href="/docs/getting-started/installation" />
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
+  <Card title="Build standalone apps" href="/docs/commands/build" />
   <Card title="Development server" href="/docs/commands/dev" />
   <Card title="Modules" href="/docs/modules" />
   <Card title="Why we moved to Rust" href="/blog/rust-migration" />

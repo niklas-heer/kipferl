@@ -509,8 +509,11 @@ artifacts meet the compatibility, startup, and size gates.
      debouncing, extra watch paths, terminal clearing/restoration, and an
      end-to-end restart test;
   7. publish and validate RC2, then promote the proven Rust line to stable;
-  8. tree-shaking/module selection for size, when its DX and maintenance value
-     justifies the complexity;
+  8. tree-shaking/module selection for size — in progress for stable v0.6.0;
+     the first implementation chooses a compile-time-pruned core runtime or a
+     complete compatibility runtime from conservative static import analysis,
+     requires no user toolchain, and produces a measured 1.451 MB minimal app
+     on Apple Silicon;
   9. remaining networking, format, concurrency, and database work;
   10. higher-level TUI features from `vision.md`.
 

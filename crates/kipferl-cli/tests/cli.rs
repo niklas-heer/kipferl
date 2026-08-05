@@ -194,6 +194,9 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
             &["build", "app.py", "-o", output, "--mode", mode],
         );
         assert!(built.status.success(), "{}", text(&built.stderr));
+        if mode == "universal" {
+            assert!(text(&built.stdout).contains("Runtime profile \x1b[1mcore"));
+        }
         let output_path = temporary.path.join(output);
         assert!(output_path.is_file());
         assert_ne!(
@@ -262,7 +265,15 @@ fn build_packages_every_release_target_with_the_matching_assets() {
         let output = format!("app-{target}");
         let built = run(
             &temporary,
-            &["build", "app.py", "-o", &output, "--target", target],
+            &[
+                "build",
+                "app.py",
+                "-o",
+                &output,
+                "--target",
+                target,
+                "--full-runtime",
+            ],
         );
         assert!(built.status.success(), "{target}: {}", text(&built.stderr));
 
@@ -277,6 +288,45 @@ fn build_packages_every_release_target_with_the_matching_assets() {
             runtime
         );
     }
+}
+
+#[test]
+fn build_selects_full_runtime_for_optional_or_dynamic_imports() {
+    let temporary = TestDirectory::new("runtime profiles");
+    for (name, source) in [
+        (
+            "sqlite",
+            "import sqlite3\ndb = sqlite3.connect(':memory:')\nprint('sqlite ok')\n",
+        ),
+        (
+            "dynamic",
+            "name = 'json'\nmodule = __import__(name)\nprint(module.dumps(1))\n",
+        ),
+    ] {
+        let script = format!("{name}.py");
+        let output = format!("{name}.app");
+        fs::write(temporary.path.join(&script), source).expect("write profile fixture");
+        let built = run(&temporary, &["build", &script, "-o", &output]);
+        assert!(built.status.success(), "{}", text(&built.stderr));
+        assert!(text(&built.stdout).contains("Runtime profile \x1b[1mfull"));
+
+        let artifact = fs::read(temporary.path.join(output)).expect("read full artifact");
+        let trailer = kipferl_format::Trailer::decode_from_end(&artifact).expect("decode trailer");
+        assert_eq!(trailer.runtime_size, crate_runtime().len() as u64, "{name}");
+    }
+}
+
+fn crate_runtime() -> &'static [u8] {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-macos-aarch64");
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-macos-x86_64");
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-linux-aarch64");
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    return include_bytes!("../assets/pocketpy-kipferl-linux-x86_64");
+    #[allow(unreachable_code)]
+    &[]
 }
 
 #[test]

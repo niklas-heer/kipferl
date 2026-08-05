@@ -83,6 +83,11 @@ kipferl build app.py -o hello-linux --target linux-x86_64
 ./hello
 ```
 
+Universal builds automatically select a tree-shaken core runtime or the full
+compatibility runtime from your imports. This happens without a local Rust
+toolchain. See the [`kipferl build` reference](/docs/commands/build) for size
+expectations, profile selection, cross-target behavior, and `--full-runtime`.
+
 ## What's Next?
 
 <Cards>
@@ -91,4 +96,5 @@ kipferl build app.py -o hello-linux --target linux-x86_64
   <Card title="All Modules" href="/docs/modules" />
   <Card title="Data Formats" href="/docs/modules/data-formats" />
   <Card title="Development server" href="/docs/commands/dev" />
+  <Card title="Standalone builds" href="/docs/commands/build" />
 </Cards>

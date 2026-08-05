@@ -84,18 +84,6 @@ jobs:
             -p kipferl-runtime \
             -p kipferl-loader \
             --target ${{ matrix.target }}
-      - name: Verify static Linux components
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          for binary in pocketpy-kipferl kipferl-loader; do
-            path="target/${{ matrix.target }}/release/$binary"
-            file "$path"
-            if readelf -l "$path" | grep -q "INTERP"; then
-              echo "$path unexpectedly contains a dynamic interpreter" >&2
-              exit 1
-            fi
-          done
       - name: Collect embeddable Rust assets
         shell: bash
         run: |
@@ -104,6 +92,34 @@ jobs:
             release-assets/pocketpy-kipferl-${{ matrix.suffix }}
           cp target/${{ matrix.target }}/release/kipferl-loader \
             release-assets/kipferl-loader-${{ matrix.suffix }}
+      - name: Build tree-shaken core runtime
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            export CC=musl-gcc
+          fi
+          cargo build --release \
+            -p kipferl-runtime \
+            --no-default-features \
+            --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/pocketpy-kipferl \
+            release-assets/pocketpy-kipferl-core-${{ matrix.suffix }}
+          cp release-assets/pocketpy-kipferl-${{ matrix.suffix }} \
+            target/${{ matrix.target }}/release/pocketpy-kipferl
+      - name: Verify static Linux components
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          for path in \
+            release-assets/pocketpy-kipferl-${{ matrix.suffix }} \
+            release-assets/pocketpy-kipferl-core-${{ matrix.suffix }} \
+            release-assets/kipferl-loader-${{ matrix.suffix }}; do
+            file "$path"
+            if readelf -l "$path" | grep -q "INTERP"; then
+              echo "$path unexpectedly contains a dynamic interpreter" >&2
+              exit 1
+            fi
+          done
       - name: Upload embeddable Rust assets
         uses: actions/upload-artifact@v4
         with:
@@ -114,6 +130,8 @@ jobs:
         run: |
           cp target/${{ matrix.target }}/release/pocketpy-kipferl \
             crates/kipferl-cli/assets/pocketpy-kipferl-${{ matrix.suffix }}
+          cp release-assets/pocketpy-kipferl-core-${{ matrix.suffix }} \
+            crates/kipferl-cli/assets/pocketpy-kipferl-core-${{ matrix.suffix }}
           cp target/${{ matrix.target }}/release/kipferl-loader \
             crates/kipferl-cli/assets/kipferl-loader-${{ matrix.suffix }}
       - name: Build Rust CLI
@@ -176,6 +194,11 @@ jobs:
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/kipferl --version | grep -q "Kipferl"
+      - name: Smoke-test tree-shaken core runtime
+        shell: bash
+        run: >-
+          release-assets/pocketpy-kipferl-core-${{ matrix.suffix }}
+          -c 'import argparse, configparser, csv, json, subprocess, tui; from xml.etree.ElementTree import fromstring; assert json.loads("{\"ok\": true}")["ok"] is True; assert list(csv.reader(["a,b"])) == [["a", "b"]]; assert fromstring("<root />").tag == "root"; assert tui.visible_len("界") == 2'
       - name: Build and execute a universal application
         shell: bash
         run: |
@@ -209,6 +232,15 @@ jobs:
           assert size < runtime_limit, (
               f"Rust runtime exceeds the {runtime_limit:,}-byte {target} budget: "
               f"{size:,} bytes"
+          )
+
+          core = Path("release-assets/pocketpy-kipferl-core-${{ matrix.suffix }}")
+          core_size = core.stat().st_size
+          core_limit = 2_500_000
+          print(f"{core}: {core_size:,} bytes (limit: {core_limit:,})")
+          assert core_size < core_limit, (
+              f"Tree-shaken runtime exceeds the {core_limit:,}-byte {target} budget: "
+              f"{core_size:,} bytes"
           )
 
           loader = Path("target/${{ matrix.target }}/release/kipferl-loader")

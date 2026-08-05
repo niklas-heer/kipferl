@@ -78,8 +78,13 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
    docs, templates, and examples now describe the Rust architecture and RC;
    the website publishes the measured migration retrospective below.
 4. Canonical stub generation, release evidence, cross-target build verification,
-   and the `v0.6.0-rc.2` public bake are complete. Allow a short feedback window,
-   then promote the same proven Rust line to stable `v0.6.0`.
+   and the `v0.6.0-rc.2` public bake are complete.
+5. **In progress for v0.6.0:** profile-based tree shaking now selects a 1.13 MB
+   core runtime (1.451 MB standalone app on Apple Silicon) or the full runtime
+   conservatively from imports, with `--full-runtime` as an escape hatch. Finish
+   four-target assets, CI/release proof, documentation, and the technical post
+   under GitHub issue #57 before promoting stable v0.6.0. Track the release post
+   separately in issue #58.
 
 ## Product Roadmap After the Rust Cutover
 

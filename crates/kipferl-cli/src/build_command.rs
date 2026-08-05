@@ -9,7 +9,8 @@ use std::process::{Command, Stdio};
 use kipferl_format::Trailer;
 use sha2::{Digest, Sha256};
 
-use crate::run_command;
+use crate::tree_shake::{self, RuntimeProfile};
+use crate::{embedded_runtime, run_command};
 
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
@@ -96,12 +97,16 @@ impl Target {
         }
     }
 
-    const fn runtime_filename(self) -> &'static str {
-        match self {
-            Self::MacosAarch64 => "pocketpy-kipferl-macos-aarch64",
-            Self::MacosX86_64 => "pocketpy-kipferl-macos-x86_64",
-            Self::LinuxX86_64 => "pocketpy-kipferl-linux-x86_64",
-            Self::LinuxAarch64 => "pocketpy-kipferl-linux-aarch64",
+    const fn runtime_filename(self, profile: RuntimeProfile) -> &'static str {
+        match (self, profile) {
+            (Self::MacosAarch64, RuntimeProfile::Core) => "pocketpy-kipferl-core-macos-aarch64",
+            (Self::MacosX86_64, RuntimeProfile::Core) => "pocketpy-kipferl-core-macos-x86_64",
+            (Self::LinuxX86_64, RuntimeProfile::Core) => "pocketpy-kipferl-core-linux-x86_64",
+            (Self::LinuxAarch64, RuntimeProfile::Core) => "pocketpy-kipferl-core-linux-aarch64",
+            (Self::MacosAarch64, RuntimeProfile::Full) => "pocketpy-kipferl-macos-aarch64",
+            (Self::MacosX86_64, RuntimeProfile::Full) => "pocketpy-kipferl-macos-x86_64",
+            (Self::LinuxX86_64, RuntimeProfile::Full) => "pocketpy-kipferl-linux-x86_64",
+            (Self::LinuxAarch64, RuntimeProfile::Full) => "pocketpy-kipferl-linux-aarch64",
         }
     }
 
@@ -125,6 +130,7 @@ pub fn execute(
     let mut output = None;
     let mut mode = Mode::Universal;
     let mut target = None;
+    let mut full_runtime = false;
     let mut index = 0;
 
     while index < arguments.len() {
@@ -171,6 +177,7 @@ pub fn execute(
                 write!(stdout, "{}", targets_text())?;
                 return Ok(0);
             }
+            "--full-runtime" => full_runtime = true,
             "-h" | "--help" => {
                 write!(stdout, "{}", help())?;
                 return Ok(0);
@@ -195,6 +202,9 @@ pub fn execute(
         return error(stderr, " No output path specified (-o)");
     };
     let build_target = target.unwrap_or_else(Target::host);
+    if full_runtime && mode != Mode::Universal {
+        return error(stderr, " --full-runtime requires --mode universal");
+    }
     let script_path = current_directory.join(&script);
     if !script_path.exists() {
         return error(stderr, &format!(" Script not found: {script}"));
@@ -225,6 +235,7 @@ pub fn execute(
             &output_path,
             &output,
             build_target,
+            full_runtime,
             current_directory,
             stdout,
             stderr,
@@ -252,9 +263,8 @@ fn targets_text() -> String {
 
 pub fn help() -> String {
     format!(
-        "{BOLD}Kipferl build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    kipferl build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Standalone binary (~4-5MB, no dependencies)\n    executable             Shell wrapper (requires pocketpy-kipferl)\n    single                 Transformed .py file (requires pocketpy-kipferl)\n\n{DIM}EXAMPLES:{RESET}\n    kipferl build app.py -o app\n    kipferl build app.py -o app-linux --target linux-x86_64\n    kipferl build app.py -o app.py --mode single\n"
+        "{BOLD}Kipferl build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    kipferl build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --full-runtime         Disable tree shaking for universal builds\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Tree-shaken standalone binary, no dependencies\n    executable             Shell wrapper (requires pocketpy-kipferl)\n    single                 Transformed .py file (requires pocketpy-kipferl)\n\n{DIM}EXAMPLES:{RESET}\n    kipferl build app.py -o app\n    kipferl build app.py -o app-linux --target linux-x86_64\n    kipferl build app.py -o app-full --full-runtime\n    kipferl build app.py -o app.py --mode single\n"
     )
-    .replace("~4-5MB", "~5-6MB")
 }
 
 fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
@@ -389,14 +399,35 @@ fn build_universal(
     output_path: &Path,
     output_display: &str,
     target: Target,
+    force_full_runtime: bool,
     current_directory: &Path,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> io::Result<()> {
     let python = transform_script(script)?;
-    let runtime = runtime_for(target, current_directory, stdout, stderr)?;
+    let source = std::str::from_utf8(&python)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let analysis = if force_full_runtime {
+        tree_shake::Analysis::forced_full()
+    } else {
+        tree_shake::analyze(source)
+    };
+    let runtime = runtime_for(target, analysis.profile, current_directory, stdout, stderr)?;
     let loader = loader_for(target, current_directory, stdout, stderr)?;
 
+    writeln!(
+        stdout,
+        "{GREEN}✓{RESET} Runtime profile {BOLD}{}{RESET}{DIM} ({}){RESET}",
+        analysis.profile.name(),
+        if analysis.profile == RuntimeProfile::Core {
+            "tree-shaken"
+        } else {
+            "complete compatibility"
+        }
+    )?;
+    for reason in &analysis.reasons {
+        writeln!(stdout, "{DIM}  Full runtime: {reason}{RESET}")?;
+    }
     writeln!(
         stdout,
         "{GREEN}✓{RESET} Using {BOLD}pocketpy-kipferl{RESET}{DIM} for {} ({} KB){RESET}",
@@ -456,16 +487,26 @@ fn write_run_hint(stdout: &mut dyn Write, output: &str, leading_blank: bool) -> 
 
 fn runtime_for(
     target: Target,
+    profile: RuntimeProfile,
     current_directory: &Path,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> io::Result<Cow<'static, [u8]>> {
     component_for(
         target,
-        target.runtime_filename(),
-        run_command::embedded_runtime(),
-        "PocketPy runtime",
-        "~5MB",
+        target.runtime_filename(profile),
+        match profile {
+            RuntimeProfile::Core => embedded_runtime::core(),
+            RuntimeProfile::Full => run_command::embedded_runtime(),
+        },
+        match profile {
+            RuntimeProfile::Core => "tree-shaken PocketPy runtime",
+            RuntimeProfile::Full => "full PocketPy runtime",
+        },
+        match profile {
+            RuntimeProfile::Core => "~1-2MB",
+            RuntimeProfile::Full => "~5MB",
+        },
         current_directory,
         stdout,
         stderr,
