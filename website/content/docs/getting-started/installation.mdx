@@ -15,7 +15,16 @@ Install the stable release on macOS or Linux:
 brew install niklas-heer/tap/kipferl
 ```
 
-Existing users can update with `brew upgrade kipferl`.
+Existing Kipferl users can update with `brew upgrade kipferl`.
+
+If the old μcharm 0.5 Homebrew formula is installed, replace it once. Kipferl
+0.6 keeps the old command as a deprecated alias, so existing scripts continue
+to work during the transition:
+
+```bash
+brew uninstall --force ucharm
+brew install niklas-heer/tap/kipferl
+```
 
 ## Direct download
 
@@ -91,5 +100,6 @@ This creates:
 
 <Cards>
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
+  <Card title="What's new in Kipferl 0.6" href="/blog/kipferl-0-6" />
   <Card title="Why we moved to Rust" href="/blog/rust-migration" />
 </Cards>

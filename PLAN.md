@@ -8,7 +8,7 @@ This is the single source of truth for priorities and next steps.
   standalone binaries.
 - Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib
   targets, Cargo-first release path, and tree-shaken build profiles are
-  implemented. RC2 is proven and stable `v0.6.0` is being prepared.
+  implemented. RC2 is proven and stable `v0.6.0` has been published.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
 - Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
@@ -23,7 +23,7 @@ This is the single source of truth for priorities and next steps.
   generated-project templates live under `crates/kipferl-cli/`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
-## Active Priority: Stable v0.6.0 Release
+## Stable v0.6.0 Release
 
 - Phase 5 implementation is complete at 1,669/1,669 available checks.
 - Phase 6 has cut the canonical CI, release workflow, embedded assets, public
@@ -88,9 +88,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 5. **Complete for v0.6.0:** profile-based tree shaking selects a 1.13–1.35 MB
    core runtime (1.451 MB standalone app on Apple Silicon) or the full runtime
    conservatively from imports, with `--full-runtime` as an escape hatch.
-6. **In progress:** merge the stable version/docs/release-note preparation,
-   tag `v0.6.0`, verify four assets and checksums plus Homebrew, then publish
-   and validate the release post tracked in issue #58.
+6. **Complete:** stable `v0.6.0` was tagged from the proven merge commit. All
+   published checksums, four CLI targets, static Linux linkage, core/full
+   standalone builds, and the Homebrew formula were verified. The final
+   release story is published at `/blog/kipferl-0-6`.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -248,7 +249,7 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## Backlog (ordered)
 
-- Tag and verify stable `v0.6.0`, then publish the prepared release post and
-  close issue #58.
+- Restore automatic Homebrew promotion before the next stable release by giving
+  `HOMEBREW_TAP_TOKEN` Contents write access to `niklas-heer/homebrew-tap`.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

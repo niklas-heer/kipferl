@@ -16,12 +16,12 @@ publishes artifacts and updates Homebrew.
 
 ## Pre-tag gate
 
-- [ ] Merge the release-preparation PR after every required check passes.
-- [ ] Confirm `main` is clean and synchronized with `origin/main`.
-- [ ] Confirm `v0.6.0` does not exist locally or on GitHub.
-- [ ] Run `cargo test --workspace` and both full/core Clippy gates on the exact
+- [x] Merge the release-preparation PR after every required check passes.
+- [x] Confirm `main` is clean and synchronized with `origin/main`.
+- [x] Confirm `v0.6.0` did not exist locally or on GitHub before tagging.
+- [x] Run `cargo test --workspace` and both full/core Clippy gates on the exact
   commit to tag.
-- [ ] Run release-tool tests, compatibility, PocketPy patch verification, and
+- [x] Run release-tool tests, compatibility, PocketPy patch verification, and
   the website production build on the exact commit to tag.
 
 ## Publish
@@ -32,25 +32,30 @@ current commit, and pushes the tag. Do not create the tag from this branch.
 
 The tag workflow must:
 
-- [ ] Build full and tree-shaken core runtimes for all four targets.
-- [ ] Build and smoke-test all four CLI assets.
-- [ ] Prove Linux CLI/runtime/loader assets have no dynamic interpreter.
-- [ ] Publish every binary with an adjacent SHA-256 file.
-- [ ] Publish compatibility and PocketPy patch-verification evidence.
-- [ ] Use `.github/release-notes/v0.6.0.md` for the GitHub release.
-- [ ] Update `niklas-heer/homebrew-tap` only after the stable release exists.
+- [x] Build full and tree-shaken core runtimes for all four targets.
+- [x] Build and smoke-test all four CLI assets.
+- [x] Prove Linux CLI/runtime/loader assets have no dynamic interpreter.
+- [x] Publish every binary with an adjacent SHA-256 file.
+- [x] Publish compatibility and PocketPy patch-verification evidence.
+- [x] Use `.github/release-notes/v0.6.0.md` for the GitHub release.
+- [x] Update `niklas-heer/homebrew-tap` only after the stable release exists.
+  The workflow token lacked tap write permission, so release commit `ecd46b0`
+  was published with the authenticated maintainer session after verifying the
+  generated formula. The workflow now fails early with the exact permission
+  requirement; `HOMEBREW_TAP_TOKEN` still needs Contents write access before
+  the next stable release.
 
 ## Verify after publication
 
-- [ ] Download each CLI and checksum from the GitHub release and verify all
+- [x] Download each CLI and checksum from the GitHub release and verify all
   four hashes.
-- [ ] Record exact CLI asset sizes in the release-post draft.
-- [ ] Run `--version`, a minimal core build, a full-capability build, and
+- [x] Record exact CLI asset sizes in the routed release post.
+- [x] Run `--version`, a minimal core build, a full-capability build, and
   `--full-runtime` from a downloaded macOS asset.
-- [ ] Verify both Linux assets with `file`/`readelf` or equivalent evidence.
-- [ ] Install and upgrade `niklas-heer/tap/kipferl`; verify `kipferl` and the
+- [x] Verify both Linux assets with `file`/`readelf` or equivalent evidence.
+- [x] Install and upgrade `niklas-heer/tap/kipferl`; verify `kipferl` and the
   deprecated `ucharm` alias.
-- [ ] Convert `website/content/drafts/v0.6.0-release.md` into the routed release
+- [x] Convert `website/content/drafts/v0.6.0-release.md` into the routed release
   post, replace every explicit placeholder, add it to the blog index, and link
   it from the homepage, README, docs, and GitHub release.
 - [ ] Run website lint, type generation, type checks, production build, and

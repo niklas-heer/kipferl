@@ -31,6 +31,25 @@ export default function BlogPage() {
 
         <div className="space-y-6">
           <Link
+            href="/blog/kipferl-0-6"
+            className="group block rounded-3xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-cyan-500/15 via-transparent to-purple-500/15 p-8 md:p-12 hover:border-cyan-500/50 transition-colors"
+          >
+            <div className="font-mono text-sm text-gray-500 mb-5">
+              AUGUST 5, 2026 · RELEASE
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold mb-5 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+              Kipferl 0.6: Rust-powered Python CLIs, baked smaller
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl leading-relaxed mb-8">
+              A new name, a stable Rust foundation, a better terminal
+              experience, and tree-shaken standalone apps from 1.4 MB.
+            </p>
+            <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+              Read the release story →
+            </span>
+          </Link>
+
+          <Link
             href="/blog/tree-shaken-builds"
             className="group block rounded-3xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-amber-500/10 via-transparent to-cyan-500/10 p-8 md:p-12 hover:border-amber-500/50 transition-colors"
           >
