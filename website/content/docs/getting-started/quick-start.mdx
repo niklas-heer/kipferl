@@ -48,11 +48,18 @@ elif action == "Exit":
         tui.error("Goodbye!")
 ```
 
-## Run It
+## Develop It
 
 ```bash
-kipferl run app.py
+kipferl dev app.py
 ```
+
+Kipferl runs the app immediately and restarts it whenever a Python, config, or
+template file in the app directory changes. The watcher stays open after the
+app exits, so save `app.py` to run it again. Add `--clear` to clear the terminal
+between runs or `--watch <path>` to include any file or directory elsewhere.
+
+For a one-off run without watching, use `kipferl run app.py`.
 
 ## Build a Binary
 

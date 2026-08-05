@@ -498,10 +498,14 @@ artifacts meet the compatibility, startup, and size gates.
   3. canonical stub generation and CI drift checking — complete;
   4. compatibility report and PocketPy patch verification artifacts — complete;
   5. cross-target build reliability — complete;
-  6. tree-shaking/module selection for size;
-  7. `kipferl dev` watch mode;
-  8. remaining networking, format, concurrency, and database work;
-  9. higher-level TUI features from `vision.md`.
+  6. `kipferl dev` watch mode — complete for RC2 with native filesystem events,
+     debouncing, extra watch paths, terminal clearing/restoration, and an
+     end-to-end restart test;
+  7. publish and validate RC2, then promote the proven Rust line to stable;
+  8. tree-shaking/module selection for size, when its DX and maintenance value
+     justifies the complexity;
+  9. remaining networking, format, concurrency, and database work;
+  10. higher-level TUI features from `vision.md`.
 
 ## Suggested PR Sequence
 

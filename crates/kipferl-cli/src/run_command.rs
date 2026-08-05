@@ -128,7 +128,7 @@ pub(crate) fn prepare_runtime() -> io::Result<PathBuf> {
     Ok(runtime_path)
 }
 
-fn prepare_transformed_script(script_path: &Path) -> io::Result<PathBuf> {
+pub(crate) fn prepare_transformed_script(script_path: &Path) -> io::Result<PathBuf> {
     let source = fs::read(script_path)?;
     if source.len() > MAX_SCRIPT_SIZE {
         return Err(io::Error::new(
