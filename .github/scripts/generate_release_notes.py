@@ -48,15 +48,61 @@ def parse_commits(raw_commits: str) -> list[dict]:
     return commits
 
 
-def installation_guidance(current_tag: str) -> str:
-    """Return release-note installation rules for stable or prerelease tags."""
+def installation_section(current_tag: str, repo: str) -> str:
+    """Return deterministic installation instructions for a release."""
     if "-" in current_tag:
-        return """This is a prerelease. Do not suggest Homebrew, because prereleases do not update the stable formula. Tell users to download the matching `kipferl-*` asset and adjacent `.sha256` file from the GitHub release. Mention that temporary `ucharm-*` compatibility assets are also published for existing automation."""
-    return """Use the stable Homebrew commands:
+        return f"""### Installation
+
+This is a prerelease. Download the matching CLI and adjacent `.sha256` file
+from the [{current_tag} GitHub release](https://github.com/{repo}/releases/tag/{current_tag}):
+
+- `kipferl-macos-aarch64` — macOS Apple Silicon
+- `kipferl-macos-x86_64` — macOS Intel
+- `kipferl-linux-aarch64` — Linux ARM64, static musl
+- `kipferl-linux-x86_64` — Linux x86_64, static musl
+
+Temporary `ucharm-*` compatibility assets remain available for existing
+automation during the v0.6 transition."""
+    return """### Installation
+
 ```bash
 brew install niklas-heer/tap/kipferl
 brew upgrade kipferl
 ```"""
+
+
+def assemble_release_notes(
+    generated: str,
+    current_tag: str,
+    prev_tag: Optional[str],
+    repo: str,
+) -> str:
+    """Add factual installation and changelog sections outside the AI output."""
+    sections = [generated.strip(), installation_section(current_tag, repo)]
+    if prev_tag:
+        sections.append(
+            f"---\n\n**Full changelog:** "
+            f"https://github.com/{repo}/compare/{prev_tag}...{current_tag}"
+        )
+    return "\n\n".join(sections)
+
+
+def validate_generated_summary(generated: str) -> None:
+    """Reject AI-owned metadata so the deterministic fallback takes over."""
+    normalized = generated.casefold()
+    forbidden = (
+        "http://",
+        "https://",
+        "### installation",
+        "## installation",
+        "brew install",
+        "brew upgrade",
+        "kipferl-macos-",
+        "kipferl-linux-",
+        "full changelog",
+    )
+    if any(value in normalized for value in forbidden):
+        raise ValueError("generated summary contains release metadata")
 
 
 def generate_release_notes_with_ai(
@@ -78,8 +124,6 @@ def generate_release_notes_with_ai(
         commits_context.append(commit_text)
 
     commits_text = "\n\n".join(commits_context)
-
-    installation = installation_guidance(current_tag)
 
     prompt = f"""You are writing release notes for "kipferl" (Kipferl), a CLI toolkit for building beautiful, fast command-line applications with Python syntax. The production CLI, universal loader, native modules, and PocketPy host are implemented in Rust. PocketPy itself is vendored C. Supported release targets are macOS ARM64, macOS x86_64, Linux ARM64 musl, and Linux x86_64 musl. Typical runtime artifacts are 4-5 MB and start in about 8 ms on Apple Silicon.
 
@@ -103,9 +147,6 @@ Generate polished, engaging release notes in markdown. Follow the style of polis
    - 🐛 **Bug Fixes** — Corrected issues
    - 📚 **Documentation** — Docs and examples (only if significant)
 
-3. **Installation** (always include):
-   {installation}
-
 ## Style Guidelines:
 
 - **Tone**: Friendly and approachable, like talking to a fellow developer
@@ -115,6 +156,7 @@ Generate polished, engaging release notes in markdown. Follow the style of polis
 - **Accuracy**: Do not invent targets, metrics, compatibility counts, size claims, or installation methods. Never claim Windows support. Only use numbers present in the commits or the product facts above.
 - **No commit hashes** in the output
 - **Present tense**: "Add" not "Added"
+- **Scope**: Do not write installation commands, download links, asset names, or a full changelog link. The generator appends those facts deterministically.
 
 ## Example Output:
 
@@ -135,12 +177,6 @@ Interactive prompts have arrived! Build beautiful CLI experiences with select me
 
 - Fix box rendering when content contains ANSI color codes
 - Correct cursor positioning after multiselect prompts
-
-### Installation
-
-Follow the installation rule supplied above for the current tag.
-
----
 
 Generate the release notes now, starting with the opening tagline."""
 
@@ -164,12 +200,9 @@ Generate the release notes now, starting with the opening tagline."""
     response.raise_for_status()
     result = response.json()
 
-    release_notes = result["choices"][0]["message"]["content"].strip()
-
-    if prev_tag:
-        release_notes += f"\n\n---\n\n**Full Changelog**: https://github.com/{repo}/compare/{prev_tag}...{current_tag}"
-
-    return release_notes
+    generated = result["choices"][0]["message"]["content"].strip()
+    validate_generated_summary(generated)
+    return assemble_release_notes(generated, current_tag, prev_tag, repo)
 
 
 def main():
@@ -212,7 +245,9 @@ def main():
 
     if not commits:
         print("No commits found. Generating minimal release notes.", file=sys.stderr)
-        release_notes = f"Release {current_tag}"
+        release_notes = assemble_release_notes(
+            f"Release {current_tag}", current_tag, prev_tag, repo
+        )
     else:
         try:
             release_notes = generate_release_notes_with_ai(
@@ -227,12 +262,12 @@ def main():
             print(f"Error calling OpenRouter API: {e}", file=sys.stderr)
             print("Falling back to basic release notes", file=sys.stderr)
 
-            release_notes = "## Changes\n\n"
-            for commit in commits:
-                release_notes += f"- {commit['subject']}\n"
-
-            if prev_tag:
-                release_notes += f"\n\n**Full Changelog**: https://github.com/{repo}/compare/{prev_tag}...{current_tag}"
+            changes = "## Changes\n\n" + "\n".join(
+                f"- {commit['subject']}" for commit in commits
+            )
+            release_notes = assemble_release_notes(
+                changes, current_tag, prev_tag, repo
+            )
 
     print(release_notes)
 

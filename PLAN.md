@@ -6,7 +6,7 @@ This is the single source of truth for priorities and next steps.
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as compact, fast,
   standalone binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Rust prerelease `v0.6.0-rc.1` is published and proven.
+- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Rust prerelease `v0.6.0-rc.2` is published and proven.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
 - Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
@@ -67,16 +67,15 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 1. The measured Rust-native optimization and safety review is complete and
    frozen in `benchmarks/rust_optimization_baseline.md`.
-2. Rust prerelease `v0.6.0-rc.1` passed both four-target CI matrices, the tagged
-   release workflow, checksum verification, and an external universal-app
-   smoke test without updating stable Homebrew.
+2. Rust prerelease `v0.6.0-rc.2` passed both four-target CI matrices, the tagged
+   release workflow, checksum verification, and external `kipferl dev` restart
+   validation from the downloaded artifact without updating stable Homebrew.
 3. The archived Zig implementation is removed. The public README, website,
    docs, templates, and examples now describe the Rust architecture and RC;
    the website publishes the measured migration retrospective below.
-4. Canonical stub generation, release evidence, and cross-target build
-   verification are complete. Publish and validate `v0.6.0-rc.2` with
-   `kipferl dev`, allow a short feedback window, then promote the same proven
-   Rust line to stable `v0.6.0`.
+4. Canonical stub generation, release evidence, cross-target build verification,
+   and the `v0.6.0-rc.2` public bake are complete. Allow a short feedback window,
+   then promote the same proven Rust line to stable `v0.6.0`.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -231,8 +230,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## Backlog (ordered)
 
-- Publish and validate `v0.6.0-rc.2`, then promote the proven Rust release to
-  stable `v0.6.0` after its feedback window.
+- Promote the validated Rust release to stable `v0.6.0` after the RC2 feedback
+  window.
 - Tree-shaking or module selection for smaller binaries, after stable; pursue
   it only when the DX and maintenance tradeoff is favorable.
 - Formats: third-party `toml` and YAML.
