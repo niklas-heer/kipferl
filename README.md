@@ -49,7 +49,8 @@ directory—including JSON, YAML, TOML, XML, CSV, KDL, and INI/CFG—and keeps
 waiting after the program exits. Use `--watch <path>` for additional files or
 directories (including other file types),
 `--clear` for a clean screen on each restart, or `--debounce <ms>` for tools
-that write files in bursts. Run `kipferl dev --help` for the complete interface.
+that write files in bursts. See the complete [`kipferl dev` reference](https://kipferl.dev/docs/commands/dev)
+for every option, default, watched path, and restart behavior.
 
 ---
 

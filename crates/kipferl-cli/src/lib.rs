@@ -420,7 +420,9 @@ mod tests {
                 "\x1b[2mEXAMPLES:\x1b[0m\n",
                 "    kipferl dev app.py\n",
                 "    kipferl dev --clear app.py\n",
-                "    kipferl dev --watch templates --watch settings.toml app.py -- --verbose\n",
+                "    kipferl dev --watch templates --watch settings.toml app.py -- --verbose\n\n",
+                "\x1b[2mDOCS:\x1b[0m\n",
+                "    https://kipferl.dev/docs/commands/dev\n",
             )
         );
         assert_eq!(
