@@ -142,21 +142,21 @@ export default function TreeShakenBuildsPage() {
                 </tr>
                 <tr>
                   <td className="p-4">Core runtime</td>
-                  <td className="p-4 font-mono">1,130,320</td>
+                  <td className="p-4 font-mono">1,130,352</td>
                   <td className="p-4 text-gray-600 dark:text-gray-400">
                     74.9% smaller runtime
                   </td>
                 </tr>
                 <tr>
                   <td className="p-4">Full standalone app</td>
-                  <td className="p-4 font-mono">4,817,935</td>
+                  <td className="p-4 font-mono">4,817,925</td>
                   <td className="p-4 text-gray-600 dark:text-gray-400">
                     Loader and minimal source included
                   </td>
                 </tr>
                 <tr>
                   <td className="p-4">Core standalone app</td>
-                  <td className="p-4 font-mono">1,450,815</td>
+                  <td className="p-4 font-mono">1,450,837</td>
                   <td className="p-4 text-gray-600 dark:text-gray-400">
                     69.9% smaller app
                   </td>
@@ -169,6 +169,38 @@ export default function TreeShakenBuildsPage() {
             and target architecture change the exact result; four-target CI
             enforces a 2.5 MB ceiling for every core runtime.
           </p>
+          <h3 className="text-2xl font-bold mt-12 mb-5">
+            Core runtime across every release target
+          </h3>
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full text-left">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th className="p-4">Target</th>
+                  <th className="p-4">Full</th>
+                  <th className="p-4">Core</th>
+                  <th className="p-4">Reduction</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                {[
+                  ["macOS ARM64", "4,497,440", "1,130,352", "74.9%"],
+                  ["macOS x86_64", "5,056,944", "1,183,140", "76.6%"],
+                  ["Linux ARM64 musl", "4,738,296", "1,316,512", "72.2%"],
+                  ["Linux x86_64 musl", "5,451,504", "1,349,904", "75.2%"],
+                ].map(([target, full, core, reduction]) => (
+                  <tr key={target}>
+                    <td className="p-4 font-medium">{target}</td>
+                    <td className="p-4 font-mono">{full}</td>
+                    <td className="p-4 font-mono">{core}</td>
+                    <td className="p-4 text-amber-600 dark:text-amber-400">
+                      {reduction}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="rounded-3xl bg-gray-950 text-white p-8 md:p-12 mb-16">
@@ -188,6 +220,9 @@ export default function TreeShakenBuildsPage() {
           <Link href="/docs/commands/build">Build command reference →</Link>
           <Link href="https://github.com/niklas-heer/kipferl/issues/57">
             Implementation tracker →
+          </Link>
+          <Link href="https://github.com/niklas-heer/kipferl/blob/main/benchmarks/tree_shaking_baseline.md">
+            Reproducible benchmark report →
           </Link>
           <Link href="/blog/rust-migration">
             Rust migration retrospective →
