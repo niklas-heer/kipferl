@@ -147,7 +147,7 @@ jobs:
         shell: bash
         run: >-
           target/${{ matrix.target }}/release/pocketpy-kipferl
-          -c 'import gzip, hashlib, hmac, io, tarfile, zipfile; data = b"kipferl" * 256; assert hashlib.sha256(data).hexdigest() == "b45faa94f6e4c14d2bccde7ab9f0634f656fd7d755b187457fddbcb5ba9175e1"; assert len(hmac.new(b"key", data, "sha256").digest()) == 32; assert gzip.decompress(gzip.compress(data)) == data; buffer = io.BytesIO(data); buffer.seek(6); assert buffer.read(6) == b"kipferl"; assert hasattr(zipfile, "ZipFile"); assert hasattr(tarfile, "TarFile")'
+          -c 'import gzip, hashlib, hmac, io, tarfile, zipfile; data = b"kipferl" * 256; assert hashlib.sha256(data).hexdigest() == "b45faa94f6e4c14d2bccde7ab9f0634f656fd7d755b187457fddbcb5ba9175e1"; assert len(hmac.new(b"key", data, "sha256").digest()) == 32; assert gzip.decompress(gzip.compress(data)) == data; buffer = io.BytesIO(data); buffer.seek(7); assert buffer.read(7) == b"kipferl"; assert hasattr(zipfile, "ZipFile"); assert hasattr(tarfile, "TarFile")'
       - name: Smoke-test Rust filesystem wave
         shell: bash
         run: >-
