@@ -125,7 +125,7 @@ def generate_release_notes_with_ai(
 
     commits_text = "\n\n".join(commits_context)
 
-    prompt = f"""You are writing release notes for "kipferl" (Kipferl), a CLI toolkit for building beautiful, fast command-line applications with Python syntax. The production CLI, universal loader, native modules, and PocketPy host are implemented in Rust. PocketPy itself is vendored C. Supported release targets are macOS ARM64, macOS x86_64, Linux ARM64 musl, and Linux x86_64 musl. Typical runtime artifacts are 4-5 MB and start in about 8 ms on Apple Silicon.
+    prompt = f"""You are writing release notes for "kipferl" (Kipferl), a CLI toolkit for building beautiful, fast command-line applications with Python syntax. The production CLI, universal loader, native modules, and PocketPy host are implemented in Rust. PocketPy itself is vendored C. Supported release targets are macOS ARM64, macOS x86_64, Linux ARM64 musl, and Linux x86_64 musl. Typical runtime artifacts are 4.5-5.5 MB and start in about 8 ms on Apple Silicon.
 
 # Commits:
 

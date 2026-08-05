@@ -1,0 +1,131 @@
+---
+title: Data and configuration formats
+description: Read and write JSON, YAML, TOML, KDL, XML, CSV, and INI files with Kipferl
+---
+
+# Data and configuration formats
+
+Kipferl includes the common formats needed by standalone CLI applications. No
+pip package or external shared library is required. YAML, TOML, and KDL are
+parsed by Rust libraries compiled into the Kipferl runtime.
+
+| Format | Import | String API | File API |
+|---|---|---|---|
+| JSON | `import json` | `loads`, `dumps` | `load`, `dump` |
+| YAML 1.2 | `import yaml` | `loads`, `dumps`, `safe_load`, `safe_dump` | `load`, `dump` |
+| TOML | `import tomllib` or `import toml` | `loads`; `toml.dumps` | `load`; `toml.dump` |
+| KDL 2.0 | `import kdl` | `loads`, `dumps` | `load`, `dump` |
+| XML | `from xml.etree.ElementTree import ...` | `fromstring`, `tostring` | `parse`, `ElementTree.write` |
+| CSV | `import csv` | iterable-based `reader` / `writer` | pass an open file |
+| INI / CFG | `import configparser` | `read_string`, `write` | `read`, `write` |
+
+`load` and `dump` accept either a path or an open file object in Kipferl. The
+string variants never access the filesystem.
+
+## JSON, YAML, and TOML
+
+These formats return normal dictionaries, lists, strings, numbers, booleans,
+and `None` where the format permits it.
+
+```python
+import json
+import toml
+import tomllib
+import yaml
+
+settings = yaml.load("settings.yaml")
+settings["enabled"] = True
+yaml.dump(settings, "settings.yaml")
+
+package = tomllib.load("pyproject.toml")
+toml.dump(package, "pyproject.copy.toml")
+
+json.dump({"status": "ready"}, "status.json", indent=2)
+```
+
+`tomllib` deliberately follows CPython and only reads TOML. Use `toml` when an
+application also needs to write it. YAML uses YAML 1.2 scalar rules. JSON,
+YAML, and TOML serialization accepts JSON-compatible values; TOML rejects
+`None` because TOML has no null value.
+
+## KDL
+
+KDL is ordered and node-oriented, so flattening it into a dictionary would
+lose information. `kdl.loads` instead returns a list of node dictionaries:
+
+```python
+{
+    "name": "package",
+    "type": None,
+    "entries": [
+        {"name": None, "type": None, "value": "kipferl"},
+        {"name": "version", "type": None, "value": 6},
+    ],
+    "children": [],
+}
+```
+
+An entry with `name=None` is a positional argument. A named entry is a
+property. The optional `type` fields preserve KDL type annotations, and
+`children` recursively contains the same node shape.
+
+```python
+import kdl
+
+document = [
+    kdl.node(
+        "package",
+        entries=[
+            kdl.argument("kipferl"),
+            kdl.property("version", 6),
+        ],
+        children=[
+            kdl.node("feature", [kdl.argument("yaml")]),
+        ],
+    )
+]
+
+kdl.dump(document, "package.kdl")
+assert kdl.load("package.kdl") == document
+```
+
+KDL entry values are scalars: strings, signed 64-bit integers, finite floats,
+booleans, or `None`. Lists and dictionaries belong in child nodes. Kipferl
+targets KDL 2.0 and does not enable the larger KDL 1 compatibility parser.
+
+## XML, CSV, and INI
+
+These modules provide focused, CLI-oriented compatibility rather than every
+CPython dialect or extension hook.
+
+```python
+import configparser
+import csv
+from xml.etree.ElementTree import ElementTree, fromstring, parse
+
+config = configparser.ConfigParser()
+config.read("settings.ini")
+port = config.getint("server", "port")
+
+with open("items.csv", "r") as stream:
+    rows = list(csv.DictReader(stream))
+
+tree = parse("settings.xml")
+tree.write("settings.copy.xml")
+```
+
+The XML subset covers elements, attributes, text, child iteration, basic XML
+entity escaping, `parse`, `fromstring`, `tostring`, and `ElementTree.write`.
+It does not currently cover namespaces, XPath, comments, processing
+instructions, DTDs, or mixed-content tails. The CSV subset supports the
+standard comma delimiter and double-quote escaping; custom dialects and
+multiline records are not yet implemented. `configparser` supports sections,
+string/file reading, writing, and string, integer, float, and boolean getters;
+interpolation and defaults are not yet implemented.
+
+## Development watcher
+
+`kipferl dev app.py` automatically restarts for `.json`, `.yaml`, `.yml`,
+`.toml`, `.kdl`, `.xml`, `.csv`, `.ini`, `.cfg`, and `.conf` changes beneath
+the project root. Use `--watch <path>` for a different extension or an external
+configuration directory.

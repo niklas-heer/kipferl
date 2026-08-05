@@ -9,6 +9,9 @@ class ConfigParser:
     def read_string(self, text):
         self._sections = {}
         self._order = []
+        self._read_text(text)
+
+    def _read_text(self, text):
         current = None
         for raw in text.split('\n'):
             line = raw.strip()
@@ -26,6 +29,28 @@ class ConfigParser:
             key = line[:index].strip()
             value = line[index + 1:].strip()
             self._sections[current][key] = value
+
+    def read(self, filenames):
+        if isinstance(filenames, str):
+            filenames = [filenames]
+        loaded = []
+        for filename in filenames:
+            try:
+                stream = open(filename, 'r')
+                text = stream.read()
+                stream.close()
+                self._read_text(text)
+                loaded.append(filename)
+            except OSError:
+                pass
+        return loaded
+
+    def write(self, stream):
+        for section in self._order:
+            stream.write('[' + section + ']\n')
+            for key, value in self._sections[section].items():
+                stream.write(key + ' = ' + value + '\n')
+            stream.write('\n')
 
     def sections(self):
         return list(self._order)

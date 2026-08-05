@@ -6,7 +6,7 @@ This project uses kipferl (PocketPy + native Rust modules).
 
 - PocketPy runtime, not CPython
 - No pip packages with C extensions
-- 50+ native modules: tui, input, term, ansi, http.client, sqlite3, json, re, etc.
+- 50+ native modules: tui, input, term, ansi, http.client, sqlite3, json, yaml, toml, kdl, re, etc.
 
 ## Preferred Patterns
 

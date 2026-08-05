@@ -7,7 +7,7 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 - **PocketPy, not CPython**: This runs on PocketPy with native Rust modules, not standard Python
 - **Native modules**: 50+ high-performance modules implemented in Rust (see list below)
 - **No pip packages**: You cannot use pip packages that have C extensions
-- **Single binary output**: Apps compile to target-specific standalone executables (about 4.3–5.3 MB)
+- **Single binary output**: Apps compile to target-specific standalone executables (about 4.8–5.9 MB)
 
 ## Available Modules
 
@@ -25,11 +25,11 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 - `argparse`, `array`, `base64`, `binascii`, `bisect`, `collections`
 - `configparser`, `contextlib`, `copy`, `csv`, `dataclasses`, `datetime`
 - `enum`, `errno`, `fnmatch`, `functools`, `glob`, `gzip`, `hashlib`
-- `heapq`, `hmac`, `io`, `itertools`, `json`, `logging`, `math`
+- `heapq`, `hmac`, `io`, `itertools`, `json`, `kdl`, `logging`, `math`
 - `operator`, `os`, `pathlib`, `random`, `re`, `secrets`, `shutil`
 - `signal`, `sqlite3`, `statistics`, `struct`, `subprocess`, `sys`
 - `tarfile`, `tempfile`, `textwrap`, `time`, `toml`, `tomllib`, `typing`
-- `unittest`, `urllib.parse`, `uuid`, `xml.etree.ElementTree`, `zipfile`
+- `unittest`, `urllib.parse`, `uuid`, `xml.etree.ElementTree`, `yaml`, `zipfile`
 
 ## Import Pattern
 

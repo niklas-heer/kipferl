@@ -14,6 +14,7 @@ pub(crate) const STUBS: &[(&str, &str)] = &[
     ("heapq.pyi", include_str!("../../../stubs/heapq.pyi")),
     ("input.pyi", include_str!("../../../stubs/input.pyi")),
     ("itertools.pyi", include_str!("../../../stubs/itertools.pyi")),
+    ("kdl.pyi", include_str!("../../../stubs/kdl.pyi")),
     ("logging.pyi", include_str!("../../../stubs/logging.pyi")),
     ("operator.pyi", include_str!("../../../stubs/operator.pyi")),
     ("random.pyi", include_str!("../../../stubs/random.pyi")),
@@ -24,6 +25,8 @@ pub(crate) const STUBS: &[(&str, &str)] = &[
     ("tempfile.pyi", include_str!("../../../stubs/tempfile.pyi")),
     ("term.pyi", include_str!("../../../stubs/term.pyi")),
     ("textwrap.pyi", include_str!("../../../stubs/textwrap.pyi")),
+    ("toml.pyi", include_str!("../../../stubs/toml.pyi")),
     ("tui.pyi", include_str!("../../../stubs/tui.pyi")),
     ("typing.pyi", include_str!("../../../stubs/typing.pyi")),
+    ("yaml.pyi", include_str!("../../../stubs/yaml.pyi")),
 ];

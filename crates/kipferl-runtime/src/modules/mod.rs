@@ -31,6 +31,7 @@ mod input;
 mod io;
 mod itertools;
 mod json;
+mod kdl;
 mod logging;
 mod math;
 mod operator;
@@ -57,6 +58,8 @@ mod term_core;
 mod textwrap;
 mod textwrap_core;
 mod time;
+mod toml;
+mod toml_core;
 mod tomllib;
 mod tui;
 mod tui_core;
@@ -65,6 +68,7 @@ mod unittest;
 mod urllib_parse;
 mod uuid;
 mod xml_etree;
+mod yaml;
 mod zipfile;
 
 use crate::native::{NativeModule, register_modules};
@@ -102,6 +106,7 @@ const MODULES: &[NativeModule] = &[
     input::MODULE,
     itertools::MODULE,
     json::MODULE,
+    kdl::MODULE,
     logging::MODULE,
     math::MODULE,
     operator::MODULE,
@@ -117,6 +122,7 @@ const MODULES: &[NativeModule] = &[
     term::MODULE,
     textwrap::MODULE,
     time::MODULE,
+    toml::MODULE,
     tomllib::MODULE,
     subprocess::MODULE,
     sys::MODULE,
@@ -124,6 +130,7 @@ const MODULES: &[NativeModule] = &[
     urllib_parse::MODULE,
     uuid::MODULE,
     xml_etree::MODULE,
+    yaml::MODULE,
     zipfile::MODULE,
 ];
 

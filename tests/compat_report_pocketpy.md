@@ -1,6 +1,6 @@
 # Kipferl Compatibility Report
 
-Generated: 2026-08-05 12:29:58
+Generated: 2026-08-05 13:20:29
 
 ## Summary
 
@@ -94,10 +94,6 @@ These tests require features not available in pocketpy-kipferl:
 - 8 tests skipped
 
 ### json
-
-- 1 tests skipped
-
-### toml
 
 - 1 tests skipped
 

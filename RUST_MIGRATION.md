@@ -15,6 +15,12 @@ published-checksum verification, and a downloaded `kipferl dev` edit/restart
 smoke test. v0.5.0 remains the
 final stable Zig release baseline.
 
+The post-RC developer-experience pass also completes the common configuration
+surface. Writable TOML, YAML 1.2, and KDL 2.0 now use maintained Rust parsers
+and join the existing JSON, XML, CSV, and INI/CFG modules. Each format has
+tested file/string APIs, explicit documentation boundaries, generated editor
+stubs, and automatic `kipferl dev` restart coverage.
+
 This is a host-language and toolchain migration, not a product rewrite. The
 Python-facing API, PocketPy compatibility work, universal-binary behavior, and
 product goals remain in place.
@@ -141,7 +147,7 @@ Each cutover PR must preserve these contracts:
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
-7. The stripped runtime remains below the current 5 MB release-target budget;
+7. The stripped runtime remains below the current 5.75 MB release-target budget;
    correctness, maintainability, and developer-experience improvements may use
    that budget deliberately. Issue
    [#41](https://github.com/niklas-heer/kipferl/issues/41) preserves the original
@@ -441,7 +447,8 @@ artifacts meet the compatibility, startup, and size gates.
     stripped symbols, and aborting panics as the final measured profile. The
     feature-minimal HTTPS/archive/Ratatui runtime is 4,000,864 bytes on ARM64
     macOS; the largest refreshed asset is 4,831,144 bytes on x86_64 Linux,
-    under the current 5 MB release-target budget;
+    under the then-current 5 MB release-target budget before the documented
+    configuration-format expansion;
   - profile startup, allocations, peak memory, interactive latency, module
     throughput, binary sections, dependency contribution, and all four release
     artifacts;

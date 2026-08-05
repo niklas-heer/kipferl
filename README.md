@@ -26,7 +26,7 @@
 Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and Kipferl ships them as single-file binaries that start instantly.
 
-- Standalone, target-specific binaries (about 4.3–5.3 MB for a minimal app)
+- Standalone, target-specific binaries (about 4.8–5.9 MB for a minimal app)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -45,8 +45,9 @@ kipferl build app.py -o app
 ```
 
 `kipferl dev` watches Python, config, and template files under the script
-directory and keeps waiting after the program exits. Use `--watch <path>` for
-additional files or directories (including other file types),
+directory—including JSON, YAML, TOML, XML, CSV, KDL, and INI/CFG—and keeps
+waiting after the program exits. Use `--watch <path>` for additional files or
+directories (including other file types),
 `--clear` for a clean screen on each restart, or `--debounce <ms>` for tools
 that write files in bursts. Run `kipferl dev --help` for the complete interface.
 
@@ -115,7 +116,7 @@ standalone binaries and caches remain compatible.
 | | Python + Rich | Go TUI stack | Rust + Ratatui | **Kipferl** |
 |---|:---:|:---:|:---:|:---:|
 | **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~8ms** |
-| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~4MB** |
+| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~5MB** |
 | **Easy to write** | Yes | Medium | Hard | **Yes** |
 | **Beautiful TUI** | Yes | Yes | Yes | **Yes** |
 
@@ -169,6 +170,39 @@ response = connection.getresponse()
 print(response.status, len(response.read()))
 ```
 
+### Configuration and data files
+
+Kipferl ships file and string APIs for the formats CLI applications commonly
+need. JSON, YAML, and TOML use ordinary Python dictionaries, lists, and scalar
+values. KDL uses an explicit node/entry representation so positional values,
+properties, children, and type annotations survive a round trip.
+
+| Format | Module | Read | Write | Notes |
+|---|---|---|---|---|
+| JSON | `json` | `load`, `loads` | `dump`, `dumps` | JSON-compatible values |
+| YAML 1.2 | `yaml` | `load`, `loads`, `safe_load` | `dump`, `dumps`, `safe_dump` | JSON-compatible values; native Rust parser |
+| TOML | `tomllib`, `toml` | `load`, `loads` | `toml.dump`, `toml.dumps` | `tomllib` remains read-only like CPython |
+| KDL 2.0 | `kdl` | `load`, `loads` | `dump`, `dumps` | Ordered node/entry model; native Rust parser |
+| XML | `xml.etree.ElementTree` | `parse`, `fromstring` | `ElementTree.write`, `tostring` | Focused ElementTree subset |
+| CSV | `csv` | `reader`, `DictReader` | `writer`, `DictWriter` | Focused CPython-compatible subset |
+| INI / CFG | `configparser` | `read`, `read_string` | `write` | Focused `ConfigParser` subset |
+
+```python
+import kdl
+import yaml
+
+settings = yaml.load("settings.yaml")
+settings["debug"] = True
+yaml.dump(settings, "settings.yaml")
+
+document = kdl.loads('package "kipferl" version=6')
+document[0]["entries"].append(kdl.property("stable", True))
+kdl.dump(document, "package.kdl")
+```
+
+See the [data-format guide](https://kipferl.dev/docs/modules/data-formats) for
+the KDL data model, file-object usage, and current compatibility boundaries.
+
 ---
 
 ## Standard Library Support
@@ -177,14 +211,14 @@ Kipferl targets a CLI-focused subset of CPython. See `tests/compat_report_pocket
 
 **Essential for CLI apps:**
 argparse, os, sys, time, pathlib, glob, fnmatch, subprocess, signal, json, csv,
-logging, datetime, textwrap, tempfile, shutil, re, hashlib.
+yaml, kdl, logging, datetime, textwrap, tempfile, shutil, re, hashlib.
 
 **Good to have:**
 configparser, enum, uuid, urllib.parse, contextlib, typing, statistics,
 functools, itertools, heapq.
 
 **Nice to have:**
-toml/tomllib, http.client (HTTP + HTTPS), secrets, hmac, dataclasses,
+http.client (HTTP + HTTPS), secrets, hmac, dataclasses,
 xml.etree (fromstring + basic iteration), sqlite3 (basic DB-API subset),
 gzip (read), zipfile (read-only), tarfile (read-only).
 
@@ -238,7 +272,7 @@ for one release cycle.
 
 | Mode | Size | Dependencies | Use case |
 |------|------|--------------|----------|
-| `universal` | ~4.3-5.3MB | None | Production deployment |
+| `universal` | ~4.8-5.9MB | None | Production deployment |
 | `executable` | ~3KB | pocketpy-kipferl | Dev machines with runtime |
 | `single` | ~2KB | pocketpy-kipferl | Scripting |
 

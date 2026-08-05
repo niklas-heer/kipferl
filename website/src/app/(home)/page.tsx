@@ -165,7 +165,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Python syntax. Standalone binaries around 4–5 MB.
+            Python syntax. Standalone binaries around 5–6 MB.
             <span className="text-gray-900 dark:text-white font-medium">
               {" "}
               Instant startup.
@@ -240,7 +240,7 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
             <StatCard value="7.044" suffix="ms" label="Median startup" />
-            <StatCard value="4.3" suffix="MB" label="Minimal app" />
+            <StatCard value="4.8" suffix="MB" label="Minimal app" />
             <StatCard value="1,669" label="Compat checks" />
             <StatCard value="4" label="Release targets" />
           </div>
@@ -301,7 +301,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-green-400 to-emerald-500"
               title="Standalone Binaries"
-              description="Target-specific executables around 4.3–5.3 MB. Linux releases are static musl binaries with no dynamic libc dependency."
+              description="Target-specific executables around 4.8–5.9 MB. Linux releases are static musl binaries with no dynamic libc dependency."
             />
             <FeatureCard
               icon={
@@ -428,7 +428,7 @@ export default function HomePage() {
                 />
                 <ComparisonRow
                   feature="Binary size"
-                  kipferl="~4.3MB"
+                  kipferl="~4.8MB"
                   python="Runtime + app"
                   node="Runtime + app"
                 />
@@ -538,7 +538,7 @@ export default function HomePage() {
                   {"],\n    ["}
                   <span className="text-amber-300">{'"app"'}</span>
                   {", "}
-                  <span className="text-amber-300">{'"4.3MB"'}</span>
+                  <span className="text-amber-300">{'"4.8MB"'}</span>
                   {"],\n], headers="}
                   <span className="text-purple-400">True</span>
                   {")\n\n"}

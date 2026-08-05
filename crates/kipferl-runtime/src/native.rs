@@ -1024,6 +1024,21 @@ pub(crate) fn value_error(message: &'static CStr) -> bool {
     }
 }
 
+pub(crate) fn value_error_message(message: &str) -> bool {
+    let message = CString::new(message).unwrap_or_else(|_| {
+        CString::new("invalid value (error contains a NUL byte)").expect("static CString")
+    });
+    // SAFETY: the VM is active during a callback. PocketPy consumes the
+    // temporary NUL-terminated message synchronously through its `%s` format.
+    unsafe {
+        ffi::py_exception(
+            ffi::py_PredefinedType_tp_ValueError as ffi::py_Type,
+            c"%s".as_ptr(),
+            message.as_ptr(),
+        )
+    }
+}
+
 pub(crate) fn stop_iteration() -> bool {
     // SAFETY: the VM is active during a callback and the empty message has
     // static storage.

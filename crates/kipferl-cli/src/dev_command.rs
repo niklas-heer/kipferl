@@ -32,8 +32,8 @@ const IGNORED_COMPONENTS: &[&str] = &[
     "node_modules",
 ];
 const PROJECT_EXTENSIONS: &[&str] = &[
-    "py", "pyi", "toml", "json", "yaml", "yml", "ini", "cfg", "conf", "html", "htm", "css",
-    "jinja", "jinja2", "j2",
+    "py", "pyi", "toml", "json", "yaml", "yml", "xml", "csv", "kdl", "ini", "cfg", "conf", "html",
+    "htm", "css", "jinja", "jinja2", "j2",
 ];
 
 #[derive(Debug, Eq, PartialEq)]
@@ -559,5 +559,10 @@ mod tests {
         assert!(event_requires_restart(&module, &[target()]));
         let config = Event::new(EventKind::Any).add_path(PathBuf::from("/project/config.toml"));
         assert!(event_requires_restart(&config, &[target()]));
+        for extension in ["json", "yaml", "yml", "xml", "csv", "kdl", "ini", "cfg"] {
+            let config = Event::new(EventKind::Any)
+                .add_path(PathBuf::from(format!("/project/config.{extension}")));
+            assert!(event_requires_restart(&config, &[target()]));
+        }
     }
 }

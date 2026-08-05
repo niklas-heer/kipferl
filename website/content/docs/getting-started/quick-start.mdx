@@ -58,6 +58,8 @@ Kipferl runs the app immediately and restarts it whenever a Python, config, or
 template file in the app directory changes. The watcher stays open after the
 app exits, so save `app.py` to run it again. Add `--clear` to clear the terminal
 between runs or `--watch <path>` to include any file or directory elsewhere.
+Supported configuration extensions include JSON, YAML, TOML, KDL, XML, CSV,
+INI, CFG, and CONF.
 
 For a one-off run without watching, use `kipferl run app.py`.
 
@@ -83,4 +85,5 @@ kipferl build app.py -o hello-linux --target linux-x86_64
   <Card title="tui Module" href="/docs/modules/tui" />
   <Card title="input Module" href="/docs/modules/input" />
   <Card title="All Modules" href="/docs/modules" />
+  <Card title="Data Formats" href="/docs/modules/data-formats" />
 </Cards>
