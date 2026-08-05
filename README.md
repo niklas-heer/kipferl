@@ -26,8 +26,9 @@
 Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and Kipferl ships them as single-file binaries that start instantly.
 
-[Documentation](https://kipferl.dev/docs) · [Changelog](CHANGELOG.md) ·
-[Releases](https://github.com/niklas-heer/kipferl/releases)
+[Documentation](https://kipferl.dev/docs) ·
+[Kipferl 0.6 release story](https://kipferl.dev/blog/kipferl-0-6) ·
+[Changelog](CHANGELOG.md) · [Releases](https://github.com/niklas-heer/kipferl/releases)
 
 - Tree-shaken standalone binaries (1.4 MB for a minimal app on Apple Silicon;
   the complete runtime remains available when needed)
@@ -237,8 +238,17 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 brew install niklas-heer/tap/kipferl
 ```
 
-Existing users can update with `brew upgrade kipferl`. Kipferl 0.6 installs
-`ucharm` as a deprecated command alias for one release cycle.
+Existing Kipferl users can update with `brew upgrade kipferl`. Users with the
+old μcharm 0.5 formula should replace it once:
+
+```bash
+brew uninstall --force ucharm
+brew install niklas-heer/tap/kipferl
+```
+
+Kipferl 0.6 installs `ucharm` as a deprecated command alias for one release
+cycle. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
+the final artifact sizes, migration outcome, and verified release evidence.
 
 ### Direct download
 

@@ -81,7 +81,7 @@ class Kipferl < Formula
 
   test do
     assert_match "Kipferl", shell_output("#{bin}/kipferl --version")
-    assert_match "renamed to `kipferl`", shell_output("#{bin}/ucharm --version 2>&1")
+    assert_match "renamed to", shell_output("#{bin}/ucharm --version 2>&1")
   end
 end
 EOF

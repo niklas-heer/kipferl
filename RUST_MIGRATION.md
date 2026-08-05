@@ -9,11 +9,12 @@ not change the compatibility contract.
 
 The runtime implementation reached 1,669/1,669 available compatibility checks
 on 2026-08-04. The Cargo-first CI, packaging, public binary names, and release
-assets have been cut over to Rust. Public prerelease `v0.6.0-rc.2`, released
-as Kipferl, passed both four-target CI matrices, the tagged release workflow,
-published-checksum verification, and a downloaded `kipferl dev` edit/restart
-smoke test. v0.5.0 remains the
-final stable Zig release baseline.
+assets have been cut over to Rust. Public prerelease `v0.6.0-rc.2` passed both
+four-target CI matrices, the tagged release workflow, published-checksum
+verification, and a downloaded `kipferl dev` edit/restart smoke test. Stable
+`v0.6.0` was published on 2026-08-05 and repeated those gates with verified
+Homebrew installation, tree-shaken and full standalone execution, and static
+Linux artifacts. v0.5.0 remains the final stable Zig release baseline.
 
 The post-RC developer-experience pass also completes the common configuration
 surface. Writable TOML, YAML 1.2, and KDL 2.0 now use maintained Rust parsers
@@ -515,7 +516,7 @@ artifacts meet the compatibility, startup, and size gates.
      debouncing, extra watch paths, terminal clearing/restoration, and an
      end-to-end restart test;
   7. publish and validate RC2 — complete; promote the proven Rust line to
-     stable v0.6.0 — release preparation in progress;
+     stable v0.6.0 — complete;
   8. tree-shaking/module selection for size — complete for stable v0.6.0;
      the implementation chooses a compile-time-pruned core runtime or a
      complete compatibility runtime from conservative static import analysis,

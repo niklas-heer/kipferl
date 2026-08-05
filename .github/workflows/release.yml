@@ -339,6 +339,16 @@ jobs:
         with:
           path: kipferl
 
+      - name: Verify Homebrew tap access
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          can_push=$(gh api repos/niklas-heer/homebrew-tap --jq '.permissions.push')
+          if [[ "$can_push" != "true" ]]; then
+            echo "HOMEBREW_TAP_TOKEN needs Contents: write access to niklas-heer/homebrew-tap" >&2
+            exit 1
+          fi
+
       - name: Checkout homebrew-tap repository
         uses: actions/checkout@v5
         with:

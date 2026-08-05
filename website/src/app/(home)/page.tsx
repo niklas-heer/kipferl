@@ -148,13 +148,16 @@ export default function HomePage() {
           </div>
 
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-sm font-medium mb-8">
+          <Link
+            href="/blog/kipferl-0-6"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-sm font-medium mb-8 hover:border-cyan-500/50 transition-colors"
+          >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
             </span>
             Kipferl v0.6.0 — stable Rust release
-          </div>
+          </Link>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-[1.1]">
             Build CLI apps that
@@ -571,12 +574,20 @@ export default function HomePage() {
               maintain, fully tested on four targets, and still compact enough
               to ship as one file.
             </p>
-            <Link
-              href="/blog/rust-migration"
-              className="inline-flex items-center font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
-            >
-              Read the migration story <span className="ml-2">→</span>
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link
+                href="/blog/kipferl-0-6"
+                className="inline-flex items-center font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                Read the 0.6 release story <span className="ml-2">→</span>
+              </Link>
+              <Link
+                href="/blog/rust-migration"
+                className="inline-flex items-center font-semibold text-gray-300 hover:text-white transition-colors"
+              >
+                Migration retrospective <span className="ml-2">→</span>
+              </Link>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
@@ -644,7 +655,7 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
               <span className="text-2xl font-bold">
-                <span className="text-cyan-500">u</span>charm
+                <span className="text-cyan-500">K</span>ipferl
               </span>
               <span className="text-gray-400 dark:text-gray-500">|</span>
               <span className="text-gray-600 dark:text-gray-400">
