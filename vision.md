@@ -183,7 +183,8 @@ It is not a drop-in replacement for CPython or pip.
 
 ## Success Metrics
 
-- Minimal standalone application stays near the current 4.3–5.3 MB target
+- Minimal standalone application stays near the current 1.4 MB tree-shaken
+  baseline, while the complete runtime remains below the 5.75 MB ceiling
   range and starts in <= 10ms on the measured native baseline.
 - 90%+ parity for essential modules listed above.
 - polished UX for prompts, tables, progress, and error output.

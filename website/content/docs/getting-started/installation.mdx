@@ -7,50 +7,60 @@ description: Install kipferl on macOS or Linux
 
 kipferl is available as a single binary for macOS and Linux.
 
-## Rust release candidate
+## Homebrew
 
-The current Rust implementation is available as `v0.6.0-rc.2`. Download the
-CLI for your operating system and CPU architecture:
-
-```bash
-# Linux (x86_64)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-x86_64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-
-# Linux (ARM64)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-aarch64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-
-# macOS (Apple Silicon)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-aarch64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-
-# macOS (Intel)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-x86_64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-```
-
-Every release also includes a `.sha256` file for verification. There is no
-architecture-independent CLI: choose the asset that matches the machine where
-the CLI itself will run. `kipferl build --targets` lists the four application
-targets it can produce.
-
-## Homebrew stable
-
-The previous μcharm `v0.5` formula remains available while Kipferl is an RC.
-After `v0.6` is promoted to stable, install the renamed formula with:
+Install the stable release on macOS or Linux:
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
-Until then, existing users can continue using `brew install
-ucharmdev/tap/ucharm`. Kipferl 0.6 also installs `ucharm` as a deprecated alias
-for one release cycle.
+Existing users can update with `brew upgrade kipferl`.
+
+## Direct download
+
+Kipferl `v0.6.0` is available for four native targets. Download the CLI for
+your operating system and CPU architecture:
+
+```bash
+# Linux (x86_64)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-linux-x86_64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
+
+# Linux (ARM64)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-linux-aarch64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-macos-aarch64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
+
+# macOS (Intel)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-macos-x86_64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
+```
+
+Every release also includes a `.sha256` file for verification. Download it
+next to the binary and run:
+
+```bash
+# macOS
+shasum -a 256 -c kipferl-macos-aarch64.sha256
+
+# Linux
+sha256sum -c kipferl-linux-x86_64.sha256
+```
+
+Adjust the filename for your selected target. There is no
+architecture-independent CLI: choose the asset that matches the machine where
+the CLI itself will run. `kipferl build --targets` lists the four application
+targets it can produce.
+
+Kipferl 0.6 also installs `ucharm` as a deprecated alias for one release cycle.
 
 ## Verify Installation
 
@@ -61,7 +71,7 @@ kipferl --version
 You should see output like:
 
 ```
-Kipferl v0.6.0-rc.2
+Kipferl v0.6.0
 ```
 
 ## Editor Setup

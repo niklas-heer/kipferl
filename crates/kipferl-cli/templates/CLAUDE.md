@@ -7,7 +7,7 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 - **PocketPy, not CPython**: This runs on PocketPy with native Rust modules, not standard Python
 - **Native modules**: 50+ high-performance modules implemented in Rust (see list below)
 - **No pip packages**: You cannot use pip packages that have C extensions
-- **Single binary output**: Apps compile to target-specific standalone executables (about 4.8–5.9 MB)
+- **Single binary output**: Apps compile to tree-shaken, target-specific standalone executables (about 1.4–5.9 MB)
 
 ## Available Modules
 
@@ -61,6 +61,9 @@ kipferl run myapp.py
 
 # Build standalone binary
 kipferl build myapp.py -o myapp --mode universal
+
+# Keep every optional capability when imports are dynamic
+kipferl build myapp.py -o myapp --full-runtime
 ```
 
 ## What NOT to Use

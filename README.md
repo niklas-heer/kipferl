@@ -26,6 +26,9 @@
 Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and Kipferl ships them as single-file binaries that start instantly.
 
+[Documentation](https://kipferl.dev/docs) · [Changelog](CHANGELOG.md) ·
+[Releases](https://github.com/niklas-heer/kipferl/releases)
+
 - Tree-shaken standalone binaries (1.4 MB for a minimal app on Apple Silicon;
   the complete runtime remains available when needed)
 - Beautiful TUI output (boxes, tables, prompts, progress)
@@ -118,7 +121,7 @@ standalone binaries and caches remain compatible.
 | | Python + Rich | Go TUI stack | Rust + Ratatui | **Kipferl** |
 |---|:---:|:---:|:---:|:---:|
 | **Startup time** | 100ms+ | ~10-20ms | ~2-10ms | **~8ms** |
-| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~5MB** |
+| **Binary size** | 80MB+ | 2-3MB | 2-5MB | **~1.4–5.9MB** |
 | **Easy to write** | Yes | Medium | Hard | **Yes** |
 | **Beautiful TUI** | Yes | Yes | Yes | **Yes** |
 
@@ -228,45 +231,43 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Rust release candidate (recommended for testing)
-
-The renamed Rust release is available as `v0.6.0-rc.2`. Pick the CLI matching your
-machine; each download is a standalone executable that embeds its matching
-runtime.
-
-```bash
-# macOS (Apple Silicon)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-aarch64 -o kipferl
-chmod +x kipferl
-
-# macOS (Intel)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-x86_64 -o kipferl
-chmod +x kipferl
-
-# Linux (x86_64, static musl)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-x86_64 -o kipferl
-chmod +x kipferl
-
-# Linux (ARM64, static musl)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-aarch64 -o kipferl
-chmod +x kipferl
-```
-
-Move the downloaded file somewhere on your `PATH`, then confirm it with
-`kipferl --version`.
-
-### Homebrew stable (macOS/Linux)
-
-The previous μcharm `v0.5` formula remains available during the RC. After
-Kipferl `v0.6` is promoted to stable, install the renamed formula with:
+### Homebrew (macOS/Linux)
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
-Until then, existing users can continue using `brew install
-ucharmdev/tap/ucharm`. Kipferl 0.6 keeps `ucharm` as a deprecated command alias
-for one release cycle.
+Existing users can update with `brew upgrade kipferl`. Kipferl 0.6 installs
+`ucharm` as a deprecated command alias for one release cycle.
+
+### Direct download
+
+Kipferl `v0.6.0` is available for four native targets. Pick the CLI matching
+the machine where Kipferl itself will run:
+
+```bash
+# macOS (Apple Silicon)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-macos-aarch64 -o kipferl
+chmod +x kipferl
+
+# macOS (Intel)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-macos-x86_64 -o kipferl
+chmod +x kipferl
+
+# Linux (x86_64, static musl)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-linux-x86_64 -o kipferl
+chmod +x kipferl
+
+# Linux (ARM64, static musl)
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-linux-aarch64 -o kipferl
+chmod +x kipferl
+```
+
+Every binary has an adjacent `.sha256` file in the release. Download both and
+verify with `shasum -a 256 -c kipferl-macos-aarch64.sha256` on Apple Silicon
+macOS or `sha256sum -c kipferl-linux-x86_64.sha256` on x86_64 Linux, adjusting
+the asset name for the selected target. Then move the binary onto your `PATH`
+and confirm it with `kipferl --version`.
 
 ---
 
@@ -372,6 +373,13 @@ Current compatibility summary (from `tests/compat_report_pocketpy.md`):
 - 7.044ms median / 7.980ms p95 native ARM64 startup and a 4,000,864-byte
   stripped runtime in the final 1,200-run migration sample
 
+The stable build adds profile-based tree shaking without a user toolchain. A
+minimal Apple Silicon app is 1,450,837 bytes with the 1,130,352-byte core
+runtime, 69.9% smaller than the same app with the full runtime. Its measured
+median startup is 7.679ms. See the
+[reproducible baseline](benchmarks/tree_shaking_baseline.md) and
+[technical deep dive](https://kipferl.dev/blog/tree-shaken-builds).
+
 CI treats compatibility as a regression gate and uploads the full report. Each
 tagged release also publishes that report plus a machine-readable verification
 that the declared PocketPy patch series reproduces the vendored source from the
@@ -398,7 +406,7 @@ binary. Before 0.6, the project was called μcharm.
 <details>
 <summary>Why is it so fast?</summary>
 
-The current native ARM64 median is 7.044ms. Fast startup comes from:
+The measured tree-shaken ARM64 median is 7.679ms. Fast startup comes from:
 
 1. No external CPython startup or virtual-environment activation
 2. No import machinery (modules compiled into the binary)
@@ -409,13 +417,14 @@ The current native ARM64 median is 7.044ms. Fast startup comes from:
 <details>
 <summary>Why is the binary so small?</summary>
 
-About 4MB for the optimized ARM64 runtime (SQLite, HTTPS, and Ratatui enabled)
-because:
+The core ARM64 runtime is 1.13MB; optional capabilities select a full runtime
+up to 5.45MB across the four release targets. It stays compact because:
 
 1. PocketPy core is small
 2. The Rust release profile uses `-O2`, fat LTO, one codegen unit, overflow
    checks, symbol stripping, and aborting panics
-3. Curated stdlib surface (no bloat) while still bundling useful extras like `sqlite3`
+3. Profile-based tree shaking removes unused optional dependency trees while
+   keeping useful extras like `sqlite3` available
 4. SQLite is statically bundled with unused extensions disabled, and HTTPS uses
    a feature-minimal Rustls/Ureq stack
 5. Ratatui powers interactive selection with an inline, scrollback-preserving

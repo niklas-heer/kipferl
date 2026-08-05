@@ -226,24 +226,29 @@ def main():
         run("git restore -- VERSION Cargo.toml Cargo.lock")
         sys.exit(1)
 
-    # Commit VERSION change
-    info("Committing version bump...")
-    _, code = run(
-        f'git add VERSION Cargo.toml Cargo.lock && git commit -m "chore: bump version to {new_version}"'
-    )
-    if code != 0:
-        error("Failed to commit version bump")
-        run("git restore -- VERSION Cargo.toml Cargo.lock")
-        sys.exit(1)
-    success("Committed version bump")
+    # Commit a version bump when release preparation has not already done so.
+    _, diff_code = run("git diff --quiet -- VERSION Cargo.toml Cargo.lock")
+    version_commit_created = diff_code != 0
+    if version_commit_created:
+        info("Committing version bump...")
+        _, code = run(
+            f'git add VERSION Cargo.toml Cargo.lock && git commit -m "chore: bump version to {new_version}"'
+        )
+        if code != 0:
+            error("Failed to commit version bump")
+            run("git restore -- VERSION Cargo.toml Cargo.lock")
+            sys.exit(1)
+        success("Committed version bump")
+    else:
+        success(f"Version files are already prepared for {new_version}")
 
     # Create tag
     info("Creating tag...")
     _, code = run(f'git tag -a "v{new_version}" -m "Release v{new_version}"')
     if code != 0:
         error(f"Failed to create tag v{new_version}")
-        # Undo the commit
-        run("git reset --hard HEAD~1")
+        if version_commit_created:
+            run("git reset --soft HEAD~1")
         sys.exit(1)
     success(f"Created tag v{new_version}")
 
@@ -254,7 +259,8 @@ def main():
         error("Failed to push commit")
         # Cleanup
         run(f'git tag -d "v{new_version}"')
-        run("git reset --hard HEAD~1")
+        if version_commit_created:
+            run("git reset --soft HEAD~1")
         sys.exit(1)
 
     _, code = run(f'git push origin "v{new_version}"', capture=False)
@@ -273,7 +279,7 @@ def main():
     msg = style("Release v" + new_version + " initiated!", bold=True) + "\n\n"
     msg = msg + "The workflow will now:\n"
     msg = msg + "  " + style("1.", fg="cyan") + " Build binaries for all platforms\n"
-    msg = msg + "  " + style("2.", fg="cyan") + " Generate AI-powered release notes\n"
+    msg = msg + "  " + style("2.", fg="cyan") + " Publish curated or generated release notes\n"
     msg = msg + "  " + style("3.", fg="cyan") + " Create GitHub release with assets\n"
     msg = msg + "  " + style("4.", fg="cyan") + " Update Homebrew formula"
     box(msg, border_color="green", padding=1)

@@ -10,7 +10,7 @@ import tui
 def main():
     print()
     tui.box(
-        "Kipferl v0.6.0-rc.2\nBeautiful CLIs with PocketPy and Rust\nFast startup | Standalone binaries | Python syntax",
+        "Kipferl v0.6.0\nBeautiful CLIs with PocketPy and Rust\nFast startup | Tree-shaken binaries | Python syntax",
         title="Welcome",
         border_color="cyan",
     )
@@ -49,10 +49,10 @@ def main():
     tui.rule("Measured Release", color="magenta")
     tui.table(
         [
-            ["Metric", "v0.6.0-rc.2"],
+            ["Metric", "v0.6.0"],
             ["Compatibility", "1,669 / 1,669"],
-            ["Median startup", "7.044 ms"],
-            ["ARM64 minimal app", "4.3 MB"],
+            ["Core median startup", "7.679 ms"],
+            ["ARM64 minimal app", "1.451 MB"],
         ],
         headers=True,
         border="rounded",
@@ -67,7 +67,7 @@ def main():
         )
         name = input.prompt("What is your name?", default="Developer")
         tui.box(
-        f"Hello, {name}!\nGreat choice picking {language}.",
+            f"Hello, {name}!\nGreat choice picking {language}.",
             title="Summary",
             border_color="green",
         )

@@ -6,7 +6,9 @@ This is the single source of truth for priorities and next steps.
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as compact, fast,
   standalone binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Rust prerelease `v0.6.0-rc.2` is published and proven.
+- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib
+  targets, Cargo-first release path, and tree-shaken build profiles are
+  implemented. RC2 is proven and stable `v0.6.0` is being prepared.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
 - Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
@@ -21,12 +23,15 @@ This is the single source of truth for priorities and next steps.
   generated-project templates live under `crates/kipferl-cli/`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
-## Active Priority: Rust Migration
+## Active Priority: Stable v0.6.0 Release
 
 - Phase 5 implementation is complete at 1,669/1,669 available checks.
 - Phase 6 has cut the canonical CI, release workflow, embedded assets, public
   binary names, local commands, and contributor guidance over to Rust/Cargo.
 - The Rust optimization, safety, native CI, and prerelease gates are complete.
+- Profile-based tree shaking, four-target core assets, release packaging,
+  documentation, reproducible measurements, and the technical post are
+  complete under issue #57.
 - `kipferl dev` provides a Rust-native watch/restart loop with debounced native
   filesystem events, extra watch paths, terminal clearing, and terminal-state
   restoration for interactive applications.
@@ -75,16 +80,17 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
    release workflow, checksum verification, and external `kipferl dev` restart
    validation from the downloaded artifact without updating stable Homebrew.
 3. The archived Zig implementation is removed. The public README, website,
-   docs, templates, and examples now describe the Rust architecture and RC;
-   the website publishes the measured migration retrospective below.
+   docs, templates, and examples now describe the Rust architecture, stable
+   installation path, and tree-shaken builds; the website publishes the
+   measured migration retrospective and tree-shaking deep dive.
 4. Canonical stub generation, release evidence, cross-target build verification,
    and the `v0.6.0-rc.2` public bake are complete.
-5. **In progress for v0.6.0:** profile-based tree shaking now selects a 1.13 MB
+5. **Complete for v0.6.0:** profile-based tree shaking selects a 1.13–1.35 MB
    core runtime (1.451 MB standalone app on Apple Silicon) or the full runtime
-   conservatively from imports, with `--full-runtime` as an escape hatch. Finish
-   four-target assets, CI/release proof, documentation, and the technical post
-   under GitHub issue #57 before promoting stable v0.6.0. Track the release post
-   separately in issue #58.
+   conservatively from imports, with `--full-runtime` as an escape hatch.
+6. **In progress:** merge the stable version/docs/release-note preparation,
+   tag `v0.6.0`, verify four assets and checksums plus Homebrew, then publish
+   and validate the release post tracked in issue #58.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -242,9 +248,7 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 
 ## Backlog (ordered)
 
-- Promote the validated Rust release to stable `v0.6.0` after the RC2 feedback
-  window.
-- Tree-shaking or module selection for smaller binaries, after stable; pursue
-  it only when the DX and maintenance tradeoff is favorable.
+- Tag and verify stable `v0.6.0`, then publish the prepared release post and
+  close issue #58.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

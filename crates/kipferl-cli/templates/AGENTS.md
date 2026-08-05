@@ -6,7 +6,7 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 
 - **Runtime**: PocketPy with native Rust modules (NOT CPython)
 - **No pip packages**: Cannot use packages with C extensions (no requests, numpy, pandas)
-- **Output**: Target-specific standalone binaries (about 4.8–5.9 MB)
+- **Output**: Tree-shaken, target-specific standalone binaries (about 1.4–5.9 MB)
 - **50+ runtime modules** including: ansi, args, argparse, base64, tui, collections, configparser, copy, csv, dataclasses, datetime, fnmatch, functools, glob, gzip, hashlib, heapq, hmac, http.client, input, itertools, json, kdl, logging, math, operator, os, pathlib, random, re, secrets, shutil, signal, sqlite3, statistics, struct, subprocess, tarfile, tempfile, term, textwrap, time, toml, tomllib, typing, unittest, urllib.parse, uuid, xml.etree.ElementTree, yaml, zipfile
 
 ## Import Pattern
@@ -43,6 +43,7 @@ compatibility, but generated projects use the explicit modules.
 ```bash
 kipferl run myapp.py           # Run script
 kipferl build myapp.py -o app  # Build standalone binary
+kipferl build myapp.py -o app --full-runtime  # Disable tree shaking when imports are dynamic
 ```
 
 ## Do NOT Suggest

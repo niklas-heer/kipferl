@@ -9,7 +9,9 @@ check:
     python3 scripts/generate_stubs.py --check
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy -p kipferl-runtime --no-default-features --all-targets -- -D warnings
     cargo test --workspace
+    cargo test -p kipferl-runtime --no-default-features
 
 # Build the public CLI, runtime, and loader in release mode
 build:
