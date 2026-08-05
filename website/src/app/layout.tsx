@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://getkipferl.org"),
+  metadataBase: new URL("https://kipferl.dev"),
   title: {
     default: "Kipferl — Python CLIs, standalone binaries",
     template: "%s | Kipferl",

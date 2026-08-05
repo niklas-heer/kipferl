@@ -114,7 +114,7 @@ export default function RustMigrationPage() {
             name. A Kipferl is a crescent-shaped pastry, giving a small nod to
             Bun and matching the product metaphor: we bake a Python-style CLI
             into one portable executable. The repository, command, packages, and
-            planned home at getkipferl.org now use one memorable spelling.
+            public home at kipferl.dev now use one memorable spelling.
           </p>
           <p>
             The rename is intentionally compatible. Version 0.6 keeps the old
