@@ -178,7 +178,7 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke-test release candidate
+      - name: Smoke-test release binary
         shell: bash
         run: |
           cli="target/${{ matrix.target }}/release/kipferl"
@@ -294,7 +294,7 @@ jobs:
       - name: Install release-note dependencies
         run: pip install requests
 
-      - name: Generate AI-powered release notes
+      - name: Prepare release notes
         id: changelog
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -304,7 +304,12 @@ jobs:
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           export PREV_TAG
-          python3 .github/scripts/generate_release_notes.py > release_notes.md
+          CURATED_NOTES=".github/release-notes/${CURRENT_TAG}.md"
+          if [[ -f "$CURATED_NOTES" ]]; then
+            cp "$CURATED_NOTES" release_notes.md
+          else
+            python3 .github/scripts/generate_release_notes.py > release_notes.md
+          fi
           cat release_notes.md
           {
             echo "changelog<<EOF"

@@ -15,7 +15,13 @@ jobs:
         run: python3 scripts/generate_stubs.py --check
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Lint tree-shaken core runtime
+        run: >-
+          cargo clippy -p kipferl-runtime
+          --no-default-features --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Test tree-shaken core runtime
+        run: cargo test -p kipferl-runtime --no-default-features
       - name: Test release tooling
         run: >-
           python3 -m unittest

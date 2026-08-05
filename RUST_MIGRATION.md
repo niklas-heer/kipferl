@@ -21,6 +21,12 @@ and join the existing JSON, XML, CSV, and INI/CFG modules. Each format has
 tested file/string APIs, explicit documentation boundaries, generated editor
 stubs, and automatic `kipferl dev` restart coverage.
 
+The stable v0.6 preparation adds profile-based tree shaking. Conservative
+static import analysis selects a 1.13–1.35 MB prebuilt core runtime or the
+complete compatibility runtime, with `--full-runtime` as an explicit escape
+hatch and no compiler required on the user's machine. The four-target release
+proof, documentation, benchmark record, and technical post are complete.
+
 This is a host-language and toolchain migration, not a product rewrite. The
 Python-facing API, PocketPy compatibility work, universal-binary behavior, and
 product goals remain in place.
@@ -508,9 +514,10 @@ artifacts meet the compatibility, startup, and size gates.
   6. `kipferl dev` watch mode — complete for RC2 with native filesystem events,
      debouncing, extra watch paths, terminal clearing/restoration, and an
      end-to-end restart test;
-  7. publish and validate RC2, then promote the proven Rust line to stable;
-  8. tree-shaking/module selection for size — in progress for stable v0.6.0;
-     the first implementation chooses a compile-time-pruned core runtime or a
+  7. publish and validate RC2 — complete; promote the proven Rust line to
+     stable v0.6.0 — release preparation in progress;
+  8. tree-shaking/module selection for size — complete for stable v0.6.0;
+     the implementation chooses a compile-time-pruned core runtime or a
      complete compatibility runtime from conservative static import analysis,
      requires no user toolchain, and produces a measured 1.451 MB minimal app
      on Apple Silicon;

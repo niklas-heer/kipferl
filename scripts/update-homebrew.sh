@@ -21,7 +21,7 @@ echo "Updating Homebrew formula to version $VERSION..."
 # Download binaries and calculate checksums
 calc_sha256() {
     local url=$1
-    curl -sL "$url" | shasum -a 256 | cut -d' ' -f1
+    curl -fsSL "$url" | shasum -a 256 | cut -d' ' -f1
 }
 
 BASE_URL="https://github.com/$REPO/releases/download/$TAG"

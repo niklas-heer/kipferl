@@ -52,3 +52,43 @@ workspace = true
 [[bin]]
 name = "pocketpy-kipferl"
 path = "src/main.rs"
+
+[[test]]
+name = "config_formats"
+path = "tests/config_formats.rs"
+required-features = ["formats"]
+
+[[test]]
+name = "core_runtime_wave"
+path = "tests/core_runtime_wave.rs"
+required-features = ["timezone"]
+
+[[test]]
+name = "crypto_compression_wave"
+path = "tests/crypto_compression_wave.rs"
+required-features = ["archives", "crypto"]
+
+[[test]]
+name = "input"
+path = "tests/input.rs"
+required-features = ["interactive"]
+
+[[test]]
+name = "ffi_stress"
+path = "tests/ffi_stress.rs"
+required-features = ["interactive"]
+
+[[test]]
+name = "network_database_wave"
+path = "tests/network_database_wave.rs"
+required-features = ["http", "sqlite"]
+
+[[test]]
+name = "process_regex_wave"
+path = "tests/process_regex_wave.rs"
+required-features = ["regex"]
+
+[[test]]
+name = "tooling_format_wave"
+path = "tests/tooling_format_wave.rs"
+required-features = ["formats"]

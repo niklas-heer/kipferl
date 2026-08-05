@@ -153,7 +153,7 @@ export default function HomePage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
             </span>
-            Rust v0.6.0-rc.2 is available now
+            Kipferl v0.6.0 — stable Rust release
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-[1.1]">
@@ -165,7 +165,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Python syntax. Standalone binaries around 5–6 MB.
+            Python syntax. Tree-shaken binaries from 1.4 MB.
             <span className="text-gray-900 dark:text-white font-medium">
               {" "}
               Instant startup.
@@ -204,9 +204,9 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-4 px-5 py-3 bg-gray-900 dark:bg-gray-950 rounded-xl font-mono text-sm border border-gray-800">
             <span className="text-cyan-400">$</span>
             <code className="text-gray-100">
-              curl -LO …/v0.6.0-rc.2/kipferl-macos-aarch64
+              brew install niklas-heer/tap/kipferl
             </code>
-            <CopyButton text="curl -LO https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-aarch64" />
+            <CopyButton text="brew install niklas-heer/tap/kipferl" />
           </div>
         </div>
       </section>
@@ -239,8 +239,8 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            <StatCard value="7.044" suffix="ms" label="Median startup" />
-            <StatCard value="4.8" suffix="MB" label="Minimal app" />
+            <StatCard value="7.679" suffix="ms" label="Core median startup" />
+            <StatCard value="1.451" suffix="MB" label="Minimal app" />
             <StatCard value="1,669" label="Compat checks" />
             <StatCard value="4" label="Release targets" />
           </div>
@@ -280,7 +280,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-yellow-400 to-orange-500"
               title="Instant Startup"
-              description="A measured 7.044 ms median and 7.980 ms p95 on Apple Silicon, without virtual-environment activation."
+              description="A measured 7.679 ms median and 8.433 ms p95 for the tree-shaken core app on Apple Silicon, without virtual-environment activation."
             />
             <FeatureCard
               icon={
@@ -301,7 +301,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-green-400 to-emerald-500"
               title="Standalone Binaries"
-              description="Target-specific executables around 4.8–5.9 MB. Linux releases are static musl binaries with no dynamic libc dependency."
+              description="Tree-shaken executables start at 1.451 MB on Apple Silicon; the full runtime remains available. Linux releases are static musl binaries with no dynamic libc dependency."
             />
             <FeatureCard
               icon={
@@ -422,13 +422,13 @@ export default function HomePage() {
               <tbody className="bg-white dark:bg-gray-950">
                 <ComparisonRow
                   feature="Cold start"
-                  kipferl="7.044ms"
+                  kipferl="7.679ms"
                   python="Runtime-dependent"
                   node="Runtime-dependent"
                 />
                 <ComparisonRow
                   feature="Binary size"
-                  kipferl="~4.8MB"
+                  kipferl="~1.4–5.9MB"
                   python="Runtime + app"
                   node="Runtime + app"
                 />
@@ -538,7 +538,7 @@ export default function HomePage() {
                   {"],\n    ["}
                   <span className="text-amber-300">{'"app"'}</span>
                   {", "}
-                  <span className="text-amber-300">{'"4.8MB"'}</span>
+                  <span className="text-amber-300">{'"1.4MB"'}</span>
                   {"],\n], headers="}
                   <span className="text-purple-400">True</span>
                   {")\n\n"}
