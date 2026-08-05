@@ -26,7 +26,7 @@
 Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-style
 scripts, and Kipferl ships them as single-file binaries that start instantly.
 
-- Standalone, target-specific binaries (about 4.8–5.8 MB for a minimal app)
+- Standalone, target-specific binaries (about 4.8–5.9 MB for a minimal app)
 - Beautiful TUI output (boxes, tables, prompts, progress)
 - Fast startup (<= 10ms on macOS/Linux)
 - Curated stdlib compatibility for CLI use cases
@@ -272,7 +272,7 @@ for one release cycle.
 
 | Mode | Size | Dependencies | Use case |
 |------|------|--------------|----------|
-| `universal` | ~4.8-5.8MB | None | Production deployment |
+| `universal` | ~4.8-5.9MB | None | Production deployment |
 | `executable` | ~3KB | pocketpy-kipferl | Dev machines with runtime |
 | `single` | ~2KB | pocketpy-kipferl | Scripting |
 

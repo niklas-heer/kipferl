@@ -94,8 +94,9 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   to fill at the expense of developer experience, correctness, or
   maintainability. The configuration-format increase qualifies because
   maintained parsers replace incomplete handwritten behavior for three
-  user-facing formats. The optimized ARM64 runtime grows from 4,000,864 to
-  4,497,408 bytes; the four-target CI artifacts remain the release authority.
+  user-facing formats. The refreshed runtimes range from 4,497,440 bytes on
+  ARM64 macOS to 5,451,504 bytes on x86_64 Linux; the corresponding CLIs range
+  from 5,394,608 to 6,656,720 bytes.
 - Ratatui 0.30.2 with its Crossterm backend is accepted for real interactive
   `input.select` and `input.multiselect` sessions. It uses an inline viewport to
   preserve scrollback, bounded list scrolling, visible keyboard help, semantic

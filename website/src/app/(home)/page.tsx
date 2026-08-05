@@ -301,7 +301,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-green-400 to-emerald-500"
               title="Standalone Binaries"
-              description="Target-specific executables around 4.8–5.8 MB. Linux releases are static musl binaries with no dynamic libc dependency."
+              description="Target-specific executables around 4.8–5.9 MB. Linux releases are static musl binaries with no dynamic libc dependency."
             />
             <FeatureCard
               icon={
