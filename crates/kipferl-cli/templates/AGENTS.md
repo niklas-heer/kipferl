@@ -6,8 +6,8 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 
 - **Runtime**: PocketPy with native Rust modules (NOT CPython)
 - **No pip packages**: Cannot use packages with C extensions (no requests, numpy, pandas)
-- **Output**: Target-specific standalone binaries (about 4.3–5.3 MB)
-- **50+ runtime modules** including: ansi, args, argparse, base64, tui, collections, copy, csv, dataclasses, datetime, fnmatch, functools, glob, gzip, hashlib, heapq, hmac, http.client, input, itertools, json, logging, math, operator, os, pathlib, random, re, secrets, shutil, signal, sqlite3, statistics, struct, subprocess, tarfile, tempfile, term, textwrap, time, toml, typing, unittest, urllib.parse, uuid, xml.etree.ElementTree, zipfile
+- **Output**: Target-specific standalone binaries (about 4.8–5.8 MB)
+- **50+ runtime modules** including: ansi, args, argparse, base64, tui, collections, configparser, copy, csv, dataclasses, datetime, fnmatch, functools, glob, gzip, hashlib, heapq, hmac, http.client, input, itertools, json, kdl, logging, math, operator, os, pathlib, random, re, secrets, shutil, signal, sqlite3, statistics, struct, subprocess, tarfile, tempfile, term, textwrap, time, toml, tomllib, typing, unittest, urllib.parse, uuid, xml.etree.ElementTree, yaml, zipfile
 
 ## Import Pattern
 

@@ -30,6 +30,10 @@ This is the single source of truth for priorities and next steps.
 - `kipferl dev` provides a Rust-native watch/restart loop with debounced native
   filesystem events, extra watch paths, terminal clearing, and terminal-state
   restoration for interactive applications.
+- Common configuration formats are now a first-class runtime surface: JSON,
+  YAML 1.2, TOML, KDL 2.0, XML, CSV, and INI/CFG have documented string and/or
+  file APIs. YAML, TOML, and KDL use maintained Rust parsers; generated stubs
+  and `kipferl dev` cover the new modules and extensions.
 - The archived Zig implementation has been removed from the working tree; use
   final Zig tag `v0.5.0` for archaeology.
 - Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
@@ -86,11 +90,12 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   by 7-14% over `s` for about 510 KiB. `-O3` added another 231 KiB without a
   measurable win, thin LTO regressed size and speed, and PGO's small,
   corpus-specific gains did not justify its training/toolchain burden.
-- Treat 5 MB as the cross-target regression ceiling, not as a goal to fill at
-  the expense of developer experience, correctness, or maintainability. The
-  current optimized ARM64 runtime with SQLite, HTTPS, maintained archives, and
-  Ratatui is 4,000,864 bytes. The refreshed runtime assets range from 4,000,864
-  bytes on ARM64 macOS to 4,831,144 bytes on x86_64 Linux.
+- Treat 5.75 MB as the cross-target runtime regression ceiling, not as a goal
+  to fill at the expense of developer experience, correctness, or
+  maintainability. The configuration-format increase qualifies because
+  maintained parsers replace incomplete handwritten behavior for three
+  user-facing formats. The optimized ARM64 runtime grows from 4,000,864 to
+  4,497,408 bytes; the four-target CI artifacts remain the release authority.
 - Ratatui 0.30.2 with its Crossterm backend is accepted for real interactive
   `input.select` and `input.multiselect` sessions. It uses an inline viewport to
   preserve scrollback, bounded list scrolling, visible keyboard help, semantic
@@ -194,9 +199,10 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 ### Phase C: Close feature gap (Vision)
 - Maintain the Vision “nice-to-have” surface. `tomllib`, `http.client`,
   `xml.etree`, HTTPS/TLS through `http.client`, and the basic `sqlite3` DB-API
-  subset are now present; remaining work includes the separate third-party
-  `toml` package, YAML, and deeper API coverage where product demand justifies
-  it.
+  subset are now present. The writable `toml` compatibility module, YAML 1.2,
+  and KDL 2.0 are also complete with native Rust parsers, file/string APIs,
+  stubs, docs, and round-trip tests. Deeper XML/CSV/INI API coverage remains
+  demand-driven and its current boundaries are documented.
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase D: Developer experience
@@ -234,6 +240,5 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   window.
 - Tree-shaking or module selection for smaller binaries, after stable; pursue
   it only when the DX and maintenance tradeoff is favorable.
-- Formats: third-party `toml` and YAML.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

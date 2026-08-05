@@ -7,6 +7,7 @@
     "getting-started/quick-start",
     "---Modules---",
     "modules/index",
+    "modules/data-formats",
     "modules/tui",
     "modules/input",
     "modules/term",

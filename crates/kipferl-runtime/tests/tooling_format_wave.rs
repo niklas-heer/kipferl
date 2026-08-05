@@ -34,6 +34,11 @@ fn passes_all_tooling_format_wave_compatibility_fixtures() {
             "Results: 4 passed, 0 failed, 0 skipped",
         ),
         (
+            "toml",
+            include_str!("../../../tests/cpython/test_toml.py"),
+            "Results: 9 passed, 0 failed, 0 skipped",
+        ),
+        (
             "xml.etree.ElementTree",
             include_str!("../../../tests/cpython/test_xml_etree_elementtree.py"),
             "Results: 12 passed, 0 failed, 0 skipped",

@@ -92,6 +92,34 @@ def fromstring(text, parser=None):
     return element
 
 XML = fromstring
+
+class ElementTree:
+    def __init__(self, element=None, file=None):
+        if file is not None:
+            element = parse(file).getroot()
+        self._root = element
+
+    def getroot(self):
+        return self._root
+
+    def write(self, file, encoding='us-ascii', xml_declaration=None, default_namespace=None, method='xml'):
+        value = tostring(self._root, encoding, method)
+        if hasattr(file, 'write'):
+            file.write(value)
+            return None
+        stream = open(file, 'w')
+        stream.write(value)
+        stream.close()
+        return None
+
+def parse(source, parser=None):
+    if hasattr(source, 'read'):
+        text = source.read()
+    else:
+        stream = open(source, 'r')
+        text = stream.read()
+        stream.close()
+    return ElementTree(fromstring(text, parser))
 "#;
 
 pub(super) const MODULE: NativeModule = NativeModule {

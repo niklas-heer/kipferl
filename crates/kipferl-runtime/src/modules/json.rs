@@ -49,6 +49,28 @@ def dumps(obj, indent=None, separators=None, sort_keys=False):
         item_separator = separators[0]
         key_separator = separators[1]
     return _rust_json_compact(obj, item_separator, key_separator, sort_keys)
+
+
+def load(source):
+    if hasattr(source, 'read'):
+        return loads(source.read())
+    stream = open(source, 'r')
+    text = stream.read()
+    stream.close()
+    return loads(text)
+
+
+def dump(obj, stream=None, indent=None, separators=None, sort_keys=False):
+    text = dumps(obj, indent=indent, separators=separators, sort_keys=sort_keys)
+    if stream is None:
+        return text
+    if hasattr(stream, 'write'):
+        stream.write(text)
+        return None
+    output = open(stream, 'w')
+    output.write(text)
+    output.close()
+    return None
 "#;
 
 pub(super) const MODULE: NativeModule = NativeModule {
