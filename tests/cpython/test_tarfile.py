@@ -1,6 +1,6 @@
 """
-Minimal tarfile module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Minimal tarfile module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 """
 
 import sys
@@ -122,7 +122,7 @@ if HAS_TARFILE:
         return out
 
     TAR_BYTES = _make_tar([("a.txt", b"hi"), ("empty.txt", b"")])
-    path = "__ucharm_test.tar"
+    path = "__kipferl_test.tar"
     try:
         with open(path, "wb") as f:
             f.write(TAR_BYTES)

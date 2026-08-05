@@ -1,5 +1,5 @@
 """
-copy - Native copy module for ucharm
+copy - Native copy module for kipferl
 """
 
 from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator

@@ -116,8 +116,8 @@ def main():
 
     import fetch
 
-    cert_path = "__ucharm_https_cert.pem"
-    key_path = "__ucharm_https_key.pem"
+    cert_path = "__kipferl_https_cert.pem"
+    key_path = "__kipferl_https_key.pem"
 
     with open(cert_path, "w") as f:
         f.write(CERT_PEM)

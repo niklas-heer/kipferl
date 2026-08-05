@@ -1,6 +1,6 @@
 """
-Minimal dataclasses tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Minimal dataclasses tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 """
 
 import sys

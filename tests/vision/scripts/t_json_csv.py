@@ -24,7 +24,7 @@ def main():
     for row in rows:
         out.append(",".join(row))
     text = "\n".join(out)
-    parsed = list(csv.reader(text.splitlines()))
+    parsed = list(csv.reader(text.split("\n")))
     assert parsed[1][1] == "2"
 if __name__ == "__main__":
     run(main)

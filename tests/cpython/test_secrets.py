@@ -1,6 +1,6 @@
 """
-Minimal secrets module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Minimal secrets module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 """
 
 import sys

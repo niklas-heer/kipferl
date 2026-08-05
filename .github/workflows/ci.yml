@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Build instrumented PocketPy tests
-        run: cargo test -p ucharm-runtime --lib --test ffi_stress --no-run
+        run: cargo test -p kipferl-runtime --lib --test ffi_stress --no-run
       - name: Stress PocketPy callbacks and lifecycle
         shell: bash
         run: |
@@ -45,7 +45,7 @@ jobs:
           while IFS= read -r test_binary; do
             "$test_binary" --test-threads=1
             test_count=$((test_count + 1))
-          done < <(find target/debug/deps -maxdepth 1 -type f -executable \( -name 'ucharm_runtime-*' -o -name 'ffi_stress-*' \) | sort)
+          done < <(find target/debug/deps -maxdepth 1 -type f -executable \( -name 'kipferl_runtime-*' -o -name 'ffi_stress-*' \) | sort)
           test "$test_count" -eq 2
 
   build:
@@ -81,14 +81,14 @@ jobs:
             export CC=musl-gcc
           fi
           cargo build --release \
-            -p ucharm-runtime \
-            -p ucharm-loader \
+            -p kipferl-runtime \
+            -p kipferl-loader \
             --target ${{ matrix.target }}
       - name: Verify static Linux components
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          for binary in pocketpy-ucharm ucharm-loader; do
+          for binary in pocketpy-kipferl kipferl-loader; do
             path="target/${{ matrix.target }}/release/$binary"
             file "$path"
             if readelf -l "$path" | grep -q "INTERP"; then
@@ -100,10 +100,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
-            release-assets/pocketpy-ucharm-${{ matrix.suffix }}
-          cp target/${{ matrix.target }}/release/ucharm-loader \
-            release-assets/loader-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/pocketpy-kipferl \
+            release-assets/pocketpy-kipferl-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/kipferl-loader \
+            release-assets/kipferl-loader-${{ matrix.suffix }}
       - name: Upload embeddable Rust assets
         uses: actions/upload-artifact@v4
         with:
@@ -112,22 +112,22 @@ jobs:
       - name: Refresh host assets embedded by the CLI
         shell: bash
         run: |
-          cp target/${{ matrix.target }}/release/pocketpy-ucharm \
-            crates/ucharm-cli/assets/pocketpy-ucharm-${{ matrix.suffix }}
-          cp target/${{ matrix.target }}/release/ucharm-loader \
-            crates/ucharm-cli/assets/loader-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/pocketpy-kipferl \
+            crates/kipferl-cli/assets/pocketpy-kipferl-${{ matrix.suffix }}
+          cp target/${{ matrix.target }}/release/kipferl-loader \
+            crates/kipferl-cli/assets/kipferl-loader-${{ matrix.suffix }}
       - name: Build Rust CLI
         shell: bash
         run: |
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release -p ucharm-cli --target ${{ matrix.target }}
+          cargo build --release -p kipferl-cli --target ${{ matrix.target }}
       - name: Verify static Linux CLI
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          path="target/${{ matrix.target }}/release/ucharm"
+          path="target/${{ matrix.target }}/release/kipferl"
           file "$path"
           if readelf -l "$path" | grep -q "INTERP"; then
             echo "$path unexpectedly contains a dynamic interpreter" >&2
@@ -136,53 +136,53 @@ jobs:
       - name: Smoke-test Rust-hosted runtime
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
+          target/${{ matrix.target }}/release/pocketpy-kipferl
           -c 'import ansi, args, base64, binascii, tui, collections, copy, csv, dataclasses, datetime, errno, fnmatch, functools, heapq, input, io, itertools, json, operator, random, statistics, term, textwrap, typing, uuid; assert ansi.fg("red") == "\x1b[31m"; assert args.count() == 1; assert base64.urlsafe_b64decode(base64.urlsafe_b64encode(b"\xfb\xfc")) == b"\xfb\xfc"; assert binascii.crc32(b"123456789") == 3421780262; assert tui.BORDER_ROUNDED == 0; assert tui.visible_len(tui.style("界", fg="red")) == 2; assert collections.Counter("aba")["a"] == 2; sample = [[1]]; duplicate = copy.deepcopy(sample); assert duplicate == sample; assert duplicate is not sample; assert duplicate[0] is not sample[0]; output = io.StringIO(); csv.writer(output).writerow(["a,b", "c"]); assert output.getvalue()[0] == chr(34); assert hasattr(dataclasses, "is_dataclass"); assert datetime.date(2024, 1, 15).weekday() == 0; assert errno.errorcode[errno.ENOENT] == "ENOENT"; assert OSError(errno.ENOENT, "ignored").args == (errno.ENOENT,); assert fnmatch.filter(["alpha", "beta"], "a*") == ["alpha"]; assert functools.reduce(lambda x, y: x + y, [1, 2, 3]) == 6; assert functools.cache(lambda x: x + 1)(2) == 3; assert heapq.nsmallest(2, [3, 1, 2]) == [1, 2]; assert input.select("", []) is None; assert input.multiselect("", []) == []; assert itertools.islice(itertools.count(1, 2), 3) == [1, 3, 5]; assert json.loads(json.dumps({"a": 1})) == {"a": 1}; assert operator.itemgetter(1)([1, 2]) == 2; assert operator.attrgetter("args")(ValueError(3)) == (3,); assert 0 <= random.getrandbits(8) < 256; assert statistics.mode([1, 2, 1]) == 1; assert statistics.variance([1, 2, 3, 4, 5]) == 2.5; assert len(term.size()) == 2; assert term.raw_mode(False) is None; assert textwrap.wrap("alpha beta", 5) == ["alpha"]; marker = []; assert typing.cast(list, marker) is marker; assert typing.TYPE_CHECKING is False; assert uuid.UUID("12345678-1234-4678-9234-567812345678").version == 4'
       - name: Smoke-test Rust binary-container wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
+          target/${{ matrix.target }}/release/pocketpy-kipferl
           -c 'import array, secrets, struct; values = array.array("I", [0x12345678, 0x90ABCDEF]); encoded = values.tobytes(); assert struct.unpack("<2I", encoded) == (0x12345678, 0x90ABCDEF); buffer = bytearray(8); struct.pack_into(">I", buffer, 2, 0xAABBCCDD); assert struct.unpack_from(">I", buffer, 2) == (0xAABBCCDD,); assert len(secrets.token_bytes(8)) == 8; assert 0 <= secrets.randbelow(17) < 17'
       - name: Smoke-test Rust crypto-compression wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
-          -c 'import gzip, hashlib, hmac, io, tarfile, zipfile; data = b"ucharm" * 256; assert hashlib.sha256(data).hexdigest() == "1dbf127f11e331f8adb707abb311daf83009edad8ae7964e88d41b86ebd2faca"; assert len(hmac.new(b"key", data, "sha256").digest()) == 32; assert gzip.decompress(gzip.compress(data)) == data; buffer = io.BytesIO(data); buffer.seek(6); assert buffer.read(6) == b"ucharm"; assert hasattr(zipfile, "ZipFile"); assert hasattr(tarfile, "TarFile")'
+          target/${{ matrix.target }}/release/pocketpy-kipferl
+          -c 'import gzip, hashlib, hmac, io, tarfile, zipfile; data = b"kipferl" * 256; assert hashlib.sha256(data).hexdigest() == "1dbf127f11e331f8adb707abb311daf83009edad8ae7964e88d41b86ebd2faca"; assert len(hmac.new(b"key", data, "sha256").digest()) == 32; assert gzip.decompress(gzip.compress(data)) == data; buffer = io.BytesIO(data); buffer.seek(6); assert buffer.read(6) == b"kipferl"; assert hasattr(zipfile, "ZipFile"); assert hasattr(tarfile, "TarFile")'
       - name: Smoke-test Rust filesystem wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
-          -c 'import glob, os, shutil, tempfile; from pathlib import Path; root = tempfile.mkdtemp("/tmp/ucharm-fs-smoke-"); nested = os.path.join(root, "nested"); os.makedirs(nested, exist_ok=True); source = os.path.join(nested, "source.txt"); file = open(source, "w"); file.write("ucharm"); file.close(); assert Path(source).is_file(); assert glob.glob(os.path.join(root, "**", "*.txt"), None, None, True) == [source]; copied = os.path.join(root, "copied.txt"); shutil.copy(source, copied); assert Path(copied).is_file(); shutil.rmtree(root); assert not os.path.exists(root)'
+          target/${{ matrix.target }}/release/pocketpy-kipferl
+          -c 'import glob, os, shutil, tempfile; from pathlib import Path; root = tempfile.mkdtemp("/tmp/kipferl-fs-smoke-"); nested = os.path.join(root, "nested"); os.makedirs(nested, exist_ok=True); source = os.path.join(nested, "source.txt"); file = open(source, "w"); file.write("kipferl"); file.close(); assert Path(source).is_file(); assert glob.glob(os.path.join(root, "**", "*.txt"), None, None, True) == [source]; copied = os.path.join(root, "copied.txt"); shutil.copy(source, copied); assert Path(copied).is_file(); shutil.rmtree(root); assert not os.path.exists(root)'
       - name: Smoke-test Rust process-regex wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
-          -c 'import logging, re, signal, subprocess; found = re.search(r"(item)-(\d+)", "prefix item-42"); assert found.groups() == ("item", "42"); assert re.sub(r"(\w+)", r"[\1]", "hello") == "[hello]"; logger = logging.getLogger("smoke.child"); assert logger is logging.getLogger("smoke.child"); signal.signal(signal.SIGUSR1, signal.SIG_IGN); assert signal.getsignal(signal.SIGUSR1) == signal.SIG_IGN; result = subprocess.run(["sh", "-c", "printf ucharm"], capture_output=True); assert result["returncode"] == 0 and result["stdout"] == b"ucharm"'
+          target/${{ matrix.target }}/release/pocketpy-kipferl
+          -c 'import logging, re, signal, subprocess; found = re.search(r"(item)-(\d+)", "prefix item-42"); assert found.groups() == ("item", "42"); assert re.sub(r"(\w+)", r"[\1]", "hello") == "[hello]"; logger = logging.getLogger("smoke.child"); assert logger is logging.getLogger("smoke.child"); signal.signal(signal.SIGUSR1, signal.SIG_IGN); assert signal.getsignal(signal.SIGUSR1) == signal.SIG_IGN; result = subprocess.run(["sh", "-c", "printf kipferl"], capture_output=True); assert result["returncode"] == 0 and result["stdout"] == b"kipferl"'
       - name: Smoke-test Rust tooling-format wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
-          -c 'import argparse, configparser, contextlib, tomllib, unittest; from urllib.parse import quote, unquote; from xml.etree.ElementTree import fromstring, tostring; parser = argparse.ArgumentParser(); parser.add_argument("--count", type=int, required=True); assert parser.parse_args(["--count", "3"]).count == 3; config = configparser.ConfigParser(); config.read_string("[core]\nenabled=yes\n"); assert config.getboolean("core", "enabled"); assert unquote(quote("μ charm")) == "μ charm"; assert tomllib.loads("name=\"ucharm\"")["name"] == "ucharm"; xml = fromstring("<root><child>a &lt; b</child></root>"); assert "a &lt; b" in tostring(xml, "unicode"); case = unittest.TestCase(); case.assertEqual(2 + 2, 4); assert contextlib.nullcontext("ok").__enter__() == "ok"'
+          target/${{ matrix.target }}/release/pocketpy-kipferl
+          -c 'import argparse, configparser, contextlib, tomllib, unittest; from urllib.parse import quote, unquote; from xml.etree.ElementTree import fromstring, tostring; parser = argparse.ArgumentParser(); parser.add_argument("--count", type=int, required=True); assert parser.parse_args(["--count", "3"]).count == 3; config = configparser.ConfigParser(); config.read_string("[core]\nenabled=yes\n"); assert config.getboolean("core", "enabled"); assert unquote(quote("μ charm")) == "μ charm"; assert tomllib.loads("name=\"kipferl\"")["name"] == "kipferl"; xml = fromstring("<root><child>a &lt; b</child></root>"); assert "a &lt; b" in tostring(xml, "unicode"); case = unittest.TestCase(); case.assertEqual(2 + 2, 4); assert contextlib.nullcontext("ok").__enter__() == "ok"'
       - name: Smoke-test Rust core-runtime wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
-          -c 'import math, sys, time; assert math.frexp(8.0) == (0.5, 4); assert math.ldexp(0.5, 4) == 8.0; epoch = time.gmtime(0); assert epoch[:3] == (1970, 1, 1); assert time.strftime("%Y-%m-%d", epoch) == "1970-01-01"; parsed = time.strptime("2024-02-29", "%Y-%m-%d"); assert parsed[:3] == (2024, 2, 29); assert time.monotonic() >= 0; assert sys.version_info[0] == 3; assert sys.modules["sys"] is sys; assert sys.intern("ucharm") is sys.intern("ucharm"); assert "ABC123".isalnum() and "123".isdigit()'
+          target/${{ matrix.target }}/release/pocketpy-kipferl
+          -c 'import math, sys, time; assert math.frexp(8.0) == (0.5, 4); assert math.ldexp(0.5, 4) == 8.0; epoch = time.gmtime(0); assert epoch[:3] == (1970, 1, 1); assert time.strftime("%Y-%m-%d", epoch) == "1970-01-01"; parsed = time.strptime("2024-02-29", "%Y-%m-%d"); assert parsed[:3] == (2024, 2, 29); assert time.monotonic() >= 0; assert sys.version_info[0] == 3; assert sys.modules["sys"] is sys; assert sys.intern("kipferl") is sys.intern("kipferl"); assert "ABC123".isalnum() and "123".isdigit()'
       - name: Smoke-test Rust network-database wave
         shell: bash
         run: >-
-          target/${{ matrix.target }}/release/pocketpy-ucharm
+          target/${{ matrix.target }}/release/pocketpy-kipferl
           -c 'http = __import__("http.client"); assert hasattr(http, "HTTPConnection") and hasattr(http, "HTTPResponse"); connection = http.HTTPConnection("example.com", 80); assert connection.host == "example.com" and connection.port == 80; import sqlite3; database = sqlite3.connect(":memory:"); cursor = database.cursor(); cursor.execute("CREATE TABLE values_table (value INTEGER, label TEXT)"); cursor.execute("INSERT INTO values_table VALUES (?, ?)", (42, "rust")); cursor.execute("SELECT value, label FROM values_table"); assert cursor.fetchone() == (42, "rust"); cursor.close(); database.close()'
       - name: Smoke-test Rust CLI
         shell: bash
-        run: target/${{ matrix.target }}/release/ucharm --version | grep -q "μcharm"
+        run: target/${{ matrix.target }}/release/kipferl --version | grep -q "Kipferl"
       - name: Build and execute a universal application
         shell: bash
         run: |
-          smoke_dir="$RUNNER_TEMP/ucharm-universal-smoke"
+          smoke_dir="$RUNNER_TEMP/kipferl-universal-smoke"
           mkdir -p "$smoke_dir"
           printf '%s\n' 'print("rust cutover")' > "$smoke_dir/app.py"
-          target/${{ matrix.target }}/release/ucharm \
+          target/${{ matrix.target }}/release/kipferl \
             build "$smoke_dir/app.py" \
             -o "$smoke_dir/app" \
             --target ${{ matrix.suffix }}
@@ -190,7 +190,7 @@ jobs:
       - name: Smoke-test bare loader diagnostics
         shell: bash
         run: |
-          if target/${{ matrix.target }}/release/ucharm-loader >loader.out 2>&1; then
+          if target/${{ matrix.target }}/release/kipferl-loader >loader.out 2>&1; then
             echo "bare loader unexpectedly succeeded"
             exit 1
           fi
@@ -201,7 +201,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          binary = Path("target/${{ matrix.target }}/release/pocketpy-ucharm")
+          binary = Path("target/${{ matrix.target }}/release/pocketpy-kipferl")
           size = binary.stat().st_size
           target = "${{ matrix.target }}"
           runtime_limit = 5_000_000
@@ -211,12 +211,12 @@ jobs:
               f"{size:,} bytes"
           )
 
-          loader = Path("target/${{ matrix.target }}/release/ucharm-loader")
+          loader = Path("target/${{ matrix.target }}/release/kipferl-loader")
           loader_size = loader.stat().st_size
           print(f"{loader}: {loader_size:,} bytes")
           assert loader_size < 1_000_000, f"Rust loader exceeds 1 MB: {loader_size:,} bytes"
 
-          cli = Path("target/${{ matrix.target }}/release/ucharm")
+          cli = Path("target/${{ matrix.target }}/release/kipferl")
           cli_size = cli.stat().st_size
           print(f"{cli}: {cli_size:,} bytes")
           assert cli_size < 6_000_000, f"Rust CLI with embedded runtime exceeds 6 MB: {cli_size:,} bytes"
@@ -235,18 +235,24 @@ jobs:
           --check-upstream
           --report artifacts/pocketpy-patch-verification.json
       - name: Build canonical runtime
-        run: cargo build --release -p ucharm-runtime
+        run: cargo build --release -p kipferl-runtime
       - name: Run full compatibility report
         run: >-
           python3 tests/compat_runner.py
-          --runtime target/release/pocketpy-ucharm
+          --runtime target/release/pocketpy-kipferl
           --report
+      - name: Run supported Vision suite
+        run: >-
+          python3 tests/vision/run_vision.py
+          --runtime target/release/pocketpy-kipferl
       - name: Upload compatibility report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: compatibility-report
-          path: tests/compat_report_pocketpy.md
+          path: |
+            tests/compat_report_pocketpy.md
+            tests/vision/vision_report.md
       - name: Upload PocketPy patch verification
         if: always()
         uses: actions/upload-artifact@v4

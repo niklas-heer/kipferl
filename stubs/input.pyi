@@ -1,5 +1,5 @@
 """
-input - Native interactive input module for ucharm
+input - Native interactive input module for kipferl
 """
 
 from typing import Any, Callable, Iterable, Iterator, List, Optional, TypeVar

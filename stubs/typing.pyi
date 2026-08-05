@@ -1,5 +1,5 @@
 """
-typing - Native typing module for ucharm
+typing - Native typing module for kipferl
 """
 
 from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator

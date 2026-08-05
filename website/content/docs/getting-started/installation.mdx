@@ -1,72 +1,76 @@
 ---
 title: Installation
-description: Install ucharm on macOS or Linux
+description: Install kipferl on macOS or Linux
 ---
 
 # Installation
 
-ucharm is available as a single binary for macOS and Linux.
+kipferl is available as a single binary for macOS and Linux.
 
 ## Rust release candidate
 
-The current Rust implementation is available as `v0.6.0-rc.1`. Download the
+The current Rust implementation is available as `v0.6.0-rc.2`. Download the
 CLI for your operating system and CPU architecture:
 
 ```bash
 # Linux (x86_64)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-x86_64 -o ucharm
-chmod +x ucharm
-sudo mv ucharm /usr/local/bin/
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-x86_64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
 
 # Linux (ARM64)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-linux-aarch64 -o ucharm
-chmod +x ucharm
-sudo mv ucharm /usr/local/bin/
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-linux-aarch64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
 
 # macOS (Apple Silicon)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-aarch64 -o ucharm
-chmod +x ucharm
-sudo mv ucharm /usr/local/bin/
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-aarch64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
 
 # macOS (Intel)
-curl -L https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-x86_64 -o ucharm
-chmod +x ucharm
-sudo mv ucharm /usr/local/bin/
+curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-x86_64 -o kipferl
+chmod +x kipferl
+sudo mv kipferl /usr/local/bin/
 ```
 
 Every release also includes a `.sha256` file for verification. There is no
 architecture-independent CLI: choose the asset that matches the machine where
-the CLI itself will run. `ucharm build --targets` lists the four application
+the CLI itself will run. `kipferl build --targets` lists the four application
 targets it can produce.
 
 ## Homebrew stable
 
-Homebrew remains on the previous stable release while the Rust release is an
-RC. It will move to Rust when 0.6 is promoted:
+The previous μcharm `v0.5` formula remains available while Kipferl is an RC.
+After `v0.6` is promoted to stable, install the renamed formula with:
 
 ```bash
-brew install ucharmdev/tap/ucharm
+brew install niklas-heer/tap/kipferl
 ```
+
+Until then, existing users can continue using `brew install
+ucharmdev/tap/ucharm`. Kipferl 0.6 also installs `ucharm` as a deprecated alias
+for one release cycle.
 
 ## Verify Installation
 
 ```bash
-ucharm --version
+kipferl --version
 ```
 
 You should see output like:
 
 ```
-μcharm v0.6.0-rc.1
+Kipferl v0.6.0-rc.2
 ```
 
 ## Editor Setup
 
-For the best development experience, run `ucharm init` in your project directory:
+For the best development experience, run `kipferl init` in your project directory:
 
 ```bash
 mkdir my-cli && cd my-cli
-ucharm init
+kipferl init
 ```
 
 This creates:

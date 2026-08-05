@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Interactive release script for ucharm - built with ucharm!
+Interactive release script for kipferl - built with kipferl!
 Creates a new version tag and pushes it to trigger the release workflow.
 
-Run with: ucharm run scripts/release.py
+Run with: kipferl run scripts/release.py
 """
 
 import subprocess
 import sys
 
-# Add ucharm library to path (works for both PocketPy and CPython)
-# When run from repo root, this adds the ucharm package
+# Add kipferl library to path (works for both PocketPy and CPython)
+# When run from repo root, this adds the kipferl package
 sys.path.insert(0, ".")
 sys.path.insert(0, "..")
 
-from ucharm import box, confirm, error, info, rule, select, style, success, warning
+from kipferl import box, confirm, error, info, rule, select, style, success, warning
 
 
 def run(cmd, capture=True):
@@ -127,7 +127,7 @@ def main():
     print()
     box(
         style("Release Manager", bold=True),
-        title="ucharm",
+        title="kipferl",
         border_color="cyan",
         padding=1,
     )
@@ -279,7 +279,7 @@ def main():
     box(msg, border_color="green", padding=1)
     print()
 
-    url = "https://github.com/ucharmdev/ucharm/actions"
+    url = "https://github.com/niklas-heer/kipferl/actions"
     print(f"  Watch progress: {style(url, fg='cyan', underline=True)}")
     print()
 

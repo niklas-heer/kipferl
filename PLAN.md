@@ -1,4 +1,4 @@
-# μcharm Plan and Roadmap
+# Kipferl Plan and Roadmap
 
 This is the single source of truth for priorities and next steps.
 
@@ -8,7 +8,7 @@ This is the single source of truth for priorities and next steps.
   standalone binaries.
 - Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib targets, and Cargo-first release path are implemented. Rust prerelease `v0.6.0-rc.1` is published and proven.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report`.
+- Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report`.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -18,7 +18,7 @@ This is the single source of truth for priorities and next steps.
   datetime, json, subprocess, signal, logging, etc.).
 - The Rust loader and CLI build and run universal binaries; the Rust CLI tests and `tests/compat_runner.py` provide compatibility tooling.
 - Canonical project stubs live in `stubs/`; embedded release components and
-  generated-project templates live under `crates/ucharm-cli/`.
+  generated-project templates live under `crates/kipferl-cli/`.
 - CPython tests are vendored under `tests/cpython/` and are used to track parity.
 
 ## Active Priority: Rust Migration
@@ -131,7 +131,7 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 - Run isolated library spikes behind the existing Python API and golden tests:
   - accept [`Ratatui`](https://ratatui.rs/) with its Crossterm backend for
     interactive selection. The first production slice keeps the PocketPy API
-    stable while replacing rendering/layout and retaining μcharm's tested raw
+    stable while replacing rendering/layout and retaining Kipferl's tested raw
     input and cleanup guards;
   - retain feature-minimal `rusqlite` plus statically bundled SQLite. A current
     Turso 0.8.0-pre.2 spike with public defaults disabled produced a 9,576,960
@@ -160,10 +160,13 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   recorded in `benchmarks/rust_optimization_baseline.md`.
 
 ### Phase B: Migration documentation and public retrospective
-- Complete a formal product-name clearance review before the public launch
-  refresh. Treat the project name, organization/domain, package and binary
-  names, and visual identity as one decision; do not conflate that review with
-  the completed `tui` interface rename.
+- **Engineering rename complete:** the project is now Kipferl, the repository
+  lives at `niklas-heer/kipferl`, and the Rust packages, binaries, release
+  assets, site, docs, templates, and visual identity use the new name. Package
+  namespaces and the planned `getkipferl.org` home were available when checked.
+  Register the domain and complete formal legal clearance before the public
+  stable launch. Keep the compatibility aliases for the documented 0.6 window;
+  the frozen `MCHARM01` format remains unchanged.
 - **Complete:** the README, website, user docs, generated-project templates,
   and examples now use the Rust architecture, direct `tui`/`input` imports,
   measured performance/size claims, and real architecture-specific RC assets.
@@ -212,7 +215,7 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   replays every declared patch, requires the result to match the vendored
   source byte for byte, and publishes the JSON verification record in tagged
   releases.
-- **Complete:** `ucharm build --targets` is integration-tested, every embedded
+- **Complete:** `kipferl build --targets` is integration-tested, every embedded
   target is packaged and trailer-verified, and native-architecture CI builds
   and executes a sample `--target` universal application on all four targets.
 - Prefer native-architecture CI runners for C/Rust release builds; do not reintroduce Zig for cross-compilation.
@@ -220,7 +223,7 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 ## Backlog (ordered)
 
 - Tree-shaking or module selection for smaller binaries.
-- `ucharm dev` (watch mode / hot reload).
+- `kipferl dev` (watch mode / hot reload).
 - Formats: third-party `toml` and YAML.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

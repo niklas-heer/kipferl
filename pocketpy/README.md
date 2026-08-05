@@ -1,13 +1,13 @@
 # PocketPy Vendor
 
-This directory contains the patched PocketPy C runtime embedded by μcharm’s
+This directory contains the patched PocketPy C runtime embedded by Kipferl’s
 Rust host.
 
 ## Contents
 
 - `vendor/pocketpy.c` and `vendor/pocketpy.h`: the vendored interpreter source.
 - `POCKETPY_VERSION`: the tracked upstream revision.
-- `patches/`: μcharm’s ordered patch manifest and patch files.
+- `patches/`: Kipferl’s ordered patch manifest and patch files.
 
 Cargo compiles the interpreter through `crates/pocketpy-sys/build.rs`. The
 production host, module bindings, CLI, and universal loader are Rust; there is

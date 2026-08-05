@@ -101,12 +101,12 @@ function FeatureCard({
 
 function ComparisonRow({
   feature,
-  ucharm,
+  kipferl,
   python,
   node,
 }: {
   feature: string;
-  ucharm: string;
+  kipferl: string;
   python: string;
   node: string;
 }) {
@@ -114,7 +114,7 @@ function ComparisonRow({
     <tr className="border-b border-gray-200 dark:border-gray-800">
       <td className="py-4 px-4 font-medium">{feature}</td>
       <td className="py-4 px-4 text-center">
-        <span className="text-green-500 font-semibold">{ucharm}</span>
+        <span className="text-green-500 font-semibold">{kipferl}</span>
       </td>
       <td className="py-4 px-4 text-center text-gray-500">{python}</td>
       <td className="py-4 px-4 text-center text-gray-500">{node}</td>
@@ -138,8 +138,8 @@ export default function HomePage() {
           {/* Logo */}
           <div className="mb-8">
             <Image
-              src="/logo.svg"
-              alt="ucharm logo"
+              src="/kipferl-logo.png"
+              alt="Kipferl logo"
               width={80}
               height={80}
               className="mx-auto"
@@ -153,7 +153,7 @@ export default function HomePage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
             </span>
-            Rust v0.6.0-rc.1 is available now
+            Rust v0.6.0-rc.2 is available now
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-[1.1]">
@@ -185,7 +185,7 @@ export default function HomePage() {
               </span>
             </Link>
             <Link
-              href="https://github.com/ucharmdev/ucharm"
+              href="https://github.com/niklas-heer/kipferl"
               className="group px-8 py-4 border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 font-semibold rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50"
             >
               <svg
@@ -204,9 +204,9 @@ export default function HomePage() {
           <div className="inline-flex items-center gap-4 px-5 py-3 bg-gray-900 dark:bg-gray-950 rounded-xl font-mono text-sm border border-gray-800">
             <span className="text-cyan-400">$</span>
             <code className="text-gray-100">
-              curl -LO …/v0.6.0-rc.1/ucharm-macos-aarch64
+              curl -LO …/v0.6.0-rc.2/kipferl-macos-aarch64
             </code>
-            <CopyButton text="curl -LO https://github.com/ucharmdev/ucharm/releases/download/v0.6.0-rc.1/ucharm-macos-aarch64" />
+            <CopyButton text="curl -LO https://github.com/niklas-heer/kipferl/releases/download/v0.6.0-rc.2/kipferl-macos-aarch64" />
           </div>
         </div>
       </section>
@@ -225,7 +225,7 @@ export default function HomePage() {
           <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl shadow-black/20">
             <Image
               src="/demo.gif"
-              alt="ucharm demo showing CLI app with interactive prompts and beautiful output"
+              alt="kipferl demo showing CLI app with interactive prompts and beautiful output"
               width={720}
               height={520}
               className="w-full"
@@ -399,7 +399,7 @@ export default function HomePage() {
               How it compares
             </h2>
             <p className="text-gray-600 dark:text-gray-400 text-lg">
-              ucharm vs traditional CLI tooling
+              kipferl vs traditional CLI tooling
             </p>
           </div>
 
@@ -409,7 +409,7 @@ export default function HomePage() {
                 <tr className="border-b border-gray-200 dark:border-gray-800">
                   <th className="py-4 px-4 text-left font-semibold">Feature</th>
                   <th className="py-4 px-4 text-center font-semibold text-cyan-500">
-                    ucharm
+                    kipferl
                   </th>
                   <th className="py-4 px-4 text-center font-semibold">
                     Python + Click
@@ -422,31 +422,31 @@ export default function HomePage() {
               <tbody className="bg-white dark:bg-gray-950">
                 <ComparisonRow
                   feature="Cold start"
-                  ucharm="7.044ms"
+                  kipferl="7.044ms"
                   python="Runtime-dependent"
                   node="Runtime-dependent"
                 />
                 <ComparisonRow
                   feature="Binary size"
-                  ucharm="~4.3MB"
+                  kipferl="~4.3MB"
                   python="Runtime + app"
                   node="Runtime + app"
                 />
                 <ComparisonRow
                   feature="Dependencies"
-                  ucharm="None"
+                  kipferl="None"
                   python="pip + venv"
                   node="node_modules"
                 />
                 <ComparisonRow
                   feature="Distribution"
-                  ucharm="Single file"
+                  kipferl="Single file"
                   python="Complex"
                   node="Complex"
                 />
                 <ComparisonRow
                   feature="TUI built-in"
-                  ucharm="Yes"
+                  kipferl="Yes"
                   python="Requires Rich"
                   node="Requires libs"
                 />
@@ -562,7 +562,7 @@ export default function HomePage() {
               ENGINEERING RETROSPECTIVE
             </div>
             <h2 className="text-3xl md:text-5xl font-bold mb-6 leading-tight">
-              Why we rewrote μcharm in Rust
+              Why we rewrote Kipferl in Rust
             </h2>
             <p className="text-gray-300 text-lg leading-relaxed mb-8">
               We migrated the CLI, loader, runtime host, and native modules
@@ -629,7 +629,7 @@ export default function HomePage() {
               </span>
             </Link>
             <Link
-              href="https://github.com/ucharmdev/ucharm"
+              href="https://github.com/niklas-heer/kipferl"
               className="px-8 py-4 border border-gray-300 dark:border-gray-700 font-semibold rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50"
             >
               View Examples
@@ -665,13 +665,13 @@ export default function HomePage() {
                 Blog
               </Link>
               <Link
-                href="https://github.com/ucharmdev/ucharm"
+                href="https://github.com/niklas-heer/kipferl"
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 GitHub
               </Link>
               <Link
-                href="https://github.com/ucharmdev/ucharm/issues"
+                href="https://github.com/niklas-heer/kipferl/issues"
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 Issues

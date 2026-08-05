@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Blog",
-  description: "Engineering notes from the μcharm project.",
+  description: "Engineering notes from the Kipferl project.",
 };
 
 export default function BlogPage() {
@@ -14,14 +14,14 @@ export default function BlogPage() {
           href="/"
           className="text-sm text-cyan-600 dark:text-cyan-400 hover:underline"
         >
-          ← μcharm
+          ← Kipferl
         </Link>
         <div className="mt-12 mb-14 max-w-3xl">
           <p className="font-mono text-sm text-cyan-600 dark:text-cyan-400 mb-4">
             ENGINEERING NOTES
           </p>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6">
-            What we learn while building μcharm
+            What we learn while building Kipferl
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400 leading-relaxed">
             Decisions, measurements, tradeoffs, and the occasional course

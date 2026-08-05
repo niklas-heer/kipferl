@@ -1,6 +1,6 @@
 """
-Simplified heapq module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Simplified heapq module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 
 Based on CPython's Lib/test/test_heapq.py
 """

@@ -1,6 +1,6 @@
 """
-Simplified textwrap module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Simplified textwrap module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 
 Based on CPython's Lib/test/test_textwrap.py
 """
@@ -38,7 +38,7 @@ def skip(name, reason):
 print("\n=== textwrap.wrap() tests ===")
 
 if hasattr(textwrap, "wrap"):
-    # Basic wrap - use positional args only for ucharm compatibility
+    # Basic wrap - use positional args only for kipferl compatibility
     text = "Hello World, this is a test of text wrapping functionality."
     result = textwrap.wrap(text, 20)
     test("wrap basic", len(result) > 1)

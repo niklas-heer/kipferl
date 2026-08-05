@@ -20,10 +20,10 @@ export function baseOptions(): BaseLayoutProps {
       },
       {
         text: "GitHub",
-        url: "https://github.com/ucharmdev/ucharm",
+        url: "https://github.com/niklas-heer/kipferl",
         external: true,
       },
     ],
-    githubUrl: "https://github.com/ucharmdev/ucharm",
+    githubUrl: "https://github.com/niklas-heer/kipferl",
   };
 }

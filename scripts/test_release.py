@@ -6,7 +6,7 @@ import unittest
 
 
 RELEASE_SCRIPT = Path(__file__).with_name("release.py")
-fake_ucharm = types.ModuleType("ucharm")
+fake_kipferl = types.ModuleType("kipferl")
 for function_name in [
     "box",
     "confirm",
@@ -18,9 +18,9 @@ for function_name in [
     "success",
     "warning",
 ]:
-    setattr(fake_ucharm, function_name, lambda *args, **kwargs: None)
-sys.modules["ucharm"] = fake_ucharm
-SPEC = importlib.util.spec_from_file_location("ucharm_release", RELEASE_SCRIPT)
+    setattr(fake_kipferl, function_name, lambda *args, **kwargs: None)
+sys.modules["kipferl"] = fake_kipferl
+SPEC = importlib.util.spec_from_file_location("kipferl_release", RELEASE_SCRIPT)
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
 

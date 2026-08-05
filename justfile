@@ -1,4 +1,4 @@
-# μcharm development commands
+# Kipferl development commands
 # Run `just` to see all available commands.
 
 default:
@@ -21,42 +21,42 @@ build-debug:
 
 # Run the full CPython compatibility report against the Rust runtime
 compat: build
-    python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report
+    python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report
 
 # Run all local release-cutover checks
-test: check compat
+test: check compat vision
 
 # Run only the CLI end-to-end integration tests
 test-e2e:
-    cargo test -p ucharm-cli --test cli
+    cargo test -p kipferl-cli --test cli
 
 # Run a Python script through the public CLI
 run script: build
-    target/release/ucharm run {{ script }}
+    target/release/kipferl run {{ script }}
 
 # Build a universal binary from a Python script
 build-app script output="app": build
-    target/release/ucharm build {{ script }} -o {{ output }} --mode universal
+    target/release/kipferl build {{ script }} -o {{ output }} --mode universal
 
 # Build only the PocketPy runtime
 build-runtime:
-    cargo build --release -p ucharm-runtime
+    cargo build --release -p kipferl-runtime
 
 # Run code directly through the Rust-hosted PocketPy runtime
 runtime code:
-    cargo run -p ucharm-runtime --bin pocketpy-ucharm -- -c {{ quote(code) }}
+    cargo run -p kipferl-runtime --bin pocketpy-kipferl -- -c {{ quote(code) }}
 
 # Run the CLI without a release build
 cli *args:
-    cargo run -p ucharm-cli --bin ucharm -- {{ args }}
+    cargo run -p kipferl-cli --bin kipferl -- {{ args }}
 
 # Run the example demo
 demo: build
-    target/release/ucharm run examples/demo.py
+    target/release/kipferl run examples/demo.py
 
 # Run the full feature demo
 demo-full: build
-    target/release/ucharm run examples/simple_cli.py
+    target/release/kipferl run examples/simple_cli.py
 
 # Regenerate the checked-in PocketPy FFI declarations
 bindings:
@@ -76,7 +76,7 @@ check-pocketpy:
 
 # Run the broader vision suite
 vision: build
-    python3 tests/vision/run_vision.py --runtime target/release/pocketpy-ucharm
+    python3 tests/vision/run_vision.py --runtime target/release/pocketpy-kipferl
 
 # Remove Cargo build artifacts
 clean:
@@ -92,22 +92,22 @@ fmt-check:
 
 # Create a new release interactively
 release: build
-    target/release/ucharm run scripts/release.py
+    target/release/kipferl run scripts/release.py
 
 # Show the public binary sizes
 size: build
-    @ls -lh target/release/ucharm target/release/pocketpy-ucharm target/release/ucharm-loader
+    @ls -lh target/release/kipferl target/release/pocketpy-kipferl target/release/kipferl-loader
 
 # Install the release CLI locally
 install: build
     @mkdir -p ~/.local/bin
-    @ln -sf "$(pwd)/target/release/ucharm" ~/.local/bin/ucharm
-    @echo "Installed ucharm to ~/.local/bin/ucharm"
+    @ln -sf "$(pwd)/target/release/kipferl" ~/.local/bin/kipferl
+    @echo "Installed kipferl to ~/.local/bin/kipferl"
 
 # Remove the local CLI symlink
 uninstall:
-    @rm -f ~/.local/bin/ucharm
-    @echo "Removed ucharm from ~/.local/bin"
+    @rm -f ~/.local/bin/kipferl
+    @echo "Removed kipferl from ~/.local/bin"
 
 # Check the Rust toolchain and build the project
 setup:

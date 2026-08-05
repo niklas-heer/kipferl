@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
 BENCH_DIR = Path(__file__).resolve().parent / "bench"
 
-TEST_SCRIPTS = [
+SUPPORTED_TEST_SCRIPTS = [
     "t_argparse.py",
     "t_os_sys_time.py",
     "t_pathlib_glob_fnmatch.py",
@@ -27,11 +27,14 @@ TEST_SCRIPTS = [
     "t_signal.py",
     "t_io.py",
     "t_errno.py",
-    "t_template.py",
-    "t_toml.py",
-    "t_fetch_https.py",
     "t_sqlite3.py",
 ]
+
+ROADMAP_GAPS = {
+    "t_template.py": "template engine is not part of the supported runtime",
+    "t_toml.py": "third-party toml remains unimplemented; tomllib is supported",
+    "t_fetch_https.py": "the removed fetch API is superseded by http.client",
+}
 
 BENCH_SCRIPTS = [
     "empty.py",
@@ -54,7 +57,7 @@ def run_cmd(cmd, timeout):
 def run_tests(runtime, timeout):
     results = {}
     failures = {}
-    for name in TEST_SCRIPTS:
+    for name in SUPPORTED_TEST_SCRIPTS:
         path = SCRIPTS_DIR / name
         code, out, err = run_cmd([runtime, str(path)], timeout)
         out_lines = [line for line in out.strip().splitlines() if line]
@@ -104,7 +107,7 @@ def file_size(path):
 
 
 def make_report(results, failures, bench, bench_failures, size, out_path):
-    total_tests = len(TEST_SCRIPTS)
+    total_tests = len(SUPPORTED_TEST_SCRIPTS)
     passed = sum(1 for ok in results.values() if ok)
 
     lines = [
@@ -120,9 +123,13 @@ def make_report(results, failures, bench, bench_failures, size, out_path):
         "| Test | Status |",
         "| --- | --- |",
     ]
-    for test in TEST_SCRIPTS:
+    for test in SUPPORTED_TEST_SCRIPTS:
         status = "pass" if results.get(test) else "fail"
         lines.append(f"| {test} | {status} |")
+
+    lines.extend(["", "## Explicit Roadmap Gaps", ""])
+    for test, reason in ROADMAP_GAPS.items():
+        lines.append(f"- `{test}`: {reason}")
 
     if failures:
         lines.extend(["", "## Test Failures", ""])
@@ -158,7 +165,7 @@ def main():
     parser.add_argument("--warmup", type=int, default=3)
     parser.add_argument(
         "--runtime",
-        default=str(ROOT / "target" / "release" / "pocketpy-ucharm"),
+        default=str(ROOT / "target" / "release" / "pocketpy-kipferl"),
     )
     parser.add_argument(
         "--report", default=str(Path(__file__).parent / "vision_report.md")
@@ -174,8 +181,11 @@ def main():
     make_report(results, failures, bench, bench_failures, size, args.report)
     print(f"Report written to {args.report}")
     print(
-        f"Tests passed: {sum(1 for ok in results.values() if ok)}/{len(TEST_SCRIPTS)}"
+        "Supported tests passed: "
+        f"{sum(1 for ok in results.values() if ok)}/{len(SUPPORTED_TEST_SCRIPTS)}"
     )
+    if failures or bench_failures:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

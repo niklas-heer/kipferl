@@ -34,21 +34,26 @@ const ansiBgColors: Record<string, string> = {
 };
 
 interface ParsedSegment {
+  start: number;
   text: string;
   classes: string[];
 }
 
 function parseAnsi(text: string): ParsedSegment[] {
   const segments: ParsedSegment[] = [];
-  const regex = /\x1b\[([0-9;]*)m/g;
+  const controlSequenceIntroducer = String.fromCharCode(27) + String.raw`\[`;
+  const regex = new RegExp(`${controlSequenceIntroducer}([0-9;]*)m`, "g");
   let lastIndex = 0;
   let currentClasses: string[] = [];
-  let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(text)) !== null) {
+  while (true) {
+    const match = regex.exec(text);
+    if (match === null) break;
+
     // Add text before this escape sequence
     if (match.index > lastIndex) {
       segments.push({
+        start: lastIndex,
         text: text.slice(lastIndex, match.index),
         classes: [...currentClasses],
       });
@@ -85,6 +90,7 @@ function parseAnsi(text: string): ParsedSegment[] {
   // Add remaining text
   if (lastIndex < text.length) {
     segments.push({
+      start: lastIndex,
       text: text.slice(lastIndex),
       classes: [...currentClasses],
     });
@@ -150,8 +156,8 @@ export function Terminal({
       {/* Terminal body */}
       <div className="bg-gray-950 p-4 font-mono text-sm leading-relaxed overflow-x-auto">
         <pre className="text-gray-100 whitespace-pre">
-          {segments.map((segment, i) => (
-            <span key={i} className={segment.classes.join(" ")}>
+          {segments.map((segment) => (
+            <span key={segment.start} className={segment.classes.join(" ")}>
               {segment.text}
             </span>
           ))}
@@ -164,7 +170,7 @@ export function Terminal({
 
 // Pre-styled terminal output examples
 export function TerminalDemo() {
-  const demoOutput = `\x1b[36m$\x1b[0m ucharm run demo.py
+  const demoOutput = `\x1b[36m$\x1b[0m kipferl run demo.py
 
 \x1b[1;34m╭─ Release ─────────────────────────────╮\x1b[0m
 \x1b[1;34m│\x1b[0m Deploying build...                    \x1b[1;34m│\x1b[0m

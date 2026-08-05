@@ -1,14 +1,17 @@
 # Rust Migration Plan
 
-## Decision
+## Decision and outcome
 
-μcharm will migrate its native implementation from Zig to stable Rust while
-keeping PocketPy as the embedded Python runtime.
+The project formerly known as μcharm migrated its native implementation from
+Zig to stable Rust while keeping PocketPy as the embedded Python runtime. It is
+now named Kipferl; the product rename followed the technical cutover and does
+not change the compatibility contract.
 
 The runtime implementation reached 1,669/1,669 available compatibility checks
 on 2026-08-04. The Cargo-first CI, packaging, public binary names, and release
-assets have been cut over to Rust. Public prerelease `v0.6.0-rc.1` passed both
-four-target CI matrices, the tagged release workflow, published-checksum
+assets have been cut over to Rust. Public prerelease `v0.6.0-rc.1`, released
+under the predecessor name, passed both four-target CI matrices, the tagged
+release workflow, published-checksum
 verification, and a downloaded universal-app smoke test. v0.5.0 remains the
 final stable Zig release baseline.
 
@@ -28,7 +31,7 @@ parity gate.
 - PocketPy exposes a C API, which Rust can call through a small, auditable FFI
   layer without changing the interpreter.
 - Cargo provides a mature dependency, workspace, test, and release model.
-- The supported μcharm targets all have Rust target support. Intel macOS needs
+- The supported Kipferl targets all have Rust target support. Intel macOS needs
   explicit CI attention because it is no longer a Rust Tier 1 host target.
 - Rust can still produce stripped, statically linked Linux binaries. Size and
   startup must be measured rather than assumed, and are hard migration gates.
@@ -38,7 +41,7 @@ parity gate.
 
 The decision does not depend on calling Zig a toy. Zig has real strengths,
 especially its cross-compilation and C integration. The repository-specific
-problem is that μcharm has more than 28,000 lines coupled to a pre-1.0 language
+problem is that Kipferl has more than 28,000 lines coupled to a pre-1.0 language
 and standard library. For example, the codebase pinned to Zig 0.15.2 does not
 build on Zig 0.16.0 without build API changes. That maintenance cost is now
 larger than the benefit of staying.
@@ -50,7 +53,7 @@ Tracked first-party Zig code at the start of the migration:
 | Area | Files | Lines | Responsibility |
 | --- | ---: | ---: | --- |
 | `runtime/` | 63 | 23,074 | PocketPy modules, TUI, stdlib compatibility |
-| `cli/` | 11 | 2,505 | `ucharm` commands, packaging, target downloads |
+| `cli/` | 11 | 2,505 | `kipferl` commands, packaging, target downloads |
 | `pocketpy/` | 4 | 1,533 | VM wrapper, module registration, native build |
 | `loader/` | 4 | 623 | Universal-binary extraction and execution |
 | `shared/` | 1 | 454 | Shared terminal presentation helpers |
@@ -74,13 +77,13 @@ Cargo.toml
 rust-toolchain.toml
 crates/
 ├── pocketpy-sys/       # C compilation and raw PocketPy declarations
-├── ucharm-format/      # MCHARM01 trailer, hashes, target names
-├── ucharm-runtime/     # VM ownership and native module registration
-├── ucharm-loader/      # Standalone universal-binary loader
-└── ucharm-cli/         # new/init/run/build/test commands
+├── kipferl-format/      # MCHARM01 trailer, hashes, target names
+├── kipferl-runtime/     # VM ownership and native module registration
+├── kipferl-loader/      # Standalone universal-binary loader
+└── kipferl-cli/         # new/init/run/build/test commands
 ```
 
-Runtime modules live under `ucharm-runtime/src/modules/` until there is a
+Runtime modules live under `kipferl-runtime/src/modules/` until there is a
 measured reason to split them into more crates. Avoid recreating the current
 build file's one-module-per-build-node complexity.
 
@@ -103,7 +106,7 @@ build file's one-module-per-build-node complexity.
 - Generate raw bindings with a pinned development tool, review them, and check
   them into `pocketpy-sys`; release builds must not require libclang.
 - Keep all raw pointers and C calls inside `pocketpy-sys` and a narrow VM/value
-  wrapper in `ucharm-runtime`.
+  wrapper in `kipferl-runtime`.
 - Document ownership for every PocketPy value and callback. No Rust reference
   may outlive the VM or cross a VM call that can invalidate it.
 - Deny `unsafe_op_in_unsafe_fn` and explain every `unsafe` block with its
@@ -141,7 +144,7 @@ Each cutover PR must preserve these contracts:
 7. The stripped runtime remains below the current 5 MB release-target budget;
    correctness, maintainability, and developer-experience improvements may use
    that budget deliberately. Issue
-   [#41](https://github.com/ucharmdev/ucharm/issues/41) preserves the original
+   [#41](https://github.com/niklas-heer/kipferl/issues/41) preserves the original
    2 MB optimization investigation and the measured reason for relaxing it.
 8. No Zig-built object, compiler, or `cargo-zigbuild` step remains in the final
    release path.
@@ -159,13 +162,13 @@ status, stdout, and stderr.
 - Phase 1 is complete: the Cargo workspace builds vendored PocketPy through
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
-- Phase 2 is functionally complete: `ucharm-format` encodes and decodes the
+- Phase 2 is functionally complete: `kipferl-format` encodes and decodes the
   exact `MCHARM01` wire format, and the Rust loader validates, atomically
   extracts, caches, and executes Zig-packaged payloads. Zig and Rust share
   byte-level trailer and cache-hash vectors. The measured Rust loader adds
   9.2% to a universal application while slightly improving warm startup; the
   accepted size variance is recorded in `benchmarks/loader_migration_baseline.md`.
-- Phase 3 is functionally complete: `ucharm-cli` has the production command
+- Phase 3 is functionally complete: `kipferl-cli` has the production command
   dispatcher plus `new`, `init`, `run`, `build`, and `test`. Valid command
   output, generated files, file modes, embedded stubs, assistant instructions,
   script transformation, argument forwarding, and runtime exit codes have
@@ -196,7 +199,7 @@ status, stdout, and stderr.
   keyword-binding quirks. Allocation and exception stress crosses every
   production Rust callback module. Explicit tests enforce the one-owner VM
   lifecycle, and Linux CI instruments PocketPy C with AddressSanitizer,
-  UndefinedBehaviorSanitizer, and leak detection. The original `_ucharm_rust`
+  UndefinedBehaviorSanitizer, and leak detection. The original `_kipferl_rust`
   proof module has been retired.
 - The public presentation namespace is now `tui`, with runtime registration,
   CLI transforms, stubs, templates, tests, examples, and documentation changed
@@ -339,7 +342,7 @@ budget or have a concrete measured recovery plan.
 
 ### Phase 2 — Port the universal format and loader
 
-- Implement the 48-byte `MCHARM01` trailer in `ucharm-format` with byte-level
+- Implement the 48-byte `MCHARM01` trailer in `kipferl-format` with byte-level
   golden vectors shared with the Zig tests.
 - Port loader validation, hashing, cache naming, extraction, permissions,
   cleanup, and `exec` behavior.
@@ -389,7 +392,7 @@ fixture and a Zig-versus-Rust differential run.
    `signal`, `subprocess`, logging, and terminal/input behavior.
 4. External-C-backed and network modules: BearSSL/fetch/HTTP, SQLite,
    TinyTemplate, hashing/HMAC/secrets, and archive formats.
-5. μcharm presentation modules and interactive golden tests.
+5. Kipferl presentation modules and interactive golden tests.
 
 Retire each Zig module from the Rust release only when its compatibility group
 returns to 100%.
@@ -400,7 +403,7 @@ the Rust runtime for every release target.
 ### Phase 6 — Cut over CI, packaging, and releases
 
 Implementation status: the cutover branch gives the Rust binaries their public
-`ucharm` and `pocketpy-ucharm` names, makes Cargo the default local/CI/release
+`kipferl` and `pocketpy-kipferl` names, makes Cargo the default local/CI/release
 path, replaces all eight embedded runtime/loader assets with Rust builds, adds
 Linux ARM64 CLI releases, and enforces genuinely static Linux linkage. The CLI
 embeds only its host component pair and obtains checksum-verified cross-target
@@ -481,7 +484,7 @@ artifacts meet the compatibility, startup, and size gates.
     binaries, and visual identity together;
   - audit the README, website, docs, templates, examples, installation paths,
     architecture diagrams, and benchmark claims for stale Zig-era content;
-  - add a website blog/migration section covering **why** μcharm moved, **how**
+  - add a website blog/migration section covering **why** Kipferl moved, **how**
     the incremental rewrite worked, and **what the outcome was**;
   - publish reproducible final statistics and polished charts for compatibility
     progress, migrated surface area, binary size, startup distributions,
@@ -496,7 +499,7 @@ artifacts meet the compatibility, startup, and size gates.
   4. compatibility report and PocketPy patch verification artifacts — complete;
   5. cross-target build reliability — complete;
   6. tree-shaking/module selection for size;
-  7. `ucharm dev` watch mode;
+  7. `kipferl dev` watch mode;
   8. remaining networking, format, concurrency, and database work;
   9. higher-level TUI features from `vision.md`.
 
@@ -530,7 +533,7 @@ should be attributable to one boundary or module group.
 
 ## Definition of Done
 
-The migration is complete when stable releases of `ucharm`, the PocketPy
+The migration is complete when stable releases of `kipferl`, the PocketPy
 runtime, and all loader stubs are built with stable Rust plus the vendored C
 sources; all current tests pass on all release targets; existing universal
 binaries remain runnable; startup and size budgets are met; and the CI/release

@@ -1,6 +1,6 @@
 """
-Minimal tomllib tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Minimal tomllib tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 """
 
 import sys
@@ -38,7 +38,7 @@ except ImportError:
 
 if HAS_TOMLLIB:
     print("\n=== tomllib.loads ===")
-    data = b"a=1\nb='x'\n[tool]\nname='ucharm'\n"
+    data = b"a=1\nb='x'\n[tool]\nname='kipferl'\n"
     try:
         obj = tomllib.loads(data)
         test("loads returns dict", isinstance(obj, dict))
@@ -46,7 +46,7 @@ if HAS_TOMLLIB:
         test("parses string", obj.get("b") == "x")
         test(
             "parses table",
-            isinstance(obj.get("tool"), dict) and obj["tool"].get("name") == "ucharm",
+            isinstance(obj.get("tool"), dict) and obj["tool"].get("name") == "kipferl",
         )
     except Exception as e:
         test("loads parses", False)

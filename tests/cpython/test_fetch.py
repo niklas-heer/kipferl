@@ -1,5 +1,5 @@
 """
-Tests for the fetch module (ucharm's requests-like HTTP client).
+Tests for the fetch module (kipferl's requests-like HTTP client).
 
 Note: These tests require network access to httpbin.org or similar.
 Tests that require network are skipped if SKIP_NETWORK_TESTS=1.

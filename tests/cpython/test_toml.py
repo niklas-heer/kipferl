@@ -1,6 +1,6 @@
 """
-Minimal toml module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Minimal toml module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 """
 
 import sys
@@ -53,7 +53,7 @@ if HAS_TOML:
         test("dumps returns str", isinstance(s, str))
         test("dumps contains table header", "[sec]" in s)
 
-        path = "__ucharm_toml_test.toml"
+        path = "__kipferl_toml_test.toml"
         with open(path, "w") as f:
             f.write('a = 2\n[sec]\nb = "y"\n')
         d2 = toml.load(path)

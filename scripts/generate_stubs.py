@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate and validate μcharm's canonical Python stub manifest.
+"""Generate and validate Kipferl's canonical Python stub manifest.
 
 The hand-authored ``stubs/*.pyi`` files are the single source of truth. This
 script verifies that every stub names a registered Rust runtime module, then
@@ -10,8 +10,8 @@ packaging workflows.
 Usage:
     python3 scripts/generate_stubs.py
     python3 scripts/generate_stubs.py --check
-    python3 scripts/generate_stubs.py --output /tmp/ucharm-stubs
-    python3 scripts/generate_stubs.py --check --output /tmp/ucharm-stubs
+    python3 scripts/generate_stubs.py --output /tmp/kipferl-stubs
+    python3 scripts/generate_stubs.py --check --output /tmp/kipferl-stubs
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CANONICAL_DIRECTORY = PROJECT_ROOT / "stubs"
-RUST_MANIFEST = PROJECT_ROOT / "crates/ucharm-cli/src/generated_stubs.rs"
-RUNTIME_REGISTRY = PROJECT_ROOT / "crates/ucharm-runtime/src/modules/mod.rs"
+RUST_MANIFEST = PROJECT_ROOT / "crates/kipferl-cli/src/generated_stubs.rs"
+RUNTIME_REGISTRY = PROJECT_ROOT / "crates/kipferl-runtime/src/modules/mod.rs"
 MODULE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 

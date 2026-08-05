@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Benchmark: ucharm compat modules vs CPython stdlib
+Benchmark: kipferl compat modules vs CPython stdlib
 
 This benchmark compares our pure Python compat implementations against
 CPython's native C implementations to measure the performance gap.
@@ -36,11 +36,11 @@ if USE_COMPAT:
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         sys.path.insert(0, base_dir)
-        sys.path.insert(0, base_dir + "/ucharm")
+        sys.path.insert(0, base_dir + "/kipferl")
     except:
         # MicroPython fallback
         sys.path.insert(0, ".")
-        sys.path.insert(0, "./ucharm")
+        sys.path.insert(0, "./kipferl")
 
 
 def timeit(func, iterations=ITERATIONS):
@@ -67,7 +67,7 @@ def format_result(name, time_ms, baseline_ms=None):
 
 
 print("=" * 70)
-print("ucharm Native Module Benchmark")
+print("kipferl Native Module Benchmark")
 print("=" * 70)
 print(f"Runtime: {sys.implementation.name} {sys.version.split()[0]}")
 print(f"Mode: {'compat layer' if USE_COMPAT else 'native stdlib'}")

@@ -1,5 +1,5 @@
 """
-Minimal http.client tests for ucharm compatibility testing.
+Minimal http.client tests for kipferl compatibility testing.
 
 PocketPy doesn't support dotted import statements (e.g. `import http.client`),
 so we import via __import__ and resolve attributes when available.

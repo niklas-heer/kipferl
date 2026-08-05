@@ -1,6 +1,6 @@
 """
-Simplified binascii module tests for ucharm compatibility testing.
-Works on both CPython and pocketpy-ucharm.
+Simplified binascii module tests for kipferl compatibility testing.
+Works on both CPython and pocketpy-kipferl.
 
 Based on CPython's Lib/test/test_binascii.py
 """

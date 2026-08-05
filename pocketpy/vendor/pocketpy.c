@@ -1913,7 +1913,7 @@ OPCODE(ADD_CLASS_ANNOTATION)
 /**************************/
 OPCODE(WITH_ENTER)
 OPCODE(WITH_EXIT)
-// ucharm patch: WITH_EXIT_EXC opcode for exception-aware __exit__
+// kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__
 OPCODE(WITH_EXIT_EXC)
 /**************************/
 OPCODE(BEGIN_TRY)
@@ -4082,7 +4082,7 @@ __NEXT_STEP:
         }
         case OP_LOAD_FUNCTION: {
             FuncDecl_ decl = c11__getitem(FuncDecl_, &frame->co->func_decls, byte.arg);
-            // ucharm patch: allow function attributes (__dict__) for CPython compatibility
+            // kipferl patch: allow function attributes (__dict__) for CPython compatibility
             Function* ud = py_newobject(SP(), tp_function, -1, sizeof(Function));
             Function__ctor(ud, decl, frame->module, frame->globals);
             if(decl->nested) {
@@ -5014,7 +5014,7 @@ __NEXT_STEP:
             POP();
             DISPATCH();
         }
-        // ucharm patch: ensure __exit__ runs on exceptions and can suppress
+        // kipferl patch: ensure __exit__ runs on exceptions and can suppress
         case OP_WITH_EXIT_EXC: {
             // [expr] -> [suppress]
             FrameExcInfo* info = Frame__top_exc_info(frame);
@@ -10352,7 +10352,7 @@ OPCODE(ADD_CLASS_ANNOTATION)
 /**************************/
 OPCODE(WITH_ENTER)
 OPCODE(WITH_EXIT)
-// ucharm patch: WITH_EXIT_EXC opcode for exception-aware __exit__
+// kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__
 OPCODE(WITH_EXIT_EXC)
 /**************************/
 OPCODE(BEGIN_TRY)
@@ -15320,7 +15320,7 @@ static bool bytes__add__(int argc, py_Ref argv) {
 }
 
 static bool bytes_decode(int argc, py_Ref argv) {
-    // ucharm patch: bytes.decode accepts encoding/errors args for CPython compatibility
+    // kipferl patch: bytes.decode accepts encoding/errors args for CPython compatibility
     if(argc > 3) return TypeError("decode() takes at most 2 arguments (%d given)", argc - 1);
     if(argc >= 2 && !py_isnone(argv + 1)) {
         PY_CHECK_ARG_TYPE(1, tp_str);
@@ -16636,7 +16636,7 @@ static bool function__doc__(int argc, py_Ref argv) {
     return true;
 }
 
-// ucharm patch: allow setting function.__doc__ for CPython compatibility
+// kipferl patch: allow setting function.__doc__ for CPython compatibility
 static bool function__doc__set(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     Function* func = py_touserdata(py_arg(0));
@@ -16659,7 +16659,7 @@ static bool function__name__(int argc, py_Ref argv) {
     return true;
 }
 
-// ucharm patch: allow setting function.__name__ for CPython compatibility
+// kipferl patch: allow setting function.__name__ for CPython compatibility
 static bool function__name__set(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     Function* func = py_touserdata(py_arg(0));
@@ -26084,7 +26084,7 @@ static Error* exprName(Compiler* self) {
 }
 
 static Error* exprAttrib(Compiler* self) {
-    // ucharm patch: allow 'match' soft keyword as attribute name (for re.match, etc.)
+    // kipferl patch: allow 'match' soft keyword as attribute name (for re.match, etc.)
     if(curr()->type == TK_MATCH) {
         advance();
     } else {
@@ -27150,7 +27150,7 @@ static Error* compile_stmt(Compiler* self) {
                 // discard `__enter__()`'s return value
                 Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
             }
-            // ucharm patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
+            // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
             Ctx__enter_block(ctx(), CodeBlockType_TRY);
             Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
             check(compile_block_body(self));

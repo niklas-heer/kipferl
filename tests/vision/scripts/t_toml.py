@@ -15,14 +15,14 @@ def main():
     import tomllib
 
     doc = """a = 1
-name = "ucharm"
+name = "kipferl"
 [db]
 path = "./test.db"
 nums = [1, 2, 3]
 """
     d = toml.loads(doc)
     assert d["a"] == 1
-    assert d["name"] == "ucharm"
+    assert d["name"] == "kipferl"
     assert d["db"]["path"] == "./test.db"
     assert d["db"]["nums"] == [1, 2, 3]
 
@@ -31,7 +31,7 @@ nums = [1, 2, 3]
     assert "[db]" in dumped
     assert 'path = "./x.db"' in dumped
 
-    path = "__ucharm_toml_test.toml"
+    path = "__kipferl_toml_test.toml"
     try:
         with open(path, "w") as f:
             f.write(doc)

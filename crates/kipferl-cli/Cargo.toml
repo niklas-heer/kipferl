@@ -1,0 +1,19 @@
+[package]
+name = "kipferl-cli"
+description = "Command-line interface for Kipferl"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sha2 = "0.11"
+kipferl-format = { path = "../kipferl-format" }
+
+[[bin]]
+name = "kipferl"
+path = "src/main.rs"
+
+[lints]
+workspace = true

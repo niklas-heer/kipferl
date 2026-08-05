@@ -1,5 +1,5 @@
 """
-Simplified logging module tests for ucharm compatibility testing.
+Simplified logging module tests for kipferl compatibility testing.
 Works on both CPython and PocketPy.
 
 Based on CPython's Lib/test/test_logging.py

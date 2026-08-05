@@ -5,10 +5,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ucharm.dev"),
+  metadataBase: new URL("https://getkipferl.org"),
   title: {
-    default: "μcharm — Python CLIs, standalone binaries",
-    template: "%s | μcharm",
+    default: "Kipferl — Python CLIs, standalone binaries",
+    template: "%s | Kipferl",
   },
   description:
     "Build beautiful command-line applications with Python syntax and ship them as fast, standalone binaries.",

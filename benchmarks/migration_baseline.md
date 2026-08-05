@@ -8,9 +8,9 @@ from 50 measured runs after 5 warmups.
 | Zig baseline | 2,313,264 | 3.960 ms | 4.689 ms |
 | Rust spine | 600,496 | 2.760 ms | 3.108 ms |
 
-The Zig baseline includes μcharm's current native modules and external C
+The Zig baseline includes Kipferl's current native modules and external C
 dependencies. The Rust spine includes PocketPy plus the probe native module,
-but not the μcharm module set yet. The figures establish the measurement
+but not the Kipferl module set yet. The figures establish the measurement
 workflow and early feasibility; they are not a like-for-like performance claim.
 
 Refresh locally with:

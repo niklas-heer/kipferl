@@ -25,7 +25,7 @@ def main():
     conn.close()
 
     # File-backed + basic SQL join
-    path = "__ucharm_vision_sqlite3.db"
+    path = "__kipferl_vision_sqlite3.db"
     if os.path.exists(path):
         os.remove(path)
     try:

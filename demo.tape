@@ -1,4 +1,4 @@
-# μcharm Demo
+# Kipferl Demo
 # Run with: vhs demo.tape
 
 Output demo.gif
@@ -12,9 +12,9 @@ Set Padding 20
 Set Framerate 24
 Set TypingSpeed 80ms
 
-# Setup - add ucharm to PATH
+# Setup - add kipferl to PATH
 Hide
-Type "export PATH=$PWD/cli/zig-out/bin:$PATH"
+Type "export PATH=$PWD/target/release:$PATH"
 Enter
 Type "clear"
 Enter
@@ -31,7 +31,7 @@ Type "clear"
 Enter
 Sleep 500ms
 
-Type "ucharm run examples/quick_demo.py"
+Type "kipferl run examples/quick_demo.py"
 Enter
 Sleep 2s
 
@@ -47,7 +47,7 @@ Enter
 Sleep 2.5s
 
 # Build it
-Type "ucharm build examples/quick_demo.py -o myapp"
+Type "kipferl build examples/quick_demo.py -o myapp"
 Enter
 Sleep 3s
 

@@ -1,6 +1,6 @@
-# μcharm Contributor Guide
+# Kipferl Contributor Guide
 
-μcharm runs Python-style CLI applications on PocketPy and ships them as small,
+Kipferl runs Python-style CLI applications on PocketPy and ships them as small,
 standalone executables. The production host, CLI, universal loader, and native
 module surface are implemented in stable Rust.
 
@@ -22,10 +22,10 @@ Rust CLI + MCHARM01 universal loader
 The Cargo workspace contains:
 
 - `crates/pocketpy-sys`: the narrow generated PocketPy C FFI.
-- `crates/ucharm-runtime`: the PocketPy host and native Python modules.
-- `crates/ucharm-format`: the frozen `MCHARM01` trailer format.
-- `crates/ucharm-loader`: extraction, cache, and execution of universal apps.
-- `crates/ucharm-cli`: `new`, `init`, `run`, `build`, and `test`.
+- `crates/kipferl-runtime`: the PocketPy host and native Python modules.
+- `crates/kipferl-format`: the frozen `MCHARM01` trailer format.
+- `crates/kipferl-loader`: extraction, cache, and execution of universal apps.
+- `crates/kipferl-cli`: `new`, `init`, `run`, `build`, and `test`.
 
 The production repository no longer contains the archived Zig implementation.
 Use the final Zig tag `v0.5.0` and the migration history when archaeology is
@@ -48,7 +48,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo build --release --workspace
-python3 tests/compat_runner.py --runtime target/release/pocketpy-ucharm --report
+python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report
 ```
 
 The pinned toolchain is defined by `rust-toolchain.toml`. Production code must
@@ -86,16 +86,16 @@ bindings without updating their source or generator.
 ## Python stubs
 
 The hand-authored `stubs/*.pyi` files are the canonical editor API. The CLI
-embeds every file through `crates/ucharm-cli/src/generated_stubs.rs`; do not add
+embeds every file through `crates/kipferl-cli/src/generated_stubs.rs`; do not add
 a second handwritten list. Run `just stubs` after adding or removing a stub and
 commit the generated manifest. `just stubs-check` and CI validate stub syntax
 and reject manifest drift.
 
 ## Release assets
 
-The public executables are `ucharm`, `pocketpy-ucharm`, and `ucharm-loader`.
+The public executables are `kipferl`, `pocketpy-kipferl`, and `kipferl-loader`.
 The CLI embeds matching Rust runtime and loader assets from
-`crates/ucharm-cli/assets/` for macOS ARM64, macOS x86_64, Linux ARM64 musl,
+`crates/kipferl-cli/assets/` for macOS ARM64, macOS x86_64, Linux ARM64 musl,
 and Linux x86_64 musl. CI publishes fresh component assets for review; the
 tagged release workflow rebuilds all four components, injects them into each
 CLI build, creates checksums, and updates Homebrew only for stable tags.
