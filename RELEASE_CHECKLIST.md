@@ -58,6 +58,6 @@ The tag workflow must:
 - [x] Convert `website/content/drafts/v0.6.0-release.md` into the routed release
   post, replace every explicit placeholder, add it to the blog index, and link
   it from the homepage, README, docs, and GitHub release.
-- [ ] Run website lint, type generation, type checks, production build, and
+- [x] Run website lint, type generation, type checks, production build, and
   mobile/desktop visual review; verify the deployed page and external links.
-- [ ] Update and close GitHub issue #58 only after the deployed post is live.
+- [x] Update and close GitHub issue #58 only after the deployed post is live.
