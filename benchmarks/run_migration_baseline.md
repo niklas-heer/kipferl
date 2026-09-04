@@ -1,5 +1,9 @@
 # CLI `run` Migration Baseline
 
+> Historical snapshot: the measurements and implementation decisions below describe
+> the recorded migration stage, not the current release. See the
+> [benchmarking guide](README.md) for current commands, budgets, and validation limits.
+
 Recorded on 2026-08-04 on macOS 26.5.1, Apple Silicon. Both CLIs used the
 released `pocketpy-kipferl-macos-aarch64` runtime and ran
 `tests/vision/scripts/t_errno.py` from a warm cache. Timings are 30 measured

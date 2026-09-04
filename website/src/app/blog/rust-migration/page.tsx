@@ -67,6 +67,17 @@ export default function RustMigrationPage() {
             Python CLI and ship one fast native file.
           </p>
         </header>
+        <p className="mb-10 rounded-xl border border-gray-200 dark:border-gray-800 px-5 py-4 text-sm text-gray-600 dark:text-gray-400">
+          This article records the August 2026 release and its measurements. For
+          the current source workflow and unreleased changes, see the{" "}
+          <Link
+            className="text-cyan-600 dark:text-cyan-400 underline"
+            href="/docs/getting-started/quick-start"
+          >
+            current documentation
+          </Link>
+          .
+        </p>
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
           <Stat value="1,669 / 1,669" label="compatibility checks" />

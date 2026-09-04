@@ -74,10 +74,22 @@ export default function KipferlReleasePage() {
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 leading-relaxed">
             Our first stable release as Kipferl keeps the pleasant Python-style
             workflow, moves the foundation to Rust, and ships tree-shaken
-            standalone applications from 1.4 MB—with no Python, Rust, libc, or
-            musl installation on the target machine.
+            standalone applications from 1.4 MB, with no Python or Rust
+            installation on the target machine. Linux release targets use static
+            musl.
           </p>
         </header>
+        <p className="mb-10 rounded-xl border border-gray-200 dark:border-gray-800 px-5 py-4 text-sm text-gray-600 dark:text-gray-400">
+          This article records the August 2026 release and its measurements. For
+          the current source workflow and unreleased changes, see the{" "}
+          <Link
+            className="text-cyan-600 dark:text-cyan-400 underline"
+            href="/docs/getting-started/quick-start"
+          >
+            current documentation
+          </Link>
+          .
+        </p>
 
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
           <Stat value="1.451 MB" label="minimal Apple Silicon app" />

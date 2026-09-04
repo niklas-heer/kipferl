@@ -1,6 +1,11 @@
 # Benchmark Results: CPython vs MicroPython (Pure Python Compat)
 
+> Archived MicroPython experiment. Kipferl now uses PocketPy with a Rust host.
+> These observations and unverified projections do not describe the current runtime.
+> See the [benchmarking guide](README.md) for current measurements and methodology.
+
 ## Test Environment
+
 - **CPython**: 3.14.1
 - **MicroPython**: 3.4.0
 - **Iterations**: 10,000 (1,000 for slow operations)
@@ -54,9 +59,10 @@
 | CPython | ~19 MB RSS |
 | MicroPython | 58 KB allocated, 2 MB free |
 
-## Expected Native Zig Performance
+## Historical projections (not measurements)
 
-When MicroPython is built with our native Zig modules, we expect:
+The experiment proposed these improvements from native Zig modules. They were
+projections, not measured results:
 
 | Module | Expected Improvement |
 |--------|---------------------|
@@ -67,13 +73,18 @@ When MicroPython is built with our native Zig modules, we expect:
 | **tempfile** | 10-50x faster (direct syscalls) |
 | **shutil** | 10-50x faster (native file operations) |
 
-The native modules should bring MicroPython performance close to or exceeding CPython for these operations, while maintaining the tiny memory footprint.
+These projections did not establish parity with CPython or a measured native
+memory footprint. They should not be used as performance claims for Kipferl.
 
-## Conclusion
+## Interpretation of the experiment
 
-Our pure Python compat layer is functional and provides a 5-10x slowdown compared to CPython's native C implementations. This is acceptable for many CLI applications.
+The measured pure Python compatibility operations were slower than CPython's
+native C implementations. The result informed the earlier native-module
+experiment; it does not measure today's PocketPy/Rust implementation.
 
-With native Zig modules compiled into MicroPython, we expect to match or exceed CPython performance while keeping:
+The following footprint and startup figures were proposed targets, not results
+established by the tables above:
+
 - **Binary size**: ~700KB (vs 77MB Python installation)
 - **Memory usage**: ~2MB (vs 20MB+ for CPython)
 - **Startup time**: ~6ms (vs 30ms+ for Python)

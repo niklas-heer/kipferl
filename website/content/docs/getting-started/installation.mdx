@@ -3,9 +3,11 @@ title: Installation
 description: Install kipferl on macOS or Linux
 ---
 
-# Installation
 
-kipferl is available as a single binary for macOS and Linux.
+Kipferl is available for macOS and Linux. Choose the published stable binary
+or build the current source checkout. The project templates, local-module
+bundling, and contributor workflow in these docs include unreleased changes;
+use the development checkout to follow those examples.
 
 ## Homebrew
 
@@ -28,48 +30,62 @@ brew install niklas-heer/tap/kipferl
 
 ## Direct download
 
-Kipferl `v0.6.0` is available for four native targets. Download the CLI for
-your operating system and CPU architecture:
+Choose the release asset for the machine running Kipferl:
+
+| Platform | Asset |
+| --- | --- |
+| macOS Apple Silicon | `kipferl-macos-aarch64` |
+| macOS Intel | `kipferl-macos-x86_64` |
+| Linux x86_64 | `kipferl-linux-x86_64` |
+| Linux ARM64 | `kipferl-linux-aarch64` |
+
+Download both files **with their original names** so checksum verification
+matches the filename inside the `.sha256` file. For example, on Apple Silicon:
 
 ```bash
-# Linux (x86_64)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-linux-x86_64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-
-# Linux (ARM64)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-linux-aarch64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-
-# macOS (Apple Silicon)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-macos-aarch64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
-
-# macOS (Intel)
-curl -L https://github.com/niklas-heer/kipferl/releases/download/v0.6.0/kipferl-macos-x86_64 -o kipferl
-chmod +x kipferl
-sudo mv kipferl /usr/local/bin/
+asset=kipferl-macos-aarch64
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.6.0
+curl -fLO "$release/$asset"
+curl -fLO "$release/$asset.sha256"
+shasum -a 256 -c "$asset.sha256"
+# On Linux, use: sha256sum -c "$asset.sha256"
+chmod +x "$asset"
+mkdir -p "$HOME/.local/bin"
+mv "$asset" "$HOME/.local/bin/kipferl"
+export PATH="$HOME/.local/bin:$PATH"
+kipferl --version
 ```
 
-Every release also includes a `.sha256` file for verification. Download it
-next to the binary and run:
+Choose the correct `asset` before running the commands. Verify the checksum
+successfully before installing the binary. Add `~/.local/bin` to your shell's
+`PATH` permanently if it is not already there.
+
+## Development checkout
+
+To use the current project workflow, install the source checkout with the
+repository's pinned mise setup. This requires Git, mise 2026.9.1 or newer, and a
+native C compiler/linker. On macOS, use the Xcode Command Line Tools.
 
 ```bash
-# macOS
-shasum -a 256 -c kipferl-macos-aarch64.sha256
-
-# Linux
-sha256sum -c kipferl-linux-x86_64.sha256
+git clone https://github.com/niklas-heer/kipferl.git
+cd kipferl
+mise trust
+mise install --locked rust python node bun cargo:bacon aqua:nextest-rs/nextest/cargo-nextest watchexec
+mise run setup
+mise run install
+export PATH="$HOME/.local/bin:$PATH"
+kipferl new --help
 ```
 
-Adjust the filename for your selected target. There is no
-architecture-independent CLI: choose the asset that matches the machine where
-the CLI itself will run. `kipferl build --targets` lists the four application
-targets it can produce.
+`mise run install` links this checkout's CLI into `~/.local/bin`. Review task
+definitions before trusting them. See [Developing Kipferl](/docs/guides/development)
+for tool pins, tests, website tasks, and the distinction between newly compiled
+runtime code and the CLI's embedded prebuilt components.
 
-Kipferl 0.6 also installs `ucharm` as a deprecated alias for one release cycle.
+If `--template` is absent from `kipferl new --help`, your shell is still finding
+an older CLI. Check `command -v kipferl` and put the development symlink first
+on `PATH`. The checkout can retain the same version label as the published
+release, so `--version` alone does not identify the new command surface.
 
 ## Verify Installation
 
@@ -83,18 +99,18 @@ You should see output like:
 Kipferl v0.6.0
 ```
 
-## Editor Setup
+## Editor setup
 
-For the best development experience, run `kipferl init` in your project directory:
+New projects include autocomplete stubs and Pyright configuration:
 
 ```bash
-mkdir my-cli && cd my-cli
-kipferl init
+kipferl new my-cli --template cli
+cd my_cli
 ```
 
-This creates:
-- **Type stubs** for IDE autocomplete
-- **AI instructions** for Claude Code, Cursor, Copilot, etc.
+For an existing project, run `kipferl init` to add editor stubs. Use
+`kipferl init --help` for optional AI-tool instructions and editor integrations.
+See [project commands](/docs/commands/projects) to enable shell completion.
 
 ## Next Steps
 

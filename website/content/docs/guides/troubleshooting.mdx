@@ -1,0 +1,78 @@
+---
+title: Debugging and dependencies
+description: Understand error messages and choose libraries the runtime supports
+---
+
+
+## Start with the original source
+
+Run `kipferl run` for one execution, or `kipferl dev` to restart after edits.
+Tracebacks identify the application's original filename and line, so open
+that location in your editor. Generated compatibility code should not shift
+your source line numbers. Fix the first relevant application frame, then rerun
+the test that exercises the failure.
+
+If a packaged app behaves differently, rebuild it after changes and run the
+new executable from an unrelated directory. Check that required data files
+are bundled and addressed relative to `__file__`; caller-provided files should
+remain relative to the caller's working directory.
+
+## An import is unsupported
+
+Kipferl embeds PocketPy and a curated standard library. It does not install
+packages with pip or load CPython C extensions. Modules such as `requests`,
+`httpx`, and `numpy` are not part of the runtime. Use built-in `http.client`
+for HTTP, `csv` and `json` for tabular and structured data, and the documented
+native modules for terminal output and prompts.
+
+The build checks static imports, including imports in bundled local modules,
+and reports unsupported dependencies before success. Keep compatible
+pure-Python helpers inside the project. Package availability on your own
+CPython installation does not make that package available in the standalone
+app. `--full-runtime` includes optional built-in capabilities; it does not add
+pip packages or CPython compatibility.
+
+Dynamic import names cannot always be checked ahead of time. Test every
+application path that computes module names, and use the supported dependency
+list and [packaging guide](/docs/guides/packaging) to make inclusion explicit.
+
+## Know the compatibility boundaries
+
+Use the [module reference](/docs/modules) and checked-in
+[compatibility report](https://github.com/niklas-heer/kipferl/blob/main/tests/compat_report_pocketpy.md)
+for current coverage. A familiar module name does not imply its complete
+CPython API is implemented. The [tested recipes](/docs/guides/recipes) provide
+working starting points using the supported surface.
+
+Check the [runtime limits](/docs/modules#compatibility-and-limits) before
+assuming CPython return types or unbounded buffers. PocketPy does not support
+`finally`; use a context manager for cleanup, as in the
+[terminal examples](/docs/modules/term#raw-mode).
+
+For example, scripts should open files with an explicit mode (`open(path,
+"r")`), and diagnostics can use `sys.stderr.write(message + "\n")`. The CSV
+recipe reads records into a list because the runtime's native file object does
+not provide CPython's full iteration behavior.
+
+For interactive input, use `input.prompt("Your name:")` after `import input`.
+The imported `input` is a module and cannot be called as `input(...)`.
+
+## Configuration or test failures
+
+Use JSON syntax in `kipferl.json`: double-quoted keys, no comments, and no
+trailing commas. Check that its entry, tests, and asset paths exist relative to
+the project root. `kipferl test` runs your application test scripts; use
+`--compat` only when developing Kipferl itself.
+
+If an app launches external commands such as `git`, those commands must exist
+on the recipient's machine. They are separate from the embedded Python runtime
+and are not automatically packaged. Handle a missing command with an actionable
+message, or use built-in filesystem APIs as the repository recipe does.
+
+## A Rust contributor check fails
+
+Use [Developing Kipferl](/docs/guides/development) for Bacon, nextest, the full
+restriction audit, and report locations. Python application tracebacks and
+Rust compiler/test diagnostics come from different layers; a native runtime
+change should be tested against the newly compiled runtime before refreshing
+the CLI's embedded components.

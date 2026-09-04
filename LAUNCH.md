@@ -1,7 +1,9 @@
 # Kipferl Launch Plan
 
 This document is a lightweight go-to-market plan focused on developer
-adoption for CLI tools.
+adoption for CLI tools. Stable v0.6.0 is published. The project workflow and
+safety improvements listed as implemented below are on main and still need a
+new release with rebuilt components before promotion to stable users.
 
 ## Positioning
 
@@ -20,21 +22,28 @@ adoption for CLI tools.
 
 ### Product
 
-- CLI essentials: subcommands, help, completions.
-- Robust subprocess (argv fidelity, large output handling).
-- Config parsing: `configparser` plus `toml` or a tiny `fetch` module.
-- Unicode width handling for aligned tables/boxes.
+- Implemented on main: subcommands, help, Bash/Zsh/Fish completions,
+  cli/api/interactive templates, and project test/configuration workflows.
+- Implemented on main: argument fidelity, bounded captured subprocess output,
+  signal exit statuses, and source-aware errors.
+- Available configuration APIs: JSON, YAML, TOML, KDL, XML, CSV, and INI/CFG;
+  use `http.client` for networking. There is no `fetch` module.
+- Remaining: terminal-cell-aware Unicode widths for presentation APIs that
+  intentionally retain the historical byte-width behavior.
 - Fast local feedback through `kipferl dev` watch/restart mode.
 
 ### Docs
 
-- Quickstart (hello + develop + build + run).
+- Updated quickstart: distinguish stable downloads from the unreleased project
+  workflow, then create, run, develop, test, build, and verify an isolated app.
 - Limitations (no pip) and module tiers.
-- CLI cookbook (common patterns: config, logging, subprocess, progress).
+- Four executable recipes cover CSV summaries, HTTP clients, repository
+  inspection, and report generation; CI checks source snippets and behavior.
 
 ### Examples
 
-- "deploy" CLI with progress + subprocess.
+- Four implemented recipes: `examples/recipes/`, documented on the website.
+- Future showcase: "deploy" CLI with progress + subprocess.
 - "log viewer" CLI with filtering + table output.
 - "scaffold" CLI with prompts + config.
 

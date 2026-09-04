@@ -6,6 +6,7 @@ import {
 } from "fumadocs-ui/layouts/docs/page";
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPageImage, source } from "@/lib/source";
 import { getMDXComponents } from "@/mdx-components";
@@ -21,6 +22,21 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
     <DocsPage toc={page.data.toc} full={page.data.full}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+      <div className="rounded-lg border border-fd-border bg-fd-muted px-4 py-3 text-sm text-fd-muted-foreground">
+        These docs track the current main checkout, including unreleased
+        changes. Use the{" "}
+        <Link
+          className="underline"
+          href="/docs/getting-started/installation#development-checkout"
+        >
+          source setup
+        </Link>{" "}
+        for the features described here; see the{" "}
+        <Link className="underline" href="/blog/kipferl-0-6">
+          v0.6 release notes
+        </Link>{" "}
+        for published binaries.
+      </div>
       <DocsBody>
         <MDX
           components={getMDXComponents({

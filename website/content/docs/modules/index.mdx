@@ -3,7 +3,6 @@ title: Modules
 description: Overview of all kipferl runtime modules
 ---
 
-# Modules
 
 kipferl includes 50+ native modules implemented in Rust for performance, safety, and a compact binary.
 
@@ -105,4 +104,29 @@ profile assigned to each module group.
 | statistics | Statistical functions |
 | uuid | UUID generation |
 | dataclasses | Data classes |
-| typing | Type hints (stubs only) |
+| typing | Runtime annotation helpers and compatibility aliases; limited introspection |
+
+## Compatibility and limits
+
+These module names describe a focused runtime surface, not complete CPython
+implementations. The checked-in [compatibility report](https://github.com/niklas-heer/kipferl/blob/main/tests/compat_report_pocketpy.md)
+records the tested APIs and baseline skips. Passing that suite does not imply
+support for every standard-library module or third-party package.
+
+The following behavior describes the current source implementation. Published
+v0.6 binaries and the CLI's checked-in runtime assets may predate these changes;
+see [runtime development and embedded assets](/docs/guides/development#change-runtime-code-and-embedded-assets-deliberately).
+
+| Area | Behavior to account for |
+| --- | --- |
+| `bytearray(n)` | Integer zero-fill construction is limited to 64 MiB and raises `ValueError` above the limit. This is not a universal size cap for construction from existing bytes or lists. |
+| `itertools.islice` | Start and stop must be nonnegative; step must be at least one. |
+| `itertools.takewhile`, `dropwhile` | Return eager lists. A predicate that changes the input list's length raises `RuntimeError`. |
+| `heapq` | Keep collection lengths unchanged during comparison callbacks. Detected length mutations raise `RuntimeError`; callback exceptions propagate. |
+| `copy.deepcopy` | Container entries are snapshotted before invoking custom hooks. |
+| `http.client` | Timeouts must be `None` or finite, nonnegative values fitting the platform's duration/deadline range. Invalid values raise `ValueError` when making the request. Response bodies are capped at 8 MiB. |
+| `subprocess.run` | Returns a dictionary, not CPython's `CompletedProcess`. Captures at most the first 1 MiB of each output stream while draining the rest, so long output is truncated. |
+| Numeric ranges | Out-of-range `math.ldexp` results and `struct` float32 conversions use `ValueError`; this runtime does not expose CPython's `OverflowError`. |
+
+For file iteration, exception syntax, third-party dependencies, and actionable
+failure messages, see [Debugging and dependencies](/docs/guides/troubleshooting).

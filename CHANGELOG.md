@@ -2,6 +2,77 @@
 
 All notable user-facing changes are documented here.
 
+## Unreleased
+
+### Added
+
+- Portable builds include local Python modules and packages, follow their
+  dependencies when selecting a runtime, and support explicit `--asset` files
+  and directories. Build-time checks catch unsupported imports and syntax.
+- `kipferl new --template cli|api|interactive` creates a runnable project with
+  editor stubs, a README, tests, and a `kipferl.json` configuration.
+- Project defaults let `run`, `dev`, `build`, and `test` work without repeating
+  paths, including from nested project directories.
+- Ordinary `test_*.py` project tests and Bash, Zsh, and Fish completions.
+- Four executable recipes for CSV summaries, HTTP API clients, repository
+  summaries, and report generation, checked against their documentation in CI.
+
+### Fixed
+
+- Prevent callback-driven heap and iterator mutations from using invalid values;
+  preserve comparator exceptions and snapshot containers before deepcopy hooks.
+- Handle Unicode regex replacement escapes, oversized byte arrays, and negative
+  iterator ranges without panicking. Reject finite values overflowing struct f32.
+- Avoid overflowing median/progress calculations and long-version logo padding.
+  Validate terminal dimensions and cap rule output at one million columns.
+
+- Reject malformed non-ASCII download checksums without panicking. Report corrupt
+  embedded runtimes and missing build assets with contextual errors.
+- Reject extreme HTTP timeouts without aborting across FFI. Correct frexp/ldexp
+  at float boundaries, atanh endpoint/NaN handling, and negative fractional times.
+- Return structured VM metadata errors for C ABI length overflow. Remove
+  unchecked format/loader slicing and move cache buffers off small worker stacks.
+
+- Runtime errors identify original Python files and line numbers; application
+  arguments and `sys.exit()` statuses survive development and packaged runs.
+- Validate complete cached runtime and script contents, repairing same-size
+  corruption and stale standalone payloads beyond the legacy hash sample.
+- Build outputs are written atomically, preserving the previous artifact on
+  failure and replacing output symlinks without changing their targets.
+- Enforce the script size limit while reading, handle multiline legacy imports,
+  and quote generated project names safely in Python source.
+- Correct in-memory buffer seeking, line hints, closed-state errors, integer
+  arguments, and empty/sparse writes; avoid quadratic work when appending.
+- Preserve captured subprocess output after `wait()`, honor `Popen(text=True)`,
+  and return the actual negative signal number for terminated processes.
+- Compatibility checks now reject crashed processes, missing fixtures, and
+  invalid runtimes. Vision reports retain timeout and benchmark failures,
+  support single-sample runs, and include the supported TOML fixture.
+
+### Development
+
+- Add pinned Bacon, nextest, watchexec, and optional cargo-seek through mise;
+  configure failure navigation, zero retries, slow/leaked-process detection,
+  and CI JUnit reports. Add Criterion 0.8.2 as a loader-only development dependency.
+- Enforce every requested Clippy restriction, pedantic, and nursery across the
+  workspace. Require a clean full/core audit and publish all narrowly justified
+  exceptions with their reasons; reject blanket groups and unexplained exceptions.
+
+- Include Rust Analyzer and standard-library sources in the pinned setup;
+  explicitly check all Rust features and targets in the shared CI task.
+- Reject debug/placeholder macros and unchecked time subtraction in workspace
+  Clippy. Forbid unsafe code in the format crate and document error contracts
+  with executable API examples.
+- Replace the justfile with mise tasks, exact development tool pins, a
+  multiplatform tool lockfile, and shared local/CI setup for Rust and the website.
+
+- Add regression coverage across CLI, loader, runtime, and test runners,
+  including 56 additional I/O and subprocess compatibility checks.
+- Correct CPython fixture inputs and skip Kipferl-only extensions on the host,
+  so compatibility baselines complete on the CI Python version.
+- Run development and release tooling tests in both `mise run check` and CI.
+- Document focused runtime checks and the prebuilt CLI asset workflow.
+
 ## [0.6.0] - 2026-08-05
 
 ### Added

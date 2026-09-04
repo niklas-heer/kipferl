@@ -3,7 +3,6 @@ title: term
 description: Low-level terminal control - cursor, screen, raw mode
 ---
 
-# term
 
 The `term` module provides low-level terminal control functions.
 
@@ -38,32 +37,37 @@ else:
 Enable raw mode for character-by-character input:
 
 ```python
-term.raw_mode(True)
-try:
+class RawTerminal:
+    def __enter__(self):
+        term.raw_mode(True)
+        return self
+
+    def __exit__(self, *error):
+        term.raw_mode(False)
+        return False
+
+with RawTerminal():
     key = term.read_key()
     print(f"You pressed: {key}")
-finally:
-    term.raw_mode(False)
 ```
 
 <Callout type="warn">
-Always restore normal mode in a `finally` block to avoid leaving the terminal in a broken state.
+Use a context manager to restore normal mode after errors. PocketPy does not
+support `finally` clauses. Higher-level [input prompts](/docs/modules/input)
+manage terminal state for you.
 </Callout>
 
 ## Reading Keys
 
-Read a single keypress (works best in raw mode):
+Read keypresses using the `RawTerminal` context manager defined above:
 
 ```python
-term.raw_mode(True)
-try:
+with RawTerminal():
     while True:
         key = term.read_key()
         if key == "escape":
             break
         print(f"Key: {key}")
-finally:
-    term.raw_mode(False)
 ```
 
 ### Key Names
@@ -138,15 +142,21 @@ term.write("\n")     # Manual newline
 import term
 import time
 
-term.hide_cursor()
-try:
+class HiddenCursor:
+    def __enter__(self):
+        term.hide_cursor()
+        return self
+
+    def __exit__(self, *error):
+        term.show_cursor()
+        return False
+
+with HiddenCursor():
     frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     for i in range(30):
         term.write(f"\r{frames[i % len(frames)]} Loading...")
         time.sleep(0.1)
     term.write("\r✓ Done!      \n")
-finally:
-    term.show_cursor()
 ```
 
 ## Example: Full-Screen App

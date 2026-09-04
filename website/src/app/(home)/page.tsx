@@ -171,7 +171,7 @@ export default function HomePage() {
             Python syntax. Tree-shaken binaries from 1.4 MB.
             <span className="text-gray-900 dark:text-white font-medium">
               {" "}
-              Instant startup.
+              Fast startup.
             </span>
             <br className="hidden md:block" />
             Ship beautiful command-line tools without the bloat.
@@ -242,11 +242,60 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            <StatCard value="7.679" suffix="ms" label="Core median startup" />
-            <StatCard value="1.451" suffix="MB" label="Minimal app" />
-            <StatCard value="1,669" label="Compat checks" />
+            <StatCard value="7.679" suffix="ms" label="v0.6 core median" />
+            <StatCard value="1.451" suffix="MB" label="v0.6 minimal app" />
+            <StatCard value="1,725" label="Current source checks" />
             <StatCard value="4" label="Release targets" />
           </div>
+        </div>
+      </section>
+
+      <section className="px-6 pb-20">
+        <div className="max-w-4xl mx-auto rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-8">
+          <p className="text-sm font-mono text-cyan-600 dark:text-cyan-400 mb-3">
+            IN DEVELOPMENT ON MAIN
+          </p>
+          <h2 className="text-3xl font-bold mb-4">
+            Create, test, and ship a complete project
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-5">
+            The current source checkout adds CLI, API, and interactive starters,
+            project defaults, local packages, and bundled resources. Each
+            starter includes editor support, tests, and a README.
+          </p>
+          <pre className="overflow-x-auto rounded-xl bg-gray-950 p-5 text-sm text-gray-100">
+            <code>{`kipferl new hello --template cli
+cd hello
+kipferl run
+kipferl test
+kipferl build
+./dist/hello --help`}</code>
+          </pre>
+          <div className="mt-5 flex flex-wrap gap-5">
+            <Link
+              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
+              href="/docs/getting-started/installation#development-checkout"
+            >
+              Set up the current checkout →
+            </Link>
+            <Link
+              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
+              href="/docs/guides/recipes"
+            >
+              Explore tested recipes →
+            </Link>
+            <Link
+              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
+              href="/docs/guides/development"
+            >
+              Contribute with mise →
+            </Link>
+          </div>
+          <p className="mt-5 text-sm text-gray-500 dark:text-gray-400">
+            Size and startup figures above are dated v0.6 measurements. The
+            current source check count uses the pinned CPython 3.12.14 baseline;
+            it measures the tested subset, not complete Python compatibility.
+          </p>
         </div>
       </section>
 
@@ -282,8 +331,8 @@ export default function HomePage() {
                 </svg>
               }
               gradient="bg-gradient-to-br from-yellow-400 to-orange-500"
-              title="Instant Startup"
-              description="A measured 7.679 ms median and 8.433 ms p95 for the tree-shaken core app on Apple Silicon, without virtual-environment activation."
+              title="Fast Startup"
+              description="The v0.6 Apple Silicon core baseline measured 7.679 ms median startup. App code, target, and runtime profile determine the actual result."
             />
             <FeatureCard
               icon={
@@ -304,7 +353,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-green-400 to-emerald-500"
               title="Standalone Binaries"
-              description="Tree-shaken executables start at 1.451 MB on Apple Silicon; the full runtime remains available. Linux releases are static musl binaries with no dynamic libc dependency."
+              description="The v0.6 Apple Silicon baseline produced a 1.451 MB minimal app. Linux release targets use static musl; external commands your app calls remain separate tools."
             />
             <FeatureCard
               icon={
@@ -325,7 +374,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-blue-400 to-indigo-500"
               title="Python Syntax"
-              description="Write in familiar Python. No new language to learn—just better, faster tooling for the CLI."
+              description="Use familiar Python syntax and a curated runtime. Check the module reference for supported APIs, return types, and compatibility limits."
             />
             <FeatureCard
               icon={
@@ -346,7 +395,7 @@ export default function HomePage() {
               }
               gradient="bg-gradient-to-br from-purple-400 to-pink-500"
               title="Beautiful Output"
-              description="Tables, boxes, progress bars, spinners, and rich colors. All built-in, zero dependencies."
+              description="Tables, boxes, progress bars, spinners, and rich colors, with no extra Python packages to install."
             />
             <FeatureCard
               icon={
@@ -424,8 +473,8 @@ export default function HomePage() {
               </thead>
               <tbody className="bg-white dark:bg-gray-950">
                 <ComparisonRow
-                  feature="Cold start"
-                  kipferl="7.679ms"
+                  feature="v0.6 core startup baseline"
+                  kipferl="7.679ms (Apple Silicon)"
                   python="Runtime-dependent"
                   node="Runtime-dependent"
                 />
@@ -436,16 +485,16 @@ export default function HomePage() {
                   node="Runtime + app"
                 />
                 <ComparisonRow
-                  feature="Dependencies"
-                  kipferl="None"
-                  python="pip + venv"
-                  node="node_modules"
+                  feature="Python installation required"
+                  kipferl="No"
+                  python="Yes"
+                  node="Node.js runtime"
                 />
                 <ComparisonRow
                   feature="Distribution"
                   kipferl="Single file"
-                  python="Complex"
-                  node="Complex"
+                  python="Interpreter + app"
+                  node="Runtime + app"
                 />
                 <ComparisonRow
                   feature="TUI built-in"
@@ -468,9 +517,9 @@ export default function HomePage() {
                 Simple, expressive API
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-lg mb-6 leading-relaxed">
-                Everything you need to build great CLI apps in a clean, Pythonic
-                interface. No boilerplate, no configuration—just write code and
-                ship.
+                Build useful tools with familiar syntax, built-in terminal
+                output, and a curated runtime. Start with a tested recipe, then
+                adapt it to your application.
               </p>
               <ul className="space-y-3">
                 {[
@@ -591,7 +640,7 @@ export default function HomePage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
-              ["1,669 / 1,669", "compatibility checks"],
+              ["1,669 / 1,669", "v0.6 release checks"],
               ["85,310", "obsolete lines removed"],
               ["7.044 ms", "median startup"],
               ["4", "native release targets"],

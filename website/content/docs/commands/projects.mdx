@@ -1,0 +1,96 @@
+---
+title: Projects and tests
+description: Useful starter templates, project defaults, tests, editor support, and completion
+---
+
+
+## Start with a template
+
+```bash
+kipferl new my-cli --template cli
+kipferl new api-tool --template api
+kipferl new setup-tool --template interactive
+```
+
+Project directory and script names use lowercase letters and replace spaces
+and hyphens with underscores: `my-cli` creates `my_cli/` and `my_cli.py`.
+
+`cli` is the default: a conventional command-line app with argument parsing.
+`api` starts a JSON client; `interactive` starts a guided terminal app. Each
+normal project includes its entry script, README, `kipferl.json`, a starter
+test, and editor configuration with the runtime's type stubs. Follow the
+generated README for that template's arguments and examples.
+
+`kipferl new my-cli --minimal` creates only the script in the current directory.
+Use this for a one-file experiment. For an existing project, `kipferl init`
+adds editor stubs by default; `kipferl init --help` lists optional integrations.
+
+## Save project defaults
+
+Put a `kipferl.json` next to the entry script:
+
+```json
+{
+  "entry": "app.py",
+  "output": "dist/my-app",
+  "assets": ["assets"],
+  "tests": ["tests"]
+}
+```
+
+Paths are relative to the project directory. Kipferl looks in the current
+directory and its ancestors for the nearest configuration. You can run these
+commands without repeating the entry script:
+
+```bash
+kipferl run
+kipferl dev
+kipferl test
+kipferl build
+```
+
+An explicit script overrides the configured entry; `-o` overrides the build
+output. Pass application arguments after `--`, for example
+`kipferl run -- --help` or `kipferl dev -- --help`. Configuration errors include
+an explanation so you can fix the file before running the application. Unknown
+keys, absolute paths, parent-directory escapes, non-regular files, and
+configurations larger than 64 KiB are rejected.
+
+## Test your application
+
+`kipferl test` recursively discovers `test_*.py` files in the configured `tests`
+paths, or in `tests` when there is no configuration. Each test file runs in an
+isolated process. Top-level assertions are sufficient:
+
+```python
+assert 2 + 2 == 4
+```
+
+A failing assertion, syntax error, or nonzero exit makes the test command fail.
+Add tests for inputs, error paths, and the output users depend on. Keep network
+tests local and deterministic. `kipferl test --compat` runs Kipferl's own
+compatibility suite; it is separate from application tests.
+
+## Shell completion
+
+Generate completions for your shell:
+
+```bash
+# Bash: enable for this session
+source <(kipferl completions bash)
+
+# Zsh: enable completion, then load for this session
+autoload -Uz compinit && compinit
+source <(kipferl completions zsh)
+```
+
+For Fish, install the generated script in its standard completion directory:
+
+```fish
+mkdir -p ~/.config/fish/completions
+kipferl completions fish > ~/.config/fish/completions/kipferl.fish
+```
+
+Add the appropriate Bash or Zsh command to your shell startup file if you want
+completion in future sessions. The generator writes only the completion script
+to standard output, so it can also be redirected to a file.

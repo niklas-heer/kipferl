@@ -25,7 +25,7 @@ The Cargo workspace contains:
 - `crates/kipferl-runtime`: the PocketPy host and native Python modules.
 - `crates/kipferl-format`: the frozen `MCHARM01` trailer format.
 - `crates/kipferl-loader`: extraction, cache, and execution of universal apps.
-- `crates/kipferl-cli`: `new`, `init`, `run`, `build`, and `test`.
+- `crates/kipferl-cli`: `new`, `init`, `run`, `dev`, `build`, `test`, and completions.
 
 The production repository no longer contains the archived Zig implementation.
 Use the final Zig tag `v0.5.0` and the migration history when archaeology is
@@ -34,25 +34,34 @@ needed; do not reintroduce Zig build paths into the working tree.
 ## Commands
 
 ```bash
-just setup                  # Check Cargo and build the release workspace
-just check                  # Stub drift, rustfmt, strict Clippy, and tests
-just compat                 # Full 1,669-check compatibility report
-just demo                   # Run the example through the public Rust CLI
-just build-app app.py app   # Build a standalone universal executable
+mise run setup                  # Prepare pinned tools, Rust workspace, and website
+mise run check                  # Stub drift, rustfmt, strict Clippy, and tests
+mise run lint-audit             # Zero findings plus reviewed exception inventory
+mise run compat                 # Compatibility against the pinned Python baseline
+mise run demo                   # Run the example through the public Rust CLI
+mise run build-app app.py app   # Build a standalone universal executable
 ```
 
 The direct equivalents are:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo check --locked --workspace --all-targets --all-features
+cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+cargo test --locked --workspace --all-features
 cargo build --release --workspace
 python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report
 ```
 
-The pinned toolchain is defined by `rust-toolchain.toml`. Production code must
+Run `mise install --locked rust python node bun cargo:bacon aqua:nextest-rs/nextest/cargo-nextest watchexec` before setup on a fresh clone.
+The pinned toolchain is defined by `rust-toolchain.toml` and mirrored in
+`mise.toml`; `mise run doctor` rejects drift. Production code must
 remain compatible with that stable toolchain.
+
+See [docs/development.md](docs/development.md) for the complete workflow and
+[docs/rust-review.md](docs/rust-review.md) for review decisions and evidence.
+Current source additions are unreleased until the tag workflow rebuilds and
+publishes matching embedded assets; keep user documentation explicit about this.
 
 ## Implementation policy
 
@@ -62,7 +71,7 @@ remain compatible with that stable toolchain.
 - Preserve the Python API, exact output bytes, errors, target names, release
   artifact names, and `MCHARM01` format unless a product change is approved.
 - Keep unsafe code inside the smallest practical PocketPy FFI boundary. A
-  borrowed `PyValue` must not survive an allocating VM call unless it is rooted
+  borrowed `Value` must not survive an allocating VM call unless it is rooted
   in a VM-owned register or container.
 - Use RAII for VM, terminal, file, process, and userdata cleanup. Validate
   lengths and integer conversions before crossing the C boundary.
@@ -70,6 +79,18 @@ remain compatible with that stable toolchain.
   Existing limits are compatibility and safety contracts, not suggestions.
 - Add permanent Rust unit or integration coverage for every new behavior and
   run the relevant CPython fixture through the compatibility runner.
+- Workspace Clippy denies pedantic, nursery, and every restriction in
+  `docs/rust-review.md`, alongside undocumented unsafe blocks. Fix findings or
+  use a narrowly scoped `#[expect(..., reason = "concrete invariant")]`.
+  Never suppress a Clippy group. The audit inventories all exceptions and
+  rejects missing reasons; generated FFI declarations preserve upstream names.
+- Use nextest (`mise run test-rust` and `test-core`) for process-isolated tests;
+  keep Cargo doctests separate. `mise run lint-audit` records every remaining
+  restriction diagnostic and fails on outstanding findings; run it with `check`.
+- `mise run bacon` provides compiler/Clippy/test feedback, `mise run watch`
+  serializes checks/tests/builds, and `mise run bench` measures loader regressions.
+- Rust Analyzer and `rust-src` are installed with the pinned toolchain. Use
+  `mise run test-doc` to verify public API examples independently.
 
 ## PocketPy updates
 
@@ -80,15 +101,15 @@ PocketPy is vendored in `pocketpy/vendor/`. The tracked patchset lives under
 python3 scripts/verify-pocketpy-patches.py --check-upstream
 ```
 
-Regenerate FFI declarations with `just bindings`; never hand-edit generated
+Regenerate FFI declarations with `mise run bindings`; never hand-edit generated
 bindings without updating their source or generator.
 
 ## Python stubs
 
 The hand-authored `stubs/*.pyi` files are the canonical editor API. The CLI
 embeds every file through `crates/kipferl-cli/src/generated_stubs.rs`; do not add
-a second handwritten list. Run `just stubs` after adding or removing a stub and
-commit the generated manifest. `just stubs-check` and CI validate stub syntax
+a second handwritten list. Run `mise run stubs` after adding or removing a stub and
+commit the generated manifest. `mise run stubs-check` and CI validate stub syntax
 and reject manifest drift.
 
 ## Release assets

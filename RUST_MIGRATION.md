@@ -1,5 +1,12 @@
 # Rust Migration Plan
 
+This is the historical migration record, including the original plan and dated
+acceptance evidence. Commands and measurements inside completed phases describe
+those revisions. Current development uses [mise](docs/development.md); the
+post-release [Rust review](docs/rust-review.md) records the latest hardening and
+[PLAN.md](PLAN.md) tracks remaining work. The legacy `just` commands below are
+historical references, not current setup instructions.
+
 ## Decision and outcome
 
 The project formerly known as μcharm migrated its native implementation from

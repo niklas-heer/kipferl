@@ -6,6 +6,7 @@
     "getting-started/installation",
     "getting-started/quick-start",
     "---CLI---",
+    "commands/projects",
     "commands/build",
     "commands/dev",
     "---Modules---",
@@ -16,6 +17,10 @@
     "modules/term",
     "modules/ansi",
     "---Guides---",
-    "guides/index"
+    "guides/index",
+    "guides/recipes",
+    "guides/packaging",
+    "guides/troubleshooting",
+    "guides/development"
   ]
 }

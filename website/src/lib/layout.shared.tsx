@@ -23,6 +23,10 @@ export function baseOptions(): BaseLayoutProps {
         url: "/docs",
       },
       {
+        text: "Contribute",
+        url: "/docs/guides/development",
+      },
+      {
         text: "Blog",
         url: "/blog",
       },

@@ -1,9 +1,13 @@
 # Rust Network and Database Wave
 
+> Historical snapshot: the measurements and implementation decisions below describe
+> the recorded migration stage, not the current release. See the
+> [benchmarking guide](README.md) for current commands, budgets, and validation limits.
+
 Recorded on 2026-08-04 on macOS 26.5.1, Apple Silicon. Startup results use 400
 measured launches after 5 warmups via `benchmarks/migration_baseline.py`.
 
-## Accepted implementation
+## Implementation accepted at this migration stage
 
 | Artifact | ARM64 bytes | x86_64 bytes | ARM64 median | ARM64 p95 |
 | --- | ---: | ---: | ---: | ---: |
@@ -26,10 +30,11 @@ relaxes the aspirational 2 MB target: 2.5 MB is the practical runtime goal and
 deployment model ahead of arbitrary byte shaving; the history remains in
 [issue #41](https://github.com/niklas-heer/kipferl/issues/41).
 
-- `http.client` uses `std::net` and adds no runtime dependency. It supports the
+- At this stage, `http.client` used `std::net` and added no runtime dependency. It supported the
   compatibility API, plain HTTP/1.1, bounded 8 MiB responses, content length,
   chunked transfer decoding, case-insensitive header lookup, request bodies,
-  headers, and timeouts. HTTPS/TLS remains explicit future work.
+  headers, and timeouts. HTTPS/TLS was future work at this stage; the current
+  runtime uses `ureq` with rustls for HTTP and HTTPS.
 - `sqlite3` uses [`rusqlite`](https://github.com/rusqlite/rusqlite) 0.40.1 with
   vendored SQLite 3.53.2 statically linked
   into the runtime. Default crate features are disabled and CLI-irrelevant

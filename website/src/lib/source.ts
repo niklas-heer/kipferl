@@ -23,5 +23,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
 
   return `# ${page.data.title}
 
+Documentation scope: current main checkout, including unreleased changes. Published v0.6 binaries may differ; see /docs/getting-started/installation#development-checkout.
+
 ${processed}`;
 }

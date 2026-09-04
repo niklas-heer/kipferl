@@ -1,45 +1,44 @@
-# website
+# Kipferl website
 
-This is a Next.js application generated with
-[Create Fumadocs](https://github.com/fuma-nama/fumadocs).
-
-Run development server:
+The documentation and landing site use Next.js, Fumadocs, and the repository's
+pinned Node.js/Bun tools. Run these commands from the repository root after the
+[mise setup](../README.md#development):
 
 ```bash
-npm run dev
-# or
-pnpm dev
-# or
-yarn dev
+mise run website-dev
+mise run website-check
 ```
 
-Open http://localhost:3000 with your browser to see the result.
+Open [localhost:3000](http://localhost:3000) during development. `website-check`
+installs dependencies from `website/bun.lock`, checks generated MDX/route types,
+and builds the production site. Use Bun for dependency changes; do not add an
+npm, pnpm, or Yarn lockfile.
 
-## Explore
+| Location | Purpose |
+| --- | --- |
+| `content/docs/` | MDX documentation; `meta.json` defines navigation |
+| `src/app/(home)/page.tsx` | Landing page |
+| `src/app/blog/` | Dated release stories and engineering articles |
+| `src/app/docs/[[...slug]]/page.tsx` | Shared documentation rendering and source-version notice |
+| `src/lib/source.ts` | Content loading and machine-readable documentation |
+| `src/app/api/search/route.ts` | Search index |
+| `src/app/llms-full.txt/route.ts` | Complete documentation text |
+| `public/` | Images and demo recording |
 
-In the project, you can see:
+Documentation tracks the current `main` checkout, including unreleased work.
+Preserve the historical scope of release articles and performance measurements;
+do not imply that rebuilding source updates the CLI's embedded release assets.
+The public contributor guide lives in `content/docs/guides/development.mdx`.
 
-- `lib/source.ts`: Code for content source adapter, [`loader()`](https://fumadocs.dev/docs/headless/source-api) provides the interface to access your content.
-- `lib/layout.shared.tsx`: Shared options for layouts, optional but preferred to keep.
+Recipe blocks in `content/docs/guides/recipes.mdx` mirror `examples/recipes/`.
+From the repository root, run:
 
-| Route                     | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `app/(home)`              | The route group for your landing page and other pages. |
-| `app/docs`                | The documentation layout and pages.                    |
-| `app/api/search/route.ts` | The Route Handler for search.                          |
+```bash
+mise exec -- python3 scripts/check_recipes.py --docs-only
+mise run recipes
+```
 
-### Fumadocs MDX
-
-A `source.config.ts` config file has been included, you can customise different options like frontmatter schema.
-
-Read the [Introduction](https://fumadocs.dev/docs/mdx) for further details.
-
-## Learn More
-
-To learn more about Next.js and Fumadocs, take a look at the following
-resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js
-  features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [Fumadocs](https://fumadocs.dev) - learn about Fumadocs
+The first checks snippet drift. The second also runs the examples and packaged
+binaries with local fixtures. Keep internal links consistent with navigation;
+new guide pages are automatically included in search, page metadata, and the
+machine-readable docs.

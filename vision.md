@@ -4,6 +4,11 @@ This document captures the product vision, the CLI experience we want, and the
 minimum module surface needed to make kipferl a great choice for shipping CLI
 apps as tiny, fast, standalone binaries.
 
+For implemented behavior, use [the README](README.md), [the current roadmap](PLAN.md),
+and [the compatibility report](tests/compat_report_pocketpy.md). This document
+also contains aspirational APIs and example output; they are not release claims.
+Current source adds configurable projects, portable assets, tests, and completions.
+
 ## Vision
 
 kipferl makes it easy to build great command-line apps with Python syntax and
@@ -146,7 +151,7 @@ These unlock common workflows and popular CLI libraries.
 - uuid
 - urllib.parse
 - contextlib
-- typing (runtime stubs)
+- typing (documented runtime compatibility helpers and editor stubs)
 - statistics, functools, itertools, heapq
 
 ### Nice to have

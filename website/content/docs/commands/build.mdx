@@ -1,19 +1,34 @@
 ---
 title: Build standalone apps
-description: Package a Kipferl app as a tree-shaken, dependency-free executable.
+description: Package local modules and resources into a standalone executable.
 ---
 
-# `kipferl build`
 
 `kipferl build` packages a Python script for macOS or Linux. The default
 `universal` mode produces one executable containing the loader, Rust-hosted
 PocketPy runtime, and transformed application. The target machine does not need
-Kipferl, Python, Rust, Cargo, libc, or musl installed.
+Kipferl, Python, Rust, or Cargo installed.
 
 ```bash
 kipferl build app.py -o app
 ./app
 ```
+
+## Project defaults and resources
+
+Inside a project, `kipferl build` uses the entry and output saved in
+`kipferl.json`. An explicit script or `-o` overrides those values. Local Python
+modules are included in the application bundle. Add fixed resources with
+repeatable `--asset` options or the configuration's `assets` list:
+
+```bash
+kipferl build --asset assets --asset templates
+```
+
+Read bundled resources relative to the module's `__file__`, not the caller's
+working directory. Static imports are checked before build success, including
+imports in bundled local modules. See the [packaging guide](/docs/guides/packaging)
+for inclusion boundaries, a complete resource example, and portability checks.
 
 ## Runtime profiles
 
@@ -45,18 +60,20 @@ profile:
 | Database | `sqlite3` |
 | Timezone data | `time` |
 
-Kipferl chooses the full profile when it sees `__import__`, `importlib`, `exec`,
-`eval`, a relative import, or syntax it cannot resolve safely. A conservative
-fallback makes the result larger, never knowingly incomplete. The build output
-shows the selected profile and every reason for choosing `full`.
+Kipferl chooses the full profile for dynamic code or import operations such as
+`__import__`, `importlib`, `exec`, and `eval`. Relative imports within local
+packages are resolved during bundling, so they do not automatically force the
+full runtime. Unsupported static imports fail the build; a larger runtime does
+not install missing dependencies. The build output shows the selected profile
+and its reasons.
 
 ```text
 ✓ Runtime profile full (complete compatibility)
   Full runtime: sqlite3 requires the SQLite capability
 ```
 
-Use `--full-runtime` as an escape hatch for imports hidden behind application
-logic or generated at runtime:
+Use `--full-runtime` to include every supported built-in capability explicitly.
+It does not discover local files referenced only by dynamic import names:
 
 ```bash
 kipferl build app.py -o app --full-runtime
@@ -71,8 +88,9 @@ kipferl build app.py -o app-linux --target linux-x86_64
 kipferl build app.py -o app-linux-arm --target linux-aarch64
 ```
 
-Cross-builds download signed-release components once and verify their SHA-256
-checksums before packaging. Linux artifacts are statically linked with musl and
+Cross-builds reuse matching local or cached components. If a component is
+missing, Kipferl offers to download the matching release asset and verifies its
+SHA-256 checksum before packaging. Linux artifacts are statically linked with musl and
 do not depend on a target system libc.
 
 ## Other modes
@@ -85,7 +103,7 @@ do not depend on a target system libc.
 
 ```bash
 kipferl build app.py -o app --mode executable
-kipferl build app.py -o app.py --mode single
+kipferl build app.py -o dist/app-bundled.py --mode single
 ```
 
 `--full-runtime` only applies to universal builds because the other modes do not

@@ -1,5 +1,9 @@
 # Tree-shaken Build Baseline
 
+> Historical snapshot: the measurements and implementation decisions below describe
+> the recorded migration stage, not the current release. See the
+> [benchmarking guide](README.md) for current commands, budgets, and validation limits.
+
 Recorded on 2026-08-05 for the stable v0.6 tree-shaking work tracked in
 [issue #57](https://github.com/niklas-heer/kipferl/issues/57). Release runtimes
 use the workspace release profile. Linux artifacts are statically linked with
@@ -74,24 +78,40 @@ standalone application starts.
 
 ## Reproduce locally
 
+The following compares applications packaged with the CLI's checked-in runtime
+assets. It does not use a newly compiled `pocketpy-kipferl` binary. Use a temporary
+directory to keep measurements separate from the workspace:
+
 ```console
-cargo build --release -p kipferl-runtime
-cp target/release/pocketpy-kipferl /tmp/pocketpy-kipferl-full
-cargo build --release -p kipferl-runtime --no-default-features
-cp target/release/pocketpy-kipferl /tmp/pocketpy-kipferl-core
+mise run build
+benchmark_dir="$(mktemp -d)"
+printf 'pass\n' > "$benchmark_dir/minimal.py"
+target/release/kipferl build "$benchmark_dir/minimal.py" \
+  -o "$benchmark_dir/core-app"
+target/release/kipferl build "$benchmark_dir/minimal.py" \
+  -o "$benchmark_dir/full-app" --full-runtime
 
-cargo build --release -p kipferl-cli
-printf 'pass\n' > /tmp/kipferl-minimal.py
-target/release/kipferl build /tmp/kipferl-minimal.py -o /tmp/kipferl-core-app
-target/release/kipferl build /tmp/kipferl-minimal.py \
-  -o /tmp/kipferl-full-app --full-runtime
-
-python3 benchmarks/migration_baseline.py \
-  --candidate 'Core app=/tmp/kipferl-core-app' \
-  --candidate 'Full app=/tmp/kipferl-full-app' \
-  --runs 100 --warmups 10
+mise exec -- python3 benchmarks/migration_baseline.py \
+  --candidate "Core app=$benchmark_dir/core-app" \
+  --candidate "Full app=$benchmark_dir/full-app" \
+  --runs 100 --warmups 10 --seed 42
 ```
 
-The four-target numbers are authoritative because each runtime is built and
-executed natively by the release matrix. Local cross-builds package those exact
-checked-in release artifacts rather than approximating a foreign target.
+To compare current runtime source profiles directly, build the core profile in a
+separate target directory so it does not replace the full runtime used by other
+tasks:
+
+```console
+mise run build-runtime
+CARGO_TARGET_DIR=target/benchmark-core mise exec -- cargo build --locked \
+  --release -p kipferl-runtime --no-default-features
+mise exec -- python3 benchmarks/migration_baseline.py \
+  --candidate 'Core runtime=target/benchmark-core/release/pocketpy-kipferl' \
+  --candidate 'Full runtime=target/release/pocketpy-kipferl' \
+  --runs 100 --warmups 10 --seed 42
+```
+
+The recorded four-target numbers describe the release matrix linked above,
+where each runtime was built and executed on its target platform. New local
+results are separate measurements. Packaging a foreign-target release asset
+locally does not verify its execution on that target.

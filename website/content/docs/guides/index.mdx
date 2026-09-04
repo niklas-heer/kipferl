@@ -1,23 +1,21 @@
 ---
 title: Guides
-description: In-depth guides for building CLI apps with kipferl
+description: Build useful tools, package your project, and diagnose problems
 ---
 
-# Guides
 
-Learn how to build real-world CLI applications with kipferl.
+Start with the [first-app tutorial](/docs/getting-started/quick-start), then
+adapt one of these complete scripts to your own work. Every Python recipe below
+is copied directly from `examples/recipes/` and checked for drift. CI executes
+all four against the runtime using temporary files and a local HTTP server.
 
-## Coming Soon
+- [CSV summaries, API clients, repository inspection, and reports](/docs/guides/recipes)
+- [Project defaults, templates, tests, and shell completion](/docs/commands/projects)
+- [Local modules, bundled assets, and portable applications](/docs/guides/packaging)
+- [Debugging and supported dependencies](/docs/guides/troubleshooting)
 
-We're working on detailed guides for:
+The recipes use the built-in modules only. They do not need pip, credentials,
+or external services to run their checks.
 
-- **Building a Git-like CLI** - Subcommands, flags, and help text
-- **Interactive Installers** - Multi-step wizards with validation
-- **Progress and Spinners** - Long-running tasks with feedback
-- **Configuration Files** - Loading and saving app settings
-- **HTTP API Clients** - Building REST API wrappers
-- **Database Apps** - Using SQLite for local storage
-
-## Contributing
-
-Want to help write guides? Check out the [GitHub repository](https://github.com/niklas-heer/kipferl) and submit a PR!
+For work on the Rust runtime, CLI, or website, use the
+[contributor setup and validation guide](/docs/guides/development).

@@ -1,100 +1,104 @@
 ---
-title: Quick Start
-description: Create your first kipferl app in 5 minutes
+title: Your first app
+description: Create, develop, test, and ship your first standalone Kipferl CLI
 ---
 
-# Quick Start
 
-Let's build a simple CLI app that demonstrates kipferl's key features.
+This tutorial takes a small CLI from an empty directory to an executable you
+can move to another machine with the same operating system and architecture.
+Use the [development checkout](/docs/getting-started/installation#development-checkout)
+for this workflow, which includes changes after v0.6. Confirm that
+`kipferl new --help` lists `--template` before continuing.
 
-## Create a Project
-
-```bash
-mkdir hello-cli && cd hello-cli
-kipferl init
-```
-
-## Write Your App
-
-Create `app.py`:
-
-```python
-import tui
-import input
-
-# Show a welcome box
-tui.box("Welcome to Hello CLI!", title="Hello", border_color="cyan")
-
-# Interactive selection
-action = input.select("What would you like to do?", [
-    "Say hello",
-    "Show a table", 
-    "Exit"
-])
-
-if action == "Say hello":
-    name = input("What's your name? ")
-    tui.success(f"Hello, {name}!")
-    
-elif action == "Show a table":
-    tui.table([
-        ["Language", "Status"],
-        ["Python", "Supported"],
-        ["Rust", "Native"],
-    ], headers=True, border="rounded")
-    
-elif action == "Exit":
-    if input.confirm("Are you sure?"):
-        tui.error("Goodbye!")
-```
-
-## Develop It
+## Create a working project
 
 ```bash
-kipferl dev app.py
+kipferl new hello --template cli
+cd hello
 ```
 
-Kipferl runs the app immediately and restarts it whenever a Python, config, or
-template file in the app directory changes. The watcher stays open after the
-app exits, so save `app.py` to run it again. Add `--clear` to clear the terminal
-between runs or `--watch <path>` to include any file or directory elsewhere.
-Supported configuration extensions include JSON, YAML, TOML, KDL, XML, CSV,
-INI, CFG, and CONF.
+You now have `hello.py`, a `README.md`, a starter test in `tests/test_app.py`,
+editor stubs under `.kipferl/stubs`, a `pyrightconfig.json`, and project defaults:
 
-See the [`kipferl dev` reference](/docs/commands/dev) for every option, the
-complete default file list, ignored paths, process behavior, terminal
-restoration, and troubleshooting.
+```json
+{
+  "entry": "hello.py",
+  "output": "dist/hello",
+  "assets": [],
+  "tests": ["tests"]
+}
+```
 
-For a one-off run without watching, use `kipferl run app.py`.
-
-## Build a Binary
+The CLI template includes argument parsing and `--help`. Explore it before
+making changes:
 
 ```bash
-# Build for current platform
-kipferl build app.py -o hello
-
-# Build a standalone binary for this machine
-kipferl build app.py -o hello --mode universal
-
-# Or target another supported platform
-kipferl build app.py -o hello-linux --target linux-x86_64
-
-# Run the binary
-./hello
+kipferl run -- --help
 ```
 
-Universal builds automatically select a tree-shaken core runtime or the full
-compatibility runtime from your imports. This happens without a local Rust
-toolchain. See the [`kipferl build` reference](/docs/commands/build) for size
-expectations, profile selection, cross-target behavior, and `--full-runtime`.
+For an API client or a guided interactive app, choose `--template api` or
+`--template interactive` when creating the project. Each comes with runnable
+code and a test, and needs no pip install. The generated README explains its
+arguments. See [project commands](/docs/commands/projects) for the full layout.
 
-## What's Next?
+## Develop and test
 
-<Cards>
-  <Card title="tui Module" href="/docs/modules/tui" />
-  <Card title="input Module" href="/docs/modules/input" />
-  <Card title="All Modules" href="/docs/modules" />
-  <Card title="Data Formats" href="/docs/modules/data-formats" />
-  <Card title="Development server" href="/docs/commands/dev" />
-  <Card title="Standalone builds" href="/docs/commands/build" />
-</Cards>
+```bash
+kipferl dev
+```
+
+Kipferl runs `hello.py` immediately. Open it in your editor, change its greeting,
+and save: the app restarts. The watcher stays open after the app exits and
+restores terminal settings after interactive prompts. Stop it with `Ctrl-C`.
+Use `kipferl run` for one execution, or `kipferl dev --clear` for a fresh screen
+on each restart. Configuration and template files are watched too.
+
+Run the starter test and add assertions for your changes:
+
+```bash
+kipferl test
+```
+
+Tests are ordinary Python scripts named `test_*.py`. Each runs in a separate
+process; failed assertions or other nonzero exits make the command fail. There
+is no pytest dependency. Run the tests after each meaningful change and before
+shipping. See [the development reference](/docs/commands/dev) for extra watch
+paths and application arguments.
+
+## Ship one executable
+
+```bash
+kipferl build
+./dist/hello --help
+```
+
+The default build embeds the runtime and your application's local Python
+modules. It reports unsupported imports before producing a successful build.
+You do not need a Rust compiler. Try the result from a directory containing
+only the executable:
+
+```bash
+mkdir -p /tmp/kipferl-hello-demo
+cp dist/hello /tmp/kipferl-hello-demo/hello
+cd /tmp/kipferl-hello-demo
+./hello --help
+```
+
+The recipient needs no Kipferl or Python installation. Choose a different
+target when the recipient has a different operating system or CPU:
+
+```bash
+# Run this from your hello project
+kipferl build --target linux-x86_64 -o dist/hello-linux
+```
+
+Data files need an explicit `assets` entry or `--asset`; read them relative to
+`__file__` so they work after packaging. See [portable packaging](/docs/guides/packaging)
+for a complete example, dependency limits, and isolation checks.
+
+## Build your second app
+
+Use a [tested recipe](/docs/guides/recipes) to process CSV, fetch a JSON API,
+inspect a source directory, or generate a report. Keep the generated editor
+configuration for autocomplete, and enable [shell completion](/docs/commands/projects#shell-completion)
+for commands and options.

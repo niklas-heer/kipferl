@@ -1,19 +1,23 @@
 # Kipferl Compatibility Report
 
-Generated: 2026-08-05 15:19:21
+Generated: 2026-09-05 01:51:50
+
+Host baseline: CPython 3.12.14 (darwin, arm64).
 
 ## Summary
 
 ### Targeted Modules
 
-- **Tests passing**: 1,669/1,669 (100.0%)
+- **Tests passing**: 1,725/1,725 (100.0%)
 - **Modules at 100%**: 51/52
 - **Modules partial**: 0/52
 - **No baseline (host CPython)**: 1/52
 
 ### CPython Stdlib Coverage
 
-- **Modules targeted**: 52/160 (32.5%)
+Compatibility groups also include third-party `toml`; it is excluded from the standard-library coverage below.
+
+- **Modules targeted**: 51/160 (31.9%)
 - **Not yet started**: 109 modules
 
 ## Targeted Module Status
@@ -36,18 +40,18 @@ Generated: 2026-08-05 15:19:21
 | errno | stdlib | 38/38 | 38/38 | 100% | ✅ Full |
 | fnmatch | stdlib | 55/55 | 55/55 | 100% | ✅ Full |
 | functools | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
-| glob | stdlib | 3/3 | 3/3 | 100% | ✅ Full |
+| glob | stdlib | 4/4 | 4/4 | 100% | ✅ Full |
 | gzip | stdlib | 6/6 | 6/6 | 100% | ✅ Full |
 | hashlib | stdlib | 29/29 | 29/29 | 100% | ✅ Full |
 | heapq | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | hmac | stdlib | 4/4 | 4/4 | 100% | ✅ Full |
 | http.client | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
-| io | stdlib | 53/53 | 53/53 | 100% | ✅ Full |
+| io | stdlib | 100/100 | 100/100 | 100% | ✅ Full |
 | itertools | stdlib | 33/33 | 33/33 | 100% | ✅ Full |
 | json | stdlib | 70/70 | 70/70 | 100% | ✅ Full |
 | logging | stdlib | 39/39 | 39/39 | 100% | ✅ Full |
 | math | stdlib | 82/82 | 82/82 | 100% | ✅ Full |
-| operator | stdlib | 114/115 | 115/115 | 100% | ✅ Full |
+| operator | stdlib | 111/111 | 111/111 | 100% | ✅ Full |
 | os | stdlib | 45/45 | 45/45 | 100% | ✅ Full |
 | pathlib | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
 | random | stdlib | 46/46 | 46/46 | 100% | ✅ Full |
@@ -58,14 +62,14 @@ Generated: 2026-08-05 15:19:21
 | sqlite3 | stdlib | 2/2 | 2/2 | 100% | ✅ Full |
 | statistics | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | struct | stdlib | 68/68 | 68/68 | 100% | ✅ Full |
-| subprocess | stdlib | 19/19 | 19/19 | 100% | ✅ Full |
+| subprocess | stdlib | 28/28 | 28/28 | 100% | ✅ Full |
 | sys | stdlib | 58/58 | 58/58 | 100% | ✅ Full |
 | tarfile | stdlib | 7/7 | 7/7 | 100% | ✅ Full |
 | tempfile | stdlib | 9/9 | 9/9 | 100% | ✅ Full |
 | textwrap | stdlib | 24/24 | 24/24 | 100% | ✅ Full |
 | time | stdlib | 42/42 | 42/42 | 100% | ✅ Full |
 | toml | stdlib | - | - | - | ✅ Full |
-| tomllib | stdlib | 0/1 | 1/1 | 100% | ✅ Full |
+| tomllib | stdlib | 4/4 | 4/4 | 100% | ✅ Full |
 | typing | stdlib | 43/43 | 43/43 | 100% | ✅ Full |
 | unittest | stdlib | 40/40 | 40/40 | 100% | ✅ Full |
 | urllib_parse | stdlib | 24/24 | 24/24 | 100% | ✅ Full |

@@ -3,20 +3,30 @@ title: Introduction
 description: Build beautiful CLI apps with Python syntax and ship them as compact, standalone binaries.
 ---
 
-# Welcome to kipferl
 
 **kipferl** is a CLI toolkit for building beautiful command-line applications with Python syntax, powered by [PocketPy](https://pocketpy.dev).
 
-Write in familiar Python, ship as target-specific standalone executables as small as 1.4 MB that start in under 10 ms on the measured Apple Silicon baseline.
+Write Python-style CLI applications and ship one executable per target. The
+v0.6 Apple Silicon baseline measured a 1.451 MB minimal app and a 7.679 ms
+median startup; see the [dated measurements](/blog/tree-shaken-builds).
+Application code, bundled assets, target, and runtime profile affect the result.
 
 ## Why kipferl?
 
-- **Instant startup** - Under 10ms cold start, no interpreter warm-up
-- **Standalone binaries** - No Python, libc, or dynamic runtime installation on the target machine
+- **Fast startup** - An embedded runtime starts without activating a Python environment
+- **Standalone binaries** - Recipients need no Python or Kipferl installation; Linux release targets use static musl
 - **Python syntax** - No new language to learn
 - **Beautiful output** - Tables, boxes, progress bars, colors built-in
 - **Interactive prompts** - Select, multiselect, confirm with keyboard navigation
 - **50+ runtime modules** - JSON, HTTP, SQLite, regex, and more hosted by Rust
+
+## From a project to an executable
+
+The current source checkout includes CLI, API, and interactive templates with
+editor stubs, tests, and project defaults. Follow the
+[first-app tutorial](/docs/getting-started/quick-start), then add
+[local modules and assets](/docs/guides/packaging). These additions are not a
+claim about features already present in the published v0.6 binary.
 
 ## Quick Example
 
@@ -44,12 +54,12 @@ tui.success(f"Selected: {choice}")
 
 kipferl is **not** a drop-in replacement for CPython. It's a focused runtime optimized for CLI applications:
 
-| Feature | kipferl | CPython |
-|---------|--------|---------|
-| Startup time | 7.679 ms core median | ~50ms+ |
-| Binary size | ~1.4–5.9 MB | ~100MB+ |
-| Dependencies | None | pip ecosystem |
-| TUI components | Built-in | Requires packages |
+| Capability | Kipferl | CPython |
+| --- | --- | --- |
+| Distribution | Target-specific executable with an embedded runtime | Interpreter plus application; packaging tools are available |
+| Dependencies | Supported built-ins and bundled local code; external commands remain external | Standard library and pip ecosystem |
+| Python compatibility | A tested subset; see module limits | Reference Python implementation |
+| Terminal UI | Built-in output and prompt modules | Third-party packages available |
 
 ## Next Steps
 
@@ -58,7 +68,8 @@ kipferl is **not** a drop-in replacement for CPython. It's a focused runtime opt
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
   <Card title="Build standalone apps" href="/docs/commands/build" />
   <Card title="Development server" href="/docs/commands/dev" />
-  <Card title="Modules" href="/docs/modules" />
+  <Card title="Modules and limits" href="/docs/modules" />
+  <Card title="Developing Kipferl" href="/docs/guides/development" />
   <Card title="What's new in Kipferl 0.6" href="/blog/kipferl-0-6" />
   <Card title="Why we moved to Rust" href="/blog/rust-migration" />
   <Card title="How tree-shaken builds work" href="/blog/tree-shaken-builds" />

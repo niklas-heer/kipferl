@@ -3,17 +3,19 @@ title: Development server
 description: Run a Kipferl app and restart it automatically when project files change
 ---
 
-# `kipferl dev`
 
 `kipferl dev` runs an application immediately and restarts it when a watched
 file changes. It is intended for the edit-run-feedback loop while building a
 Kipferl application.
 
 ```bash
-kipferl dev [OPTIONS] <script.py> [--] [args...]
+kipferl dev [OPTIONS] [script.py] [--] [args...]
 ```
 
-For a single run without watching files, use `kipferl run <script.py>`.
+Inside a project with `kipferl.json`, use `kipferl dev` to run the configured
+entry script. For a single execution without watching, use `kipferl run`.
+Explicit script paths continue to work for standalone scripts. See
+[project defaults](/docs/commands/projects).
 
 ## Basic usage
 
@@ -44,7 +46,7 @@ application arguments begin with a hyphen.
 | `--debounce <ms>` | `150` | Wait for filesystem writes to settle before restarting. Accepts `0` through `60000` milliseconds. |
 | `-h, --help` | | Print the command help and exit. |
 
-`<script.py>` must exist when the command starts. Relative script and watch
+The explicit or configured entry script must exist when the command starts. Relative script and watch
 paths are resolved from the directory where `kipferl dev` is invoked.
 
 ## What is watched by default

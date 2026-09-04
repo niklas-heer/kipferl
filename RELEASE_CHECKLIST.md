@@ -1,7 +1,22 @@
 # v0.6.0 Release Checklist
 
-This checklist separates reversible preparation from the stable tag that
-publishes artifacts and updates Homebrew.
+This is the completed v0.6.0 release record. Its checked items describe that
+release, not proof for the unreleased source changes now on main.
+
+## Gate for the next release
+
+- Run `mise run test` and `mise run lint-audit` on the exact candidate commit.
+- Require passing native four-target and FFI sanitizer CI. Local validation on
+  macOS ARM64 cannot substitute for those jobs.
+- Rebuild full/core runtimes and loaders, inject matching assets into each CLI,
+  and verify downloaded checksums, static Linux linkage, project templates,
+  package/assets builds, and standalone execution away from the source tree.
+- Verify the Homebrew token's required repository permission before promotion.
+- Update versioned release notes and remove unreleased documentation notices
+  only when the published artifacts contain the documented features and fixes.
+
+Pushing a source/documentation commit does not create a release tag. The
+remaining sections preserve the v0.6.0 preparation and publication evidence.
 
 ## Prepared in the release PR
 

@@ -1,5 +1,9 @@
 # Rust Release Cutover
 
+> Historical snapshot: the measurements and implementation decisions below describe
+> the recorded migration stage, not the current release. See the
+> [benchmarking guide](README.md) for current commands, budgets, and validation limits.
+
 Recorded on 2026-08-04 on macOS 26.5.1, Apple Silicon, using Rust 1.97.1.
 Linux ARM64 artifacts were built locally in a native Debian container. The
 Linux x86_64 figures below come from GitHub's native Ubuntu runner; the macOS
@@ -16,7 +20,7 @@ figures come from local native and Rosetta-verified builds.
 
 The macOS runtime differs by 32 bytes from the network/database-wave sample
 because this table records the final public binary name and cutover rebuild.
-All runtime and CLI artifacts remain below their platform gates: 2 MB runtime
+At cutover, all runtime and CLI artifacts were below the then-current gates: 2 MB runtime
 on macOS, 2.5 MB runtime on static Linux, and 3.5 MB for the release CLI.
 
 ## Findings and decisions

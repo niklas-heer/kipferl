@@ -6,8 +6,8 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 
 - **PocketPy, not CPython**: This runs on PocketPy with native Rust modules, not standard Python
 - **Native modules**: 50+ high-performance modules implemented in Rust (see list below)
-- **No pip packages**: You cannot use pip packages that have C extensions
-- **Single binary output**: Apps compile to tree-shaken, target-specific standalone executables (about 1.4–5.9 MB)
+- **Dependencies**: Use native modules or compatible local Python files; pip packages and CPython extensions are not installed into the runtime
+- **Single binary output**: Apps build into target-specific standalone executables; size depends on runtime profile and bundled assets
 
 ## Available Modules
 
@@ -65,6 +65,36 @@ kipferl build myapp.py -o myapp --mode universal
 # Keep every optional capability when imports are dynamic
 kipferl build myapp.py -o myapp --full-runtime
 ```
+
+## Project Workflow
+
+For projects containing `kipferl.json`, use `kipferl run`, `kipferl dev`,
+`kipferl test`, and `kipferl build`; explicit script paths override the entry.
+Keep local modules in the project. Include resources with `--asset <path>` or
+configuration assets, then resolve them relative to `__file__`. Test the built
+executable away from the source directory before sharing it.
+
+## Runtime Compatibility
+
+Use the installed Kipferl runtime to verify behavior; the standard-library
+surface is curated and editor stubs are not a CPython compatibility guarantee.
+In runtimes built from the current source:
+
+- `subprocess.run` returns a dictionary. Captured output retains the first 1 MiB
+  per stream while draining the rest; uncaptured streams are discarded.
+- HTTP timeouts must be finite, nonnegative, and fit the platform clock, or
+  `None`. Invalid timeouts raise `ValueError` when making the request.
+- `bytearray(n)` zero-filled allocation is limited to 64 MiB. `islice` requires
+  nonnegative start/stop and a positive step; it returns a list.
+- Comparison and predicate callbacks should leave input collection lengths
+  unchanged; detected mutation raises `RuntimeError`. `deepcopy` snapshots
+  container entries before invoking custom hooks.
+- Numeric range failures in `math.ldexp` and f32 `struct.pack` use `ValueError`.
+  Do not assume CPython's `OverflowError` is available.
+
+Runtime fixes require a matching runtime build; rebuilding the CLI alone does
+not update its checked-in embedded runtime assets. See the repository README
+for source-development and release instructions.
 
 ## What NOT to Use
 

@@ -6,11 +6,14 @@ This is the single source of truth for priorities and next steps.
 
 - Goal: build beautiful CLI apps with Python syntax, shipped as compact, fast,
   standalone binaries.
-- Runtime: PocketPy; the Rust host, loader, CLI, 51 fully compatible stdlib
-  targets, Cargo-first release path, and tree-shaken build profiles are
+- Runtime: PocketPy; the Rust host, loader, CLI, 51 standard-library compatibility
+  groups, Cargo-first release path, and tree-shaken build profiles are
   implemented. RC2 is proven and stable `v0.6.0` has been published.
 - Language decision: Rust is the target implementation language. See `RUST_MIGRATION.md` for gates and sequencing.
-- Compatibility status: the Rust runtime passes 1,669/1,669 available checks (100%), with 51/52 targeted modules at 100% parity, no partial modules, and one host-unavailable `toml` baseline. Refresh with `python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report`.
+- Current source compatibility: 1,725/1,725 available checks on pinned CPython
+  3.12.14 (2026-09-05), with 51 passing groups and one unavailable third-party
+  `toml` baseline. The 52 groups cover 51 of the 160 stdlib inventory modules.
+  Refresh with `mise run compat`; totals vary with the baseline Python version.
 - PocketPy vendor patches are tracked under `pocketpy/patches/` and verified via `python3 scripts/verify-pocketpy-patches.py --check-upstream`.
 
 ## Current State (from the repo)
@@ -72,26 +75,36 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   that the declared PocketPy patches replay onto pristine upstream and exactly
   reconstruct the vendored source.
 
+## Current Source Improvements (unreleased)
+
+- Configurable projects: cli/api/interactive templates, `kipferl.json` defaults,
+  source-aware diagnostics, project tests, and Bash/Zsh/Fish completions.
+- Portable packaging: local modules/packages, explicit assets, static-import
+  diagnostics, atomic output replacement, and validation of cached payloads.
+- Four documented recipes verified against local fixtures and standalone apps
+  with their build sources removed.
+- Mise pins the toolchain and developer tools. Bacon, nextest, watchexec, and
+  optional cargo-seek provide feedback; Criterion measures the loader/cache.
+- Every requested Rust restriction plus pedantic/nursery is enforced across the
+  workspace. The audit has zero findings and inventories 135 explicit exceptions.
+- Runtime regression fixes cover Unicode escapes, oversized allocations,
+  numeric boundaries, and callbacks that mutate collections. See
+  [the review record](docs/rust-review.md) for the exact findings and validation.
+
+These changes are implemented on main; existing published v0.6.0 downloads and
+checked-in runtime assets are separate from the current runtime sources.
+
 ## What to Focus on Next
 
-1. The measured Rust-native optimization and safety review is complete and
-   frozen in `benchmarks/rust_optimization_baseline.md`.
-2. Rust prerelease `v0.6.0-rc.2` passed both four-target CI matrices, the tagged
-   release workflow, checksum verification, and external `kipferl dev` restart
-   validation from the downloaded artifact without updating stable Homebrew.
-3. The archived Zig implementation is removed. The public README, website,
-   docs, templates, and examples now describe the Rust architecture, stable
-   installation path, and tree-shaken builds; the website publishes the
-   measured migration retrospective and tree-shaking deep dive.
-4. Canonical stub generation, release evidence, cross-target build verification,
-   and the `v0.6.0-rc.2` public bake are complete.
-5. **Complete for v0.6.0:** profile-based tree shaking selects a 1.13–1.35 MB
-   core runtime (1.451 MB standalone app on Apple Silicon) or the full runtime
-   conservatively from imports, with `--full-runtime` as an escape hatch.
-6. **Complete:** stable `v0.6.0` was tagged from the proven merge commit. All
-   published checksums, four CLI targets, static Linux linkage, core/full
-   standalone builds, and the Homebrew formula were verified. The final
-   release story is published at `/blog/kipferl-0-6`.
+1. Pass native four-target and sanitizer CI for the updated source.
+2. Rebuild and verify full/core embedded components through the release workflow
+   before publishing these features and safety fixes in a new version.
+3. Verify the Homebrew token's repository write permission before that stable
+   release; do not infer that the earlier permission problem has been resolved.
+4. Expand compatibility from actual application requirements. Keep the
+   [development workflow](docs/development.md), recipes, and editor stubs aligned.
+5. Measure future optimizations against dated baselines; do not advertise old
+   artifact sizes or timings as measurements of the latest source.
 
 ## Product Roadmap After the Rust Cutover
 
@@ -219,6 +232,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
 - Keep the suite honest by expanding tests when behavior changes.
 
 ### Phase D: Developer experience
+- **Implemented on main (unreleased):** the project/template/configuration/test/
+  completion workflow and pinned mise diagnostic tooling described above.
 - **Complete:** root `stubs/*.pyi` files are the single source of truth.
   `scripts/generate_stubs.py` validates their syntax and runtime registration,
   deterministically generates the Rust include manifest, supports exact
@@ -236,6 +251,8 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   restarts. Parser, filtering, help, and real edit/restart behavior are tested.
 
 ### Phase E: Packaging + release hygiene
+- **Implemented on main (unreleased):** local module/package and resource
+  bundling, static-import diagnostics, atomic writes, and complete cache checks.
 - **Complete:** CI runs the full compatibility report as a regression gate and
   uploads it as an artifact. Tagged releases regenerate and publish that report.
 - **Complete:** CI checks the PocketPy anchors against pristine upstream,

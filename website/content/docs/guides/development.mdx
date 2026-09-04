@@ -1,0 +1,152 @@
+---
+title: Developing Kipferl
+description: Reproduce the Rust and website setup, investigate failures, and validate a contribution
+---
+
+
+This guide is for changing Kipferl itself. To develop a Python application,
+start with [project commands](/docs/commands/projects) and `kipferl dev`.
+The workflow below describes the current source checkout; developer tools and
+unreleased fixes are not installed by the published v0.6 CLI.
+
+## Reproduce the setup
+
+You need Git, mise 2026.9.1 or newer, and a native C compiler and linker. On
+macOS, install the Xcode Command Line Tools; on Linux, install your system's C
+build tools. PocketPy's vendored C source is compiled as part of the Rust build.
+
+```bash
+git clone https://github.com/niklas-heer/kipferl.git
+cd kipferl
+mise trust
+mise install --locked rust python node bun cargo:bacon aqua:nextest-rs/nextest/cargo-nextest watchexec
+mise run setup
+```
+
+Review the repository's task definitions before trusting them. `mise run`
+activates the pinned tools, so shell activation is optional. Setup verifies
+tools and the compiler, fetches locked Cargo dependencies, installs website
+dependencies with Bun's frozen lockfile, and builds the release workspace. It
+can be rerun after pulling changes.
+
+| Tool | Repository pin | Purpose |
+| --- | --- | --- |
+| Rust | `1.97.1`, MSRV `1.97` | Compiler, Cargo, rustfmt, Clippy, Rust Analyzer, `rust-src` |
+| Python | `3.12.14` | Compatibility baseline and repository scripts |
+| Node.js | `26.7.0` | Website tooling |
+| Bun | `1.2.20` | Website dependencies and scripts |
+| Bacon | `3.25.0` | Continuous compiler, lint, and test feedback |
+| cargo-nextest | `0.9.143` | Rust test execution and failure reports |
+| watchexec | `2.7.1` | Sequential checks after source edits |
+
+`mise.toml`, `mise.lock`, and `rust-toolchain.toml` are authoritative. Native
+SDKs, system libraries, and linkers remain host prerequisites; the pins do not
+make different operating systems identical. Run `mise run doctor` to diagnose
+tool drift. Discover the available tasks with `mise tasks ls`.
+
+## Choose a feedback loop
+
+```bash
+mise run bacon
+```
+
+Bacon starts with compiler checks. Press `c` for Clippy, `t` for full Rust tests,
+`r` for core-profile Clippy, `Shift-R` for core tests, or `d` for doctests. It
+exports navigable locations to `target/bacon-locations` for editor integrations.
+Rust Analyzer and standard-library sources are part of the pinned toolchain;
+launch your editor with `mise exec -- <editor> .` if it does not inherit them.
+
+```bash
+mise run watch
+```
+
+The watcher queues a check–test–build sequence when Rust, vendored C, or relevant
+configuration changes. It does not launch an application or a release helper.
+Use `kipferl dev` separately when testing a Python app's behavior.
+
+For one targeted Rust integration suite, nextest accepts package and test
+filters:
+
+```bash
+mise exec -- cargo nextest run --locked -p kipferl-cli --test diagnostics
+```
+
+Test retries are disabled. Slow tests are reported, then terminated after the
+configured limit. Nextest also fails tests whose descendants retain inherited
+output streams. These checks complement the CI memory sanitizers; they do not
+replace them. Keep doctests in `mise run test-doc`, because nextest does not
+execute them.
+
+## Run the contribution gates
+
+| Command | What it checks |
+| --- | --- |
+| `mise run check` | Tool pins, repository script tests, stubs, formatting, full/core compilation and Clippy, nextest, doctests |
+| `mise run lint-audit` | All review lints across full/core profiles, including tests; fails on outstanding diagnostics or exception-policy violations |
+| `mise run test` | The check task plus compatibility, vision, recipes, and website validation |
+| `mise run test-ci` | Full/core nextest profiles with JUnit reports, then doctests |
+| `mise run website-check` | Website types and production build |
+| `mise run bench` | Criterion measurements of loader format and cache behavior |
+
+The strict audit runs pedantic, nursery, and the selected restrictions on
+panics, unwraps, indexing, arithmetic, casts, and process exit. Its report at
+`target/lint-audit/report.md` separates unresolved diagnostics from explicit
+`allow` and `expect` declarations. `exceptions.json` records each declaration's
+location and reason, including conditional declarations.
+
+Fix the cause of a diagnostic. When a specific operation relies on a proven
+invariant, a narrowly scoped `#[expect(clippy::specific_lint, reason = "...")]`
+can document it. Blanket Clippy groups and `allow(warnings)` are rejected.
+Do not add allowances to turn an unexamined finding into a passing check.
+Test-fixture setup assertions have their own documented expectations.
+
+CI runs the same source gates, retains JUnit and lint-audit reports, exercises
+four release targets, and checks the PocketPy FFI with Linux sanitizers. A local
+macOS run does not establish the Linux sanitizer or cross-target results.
+
+## Measure before changing performance
+
+`mise run bench` writes Criterion reports beneath `target/criterion/`. Compare
+the same build profile and machine with an idle system; a changed benchmark is
+evidence to investigate, not a universal speed claim. Loader microbenchmarks
+and the end-to-end scripts in `benchmarks/` measure different costs.
+
+`mise run seek` optionally installs the pinned cargo-seek task tool for
+interactive crate, feature, and MSRV inspection. It does not add dependencies
+to the application. Keep production dependencies feature-minimal and update
+lockfiles deliberately.
+
+## Change runtime code and embedded assets deliberately
+
+`mise run build` produces `target/release/kipferl`, `pocketpy-kipferl`, and
+`kipferl-loader`. To exercise newly compiled native runtime behavior directly:
+
+```bash
+mise run runtime 'import json; print(json.dumps({"ok": True}))'
+```
+
+The public CLI embeds prebuilt, target-specific components from
+`crates/kipferl-cli/assets/`. Rebuilding Rust source alone does not refresh those
+asset files. Test runtime changes against the newly built runtime, then follow
+the repository's release process to refresh and verify components before
+claiming that a distributed CLI contains them. The release workflow rebuilds
+components for all four targets before assembling release CLIs.
+
+After changing the canonical `.pyi` stubs, run `mise run stubs` and
+`mise run stubs-check`. Regenerate FFI bindings with `mise run bindings` when
+needed; it additionally requires bindgen and libclang. Never edit generated
+bindings or the generated stub manifest independently of their sources.
+
+## Work on the website
+
+```bash
+mise run website-dev
+mise run website-check
+mise run recipes
+```
+
+Content lives in `website/content/docs/`; navigation is controlled by
+`meta.json`. The landing page and historical engineering articles live under
+`website/src/app/`. Keep historical release measurements dated, and distinguish
+current source behavior from published artifacts. Recipe code blocks are
+checked against `examples/recipes/`; edit both together when changing a recipe.

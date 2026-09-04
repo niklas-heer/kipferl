@@ -1,0 +1,139 @@
+---
+title: Portable applications
+description: Bundle local Python modules and application resources into one executable
+---
+
+
+A universal build contains the runtime, entry script, discovered local Python
+modules, and explicitly included assets. Its recipient needs no Python or
+Kipferl installation. The executable must match their operating system and CPU.
+External commands your program starts, such as `git`, are still external tools.
+
+## Put code and resources in a project
+
+For example:
+
+```text
+hello/
+  kipferl.json
+  app.py
+  greetings.py
+  assets/
+    welcome.txt
+  tests/
+    test_app.py
+```
+
+Use these defaults in `kipferl.json`:
+
+```json
+{
+  "entry": "app.py",
+  "output": "dist/hello",
+  "assets": ["assets"],
+  "tests": ["tests"]
+}
+```
+
+Create `assets/welcome.txt` containing `Welcome to my app!`. Define a local
+helper in `greetings.py`:
+
+```python
+def greeting(name):
+    return "Hello, " + name + "!"
+```
+
+Then use both in `app.py`:
+
+```python
+import os
+from greetings import greeting
+
+resource = os.path.join(os.path.dirname(__file__), "assets/welcome.txt")
+with open(resource, "r") as source:
+    print(source.read().strip())
+print(greeting("Ada"))
+```
+
+Create `tests/test_app.py` to protect the helper's behavior:
+
+```python
+from greetings import greeting
+
+assert greeting("Ada") == "Hello, Ada!"
+```
+
+Build from the project root:
+
+```bash
+kipferl build
+./dist/hello
+```
+
+The builder follows the import to `greetings.py` and includes the configured
+assets directory. You can also include resources on the command line:
+
+```bash
+kipferl build app.py -o dist/hello --asset assets
+```
+
+Repeat `--asset` to include other existing files or directories. Every supplied
+path must exist. Paths are relative to the nearest `kipferl.json`
+project root, or the entry script's parent when there is no configuration.
+
+## Choose paths by their purpose
+
+`__file__` points to the extracted module source inside the packaged app. Use
+its directory for bundled resources. The application preserves the caller's
+working directory, so a path passed by a user, such as `sales.csv`, still means
+a file in the directory where they invoked the executable.
+
+Treat bundled assets as initial resources, not persistent storage. Save edited
+configuration, logs, reports, and databases in an explicit user-selected or
+application data location. Never bundle credentials or machine-specific secret
+configuration as assets.
+
+## What is included
+
+Static imports recursively discover local `.py` modules and regular packages,
+including imports inside functions and relative imports inside packages.
+Packages need `__init__.py`. The builder validates imported source and checks
+external static imports against the runtime's supported modules before success.
+
+Dynamic names passed to `__import__` or `importlib` do not discover local files.
+Prefer a static import for local modules so the builder can include them. A full
+runtime includes optional built-in capabilities, but does not install pip
+packages or discover code hidden behind computed import names.
+
+Asset paths may name files or directories; directories are included recursively,
+including empty directories.
+Paths must stay inside the project root. Symlinks and path escapes are rejected.
+Current limits are 1 MiB per Python source, 8 MiB per asset file, 32 MiB of combined source and resource input, and 1,024 bundled files. The final executable can be larger because it also
+contains the runtime and encoded resource payload. Asset selection also has a separate limit
+of 1,024 filesystem entries, counting files and directories together, and a
+directory depth of 32. Use runtime input files for large datasets instead of
+embedding them.
+
+All build modes include application resources. Only the default `universal`
+mode embeds the runtime and is fully standalone; `single` and `executable` still
+need `pocketpy-kipferl` installed. See the [build reference](/docs/commands/build)
+for target selection and runtime profiles.
+
+## Verify the handoff
+
+Test the application, then run a copy of the executable away from your source:
+
+```bash
+kipferl test
+kipferl build
+mkdir -p /tmp/kipferl-portable-check
+cp dist/hello /tmp/kipferl-portable-check/hello
+cd /tmp/kipferl-portable-check
+./hello
+```
+
+For a release check, run that directory on a clean machine or container matching
+the target. Exercise the paths that load assets, local modules, and optional
+features. Merely running from your checkout can hide accidental dependencies
+on local files. Kipferl's recipe checker goes further: it deletes the temporary
+build source directory before executing every packaged recipe.

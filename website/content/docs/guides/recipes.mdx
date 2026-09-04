@@ -1,0 +1,210 @@
+---
+title: Useful CLI recipes
+description: Complete tested scripts for CSV, HTTP APIs, repository summaries, and reports
+---
+
+
+These are the complete sources from `examples/recipes/` in the repository. Copy
+a script into your project, or use the checked-in file after cloning Kipferl.
+Each runs directly with `kipferl run` and packages with `kipferl build`.
+Documentation snippets are checked against these exact files in CI, then each
+recipe is executed using temporary data and a local HTTP server.
+
+## CSV summaries
+
+Add up an `amount` column for each `category`. This example accepts quoted
+commas and single-line CSV records, skips blank lines, and prints JSON suitable
+for another tool. It uses floating-point arithmetic for a small operational
+summary; use integer minor units when exact monetary arithmetic is required.
+The current CSV subset does not parse records containing embedded newlines.
+
+```bash
+printf 'category,amount\nFood,12.5\nTools,20\nFood,7.5\n' > sales.csv
+kipferl run examples/recipes/csv_summary.py -- sales.csv
+# {"Food": 20.0, "Tools": 20.0}
+```
+
+{/* recipe:csv_summary.py */}
+```python
+"""Summarize a CSV with category and amount columns."""
+import argparse
+import csv
+import json
+
+parser = argparse.ArgumentParser(description='Summarize a CSV with category and amount columns.')
+parser.add_argument("file", help="CSV file with category and amount columns")
+args = parser.parse_args()
+
+totals = {}
+with open(args.file, "r") as source:
+    lines = [line.rstrip("\r") for line in source.read().split("\n") if line]
+    for row in csv.DictReader(lines):
+        category = row["category"]
+        totals[category] = totals.get(category, 0.0) + float(row["amount"])
+print(json.dumps(totals, sort_keys=True))
+```
+{/* endrecipe */}
+
+## JSON API client
+
+Fetch JSON with a bounded timeout and fail clearly on an unsuccessful HTTP
+status or malformed response. The client uses the built-in `http.client`, so it
+needs no third-party HTTP library. HTTPS uses the runtime's TLS support.
+
+Try it without an external service. In a scratch directory, create `items.json`
+and start a local server with CPython (only the demo server needs Python):
+
+```bash
+printf '{"items":["one","two"]}\n' > items.json
+python3 -m http.server 8765 --bind 127.0.0.1
+```
+
+In a second terminal, from the repository directory:
+
+```bash
+kipferl run examples/recipes/api_client.py -- 127.0.0.1 --port 8765 --path /items.json
+# {"items": ["one", "two"]}
+```
+
+For a real API, provide its hostname, `--https`, and `--path /your/endpoint`.
+Keep credentials outside the source and bundled assets. The recipe has no
+authentication policy; add the API's required headers from your environment.
+
+{/* recipe:api_client.py */}
+```python
+"""Fetch JSON from an HTTP or HTTPS API."""
+import argparse
+import json
+import sys
+
+http = __import__("http.client")
+# CPython returns the parent package; Kipferl returns the module directly.
+http = getattr(http, "client", http)
+
+parser = argparse.ArgumentParser(description='Fetch JSON from an HTTP or HTTPS API.')
+parser.add_argument("host", help="Hostname without a URL scheme")
+parser.add_argument("--path", default="/", help="Request path, including any query")
+parser.add_argument("--port", type=int, default=0)
+parser.add_argument("--https", action="store_true")
+args = parser.parse_args()
+
+connection_type = http.HTTPSConnection if args.https else http.HTTPConnection
+port = args.port or (443 if args.https else 80)
+try:
+    connection = connection_type(args.host, port, timeout=10)
+    connection.request("GET", args.path, headers={"Accept": "application/json"})
+    response = connection.getresponse()
+    if response.status < 200 or response.status >= 300:
+        sys.stderr.write("API returned HTTP " + str(response.status) + "\n")
+        sys.exit(1)
+    print(json.dumps(json.loads(response.read().decode()), sort_keys=True))
+except Exception as error:
+    sys.stderr.write("Could not fetch JSON: " + str(error) + "\n")
+    sys.exit(1)
+```
+{/* endrecipe */}
+
+## Inspect a repository
+
+Count files by extension without requiring Git. Generated directories and
+version-control metadata are excluded; resolved directory tracking prevents
+cycles when following directory links. This inspects the filesystem, including
+untracked files; it does not interpret `.gitignore` rules. Point it at a trusted
+source directory; a directory link may lead outside that directory.
+
+```bash
+kipferl run examples/recipes/repository_summary.py -- . > counts.json
+```
+
+{/* recipe:repository_summary.py */}
+```python
+"""Count a repository's files by extension, excluding generated directories."""
+import argparse
+import json
+import os
+from pathlib import Path
+
+parser = argparse.ArgumentParser(description="Count a repository's files by extension, excluding generated directories.")
+parser.add_argument("directory", help="Repository or source directory")
+args = parser.parse_args()
+
+ignored = [".git", ".hg", ".svn", ".kipferl", ".venv", "__pycache__", "node_modules", "target", "dist"]
+pending = [Path(args.directory)]
+visited = set()
+counts = {}
+while pending:
+    directory = pending.pop()
+    resolved = str(directory.resolve())
+    if resolved in visited:
+        continue
+    visited.add(resolved)
+    for name in sorted(os.listdir(str(directory))):
+        path = directory / name
+        if path.is_dir():
+            if name not in ignored:
+                pending.append(path)
+        elif path.is_file():
+            extension = path.suffix or "(no extension)"
+            counts[extension] = counts.get(extension, 0) + 1
+print(json.dumps(counts, sort_keys=True))
+```
+{/* endrecipe */}
+
+## Generate a report
+
+Turn the previous recipe's JSON output into a sorted Markdown table. Pipe
+characters and line breaks in cells are escaped so input labels do not break
+the table. This creates or overwrites the output file you specify.
+
+```bash
+kipferl run examples/recipes/generate_report.py -- counts.json report.md
+```
+
+{/* recipe:generate_report.py */}
+```python
+"""Turn a JSON object of counts into a Markdown report."""
+import argparse
+import json
+
+parser = argparse.ArgumentParser(description='Turn a JSON object of counts into a Markdown report.')
+parser.add_argument("input", help="JSON object mapping labels to values")
+parser.add_argument("output", help="Markdown file to create")
+args = parser.parse_args()
+
+with open(args.input, "r") as source:
+    values = json.load(source)
+lines = ["# Summary", "", "| Item | Value |", "| --- | ---: |"]
+for label in sorted(values):
+    safe_label = str(label).replace("|", "\\|").replace("\n", " ")
+    safe_value = str(values[label]).replace("|", "\\|").replace("\n", " ")
+    lines.append("| " + safe_label + " | " + safe_value + " |")
+with open(args.output, "w") as destination:
+    destination.write("\n".join(lines) + "\n")
+print("Wrote " + args.output)
+```
+{/* endrecipe */}
+
+## Package a recipe
+
+```bash
+kipferl build examples/recipes/csv_summary.py -o csv-summary
+./csv-summary sales.csv
+```
+
+The output is a native executable for the selected target. Input/output paths
+are provided by the caller; you only need bundled [assets](/docs/guides/packaging)
+when distributing fixed resources such as a report template.
+
+## Verify the examples
+
+From a source checkout with the [mise setup](/docs/guides/development):
+
+```bash
+mise run recipes
+```
+
+This builds the runtime and CLI, exercises `kipferl run`, and packages every
+recipe. The check deletes the temporary build sources
+before running the binaries in an unrelated directory. HTTP checks bind only
+to localhost and need no public service. `--docs-only` checks snippet drift
+without requiring a built runtime.
