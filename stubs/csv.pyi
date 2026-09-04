@@ -1,31 +1,29 @@
-"""
-csv - Native module
+"""Comma-separated text with eager readers and minimal quoting.
+
+reader returns a list of rows and parses each input string independently;
+quoted fields spanning input lines and dialect configuration are not supported.
+Writer methods return the result of the supplied output object's write method.
 """
 
-from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator
+from typing import Any, Dict, Iterable, Iterator, List, Optional
 
 QUOTE_MINIMAL: int
 QUOTE_ALL: int
 QUOTE_NONNUMERIC: int
 QUOTE_NONE: int
 
-def writerow() -> None:
-    ...
+def reader(csvfile: Iterable[str]) -> List[List[str]]: ...
 
-def writerows() -> None:
-    ...
+class writer:
+    def __init__(self, output: Any) -> None: ...
+    def writerow(self, row: Iterable[Any]) -> Any: ...
 
-def parse() -> None:
-    ...
+class DictReader:
+    def __init__(self, data: Iterable[str], fieldnames: Optional[List[str]] = None) -> None: ...
+    def __iter__(self) -> Iterator[Dict[str, str]]: ...
 
-def format() -> None:
-    ...
-
-def reader() -> None:
-    ...
-
-def writer() -> None:
-    ...
-
-def get_dialect() -> dict:
-    ...
+class DictWriter:
+    fieldnames: List[str]
+    def __init__(self, output: Any, fieldnames: List[str]) -> None: ...
+    def writeheader(self) -> Any: ...
+    def writerow(self, row: Dict[str, Any]) -> Any: ...

@@ -1,26 +1,14 @@
+"""Temporary paths in the runtime's temporary directory.
+
+mktemp returns an unused name without reserving it. mkstemp creates and closes
+an empty file and returns its path, rather than a file-descriptor/path tuple.
+mkdtemp's optional prefix is a complete path prefix; the default is <temp>/tmp.
+Callers are responsible for removing created files and directories.
 """
-tempfile - Native module
-"""
 
-from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator
+from typing import Optional
 
-def gettempdir() -> str:
-    ...
-
-def mktemp() -> None:
-    ...
-
-def mkstemp() -> None:
-    ...
-
-def mkdtemp() -> None:
-    ...
-
-def unlink(value: Any) -> None:
-    ...
-
-def rmdir(value: Any) -> None:
-    ...
-
-def rmtree(value: Any) -> None:
-    ...
+def gettempdir() -> str: ...
+def mktemp() -> str: ...
+def mkstemp() -> str: ...
+def mkdtemp(prefix: Optional[str] = None) -> str: ...

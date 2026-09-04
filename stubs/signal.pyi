@@ -1,44 +1,37 @@
+"""Limited signal compatibility.
+
+signal/getsignal only store Python handlers; they do not install OS handlers.
+alarm returns zero without scheduling anything and pause returns immediately.
+raise_signal sends a real process signal through libc; stored Python handlers
+are not invoked by that operation. Signal constants retain legacy numeric values.
 """
-signal - Native module
-"""
 
-from typing import Optional, Any, List, Callable, TypeVar, Iterable, Iterator
+from typing import Any
 
-def signal() -> None:
-    ...
+SIG_DFL: int
+SIG_IGN: int
+SIGHUP: int
+SIGINT: int
+SIGQUIT: int
+SIGILL: int
+SIGTRAP: int
+SIGABRT: int
+SIGBUS: int
+SIGFPE: int
+SIGKILL: int
+SIGUSR1: int
+SIGSEGV: int
+SIGUSR2: int
+SIGPIPE: int
+SIGALRM: int
+SIGTERM: int
+SIGCHLD: int
+SIGCONT: int
+SIGSTOP: int
+SIGTSTP: int
 
-def getsignal(value: Any) -> handler:
-    ...
-
-def check_pending(value: Any) -> bool:
-    ...
-
-def dispatch(value: Any) -> bool:
-    ...
-
-def dispatch_all() -> int:
-    ...
-
-def kill() -> None:
-    ...
-
-def raise_signal(value: Any) -> None:
-    ...
-
-def pause() -> None:
-    ...
-
-def alarm(value: Any) -> int:
-    ...
-
-def getpid() -> int:
-    ...
-
-def getppid() -> int:
-    ...
-
-def block(value: Any) -> None:
-    ...
-
-def unblock(value: Any) -> None:
-    ...
+def signal(signum: int, handler: Any) -> Any: ...
+def getsignal(signum: int) -> Any: ...
+def alarm(seconds: int) -> int: ...
+def pause() -> None: ...
+def raise_signal(signum: int) -> None: ...
