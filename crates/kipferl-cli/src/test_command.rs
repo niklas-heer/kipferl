@@ -1,9 +1,10 @@
 use std::env;
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
-use crate::run_command;
+use crate::{project_config, run_command};
 
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
@@ -24,10 +25,15 @@ pub fn execute(
     arguments: &[String],
     current_directory: &Path,
     stdout: &mut dyn Write,
-    _stderr: &mut dyn Write,
+    stderr: &mut dyn Write,
 ) -> io::Result<u8> {
-    let Some(options) = parse(arguments, stdout)? else {
-        return Ok(0);
+    let options = match parse(arguments, stdout) {
+        Ok(Some(options)) => options,
+        Ok(None) => return Ok(0),
+        Err(error) => {
+            writeln!(stderr, "Error: {error}")?;
+            return Ok(1);
+        }
     };
 
     if options.compat {
@@ -35,38 +41,54 @@ pub fn execute(
     } else if let Some(test_file) = options.test_file {
         run_single_test(&test_file, current_directory, stdout)
     } else {
-        write!(stdout, "{}", help())?;
-        Ok(0)
+        match run_project_tests(current_directory, stdout) {
+            Ok(code) => Ok(code),
+            Err(error) => {
+                writeln!(stderr, "Error: {error}")?;
+                Ok(1)
+            }
+        }
     }
 }
 
 fn parse(arguments: &[String], stdout: &mut dyn Write) -> io::Result<Option<Options>> {
     let mut options = Options::default();
-    let mut index = 0;
+    let mut arguments = arguments.iter();
 
-    while index < arguments.len() {
-        match arguments[index].as_str() {
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
             "--compat" => options.compat = true,
             "--report" | "-r" => options.report = true,
             "--verbose" | "-v" => options.verbose = true,
             "--module" | "-m" => {
-                index += 1;
-                if let Some(module) = arguments.get(index) {
-                    options.module = Some(module.clone());
-                }
+                let module = arguments
+                    .next()
+                    .filter(|v| !v.starts_with('-'))
+                    .ok_or_else(|| invalid("--module requires a module name"))?;
+                options.module = Some(module.clone());
             }
             "-h" | "--help" => {
                 write!(stdout, "{}", help())?;
                 return Ok(None);
             }
             argument if !argument.starts_with('-') => {
+                if options.test_file.is_some() {
+                    return Err(invalid("only one test file or directory may be specified"));
+                }
                 options.test_file = Some(argument.to_owned());
             }
-            _ => {}
+            option => return Err(invalid(&format!("unknown option '{option}'"))),
         }
-        index += 1;
     }
 
+    if options.compat && options.test_file.is_some() {
+        return Err(invalid("--compat cannot be combined with a test path"));
+    }
+    if !options.compat && (options.report || options.verbose || options.module.is_some()) {
+        return Err(invalid(
+            "--report, --verbose, and --module require --compat",
+        ));
+    }
     Ok(Some(options))
 }
 
@@ -173,91 +195,138 @@ fn run_single_test(
     current_directory: &Path,
     stdout: &mut dyn Write,
 ) -> io::Result<u8> {
-    let runtime_path = runtime_path(current_directory)?;
+    let path = current_directory.join(test_file);
+    if path.is_dir() {
+        let mut files = Vec::new();
+        discover_tests(&path, &mut files)?;
+        return run_files(&mut files, current_directory, stdout);
+    }
     writeln!(stdout, "Running {test_file} with pocketpy-kipferl...\n")?;
     stdout.flush()?;
+    exit_code(
+        Command::new(env::current_exe()?)
+            .arg("run")
+            .arg(path)
+            .current_dir(current_directory)
+            .status()?,
+    )
+}
 
-    let status = Command::new(runtime_path)
-        .arg(test_file)
-        .current_dir(current_directory)
-        .status()?;
-    exit_code(status)
+fn run_project_tests(current_directory: &Path, stdout: &mut dyn Write) -> io::Result<u8> {
+    let (root, paths) = match project_config::discover(current_directory)? {
+        Some(config) => (config.root, config.tests),
+        None => (current_directory.to_owned(), vec![PathBuf::from("tests")]),
+    };
+    let mut files = Vec::new();
+    for path in paths {
+        let path = root.join(path);
+        if !path.exists() {
+            return Err(invalid(&format!(
+                "test path does not exist: {}; create tests/test_app.py with top-level assertions",
+                path.display()
+            )));
+        }
+        if path.is_dir() {
+            discover_tests(&path, &mut files)?;
+        } else if path.extension().is_some_and(|v| v == "py") {
+            files.push(path);
+        } else {
+            return Err(invalid(&format!(
+                "test path is not a Python file: {}",
+                path.display()
+            )));
+        }
+    }
+    run_files(&mut files, &root, stdout)
+}
+
+fn discover_tests(directory: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        // Do not follow directory symlinks or traverse generated files.
+        if kind.is_dir() && !name.starts_with('.') && name != "__pycache__" {
+            discover_tests(&entry.path(), files)?;
+        } else if kind.is_file() && name.starts_with("test_") && name.ends_with(".py") {
+            files.push(entry.path());
+        }
+    }
+    Ok(())
+}
+
+fn run_files(files: &mut Vec<PathBuf>, root: &Path, stdout: &mut dyn Write) -> io::Result<u8> {
+    files.sort();
+    files.dedup();
+    if files.is_empty() {
+        return Err(invalid(
+            "no tests found; create tests/test_app.py with top-level assertions",
+        ));
+    }
+    let mut failed = 0_usize;
+    for file in files.iter() {
+        if run_single_test(&file.to_string_lossy(), root, stdout)? != 0 {
+            failed = failed.saturating_add(1);
+        }
+    }
+    writeln!(
+        stdout,
+        "\n{} passed, {failed} failed ({} test files)",
+        files.len().saturating_sub(failed),
+        files.len()
+    )?;
+    Ok(u8::from(failed != 0))
+}
+
+fn invalid(message: &str) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message.to_owned())
 }
 
 fn exit_code(status: ExitStatus) -> io::Result<u8> {
-    match status.code() {
-        Some(code) => u8::try_from(code).map_err(|_| {
+    status.code().map_or(Ok(1), |code| {
+        u8::try_from(code).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("child process returned invalid exit code {code}"),
             )
-        }),
-        None => Ok(1),
-    }
+        })
+    })
 }
 
 pub fn help() -> String {
     format!(
-        "\n  {CYAN}{BOLD}Kipferl test{RESET} - CPython Compatibility Testing\n\n{BOLD}USAGE{RESET}\n    kipferl test [options] [file]\n\n{BOLD}OPTIONS{RESET}\n    {CYAN}--compat{RESET}        Run full CPython compatibility test suite\n    {CYAN}--report{RESET}, -r    Generate compat_report.md\n    {CYAN}--verbose{RESET}, -v   Show failure details\n    {CYAN}--module{RESET}, -m    Test only specified module\n    {CYAN}-h{RESET}, --help      Show this help\n\n{BOLD}EXAMPLES{RESET}\n    {DIM}${RESET} kipferl test --compat              {DIM}# Full compatibility suite{RESET}\n    {DIM}${RESET} kipferl test --compat --report     {DIM}# Generate markdown report{RESET}\n    {DIM}${RESET} kipferl test --compat -m functools {DIM}# Test single module{RESET}\n    {DIM}${RESET} kipferl test mytest.py             {DIM}# Run with pocketpy-kipferl{RESET}\n\n{BOLD}ABOUT{RESET}\n    Tests Kipferl's compatibility with CPython standard library.\n    Runs each test file with both CPython and pocketpy-kipferl,\n    comparing results to calculate compatibility percentages.\n\n"
+        "\n  {CYAN}{BOLD}Kipferl test{RESET} - Project tests and CPython Compatibility Testing\n\n{BOLD}USAGE{RESET}\n    kipferl test [options] [file]\n\n{BOLD}OPTIONS{RESET}\n    {CYAN}--compat{RESET}        Run full CPython compatibility test suite\n    {CYAN}--report{RESET}, -r    Generate compat_report.md\n    {CYAN}--verbose{RESET}, -v   Show failure details\n    {CYAN}--module{RESET}, -m    Test only specified module\n    {CYAN}-h{RESET}, --help      Show this help\n\n{BOLD}EXAMPLES{RESET}\n    {DIM}${RESET} kipferl test --compat              {DIM}# Full compatibility suite{RESET}\n    {DIM}${RESET} kipferl test --compat --report     {DIM}# Generate markdown report{RESET}\n    {DIM}${RESET} kipferl test --compat -m functools {DIM}# Test single module{RESET}\n    {DIM}${RESET} kipferl test mytest.py             {DIM}# Run with pocketpy-kipferl{RESET}\n\n{BOLD}ABOUT{RESET}\n    Without --compat, discovers tests/test_*.py recursively or the paths\n    configured in kipferl.json. Tests use top-level assertions; each file\n    runs in an isolated interpreter. Any failed file fails the command.\n\n    --compat tests Kipferl's compatibility with CPython standard library.\n    Runs each test file with both CPython and pocketpy-kipferl,\n    comparing results to calculate compatibility percentages.\n\n"
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Options, help, parse};
+    use super::parse;
 
     #[test]
-    fn parses_legacy_options() {
-        let arguments = [
-            "--compat",
-            "-r",
-            "--verbose",
-            "--module",
-            "functools",
-            "first.py",
-            "last.py",
-            "--unknown",
-        ]
-        .map(str::to_owned);
-        let mut stdout = Vec::new();
-
-        assert_eq!(
-            parse(&arguments, &mut stdout).expect("parse options"),
-            Some(Options {
-                compat: true,
-                report: true,
-                verbose: true,
-                module: Some("functools".to_owned()),
-                test_file: Some("last.py".to_owned()),
-            })
-        );
-        assert!(stdout.is_empty());
-    }
-
-    #[test]
-    fn help_matches_the_zig_cli() {
-        assert_eq!(
-            help(),
-            concat!(
-                "\n  \x1b[36m\x1b[1mKipferl test\x1b[0m - CPython Compatibility Testing\n\n",
-                "\x1b[1mUSAGE\x1b[0m\n",
-                "    kipferl test [options] [file]\n\n",
-                "\x1b[1mOPTIONS\x1b[0m\n",
-                "    \x1b[36m--compat\x1b[0m        Run full CPython compatibility test suite\n",
-                "    \x1b[36m--report\x1b[0m, -r    Generate compat_report.md\n",
-                "    \x1b[36m--verbose\x1b[0m, -v   Show failure details\n",
-                "    \x1b[36m--module\x1b[0m, -m    Test only specified module\n",
-                "    \x1b[36m-h\x1b[0m, --help      Show this help\n\n",
-                "\x1b[1mEXAMPLES\x1b[0m\n",
-                "    \x1b[2m$\x1b[0m kipferl test --compat              \x1b[2m# Full compatibility suite\x1b[0m\n",
-                "    \x1b[2m$\x1b[0m kipferl test --compat --report     \x1b[2m# Generate markdown report\x1b[0m\n",
-                "    \x1b[2m$\x1b[0m kipferl test --compat -m functools \x1b[2m# Test single module\x1b[0m\n",
-                "    \x1b[2m$\x1b[0m kipferl test mytest.py             \x1b[2m# Run with pocketpy-kipferl\x1b[0m\n\n",
-                "\x1b[1mABOUT\x1b[0m\n",
-                "    Tests Kipferl's compatibility with CPython standard library.\n",
-                "    Runs each test file with both CPython and pocketpy-kipferl,\n",
-                "    comparing results to calculate compatibility percentages.\n\n",
+    fn rejects_unknown_and_conflicting_test_arguments() {
+        for args in [
+            vec!["--unknown"],
+            vec!["--module"],
+            vec!["a.py", "b.py"],
+            vec!["--compat", "a.py"],
+            vec!["--report"],
+        ] {
+            assert!(
+                parse(
+                    &args.into_iter().map(str::to_owned).collect::<Vec<_>>(),
+                    &mut Vec::new()
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            parse(
+                &["--compat".into(), "--module".into(), "json".into()],
+                &mut Vec::new()
             )
+            .is_ok()
         );
     }
 }

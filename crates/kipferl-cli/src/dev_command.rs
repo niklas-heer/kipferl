@@ -106,10 +106,30 @@ pub fn execute(
         }
     };
 
+    watch(
+        &options,
+        &script_path,
+        &targets,
+        &runtime_path,
+        current_directory,
+        stdout,
+        stderr,
+    )
+}
+
+fn watch(
+    options: &Options,
+    script_path: &Path,
+    targets: &[WatchTarget],
+    runtime_path: &Path,
+    current_directory: &Path,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> io::Result<u8> {
     let (sender, receiver) = mpsc::channel();
     let mut watcher = notify::recommended_watcher(sender).map_err(watch_error)?;
     let mut watched_roots = HashSet::new();
-    for target in &targets {
+    for target in targets {
         if watched_roots.insert(target.root.clone()) {
             watcher
                 .watch(&target.root, RecursiveMode::Recursive)
@@ -120,19 +140,23 @@ pub fn execute(
     writeln!(
         stdout,
         "{GREEN}{BOLD}Kipferl dev{RESET} {DIM}watching {}{}",
-        targets[0].requested.display(),
+        targets
+            .first()
+            .ok_or_else(|| io::Error::other("no watch targets"))?
+            .requested
+            .display(),
         if targets.len() == 1 {
             String::new()
         } else {
-            format!(" and {} more", targets.len() - 1)
+            format!(" and {} more", targets.len().saturating_sub(1))
         }
     )?;
     stdout.flush()?;
 
     let terminal = TerminalState::capture();
     let mut child = Some(spawn_script(
-        &runtime_path,
-        &script_path,
+        runtime_path,
+        script_path,
         &options.script_arguments,
         current_directory,
         stdout,
@@ -142,14 +166,19 @@ pub fn execute(
 
     loop {
         match receiver.recv_timeout(LOOP_INTERVAL) {
-            Ok(Ok(event)) if event_requires_restart(&event, &targets) => {
-                restart_at = Some(Instant::now() + options.debounce);
+            Ok(Ok(event)) if event_requires_restart(&event, targets) => {
+                restart_at = Some(Instant::now().checked_add(options.debounce).ok_or_else(
+                    || {
+                        io::Error::other(
+                            "watch debounce deadline exceeds the monotonic clock range",
+                        )
+                    },
+                )?);
             }
-            Ok(Ok(_)) => {}
             Ok(Err(error)) => {
                 writeln!(stderr, "{YELLOW}Watch warning:{RESET} {error}")?;
             }
-            Err(RecvTimeoutError::Timeout) => {}
+            Ok(Ok(_)) | Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 stop_child(&mut child, terminal.as_ref());
                 writeln!(
@@ -180,8 +209,8 @@ pub fn execute(
             writeln!(stdout, "{CYAN}{BOLD}↻{RESET} Change detected, restarting…")?;
             stdout.flush()?;
             child = match spawn_script(
-                &runtime_path,
-                &script_path,
+                runtime_path,
+                script_path,
                 &options.script_arguments,
                 current_directory,
                 stdout,
@@ -207,22 +236,20 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
     let mut watch_paths = Vec::new();
     let mut clear = false;
     let mut debounce = Duration::from_millis(DEFAULT_DEBOUNCE_MS);
-    let mut index = 0;
+    let mut arguments = arguments.iter();
 
-    while let Some(argument) = arguments.get(index) {
+    while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "-w" | "--watch" => {
-                index += 1;
                 let path = arguments
-                    .get(index)
+                    .next()
                     .ok_or_else(|| format!("{argument} requires a path"))?;
                 watch_paths.push(PathBuf::from(path));
             }
             "--clear" => clear = true,
             "--debounce" => {
-                index += 1;
                 let value = arguments
-                    .get(index)
+                    .next()
                     .ok_or_else(|| "--debounce requires milliseconds".to_owned())?;
                 let milliseconds = value
                     .parse::<u64>()
@@ -237,7 +264,7 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
                 return Err(format!("unknown option '{option}'"));
             }
             script => {
-                let mut script_arguments = arguments[index + 1..].to_vec();
+                let mut script_arguments = arguments.cloned().collect::<Vec<_>>();
                 if script_arguments.first().is_some_and(|value| value == "--") {
                     script_arguments.remove(0);
                 }
@@ -250,7 +277,6 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
                 });
             }
         }
-        index += 1;
     }
 
     Err("no script specified".to_owned())
@@ -399,7 +425,7 @@ fn report_exit(stdout: &mut dyn Write, status: ExitStatus) -> io::Result<()> {
 }
 
 fn watch_error(error: notify::Error) -> io::Error {
-    io::Error::other(format!("file watcher: {error}"))
+    io::Error::other(error)
 }
 
 struct TerminalState(libc::termios);
@@ -422,7 +448,7 @@ impl TerminalState {
     fn restore(&self) {
         // SAFETY: the settings were captured from this terminal and remain
         // initialized for the duration of the call.
-        unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &self.0) };
+        unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &raw const self.0) };
         eprint!("\x1b[0m\x1b[?25h");
     }
 }

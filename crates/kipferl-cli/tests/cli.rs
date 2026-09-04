@@ -221,7 +221,7 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
     let universal = fs::read(temporary.path.join("app.universal")).expect("read universal");
     let trailer = kipferl_format::Trailer::decode_from_end(&universal).expect("decode trailer");
     trailer
-        .validate_layout(universal.len() as u64)
+        .validate_layout(u64::try_from(universal.len()).expect("artifact size fits u64"))
         .expect("validate universal layout");
 
     let executed = Command::new(temporary.path.join("app.universal"))
@@ -284,9 +284,18 @@ fn build_packages_every_release_target_with_the_matching_assets() {
 
         let artifact = fs::read(temporary.path.join(output)).expect("read artifact");
         let trailer = kipferl_format::Trailer::decode_from_end(&artifact).expect("decode trailer");
-        assert_eq!(trailer.runtime_offset, loader.len() as u64);
-        assert_eq!(trailer.runtime_size, runtime.len() as u64);
-        assert_eq!(trailer.python_offset, (loader.len() + runtime.len()) as u64);
+        assert_eq!(
+            trailer.runtime_offset,
+            u64::try_from(loader.len()).expect("artifact size fits u64")
+        );
+        assert_eq!(
+            trailer.runtime_size,
+            u64::try_from(runtime.len()).expect("artifact size fits u64")
+        );
+        assert_eq!(
+            trailer.python_offset,
+            u64::try_from(loader.len() + runtime.len()).expect("artifact size fits u64")
+        );
         assert_eq!(&artifact[..loader.len()], loader);
         assert_eq!(
             &artifact[loader.len()..loader.len() + runtime.len()],
@@ -308,8 +317,14 @@ fn build_packages_every_release_target_with_the_matching_assets() {
         let core_artifact = fs::read(temporary.path.join(core_output)).expect("read core artifact");
         let core_trailer =
             kipferl_format::Trailer::decode_from_end(&core_artifact).expect("decode core trailer");
-        assert_eq!(core_trailer.runtime_offset, loader.len() as u64);
-        assert_eq!(core_trailer.runtime_size, core_runtime.len() as u64);
+        assert_eq!(
+            core_trailer.runtime_offset,
+            u64::try_from(loader.len()).expect("artifact size fits u64")
+        );
+        assert_eq!(
+            core_trailer.runtime_size,
+            u64::try_from(core_runtime.len()).expect("artifact size fits u64")
+        );
         assert_eq!(
             &core_artifact[loader.len()..loader.len() + core_runtime.len()],
             core_runtime
@@ -339,11 +354,15 @@ fn build_selects_full_runtime_for_optional_or_dynamic_imports() {
 
         let artifact = fs::read(temporary.path.join(output)).expect("read full artifact");
         let trailer = kipferl_format::Trailer::decode_from_end(&artifact).expect("decode trailer");
-        assert_eq!(trailer.runtime_size, crate_runtime().len() as u64, "{name}");
+        assert_eq!(
+            trailer.runtime_size,
+            u64::try_from(crate_runtime().len()).expect("artifact size fits u64"),
+            "{name}"
+        );
     }
 }
 
-fn crate_runtime() -> &'static [u8] {
+const fn crate_runtime() -> &'static [u8] {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     return include_bytes!("../assets/pocketpy-kipferl-macos-aarch64");
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
@@ -352,7 +371,10 @@ fn crate_runtime() -> &'static [u8] {
     return include_bytes!("../assets/pocketpy-kipferl-linux-aarch64");
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     return include_bytes!("../assets/pocketpy-kipferl-linux-x86_64");
-    #[allow(unreachable_code)]
+    #[allow(
+        unreachable_code,
+        reason = "Each supported target returns its cfg-selected constant; this fallback only compiles for other targets"
+    )]
     &[]
 }
 
@@ -397,6 +419,225 @@ fn run_transforms_a_script_and_forwards_arguments() {
     assert_eq!(failed.status.code(), Some(1));
     assert!(text(&failed.stdout).contains("RuntimeError: expected failure"));
     assert!(text(&failed.stderr).contains("error: Python execution failed"));
+}
+
+#[test]
+fn run_repairs_same_size_cache_corruption() {
+    let temporary = TestDirectory::new("cache repair");
+    fs::write(temporary.path.join("app.py"), "print('original')\n").expect("write script");
+    let first = run(&temporary, &["run", "app.py"]);
+    assert!(first.status.success(), "{}", text(&first.stderr));
+    let cache = fs::read_dir(temporary.path.join(".cache"))
+        .expect("read cache")
+        .next()
+        .expect("cache directory")
+        .expect("cache entry")
+        .path();
+    for entry in fs::read_dir(&cache).expect("read cached files") {
+        let path = entry.expect("cached file").path();
+        let mut bytes = fs::read(&path).expect("read cached file");
+        if path.extension().is_some_and(|extension| extension == "py") {
+            let script = text(&bytes).replace("original", "tampered");
+            assert_eq!(script.len(), bytes.len());
+            bytes = script.into_bytes();
+        } else {
+            bytes[0] ^= 0xff;
+        }
+        fs::write(&path, bytes).expect("corrupt cached file without changing length");
+    }
+
+    let repaired = run(&temporary, &["run", "app.py"]);
+    assert!(repaired.status.success(), "{}", text(&repaired.stderr));
+    assert_eq!(text(&repaired.stdout), "original\n");
+
+    for entry in fs::read_dir(&cache).expect("read repaired cache") {
+        let path = entry.expect("cached file").path();
+        let mode = if path.extension().is_some_and(|extension| extension == "py") {
+            0o000
+        } else {
+            0o111
+        };
+        fs::set_permissions(&path, fs::Permissions::from_mode(mode))
+            .expect("remove cache read permissions");
+    }
+    let repaired = run(&temporary, &["run", "app.py"]);
+    assert!(repaired.status.success(), "{}", text(&repaired.stderr));
+    assert_eq!(text(&repaired.stdout), "original\n");
+    for entry in fs::read_dir(&cache).expect("read accessible cache") {
+        let path = entry.expect("cached file").path();
+        let expected_mode = if path.extension().is_some_and(|extension| extension == "py") {
+            0o600
+        } else {
+            0o755
+        };
+        assert_eq!(
+            fs::metadata(path)
+                .expect("cache metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            expected_mode
+        );
+    }
+}
+
+#[test]
+fn run_and_build_enforce_the_same_script_size_boundary() {
+    let temporary = TestDirectory::new("script size");
+    let source = temporary.path.join("app.py");
+    let mut bytes = vec![b' '; 1024 * 1024];
+    bytes[0] = b'#';
+    fs::write(&source, &bytes).expect("write maximum-size script");
+    for arguments in [
+        vec!["run", "app.py"],
+        vec!["build", "app.py", "-o", "app.single", "--mode", "single"],
+    ] {
+        let output = run(&temporary, &arguments);
+        assert!(output.status.success(), "{}", text(&output.stderr));
+    }
+    let original_artifact = fs::read(temporary.path.join("app.single")).expect("read artifact");
+    bytes.push(b' ');
+    fs::write(&source, &bytes).expect("write oversized script");
+    for arguments in [
+        vec!["run", "app.py"],
+        vec!["build", "app.py", "-o", "app.single", "--mode", "single"],
+    ] {
+        let output = run(&temporary, &arguments);
+        assert!(!output.status.success());
+    }
+    assert_eq!(
+        fs::read(temporary.path.join("app.single")).expect("read preserved artifact"),
+        original_artifact
+    );
+}
+
+#[test]
+fn build_handles_parenthesized_legacy_imports_in_all_output_modes() {
+    let temporary = TestDirectory::new("multiline imports");
+    fs::write(
+        temporary.path.join("app.py"),
+        "from kipferl import (\n    success, # a closing ) in a comment\n    confirm,\n)\nprint(callable(confirm))\nsuccess('multiline works')\n",
+    )
+    .expect("write multiline fixture");
+    let executed = run(&temporary, &["run", "app.py"]);
+    assert!(executed.status.success(), "{}", text(&executed.stderr));
+    assert!(text(&executed.stdout).contains("multiline works"));
+
+    for mode in ["single", "executable", "universal"] {
+        let output = format!("app.{mode}");
+        let built = run(
+            &temporary,
+            &["build", "app.py", "-o", &output, "--mode", mode],
+        );
+        assert!(built.status.success(), "{}", text(&built.stderr));
+        if mode == "single" {
+            let executed = run(&temporary, &["run", &output]);
+            assert!(executed.status.success(), "{}", text(&executed.stderr));
+            assert!(text(&executed.stdout).contains("multiline works"));
+        } else if mode == "universal" {
+            let executed = Command::new(temporary.path.join(&output))
+                .current_dir(&temporary.path)
+                .env("KIPFERL_CACHE_DIR", temporary.path.join(".cache"))
+                .output()
+                .expect("run multiline universal app");
+            assert!(executed.status.success(), "{}", text(&executed.stderr));
+            assert!(text(&executed.stdout).contains("True\n"));
+            assert!(text(&executed.stdout).contains("multiline works"));
+        }
+    }
+}
+
+#[test]
+fn run_and_build_preserve_import_examples_inside_multiline_strings() {
+    let temporary = TestDirectory::new("literal import examples");
+    let literal =
+        "\nfrom kipferl import (\nexample text\nfrom ucharm import confirm\nimport kipferl\n";
+    let expected = format!("{literal}hello\n");
+    for quote in ["\"\"\"", "'''"] {
+        let source = format!("doc = {quote}{literal}{quote}\nprint(doc, end='')\nprint('hello')\n");
+        fs::write(temporary.path.join("app.py"), &source).expect("write literal fixture");
+        let executed = run(&temporary, &["run", "app.py"]);
+        assert!(executed.status.success(), "{}", text(&executed.stderr));
+        assert_eq!(text(&executed.stdout), expected);
+
+        for mode in ["single", "universal"] {
+            let output = format!("app.{mode}");
+            let built = run(
+                &temporary,
+                &["build", "app.py", "-o", &output, "--mode", mode],
+            );
+            assert!(built.status.success(), "{}", text(&built.stderr));
+            let executed = if mode == "single" {
+                run(&temporary, &["run", &output])
+            } else {
+                assert!(text(&built.stdout).contains("Runtime profile \x1b[1mcore"));
+                Command::new(temporary.path.join(&output))
+                    .current_dir(&temporary.path)
+                    .env("KIPFERL_CACHE_DIR", temporary.path.join(".cache"))
+                    .output()
+                    .expect("run literal universal app")
+            };
+            assert!(executed.status.success(), "{}", text(&executed.stderr));
+            assert_eq!(text(&executed.stdout), expected);
+        }
+    }
+}
+
+#[test]
+fn build_replaces_an_output_symlink_without_modifying_its_target() {
+    let temporary = TestDirectory::new("atomic build");
+    fs::write(temporary.path.join("app.py"), "print('replacement')\n").expect("write source");
+    let original = temporary.path.join("original");
+    fs::write(&original, "keep the original\n").expect("write original artifact");
+    let output = temporary.path.join("app");
+    std::os::unix::fs::symlink(&original, &output).expect("link output");
+    let built = run(
+        &temporary,
+        &["build", "app.py", "-o", "app", "--mode", "single"],
+    );
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    assert_eq!(
+        fs::read_to_string(&original).expect("read original"),
+        "keep the original\n"
+    );
+    assert!(
+        !fs::symlink_metadata(&output)
+            .expect("output metadata")
+            .file_type()
+            .is_symlink()
+    );
+    assert!(
+        fs::read_to_string(&output)
+            .expect("read output")
+            .contains("replacement")
+    );
+
+    let long_name = "a".repeat(250);
+    let built = run(
+        &temporary,
+        &["build", "app.py", "-o", &long_name, "--mode", "single"],
+    );
+    assert!(built.status.success(), "{}", text(&built.stderr));
+    assert!(temporary.path.join(long_name).is_file());
+}
+
+#[test]
+fn new_preserves_quotes_in_names_as_python_string_data() {
+    let temporary = TestDirectory::new("quoted project");
+    let name = "A \"\"\"quoted\"\"\" app";
+    let created = run(&temporary, &["new", name, "--minimal"]);
+    assert!(created.status.success(), "{}", text(&created.stderr));
+    let app = temporary.path.join("a_\"\"\"quoted\"\"\"_app.py");
+    let checked = Command::new("python3")
+        .args([
+            "-c",
+            "import ast, pathlib, sys; tree = ast.parse(pathlib.Path(sys.argv[1]).read_text()); assert ast.get_docstring(tree) == sys.argv[2] + ' - Built with kipferl'",
+        ])
+        .arg(&app)
+        .arg(name)
+        .output()
+        .expect("validate generated Python");
+    assert!(checked.status.success(), "{}", text(&checked.stderr));
 }
 
 #[test]
@@ -497,6 +738,10 @@ fn rejects_invalid_ai_types_and_path_traversal_names() {
     assert!(text(&traversal.stderr).contains("path separators"));
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "A failed fixture directory creation or CLI spawn must fail the test with context"
+)]
 fn run(temporary: &TestDirectory, arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_kipferl"))
         .args(arguments)
@@ -510,6 +755,10 @@ fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+#[expect(
+    clippy::panic,
+    reason = "The bounded test wait must fail with all observed output when the child never produces its expected event"
+)]
 fn wait_for_output(lines: &mpsc::Receiver<String>, expected: &str) {
     let mut observed = Vec::new();
     loop {
@@ -546,6 +795,10 @@ impl Drop for ChildGuard {
 }
 
 impl TestDirectory {
+    #[expect(
+        clippy::expect_used,
+        reason = "A failed fixture directory creation or CLI spawn must fail the test with context"
+    )]
     fn new(name: &str) -> Self {
         let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(

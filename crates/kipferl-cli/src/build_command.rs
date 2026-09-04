@@ -1,8 +1,9 @@
+use crate::encoding::base64_encode;
 use std::borrow::Cow;
 use std::env;
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::{self, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -10,7 +11,7 @@ use kipferl_format::Trailer;
 use sha2::{Digest, Sha256};
 
 use crate::tree_shake::{self, RuntimeProfile};
-use crate::{embedded_runtime, run_command};
+use crate::{bundle, embedded_runtime, run_command};
 
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
@@ -20,7 +21,6 @@ const GREEN: &str = "\x1b[32m";
 const YELLOW: &str = "\x1b[33m";
 const CYAN: &str = "\x1b[36m";
 const HEADER_LINE: &str = "\x1b[2m─────────────────────────────────────────\x1b[0m";
-const MAX_SCRIPT_SIZE: usize = 1024 * 1024;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 const EMBEDDED_LOADER: &[u8] = include_bytes!("../assets/kipferl-loader-macos-aarch64");
@@ -74,9 +74,9 @@ impl Target {
         }
     }
 
-    fn host() -> Self {
+    fn host() -> io::Result<Self> {
         Self::parse(run_command::embedded_runtime_target())
-            .expect("the Rust CLI only builds for supported release targets")
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "unsupported Kipferl host"))
     }
 
     const fn name(self) -> &'static str {
@@ -127,24 +127,32 @@ pub fn execute(
     stderr: &mut dyn Write,
 ) -> io::Result<u8> {
     let mut script = None;
+    let mut assets = Vec::new();
     let mut output = None;
     let mut mode = Mode::Universal;
     let mut target = None;
     let mut full_runtime = false;
-    let mut index = 0;
+    let mut arguments = arguments.iter();
 
-    while index < arguments.len() {
-        match arguments[index].as_str() {
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
             "-o" | "--output" => {
-                index += 1;
-                let Some(value) = arguments.get(index) else {
+                let Some(value) = arguments.next() else {
                     return error(stderr, " -o requires an argument");
                 };
                 output = Some(value.clone());
             }
+            "--asset" => {
+                let Some(value) = arguments.next() else {
+                    return error(
+                        stderr,
+                        " --asset requires a project-relative file or directory",
+                    );
+                };
+                assets.push(PathBuf::from(value));
+            }
             "-m" | "--mode" => {
-                index += 1;
-                let Some(value) = arguments.get(index) else {
+                let Some(value) = arguments.next() else {
                     return error(stderr, " --mode requires an argument");
                 };
                 mode = match value.as_str() {
@@ -162,8 +170,7 @@ pub fn execute(
                 };
             }
             "-t" | "--target" => {
-                index += 1;
-                let Some(value) = arguments.get(index) else {
+                let Some(value) = arguments.next() else {
                     return error(stderr, " --target requires an argument");
                 };
                 let Some(parsed) = Target::parse(value) else {
@@ -185,11 +192,54 @@ pub fn execute(
             option if option.starts_with('-') => {
                 return error(stderr, &format!(" Unknown option '{option}'"));
             }
-            value => script = Some(value.to_owned()),
+            value if script.is_none() => script = Some(value.to_owned()),
+            value => {
+                return error(
+                    stderr,
+                    &format!(" Unexpected argument '{value}'; specify one input script"),
+                );
+            }
         }
-        index += 1;
     }
 
+    finish_build(
+        BuildOptions {
+            script,
+            assets,
+            output,
+            mode,
+            target,
+            full_runtime,
+        },
+        current_directory,
+        stdout,
+        stderr,
+    )
+}
+
+struct BuildOptions {
+    script: Option<String>,
+    assets: Vec<PathBuf>,
+    output: Option<String>,
+    mode: Mode,
+    target: Option<Target>,
+    full_runtime: bool,
+}
+
+fn finish_build(
+    options: BuildOptions,
+    current_directory: &Path,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> io::Result<u8> {
+    let BuildOptions {
+        script,
+        assets,
+        output,
+        mode,
+        target,
+        full_runtime,
+    } = options;
     let Some(script) = script else {
         writeln!(stderr, "{RED}Error:{RESET}  No input script specified")?;
         writeln!(
@@ -201,7 +251,10 @@ pub fn execute(
     let Some(output) = output else {
         return error(stderr, " No output path specified (-o)");
     };
-    let build_target = target.unwrap_or_else(Target::host);
+    let build_target = match target {
+        Some(target) => target,
+        None => Target::host()?,
+    };
     if full_runtime && mode != Mode::Universal {
         return error(stderr, " --full-runtime requires --mode universal");
     }
@@ -227,11 +280,20 @@ pub fn execute(
     }
     writeln!(stdout, "{HEADER_LINE}\n")?;
 
+    let bundle = match bundle::build(&script_path, &assets) {
+        Ok(bundle) => bundle,
+        Err(build_error) => return error(stderr, &format!(" Build failed: {build_error}")),
+    };
+    writeln!(
+        stdout,
+        "{GREEN}✓{RESET} Bundled {} local modules and {} assets",
+        bundle.module_count, bundle.asset_count
+    )?;
     let result = match mode {
-        Mode::Single => build_single(&script_path, &output_path, stdout),
-        Mode::Executable => build_executable(&script_path, &output_path, &output, stdout),
+        Mode::Single => build_single(&bundle.python, &output_path, stdout),
+        Mode::Executable => build_executable(&bundle.python, &output_path, &output, stdout),
         Mode::Universal => build_universal(
-            &script_path,
+            &bundle,
             &output_path,
             &output,
             build_target,
@@ -263,102 +325,12 @@ fn targets_text() -> String {
 
 pub fn help() -> String {
     format!(
-        "{BOLD}Kipferl build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    kipferl build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --full-runtime         Disable tree shaking for universal builds\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Tree-shaken standalone binary, no dependencies\n    executable             Shell wrapper (requires pocketpy-kipferl)\n    single                 Transformed .py file (requires pocketpy-kipferl)\n\n{DIM}EXAMPLES:{RESET}\n    kipferl build app.py -o app\n    kipferl build app.py -o app-linux --target linux-x86_64\n    kipferl build app.py -o app-full --full-runtime\n    kipferl build app.py -o app.py --mode single\n"
+        "{BOLD}Kipferl build{RESET} - Build standalone binaries from Python scripts\n\n{DIM}USAGE:{RESET}\n    kipferl build <script.py> -o <output> [OPTIONS]\n\n{DIM}OPTIONS:{RESET}\n    -o, --output <path>    Output file path (required)\n    -m, --mode <mode>      Build mode: universal, executable, single\n                           (default: universal)\n    -t, --target <target>  Target platform for cross-compilation\n                           (default: current platform)\n    --full-runtime         Disable tree shaking for universal builds\n    --asset <path>         Bundle a project-relative file/directory (repeatable)\n    --targets              List available targets\n    -h, --help             Show this help\n\n{DIM}TARGETS:{RESET}\n    macos-aarch64          macOS on Apple Silicon\n    macos-x86_64           macOS on Intel\n    linux-x86_64           Linux on x86_64\n    linux-aarch64          Linux on ARM64\n\n{DIM}MODES:{RESET}\n    universal              Tree-shaken standalone binary, no dependencies\n    executable             Shell wrapper (requires pocketpy-kipferl)\n    single                 Transformed .py file (requires pocketpy-kipferl)\n\n{DIM}EXAMPLES:{RESET}\n    kipferl build app.py -o app\n    kipferl build app.py -o app-linux --target linux-x86_64\n    kipferl build app.py -o app-full --full-runtime\n    kipferl build app.py -o app.py --mode single\n"
     )
 }
 
-fn transform_script(script_path: &Path) -> io::Result<Vec<u8>> {
-    let source = fs::read(script_path)?;
-    if source.len() > MAX_SCRIPT_SIZE {
-        return Err(io::Error::new(
-            io::ErrorKind::FileTooLarge,
-            "script exceeds the 1 MiB limit",
-        ));
-    }
-    let source = String::from_utf8(source)
-        .map_err(|invalid| io::Error::new(io::ErrorKind::InvalidData, invalid))?;
-    let mut needs_tui = false;
-    let mut needs_input = false;
-
-    for line in source.split('\n') {
-        let trimmed = line.trim_matches([' ', '\t']);
-        if let Some(imports) = trimmed
-            .strip_prefix("from kipferl import")
-            .or_else(|| trimmed.strip_prefix("from ucharm import"))
-        {
-            needs_tui |= contains_any(
-                imports,
-                &[
-                    "style", "box", "rule", "success", "error", "warning", "info", "progress",
-                ],
-            );
-            needs_input |= contains_any(
-                imports,
-                &["select", "multiselect", "confirm", "prompt", "password"],
-            );
-        } else if starts_with_either_product(trimmed, ".input import") {
-            needs_input = true;
-        } else if starts_with_either_product(trimmed, ".components import")
-            || starts_with_either_product(trimmed, ".style import")
-            || starts_with_either_product(trimmed, ".table import")
-        {
-            needs_tui = true;
-        } else if trimmed.starts_with("import kipferl") || trimmed.starts_with("import ucharm") {
-            needs_tui = true;
-            needs_input = true;
-        }
-    }
-
-    let mut transformed = String::with_capacity(source.len() + 256);
-    transformed.push_str("#!/usr/bin/env pocketpy-kipferl\n");
-    transformed.push_str("# Built with kipferl - native modules edition\n\n");
-    if needs_tui {
-        transformed.push_str(
-            "from tui import style, box, rule, success, error, warning, info, progress\n",
-        );
-    }
-    if needs_input {
-        transformed.push_str("from input import select, multiselect, confirm, prompt, password\n");
-    }
-    if needs_tui || needs_input {
-        transformed.push('\n');
-    }
-
-    for line in source.split('\n') {
-        let trimmed = line.trim_matches([' ', '\t']);
-        if is_product_import(trimmed) {
-            continue;
-        }
-        if line.contains("sys.path") && (line.contains("kipferl") || line.contains("ucharm")) {
-            continue;
-        }
-        transformed.push_str(line);
-        transformed.push('\n');
-    }
-    Ok(transformed.into_bytes())
-}
-
-fn contains_any(haystack: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| haystack.contains(needle))
-}
-
-fn starts_with_either_product(value: &str, suffix: &str) -> bool {
-    value.starts_with(&format!("from kipferl{suffix}"))
-        || value.starts_with(&format!("from ucharm{suffix}"))
-}
-
-fn is_product_import(value: &str) -> bool {
-    value.starts_with("from kipferl import")
-        || value.starts_with("from kipferl.")
-        || value.starts_with("import kipferl")
-        || value.starts_with("from ucharm import")
-        || value.starts_with("from ucharm.")
-        || value.starts_with("import ucharm")
-}
-
-fn build_single(script: &Path, output: &Path, stdout: &mut dyn Write) -> io::Result<()> {
-    let transformed = transform_script(script)?;
-    write_executable(output, &[&transformed])?;
+fn build_single(transformed: &[u8], output: &Path, stdout: &mut dyn Write) -> io::Result<()> {
+    write_executable(output, &[transformed])?;
     writeln!(
         stdout,
         "{GREEN}✓{RESET} Transformed Python code {DIM}({} bytes){RESET}",
@@ -371,13 +343,12 @@ fn build_single(script: &Path, output: &Path, stdout: &mut dyn Write) -> io::Res
 }
 
 fn build_executable(
-    script: &Path,
+    transformed: &[u8],
     output_path: &Path,
     output_display: &str,
     stdout: &mut dyn Write,
 ) -> io::Result<()> {
-    let transformed = transform_script(script)?;
-    let encoded = base64_encode(&transformed);
+    let encoded = base64_encode(transformed);
     let wrapper = format!(
         "#!/bin/bash\n# Built with Kipferl - https://github.com/niklas-heer/kipferl\n# Requires pocketpy-kipferl with native modules\n\nPOCKETPY=\"pocketpy-kipferl\"\nif ! command -v \"$POCKETPY\" &> /dev/null; then\n    POCKETPY=\"pocketpy\"\n    if ! command -v \"$POCKETPY\" &> /dev/null; then\n        echo \"Error: pocketpy not found\" >&2\n        exit 1\n    fi\nfi\necho \"{encoded}\" | base64 -d | \"$POCKETPY\" /dev/stdin \"$@\"\n"
     );
@@ -393,9 +364,12 @@ fn build_executable(
     write_run_hint(stdout, output_display, false)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The final universal-build boundary receives the explicit target/profile, destinations, and separate diagnostic writers without hiding them in global state"
+)]
 fn build_universal(
-    script: &Path,
+    bundle: &bundle::Bundle,
     output_path: &Path,
     output_display: &str,
     target: Target,
@@ -404,13 +378,13 @@ fn build_universal(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> io::Result<()> {
-    let python = transform_script(script)?;
-    let source = std::str::from_utf8(&python)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let python = &bundle.python;
+    let forced_analysis;
     let analysis = if force_full_runtime {
-        tree_shake::Analysis::forced_full()
+        forced_analysis = tree_shake::Analysis::forced_full();
+        &forced_analysis
     } else {
-        tree_shake::analyze(source)
+        &bundle.analysis
     };
     let runtime = runtime_for(target, analysis.profile, current_directory, stdout, stderr)?;
     let loader = loader_for(target, current_directory, stdout, stderr)?;
@@ -441,22 +415,41 @@ fn build_universal(
         loader.len() / 1024
     )?;
 
-    let runtime_offset = loader.len() as u64;
-    let runtime_size = runtime.len() as u64;
-    let python_offset = runtime_offset + runtime_size;
+    let size = |length| {
+        u64::try_from(length).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "component size exceeds the executable format limit",
+            )
+        })
+    };
+    let runtime_offset = size(loader.len())?;
+    let runtime_size = size(runtime.len())?;
+    let python_offset = runtime_offset.checked_add(runtime_size).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "combined component size exceeds the executable format limit",
+        )
+    })?;
     let trailer = Trailer {
         runtime_offset,
         runtime_size,
         python_offset,
-        python_size: python.len() as u64,
+        python_size: size(python.len())?,
     }
     .encode();
     write_executable(
         output_path,
-        &[loader.as_ref(), runtime.as_ref(), &python, &trailer],
+        &[loader.as_ref(), runtime.as_ref(), python, &trailer],
     )?;
 
-    let total_size = loader.len() + runtime.len() + python.len() + trailer.len();
+    let total_size = [loader.len(), runtime.len(), python.len(), trailer.len()]
+        .into_iter()
+        .try_fold(0_usize, |total, size| {
+            total
+                .checked_add(size)
+                .ok_or_else(|| io::Error::other("executable size exceeds platform limits"))
+        })?;
     let total_kb = total_size / 1024;
     writeln!(
         stdout,
@@ -470,7 +463,6 @@ fn build_universal(
         stdout,
         "{DIM}  Size:    {RESET}{total_kb} KB {DIM}(standalone, no dependencies){RESET}"
     )?;
-    writeln!(stdout, "{DIM}  Startup: {RESET}~8ms {DIM}(instant){RESET}")?;
     write_run_hint(stdout, output_display, true)
 }
 
@@ -496,8 +488,8 @@ fn runtime_for(
         target,
         target.runtime_filename(profile),
         match profile {
-            RuntimeProfile::Core => embedded_runtime::core(),
-            RuntimeProfile::Full => run_command::embedded_runtime(),
+            RuntimeProfile::Core => embedded_runtime::core()?,
+            RuntimeProfile::Full => run_command::embedded_runtime()?,
         },
         match profile {
             RuntimeProfile::Core => "tree-shaken PocketPy runtime",
@@ -531,7 +523,10 @@ fn loader_for(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Component selection receives immutable build context and separate output writers; keeping these explicit avoids mutable shared download state"
+)]
 fn component_for(
     target: Target,
     filename: &'static str,
@@ -542,7 +537,7 @@ fn component_for(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> io::Result<Cow<'static, [u8]>> {
-    if target == Target::host() {
+    if target == Target::host()? {
         if embedded.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
@@ -609,7 +604,10 @@ fn runtime_cache_directory() -> PathBuf {
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "The download boundary receives the exact component/version/cache destinations and diagnostic writers so each filesystem write remains reviewable"
+)]
 fn download_component(
     target: Target,
     filename: &str,
@@ -713,9 +711,23 @@ fn parse_sha256(output: &[u8]) -> io::Result<[u8; 32]> {
         ));
     }
     let mut digest = [0_u8; 32];
-    for (index, byte) in digest.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&token[index * 2..index * 2 + 2], 16)
-            .map_err(|invalid| io::Error::new(io::ErrorKind::InvalidData, invalid))?;
+    for (byte, pair) in digest.iter_mut().zip(token.as_bytes().chunks_exact(2)) {
+        let [high, low] = pair else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid SHA-256 length",
+            ));
+        };
+        let decode = |digit: u8| match digit {
+            b'0'..=b'9' => Ok(digit.saturating_sub(b'0')),
+            b'a'..=b'f' => Ok(digit.saturating_sub(b'a').saturating_add(10)),
+            b'A'..=b'F' => Ok(digit.saturating_sub(b'A').saturating_add(10)),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "SHA-256 must contain only ASCII hexadecimal digits",
+            )),
+        };
+        *byte = (decode(*high)? << 4) | decode(*low)?;
     }
     Ok(digest)
 }
@@ -732,40 +744,10 @@ fn ensure_private_directory(directory: &Path) -> io::Result<()> {
 }
 
 fn write_executable(path: &Path, pieces: &[&[u8]]) -> io::Result<()> {
-    let mut output = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o755)
-        .open(path)?;
-    for piece in pieces {
-        output.write_all(piece)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
     }
-    output.flush()?;
-    output.set_permissions(fs::Permissions::from_mode(0o755))
-}
-
-fn base64_encode(input: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut output = String::with_capacity(input.len().div_ceil(3) * 4);
-    for chunk in input.chunks(3) {
-        let first = chunk[0];
-        let second = chunk.get(1).copied().unwrap_or(0);
-        let third = chunk.get(2).copied().unwrap_or(0);
-        output.push(ALPHABET[(first >> 2) as usize] as char);
-        output.push(ALPHABET[(((first & 0x03) << 4) | (second >> 4)) as usize] as char);
-        output.push(if chunk.len() > 1 {
-            ALPHABET[(((second & 0x0f) << 2) | (third >> 6)) as usize] as char
-        } else {
-            '='
-        });
-        output.push(if chunk.len() > 2 {
-            ALPHABET[(third & 0x3f) as usize] as char
-        } else {
-            '='
-        });
-    }
-    output
+    run_command::write_atomically(path, pieces, 0o755)
 }
 
 #[cfg(test)]
@@ -787,8 +769,29 @@ mod tests {
             (b"fo".as_slice(), "Zm8="),
             (b"foo".as_slice(), "Zm9v"),
             (b"kipferl".as_slice(), "a2lwZmVybA=="),
+            (b"\xff\xff\xff".as_slice(), "////"),
+            (b"\x00\xff\x10".as_slice(), "AP8Q"),
+            (b"\xff\xff".as_slice(), "//8="),
+            (b"\xff".as_slice(), "/w=="),
         ] {
             assert_eq!(base64_encode(input), expected);
+        }
+    }
+
+    #[test]
+    fn rejects_non_ascii_checksums_without_panicking() {
+        for token in [
+            format!("aé{}", "0".repeat(61)),
+            "💥".repeat(16),
+            "g".repeat(64),
+        ] {
+            assert_eq!(token.len(), 64);
+            assert_eq!(
+                parse_sha256(token.as_bytes())
+                    .expect_err("invalid digest")
+                    .kind(),
+                std::io::ErrorKind::InvalidData
+            );
         }
     }
 

@@ -568,6 +568,7 @@ dependencies = [
  "kipferl-format",
  "libc",
  "notify",
+ "serde_json",
  "sha2",
 ]
 

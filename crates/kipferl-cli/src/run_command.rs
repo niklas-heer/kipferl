@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::{self, DirBuilder, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
@@ -13,24 +13,13 @@ const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
 const DIM: &str = "\x1b[2m";
 const RED: &str = "\x1b[31m";
-const MAX_SCRIPT_SIZE: usize = 1024 * 1024;
-const TRANSFORM_HEADER: &str = "#!/usr/bin/env pocketpy-kipferl\n\
-# Transformed by kipferl run\n\n\
-from tui import style, box, rule, success, error, warning, info, progress, spinner_frame, visible_len\n\
-from input import select, multiselect, confirm, prompt, password\n\n\
-# Stubs for functions not yet in native modules\n\
-def spinner(msg, duration=1): pass\n\
-def table(data, headers=None, header_style=None): pass\n\
-def key_value(data): pass\n\
-class Color: pass\n\n";
-
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-pub(crate) fn embedded_runtime() -> &'static [u8] {
+pub fn embedded_runtime() -> io::Result<&'static [u8]> {
     embedded_runtime::full()
 }
 
-pub(crate) fn embedded_runtime_target() -> &'static str {
+pub const fn embedded_runtime_target() -> &'static str {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     return "macos-aarch64";
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
@@ -39,7 +28,10 @@ pub(crate) fn embedded_runtime_target() -> &'static str {
     return "linux-aarch64";
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     return "linux-x86_64";
-    #[allow(unreachable_code)]
+    #[allow(
+        unreachable_code,
+        reason = "Each supported target returns its cfg-selected constant; this fallback only compiles for other targets"
+    )]
     "unsupported"
 }
 
@@ -49,7 +41,7 @@ pub fn execute(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> io::Result<u8> {
-    let Some(script) = arguments.first() else {
+    let Some((script, script_arguments)) = arguments.split_first() else {
         writeln!(stderr, "{RED}Error:{RESET} No script specified")?;
         writeln!(stderr, "Usage: kipferl run <script.py> [args...]")?;
         return Ok(1);
@@ -68,25 +60,39 @@ pub fn execute(
 
     let runtime_path = match prepare_runtime() {
         Ok(path) => path,
-        Err(_) => {
-            writeln!(stderr, "{RED}Error:{RESET} Failed to extract pocketpy")?;
+        Err(error) => {
+            writeln!(
+                stderr,
+                "{RED}Error:{RESET} Cannot prepare the embedded runtime: {error}"
+            )?;
+            writeln!(
+                stderr,
+                "Check that KIPFERL_CACHE_DIR points to a writable directory."
+            )?;
             return Ok(1);
         }
     };
     let transformed_path = match prepare_transformed_script(&script_path) {
         Ok(path) => path,
-        Err(_) => {
-            writeln!(stderr, "{RED}Error:{RESET} Failed to transform script")?;
+        Err(error) => {
+            writeln!(
+                stderr,
+                "{RED}Error:{RESET} Cannot prepare '{script}': {error}"
+            )?;
             return Ok(1);
         }
     };
 
-    let _error = Command::new(runtime_path)
+    let error = Command::new(&runtime_path)
         .arg(transformed_path)
-        .args(&arguments[1..])
+        .args(script_arguments)
         .current_dir(current_directory)
         .exec();
-    writeln!(stderr, "{RED}Error:{RESET} Failed to exec pocketpy")?;
+    writeln!(
+        stderr,
+        "{RED}Error:{RESET} Cannot start runtime '{}': {error}",
+        runtime_path.display()
+    )?;
     Ok(1)
 }
 
@@ -96,8 +102,8 @@ pub fn help() -> String {
     )
 }
 
-pub(crate) fn prepare_runtime() -> io::Result<PathBuf> {
-    let runtime = embedded_runtime();
+pub fn prepare_runtime() -> io::Result<PathBuf> {
+    let runtime = embedded_runtime()?;
     if runtime.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::Unsupported,
@@ -113,17 +119,8 @@ pub(crate) fn prepare_runtime() -> io::Result<PathBuf> {
     Ok(runtime_path)
 }
 
-pub(crate) fn prepare_transformed_script(script_path: &Path) -> io::Result<PathBuf> {
-    let source = fs::read(script_path)?;
-    if source.len() > MAX_SCRIPT_SIZE {
-        return Err(io::Error::new(
-            io::ErrorKind::FileTooLarge,
-            "script exceeds the 1 MiB limit",
-        ));
-    }
-    let source = String::from_utf8(source)
-        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    let transformed = transform_script(&source);
+pub fn prepare_transformed_script(script_path: &Path) -> io::Result<PathBuf> {
+    let transformed = crate::bundle::development_source(script_path)?;
 
     let cache_directory = cache_directory();
     ensure_private_directory(&cache_directory)?;
@@ -139,49 +136,218 @@ pub(crate) fn prepare_transformed_script(script_path: &Path) -> io::Result<PathB
 fn cache_directory() -> PathBuf {
     let cache_root = env::var_os("KIPFERL_CACHE_DIR")
         .or_else(|| env::var_os("UCHARM_CACHE_DIR"))
-        .map(PathBuf::from)
-        .unwrap_or_else(env::temp_dir);
+        .map_or_else(env::temp_dir, PathBuf::from);
     cache_root.join(format!("kipferl-run-{:016x}", embedded_runtime::full_key()))
 }
 
-fn transform_script(source: &str) -> String {
-    let mut transformed = String::with_capacity(TRANSFORM_HEADER.len() + source.len());
-    transformed.push_str(TRANSFORM_HEADER);
-
-    let mut in_multiline_import = false;
-    for line in source.split('\n') {
-        let trimmed = line.trim_matches([' ', '\t']);
-
-        if in_multiline_import {
-            if line.contains(')') {
-                in_multiline_import = false;
-            }
+/// Transform legacy imports in place: generated code occupies the same physical
+/// lines as the user's source, so `compile()` preserves useful traceback locations.
+pub fn transform_source(source: &str) -> io::Result<String> {
+    let masked = code_without_strings(source)?;
+    let mut transformed = source.to_owned();
+    // The shared lexer identifies import spans even inside inline suites or
+    // after semicolons, while skipping comments and all string literals.
+    for statement in crate::tree_shake::import_statements(source)
+        .into_iter()
+        .rev()
+    {
+        if !statement.modules.iter().any(|name| {
+            matches!(name.as_str(), "kipferl" | "ucharm")
+                || name.starts_with("kipferl.")
+                || name.starts_with("ucharm.")
+        }) {
             continue;
         }
-
-        if is_product_import(trimmed) {
-            if line.contains('(') && !line.contains(')') {
-                in_multiline_import = true;
-            }
-            continue;
-        }
-        if line.contains("sys.path") {
-            continue;
-        }
-
-        transformed.push_str(line);
-        transformed.push('\n');
+        let span = statement.start..statement.end;
+        let original = source
+            .get(span.clone())
+            .ok_or_else(|| io::Error::other("invalid import source span"))?;
+        let code = masked
+            .get(span)
+            .ok_or_else(|| io::Error::other("invalid masked import span"))?
+            .replace("\\\n", " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        let mut replacement = legacy_import(&code)?;
+        let newline_count = original.bytes().filter(|&byte| byte == b'\n').count();
+        // A semicolon belongs to the final physical line of a continued
+        // import. Keep it on that line without turning it into a new suite.
+        let padding = if source.as_bytes().get(statement.end) == Some(&b';') {
+            "\\\n"
+        } else {
+            "\n"
+        };
+        replacement.push_str(&padding.repeat(newline_count));
+        transformed.replace_range(statement.start..statement.end, &replacement);
     }
-    transformed
+    Ok(transformed)
 }
 
-fn is_product_import(value: &str) -> bool {
-    value.starts_with("from kipferl import")
-        || value.starts_with("from kipferl.")
-        || value.starts_with("import kipferl")
-        || value.starts_with("from ucharm import")
-        || value.starts_with("from ucharm.")
-        || value.starts_with("import ucharm")
+fn legacy_import(code: &str) -> io::Result<String> {
+    let unsupported = || {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "Unsupported legacy import '{}'. Import native modules such as tui, input, or args directly.",
+                code.trim()
+            ),
+        )
+    };
+    let Some(rest) = code.strip_prefix("from ") else {
+        return Err(unsupported());
+    };
+    let Some((module, imports)) = rest.split_once(" import") else {
+        return Err(unsupported());
+    };
+    let suffix = module
+        .strip_prefix("kipferl")
+        .or_else(|| module.strip_prefix("ucharm"))
+        .ok_or_else(unsupported)?;
+    let mapped = match suffix {
+        "" => None,
+        ".components" | ".style" | ".table" | ".tui" => Some("tui"),
+        ".input" => Some("input"),
+        ".args" => Some("args"),
+        _ => return Err(unsupported()),
+    };
+    let imports = imports
+        .trim()
+        .trim_start_matches('(')
+        .trim_end_matches(')')
+        .trim();
+    if imports == "*" {
+        return Ok(mapped.map_or_else(
+            || "from tui import *; from input import *".to_owned(),
+            |module| format!("from {module} import *"),
+        ));
+    }
+    let mut statements = Vec::new();
+    for import in imports
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let parts: Vec<_> = import.split_whitespace().collect();
+        let (name, alias) = match parts.as_slice() {
+            [name] => (*name, None),
+            [name, "as", alias] => (*name, Some(*alias)),
+            _ => return Err(unsupported()),
+        };
+        if !valid_identifier(name) || alias.is_some_and(|alias| !valid_identifier(alias)) {
+            return Err(unsupported());
+        }
+        let alias = alias
+            .map(|alias| format!(" as {alias}"))
+            .unwrap_or_default();
+        let module = mapped.or(match name {
+            "select" | "multiselect" | "confirm" | "prompt" | "password" => Some("input"),
+            "style" | "box" | "rule" | "success" | "error" | "warning" | "info" | "progress"
+            | "progress_done" | "spinner" | "spinner_frame" | "visible_len" | "table" => {
+                Some("tui")
+            }
+            _ => None,
+        });
+        if let Some(module) = module {
+            statements.push(format!("from {module} import {name}{alias}"));
+        } else if matches!(name, "tui" | "input" | "args" | "ansi" | "term") {
+            statements.push(format!("import {name}{alias}"));
+        } else {
+            return Err(unsupported());
+        }
+    }
+    if statements.is_empty() {
+        return Err(unsupported());
+    }
+    Ok(statements.join("; "))
+}
+
+fn valid_identifier(value: &str) -> bool {
+    let mut characters = value.chars();
+    characters
+        .next()
+        .is_some_and(|first| first == '_' || first.is_alphabetic())
+        && characters.all(|character| character == '_' || character.is_alphanumeric())
+}
+
+/// A Python string literal, including arbitrary Unicode and source newlines.
+pub fn python_string(value: &str) -> String {
+    let mut output = String::from("\"");
+    for character in value.chars() {
+        match character {
+            '\\' => output.push_str("\\\\"),
+            '\"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            character if character.is_control() => {
+                output.push_str("\\x");
+                output.push(char::from_digit(u32::from(character) >> 4, 16).unwrap_or('0'));
+                output.push(char::from_digit(u32::from(character) & 15, 16).unwrap_or('0'));
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('\"');
+    output
+}
+
+// Mask string literals and comments without moving line or byte boundaries.
+// In particular, quote state must survive physical lines of triple-quoted and
+// backslash-continued strings before import-looking text can be classified.
+#[expect(
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
+    reason = "The scanner guards byte accesses with index < len, uses get for lookahead, and masks ranges from the previous cursor through the current bounded cursor"
+)]
+fn code_without_strings(source: &str) -> io::Result<String> {
+    let bytes = source.as_bytes();
+    let mut code = bytes.to_vec();
+    let mut index = 0;
+    while index < bytes.len() {
+        let start = index;
+        match bytes[index] {
+            b'#' => {
+                while index < bytes.len() && bytes[index] != b'\n' {
+                    index += 1;
+                }
+            }
+            quote @ (b'\'' | b'"') => {
+                let triple =
+                    bytes.get(index + 1) == Some(&quote) && bytes.get(index + 2) == Some(&quote);
+                index += if triple { 3 } else { 1 };
+                while index < bytes.len() {
+                    if bytes[index] == b'\\' {
+                        index = (index + 2).min(bytes.len());
+                    } else if triple
+                        && bytes.get(index) == Some(&quote)
+                        && bytes.get(index + 1) == Some(&quote)
+                        && bytes.get(index + 2) == Some(&quote)
+                    {
+                        index += 3;
+                        break;
+                    } else if !triple && bytes[index] == quote {
+                        index += 1;
+                        break;
+                    } else {
+                        index += 1;
+                    }
+                }
+            }
+            _ => {
+                index += 1;
+                continue;
+            }
+        }
+        for byte in &mut code[start..index] {
+            if *byte != b'\n' {
+                *byte = b' ';
+            }
+        }
+    }
+    // Whole literals/comments are replaced with ASCII, preserving all other
+    // complete UTF-8 sequences from the source.
+    String::from_utf8(code).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
 fn ensure_private_directory(directory: &Path) -> io::Result<()> {
@@ -198,32 +364,68 @@ fn ensure_private_directory(directory: &Path) -> io::Result<()> {
 
 fn prepare_cached_file(path: &Path, content: &[u8], mode: u32) -> io::Result<()> {
     let valid = match fs::symlink_metadata(path) {
-        Ok(metadata) => metadata.file_type().is_file() && metadata.len() == content.len() as u64,
+        Ok(metadata) => {
+            metadata.file_type().is_file()
+                && usize::try_from(metadata.len()).ok() == Some(content.len())
+        }
         Err(error) if error.kind() == io::ErrorKind::NotFound => false,
         Err(error) => return Err(error),
     };
     if valid {
-        if fs::metadata(path)?.permissions().mode() & 0o777 != mode {
-            fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+        let mut file = match OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
+                return write_atomically(path, &[content], mode);
+            }
+            Err(error) => return Err(error),
+        };
+        let mut buffer = [0_u8; 8192];
+        let mut matches = true;
+        for expected in content.chunks(buffer.len()) {
+            let actual = buffer
+                .get_mut(..expected.len())
+                .ok_or_else(|| io::Error::other("cache chunk exceeds read buffer"))?;
+            if let Err(error) = file.read_exact(actual) {
+                if error.kind() != io::ErrorKind::UnexpectedEof {
+                    return Err(error);
+                }
+                matches = false;
+                break;
+            }
+            if actual != expected {
+                matches = false;
+                break;
+            }
         }
-        return Ok(());
+        if matches && file.read(&mut buffer[..1])? == 0 {
+            if file.metadata()?.permissions().mode() & 0o777 != mode {
+                file.set_permissions(fs::Permissions::from_mode(mode))?;
+            }
+            return Ok(());
+        }
     }
 
-    write_atomically(path, content, mode)
+    write_atomically(path, &[content], mode)
 }
 
-fn write_atomically(destination: &Path, content: &[u8], mode: u32) -> io::Result<()> {
+pub fn write_atomically(destination: &Path, pieces: &[&[u8]], mode: u32) -> io::Result<()> {
     let parent = destination
         .parent()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "cache path has no parent"))?;
-    let name = destination
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid cache filename"))?;
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "output path has no parent"))?;
 
     loop {
         let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let temporary_path = parent.join(format!(".{name}.{}.{}", std::process::id(), counter));
+        // Keep the staging name short even when the output name is near the
+        // filesystem's per-component limit.
+        let temporary_path = parent.join(format!(
+            ".kipferl-output.{}.{}",
+            std::process::id(),
+            counter
+        ));
         let mut temporary = match OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -235,7 +437,9 @@ fn write_atomically(destination: &Path, content: &[u8], mode: u32) -> io::Result
             Err(error) => return Err(error),
         };
         let result = (|| {
-            temporary.write_all(content)?;
+            for piece in pieces {
+                temporary.write_all(piece)?;
+            }
             temporary.flush()?;
             temporary.set_permissions(fs::Permissions::from_mode(mode))?;
             drop(temporary);
@@ -248,7 +452,7 @@ fn write_atomically(destination: &Path, content: &[u8], mode: u32) -> io::Result
     }
 }
 
-pub(crate) fn stable_hash(content: &[u8]) -> u64 {
+pub fn stable_hash(content: &[u8]) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     for byte in content {
         hash ^= u64::from(*byte);
@@ -259,27 +463,25 @@ pub(crate) fn stable_hash(content: &[u8]) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{TRANSFORM_HEADER, embedded_runtime, stable_hash, transform_script};
+    use super::{embedded_runtime, python_string, stable_hash, transform_source};
 
     #[test]
-    fn transforms_imports_like_the_zig_cli() {
-        let source = "#!/usr/bin/env python3\n\
-import sys\n\
-sys.path.insert(0, 'src')\n\
-from kipferl import (\n\
-    box,\n\
-    success,\n\
-)\n\
-from kipferl.extra import thing\n\
-import kipferl\n\
-from ucharm import warning\n\
-import ucharm\n\
-print(sys.argv)\n";
-
+    fn transforms_legacy_imports_without_moving_source_lines() {
+        let source = "from kipferl import (\n    box,\n    prompt as ask,\n)\nraise ValueError('original line 5')\n";
+        let result = transform_source(source).expect("transform");
         assert_eq!(
-            transform_script(source),
-            format!("{TRANSFORM_HEADER}#!/usr/bin/env python3\nimport sys\nprint(sys.argv)\n\n")
+            result,
+            "from tui import box; from input import prompt as ask\n\n\n\nraise ValueError('original line 5')\n"
         );
+        assert_eq!(source.lines().count(), result.lines().count());
+        assert!(transform_source("from kipferl.extra import missing").is_err());
+    }
+
+    #[test]
+    fn preserves_native_source_strings_and_search_paths() {
+        let source = "\nimport sys\nsys.path.insert(0, 'src')\ntext = \"\"\"\nfrom kipferl import (\n\"\"\"\n";
+        assert_eq!(transform_source(source).expect("transform"), source);
+        assert_eq!(python_string("a\n\"\\é"), "\"a\\n\\\"\\\\é\"");
     }
 
     #[test]
@@ -289,9 +491,9 @@ print(sys.argv)\n";
 
     #[test]
     fn embedded_runtime_key_matches_its_content() {
-        assert!(!embedded_runtime().is_empty());
+        assert!(!embedded_runtime().expect("embedded runtime").is_empty());
         assert_eq!(
-            stable_hash(embedded_runtime()),
+            stable_hash(embedded_runtime().expect("embedded runtime")),
             crate::embedded_runtime::full_key()
         );
     }

@@ -1,3 +1,15 @@
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::exit,
+        clippy::panic_in_result_fn
+    )
+)]
+
 use std::env;
 use std::ffi::OsStr;
 use std::io;
