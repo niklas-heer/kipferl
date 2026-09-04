@@ -1,3 +1,18 @@
+#![deny(
+    clippy::pedantic,
+    clippy::nursery,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects,
+    clippy::unreachable,
+    clippy::string_slice,
+    clippy::panic_in_result_fn,
+    clippy::panic,
+    clippy::exit,
+    clippy::as_conversions
+)]
+
 use std::env;
 use std::process::{Command, ExitCode};
 
@@ -18,8 +33,7 @@ fn run() -> Result<(), LoaderError> {
     let executable = env::current_exe()?;
     let cache_root = env::var_os("KIPFERL_CACHE_DIR")
         .or_else(|| env::var_os("UCHARM_CACHE_DIR"))
-        .map(Into::into)
-        .unwrap_or_else(env::temp_dir);
+        .map_or_else(env::temp_dir, Into::into);
     let prepared = prepare_path(&executable, &cache_root)?;
 
     let error = Command::new(&prepared.runtime_path)

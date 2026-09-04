@@ -67,6 +67,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -75,9 +79,9 @@ fn initialize(module: Value) {
     }
 }
 
-unsafe extern "C" fn hmac_digest(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn hmac_digest(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(3, 3) {
         return false;
     }
@@ -96,14 +100,20 @@ unsafe extern "C" fn hmac_digest(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_bytes(&hash_core::hmac(algorithm, &key, &message))
 }
 
-unsafe extern "C" fn compare_digest(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn compare_digest(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    let left = arguments.get(0).expect("arity checked");
-    let right = arguments.get(1).expect("arity checked");
+    let Some(left) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
+    let Some(right) = arguments.get(1) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     let (left, right) = if let (Some(left), Some(right)) = (left.bytes(), right.bytes()) {
         (left, right)
     } else if let (Some(left), Some(right)) = (left.string(), right.string()) {

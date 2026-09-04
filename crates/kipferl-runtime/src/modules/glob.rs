@@ -24,18 +24,18 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn glob(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn glob(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
     };
     let recursive = arguments.get(3).and_then(Value::boolean).unwrap_or(false);
     let mut results = Vec::new();
 
-    if recursive && let Some(marker) = pattern.find("**") {
-        let base = pattern[..marker].trim_end_matches('/');
-        let tail = pattern[marker + 2..].trim_start_matches('/');
+    if recursive && let Some((base, tail)) = pattern.split_once("**") {
+        let base = base.trim_end_matches('/');
+        let tail = tail.trim_start_matches('/');
         let name_pattern = tail.rsplit('/').next().unwrap_or(tail);
         let root = if base.is_empty() { "." } else { base };
         if walk(Path::new(root), name_pattern, 0, &mut results).is_err() {
@@ -87,7 +87,7 @@ fn walk(
         let file_type = entry.file_type()?;
         let path = entry.path();
         if file_type.is_dir() {
-            walk(&path, name_pattern, depth + 1, results)?;
+            walk(&path, name_pattern, depth.saturating_add(1), results)?;
         } else if file_type.is_file()
             && entry
                 .file_name()

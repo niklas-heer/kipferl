@@ -85,7 +85,7 @@ static INPUT_STATE: Mutex<InputState> = Mutex::new(InputState {
 fn input_state() -> MutexGuard<'static, InputState> {
     INPUT_STATE
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn write_output(bytes: &[u8]) {
@@ -154,7 +154,7 @@ fn initialize_test_mode(state: &mut InputState) {
         return;
     }
 
-    let mut keys = buffer[..count].to_vec();
+    let mut keys = buffer.get(..count).unwrap_or_default().to_vec();
     for byte in &mut keys {
         if *byte == b'\n' {
             *byte = b',';
@@ -191,34 +191,46 @@ fn map_raw_key_name(name: &[u8]) -> u8 {
 }
 
 fn read_test_token(state: &mut InputState, raw: bool) -> u8 {
-    let Some(buffer) = state.test_keys.as_ref() else {
+    let Some(buffer) = state
+        .test_keys
+        .as_ref()
+        .and_then(|keys| keys.get(state.test_position..))
+    else {
         return 0;
     };
-    let mut start = state.test_position;
-    while start < buffer.len() && matches!(buffer[start], b',' | b' ' | b'\t') {
-        start += 1;
-    }
-    if start >= buffer.len() {
-        state.test_position = start;
-        return 0;
-    }
-    let mut end = start;
-    while end < buffer.len() && buffer[end] != b',' {
-        end += 1;
-    }
-    let mut trimmed_end = end;
-    while trimmed_end > start && matches!(buffer[trimmed_end - 1], b' ' | b'\t') {
-        trimmed_end -= 1;
-    }
-    let key = if raw {
-        map_raw_key_name(&buffer[start..trimmed_end])
+    let remaining = buffer;
+    let skipped = remaining
+        .iter()
+        .take_while(|byte| matches!(byte, b',' | b' ' | b'\t'))
+        .count();
+    let remaining = remaining.get(skipped..).unwrap_or_default();
+    let end = remaining
+        .iter()
+        .position(|byte| *byte == b',')
+        .unwrap_or(remaining.len());
+    let token = remaining.get(..end).unwrap_or_default();
+    let trimmed = token
+        .iter()
+        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
+        .map_or(0, |index| index.saturating_add(1));
+    let token = token.get(..trimmed).unwrap_or_default();
+    let consumed = buffer
+        .len()
+        .saturating_sub(remaining.len())
+        .saturating_add(end)
+        .saturating_add(usize::from(end < remaining.len()));
+    state.test_position = state.test_position.saturating_add(consumed);
+    if raw {
+        map_raw_key_name(token)
     } else {
-        map_key_name(&buffer[start..trimmed_end])
-    };
-    state.test_position = if end < buffer.len() { end + 1 } else { end };
-    key
+        map_key_name(token)
+    }
 }
 
+#[expect(
+    clippy::significant_drop_tightening,
+    reason = "The mutex keeps the terminal descriptor open throughout the blocking read; shutdown closes it under the same lock."
+)]
 fn read_raw_character() -> u8 {
     let mut state = input_state();
     initialize_test_mode(&mut state);
@@ -229,7 +241,7 @@ fn read_raw_character() -> u8 {
     let mut byte = 0_u8;
     // SAFETY: `byte` is writable for one byte and `fd` is either /dev/tty or
     // stdin. Raw mode bounds the wait when the descriptor is a terminal.
-    let count = unsafe { libc::read(fd, (&mut byte as *mut u8).cast(), 1) };
+    let count = unsafe { libc::read(fd, (&raw mut byte).cast(), 1) };
     if count == 1 { byte } else { 0 }
 }
 
@@ -247,7 +259,13 @@ fn read_key() -> u8 {
     let mut buffer = [0_u8; 8];
     // SAFETY: the buffer is writable for seven bytes and the descriptor is
     // either /dev/tty or stdin.
-    let count = unsafe { libc::read(fd, buffer.as_mut_ptr().cast(), buffer.len() - 1) };
+    let count = unsafe {
+        libc::read(
+            fd,
+            buffer.as_mut_ptr().cast(),
+            buffer.len().saturating_sub(1),
+        )
+    };
     let Ok(count) = usize::try_from(count) else {
         return 0;
     };
@@ -256,52 +274,49 @@ fn read_key() -> u8 {
     }
 
     let mut total = count;
-    if buffer[0] == 0x1b && count == 1 {
-        let end = buffer.len() - 1;
-        let remaining = end - 1;
+    if buffer.first() == Some(&0x1b) && count == 1 {
+        let end = buffer.len().saturating_sub(1);
+        let Some(remaining) = buffer.get_mut(1..end) else {
+            return 0;
+        };
         // SAFETY: the remaining buffer is writable and `fd` is valid.
-        let extra = unsafe { libc::read(fd, buffer[1..end].as_mut_ptr().cast(), remaining) };
+        let extra = unsafe { libc::read(fd, remaining.as_mut_ptr().cast(), remaining.len()) };
         if let Ok(extra) = usize::try_from(extra) {
-            total += extra;
+            total = total.saturating_add(extra);
         }
     }
-    queue_keys(&buffer[..total], &mut state.pending_keys);
+    queue_keys(
+        buffer.get(..total).unwrap_or_default(),
+        &mut state.pending_keys,
+    );
     state.pending_keys.pop_front().unwrap_or(0)
 }
 
-fn queue_keys(bytes: &[u8], output: &mut VecDeque<u8>) {
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == 0x1b {
-            if let Some(code) = bytes
-                .get(index + 2)
-                .filter(|_| bytes.get(index + 1) == Some(&b'['))
-            {
-                if let Some(key) = match code {
-                    b'A' => Some(b'u'),
-                    b'B' => Some(b'd'),
-                    _ => None,
-                } {
-                    output.push_back(key);
+fn queue_keys(mut bytes: &[u8], output: &mut VecDeque<u8>) {
+    while let Some((&byte, tail)) = bytes.split_first() {
+        bytes = tail;
+        if byte == 0x1b {
+            if let [b'[', code, rest @ ..] = tail {
+                match code {
+                    b'A' => output.push_back(b'u'),
+                    b'B' => output.push_back(b'd'),
+                    _ => {}
                 }
-                index += 3;
-                continue;
+                bytes = rest;
+            } else {
+                output.push_back(b'q');
             }
-            output.push_back(b'q');
-            index += 1;
-            continue;
+        } else {
+            output.push_back(match byte {
+                b'\r' | b'\n' => b'e',
+                b' ' => b's',
+                b'j' => b'd',
+                b'k' => b'u',
+                b'q' | 0x03 => b'q',
+                0x7f | 0x08 => b'b',
+                _ => byte,
+            });
         }
-        output.push_back(match bytes[index] {
-            b'\r' | b'\n' => b'e',
-            b' ' => b's',
-            b'j' => b'd',
-            b'k' => b'u',
-            b'q' | 0x03 => b'q',
-            b'y' | b'Y' | b'n' | b'N' => bytes[index],
-            0x7f | 0x08 => b'b',
-            byte => byte,
-        });
-        index += 1;
     }
 }
 
@@ -339,10 +354,14 @@ fn enable_raw_mode() {
     raw.c_iflag &= !(libc::IXON | libc::ICRNL | libc::BRKINT | libc::INPCK | libc::ISTRIP);
     raw.c_oflag &= !libc::OPOST;
     raw.c_cflag |= libc::CS8;
-    raw.c_cc[libc::VMIN] = 0;
-    raw.c_cc[libc::VTIME] = 1;
+    if let Some(minimum) = raw.c_cc.get_mut(libc::VMIN) {
+        *minimum = 0;
+    }
+    if let Some(timeout) = raw.c_cc.get_mut(libc::VTIME) {
+        *timeout = 1;
+    }
     // SAFETY: both the terminal descriptor and settings are valid.
-    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } == 0 {
+    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw const raw) } == 0 {
         state.original = Some(original);
         state.raw_fd = Some(fd);
     }
@@ -355,7 +374,7 @@ fn disable_raw_mode() {
     };
     // SAFETY: `fd` and `original` were captured by a successful raw-mode
     // transition. Keep them on failure so VM shutdown can retry restoration.
-    if unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &original) } == 0 {
+    if unsafe { libc::tcsetattr(fd, libc::TCSAFLUSH, &raw const original) } == 0 {
         state.original = None;
         state.raw_fd = None;
     }
@@ -487,8 +506,17 @@ fn run_ratatui_select(
             },
         )?;
         match read_tui_key()? {
-            Some(b'd') => cursor = (cursor + 1) % choices.len(),
-            Some(b'u') => cursor = cursor.checked_sub(1).unwrap_or(choices.len() - 1),
+            Some(b'd') => {
+                cursor = cursor
+                    .saturating_add(1)
+                    .checked_rem(choices.len())
+                    .unwrap_or(0);
+            }
+            Some(b'u') => {
+                cursor = cursor
+                    .checked_sub(1)
+                    .unwrap_or_else(|| choices.len().saturating_sub(1));
+            }
             Some(b'e' | b's') => return Ok(Some(cursor)),
             Some(b'q') => return Ok(None),
             _ => {}
@@ -518,9 +546,22 @@ fn run_ratatui_multiselect(
             },
         )?;
         match read_tui_key()? {
-            Some(b'd') => cursor = (cursor + 1) % choices.len(),
-            Some(b'u') => cursor = cursor.checked_sub(1).unwrap_or(choices.len() - 1),
-            Some(b's') => selected[cursor] = !selected[cursor],
+            Some(b'd') => {
+                cursor = cursor
+                    .saturating_add(1)
+                    .checked_rem(choices.len())
+                    .unwrap_or(0);
+            }
+            Some(b'u') => {
+                cursor = cursor
+                    .checked_sub(1)
+                    .unwrap_or_else(|| choices.len().saturating_sub(1));
+            }
+            Some(b's') => {
+                if let Some(value) = selected.get_mut(cursor) {
+                    *value = !*value;
+                }
+            }
             Some(b'e') => return Ok(true),
             Some(b'q') => return Ok(false),
             _ => {}
@@ -554,9 +595,9 @@ fn cursor_up(count: usize) {
     write_text(&format!("\x1b[{count}A"));
 }
 
-unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn select(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(prompt) = arguments.get(0).and_then(display_text) else {
         return type_error(c"prompt must be a string");
     };
@@ -569,12 +610,13 @@ unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
     if length == 0 {
         return return_none();
     }
-    let maximum = i32::try_from(length - 1).unwrap_or(i32::MAX);
+    let maximum = i32::try_from(length.saturating_sub(1)).unwrap_or(i32::MAX);
     let requested = arguments
         .get(2)
         .and_then(Value::integer)
         .unwrap_or(0)
-        .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        .clamp(i64::from(i32::MIN), i64::from(i32::MAX));
+    let requested = i32::try_from(requested).unwrap_or(0);
     let mut selected = clamp(requested, 0, maximum);
 
     if use_ratatui() {
@@ -584,11 +626,9 @@ unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
             &choice_texts,
             usize::try_from(selected).unwrap_or(0),
         ) {
-            return if let Some(result) = result.and_then(|index| sequence_item(choices, index)) {
-                return_value(result)
-            } else {
-                return_none()
-            };
+            return result
+                .and_then(|index| sequence_item(choices, index))
+                .map_or_else(return_none, return_value);
         }
     }
 
@@ -604,8 +644,8 @@ unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let raw = RawModeGuard::enable();
     let result = loop {
         match read_key() {
-            b'd' => selected = wrap_index(selected + 1, maximum.saturating_add(1)),
-            b'u' => selected = wrap_index(selected - 1, maximum.saturating_add(1)),
+            b'd' => selected = wrap_index(selected.saturating_add(1), maximum.saturating_add(1)),
+            b'u' => selected = wrap_index(selected.saturating_sub(1), maximum.saturating_add(1)),
             b'e' | b's' => break usize::try_from(selected).ok(),
             b'q' => break None,
             _ => continue,
@@ -616,11 +656,9 @@ unsafe extern "C" fn select(argc: c_int, argv: ffi::py_StackRef) -> bool {
     drop(raw);
     drop(cursor);
 
-    if let Some(result) = result.and_then(|index| sequence_item(choices, index)) {
-        return_value(result)
-    } else {
-        return_none()
-    }
+    result
+        .and_then(|index| sequence_item(choices, index))
+        .map_or_else(return_none, return_value)
 }
 
 fn render_multiselect(
@@ -639,10 +677,8 @@ fn render_multiselect(
         };
         if i32::try_from(index) == Ok(cursor) {
             write_output(CYAN);
-            write_output(b"  ");
-        } else {
-            write_output(b"  ");
         }
+        write_output(b"  ");
         write_output(if *is_selected {
             CHECKBOX_ON
         } else {
@@ -656,9 +692,9 @@ fn render_multiselect(
     }
 }
 
-unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn multiselect(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(prompt) = arguments.get(0).and_then(display_text) else {
         return type_error(c"prompt must be a string");
     };
@@ -695,19 +731,12 @@ unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
 
     if use_ratatui() {
         let choice_texts = choice_texts(choices, visible_length);
-        if let Ok(confirmed) =
-            run_ratatui_multiselect(&prompt, &choice_texts, &mut selected[..visible_length])
-        {
-            let mut roots = RootFrame::new();
-            let result = roots.list();
-            if confirmed {
-                for (index, is_selected) in selected.iter().enumerate().take(visible_length) {
-                    if *is_selected && let Some(choice) = sequence_item(choices, index) {
-                        result.list_append(choice);
-                    }
-                }
-            }
-            return return_value(result);
+        if let Ok(confirmed) = run_ratatui_multiselect(
+            &prompt,
+            &choice_texts,
+            selected.get_mut(..visible_length).unwrap_or_default(),
+        ) {
+            return return_selection(choices, &selected, visible_length, confirmed);
         }
     }
 
@@ -728,16 +757,22 @@ unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let confirmed = loop {
         match read_key() {
             b'd' => {
-                cursor = wrap_index(cursor + 1, i32::try_from(length).unwrap_or(i32::MAX));
+                cursor = wrap_index(
+                    cursor.saturating_add(1),
+                    i32::try_from(length).unwrap_or(i32::MAX),
+                );
             }
             b'u' => {
-                cursor = wrap_index(cursor - 1, i32::try_from(length).unwrap_or(i32::MAX));
+                cursor = wrap_index(
+                    cursor.saturating_sub(1),
+                    i32::try_from(length).unwrap_or(i32::MAX),
+                );
             }
             b's' => {
                 if let Ok(index) = usize::try_from(cursor)
-                    && index < selected.len()
+                    && let Some(value) = selected.get_mut(index)
                 {
-                    selected[index] = !selected[index];
+                    *value = !*value;
                 }
             }
             b'e' => break true,
@@ -750,21 +785,12 @@ unsafe extern "C" fn multiselect(argc: c_int, argv: ffi::py_StackRef) -> bool {
     drop(raw);
     drop(cursor_guard);
 
-    let mut roots = RootFrame::new();
-    let result = roots.list();
-    if confirmed {
-        for (index, is_selected) in selected.iter().enumerate().take(visible_length) {
-            if *is_selected && let Some(choice) = sequence_item(choices, index) {
-                result.list_append(choice);
-            }
-        }
-    }
-    return_value(result)
+    return_selection(choices, &selected, visible_length, confirmed)
 }
 
-unsafe extern "C" fn confirm(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn confirm(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(prompt) = arguments.get(0).and_then(display_text) else {
         return type_error(c"prompt must be a string");
     };
@@ -787,7 +813,7 @@ unsafe extern "C" fn confirm(argc: c_int, argv: ffi::py_StackRef) -> bool {
             b'y' | b'Y' => break true,
             b'n' | b'N' | b'q' => break false,
             b'e' => break default,
-            _ => continue,
+            _ => {}
         }
     };
     drop(raw);
@@ -802,9 +828,9 @@ unsafe extern "C" fn confirm(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(result)
 }
 
-unsafe extern "C" fn prompt(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn prompt(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(message) = arguments.get(0).and_then(display_text) else {
         return type_error(c"message must be a string");
     };
@@ -834,7 +860,6 @@ unsafe extern "C" fn prompt(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let mut input = Vec::with_capacity(1023);
     while input.len() < 1023 {
         match read_raw_character() {
-            0 => continue,
             b'\r' | b'\n' => break,
             0x1b | 0x03 => {
                 drop(raw);
@@ -842,7 +867,6 @@ unsafe extern "C" fn prompt(argc: c_int, argv: ffi::py_StackRef) -> bool {
                 return return_string(default.as_deref().unwrap_or(""));
             }
             0x7f | 0x08 if input.pop().is_some() => write_output(b"\x08 \x08"),
-            0x7f | 0x08 => {}
             byte @ 32..=126 => {
                 input.push(byte);
                 write_output(&[byte]);
@@ -861,9 +885,9 @@ unsafe extern "C" fn prompt(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string(std::str::from_utf8(&input).unwrap_or(""))
 }
 
-unsafe extern "C" fn password(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn password(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -882,7 +906,6 @@ unsafe extern "C" fn password(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let mut input = Vec::with_capacity(1023);
     while input.len() < 1023 {
         match read_raw_character() {
-            0 => continue,
             b'\r' | b'\n' => break,
             0x1b | 0x03 => {
                 drop(raw);
@@ -901,11 +924,48 @@ unsafe extern "C" fn password(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string(std::str::from_utf8(&input).unwrap_or(""))
 }
 
+fn return_selection(
+    choices: Value,
+    selected: &[bool],
+    visible_length: usize,
+    confirmed: bool,
+) -> bool {
+    let mut roots = RootFrame::new();
+    let result = roots.list();
+    if confirmed {
+        for (index, is_selected) in selected.iter().enumerate().take(visible_length) {
+            if *is_selected && let Some(choice) = sequence_item(choices, index) {
+                result.list_append(choice);
+            }
+        }
+    }
+    return_value(result)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
 
     use super::{map_key_name, map_raw_key_name, queue_keys};
+
+    #[test]
+    fn injected_tokens_trim_separators_and_stop_at_exhaustion() {
+        let mut state = super::InputState {
+            tty_fd: -1,
+            original: None,
+            raw_fd: None,
+            test_keys: Some(b" , \tup  , ,enter, backspace\t,".to_vec()),
+            test_position: 0,
+            test_initialized: true,
+            pending_keys: VecDeque::new(),
+        };
+        assert_eq!(super::read_test_token(&mut state, false), b'u');
+        assert_eq!(super::read_test_token(&mut state, true), b'\r');
+        assert_eq!(super::read_test_token(&mut state, true), 0x7f);
+        assert_eq!(super::read_test_token(&mut state, false), 0);
+        state.test_position = usize::MAX;
+        assert_eq!(super::read_test_token(&mut state, false), 0);
+    }
 
     #[test]
     fn maps_navigation_test_tokens() {

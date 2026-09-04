@@ -86,7 +86,10 @@ assert heapq.nsmallest(0, 42) == []");
         assert!(text(&output.stderr).contains("Python execution failed"));
     }
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

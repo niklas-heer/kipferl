@@ -121,6 +121,26 @@ fn preserves_empty_results_and_argument_errors() {
             "import tui; tui.spinner_frame('1')",
             "TypeError: index must be int",
         ),
+        (
+            "import tui; tui.box('x', None, None, None, -1)",
+            "ValueError: padding must be non-negative",
+        ),
+        (
+            "import tui; tui.box('x', None, None, None, 4294967296)",
+            "RuntimeError: box is too large",
+        ),
+        (
+            "import tui; tui.progress(1, 2, width=-1)",
+            "ValueError: width must be a non-negative 32-bit integer",
+        ),
+        (
+            "import tui; tui.progress(1, 2, width=4294967296)",
+            "ValueError: width must be a non-negative 32-bit integer",
+        ),
+        (
+            "import tui; tui.rule(width=9223372036854775807)",
+            "RuntimeError: rule is too large",
+        ),
         ("import tui; tui.table(1)", "TypeError: rows must be a list"),
         (
             "import tui; tui.table([1])",
@@ -128,12 +148,20 @@ fn preserves_empty_results_and_argument_errors() {
         ),
     ] {
         let output = run(source);
-        assert_eq!(output.status.code(), Some(1));
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "{source}: {}",
+            text(&output.stdout)
+        );
         assert!(text(&output.stdout).contains(expected));
         assert!(text(&output.stderr).contains("Python execution failed"));
     }
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

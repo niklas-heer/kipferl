@@ -1,6 +1,6 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
-const COMPATIBILITY_SOURCE: &str = r#"
+const COMPATIBILITY_SOURCE: &str = r"
 def _rust_date_isoformat(self):
     return str(self)
 
@@ -21,7 +21,7 @@ def _rust_timedelta_total_seconds(self):
 date.isoformat = _rust_date_isoformat
 date.weekday = _rust_date_weekday
 timedelta.total_seconds = _rust_timedelta_total_seconds
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"datetime",

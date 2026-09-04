@@ -253,6 +253,68 @@ result = b.getvalue()
 test("BytesIO write past end length", len(result) == 11)
 
 
+def raises(expected, operation):
+    try:
+        operation()
+    except expected:
+        return True
+    return False
+
+
+class BufferIndex:
+    def __index__(self):
+        return 2
+
+
+# Sparse writes, integer validation, and closed-state behavior are shared by
+# both buffer types. Empty writes must not allocate the gap after a seek.
+for buffer_type, initial, empty, marker, padding in (
+    (io.BytesIO, b"abc", b"", b"z", b"\x00\x00"),
+    (io.StringIO, "abc", "", "z", "\x00\x00"),
+):
+    name = buffer_type.__name__
+    buffer = buffer_type(initial)
+    buffer.seek(100000)
+    test(name + " empty sparse write", buffer.write(empty) == 0)
+    test(name + " empty write preserves contents", buffer.getvalue() == initial)
+    test(name + " empty write preserves cursor", buffer.tell() == 100000)
+    buffer.write(marker)
+    test(name + " sparse write size", len(buffer.getvalue()) == 100001)
+    test(name + " sparse write padding", buffer.getvalue()[3:5] == padding)
+    test(name + " sparse write suffix", buffer.getvalue()[-1:] == marker)
+    buffer.seek(BufferIndex())
+    test(name + " seek accepts index protocol", buffer.tell() == 2)
+    buffer = buffer_type(initial)
+    test(name + " read accepts index protocol", buffer.read(BufferIndex()) == initial[:2])
+    test(name + " negative absolute seek", raises(ValueError, lambda: buffer.seek(-1)))
+    test(name + " seek rejects fractional offset", raises(TypeError, lambda: buffer.seek(0.5)))
+    test(name + " seek rejects fractional whence", raises(TypeError, lambda: buffer.seek(0, 0.5)))
+    buffer.seek(100)
+    test(name + " EOF read validates size", raises(TypeError, lambda: buffer.read(0.5)))
+    test(name + " EOF readline validates size", raises(TypeError, lambda: buffer.readline(0.5)))
+    test(name + " readlines validates hint", raises(TypeError, lambda: buffer.readlines(0.5)))
+    test(name + " truncate validates size", raises(TypeError, lambda: buffer.truncate(0.5)))
+    buffer.close()
+    buffer.close()
+    test(name + " close is idempotent", buffer.closed)
+    test(name + " closed readable raises", raises(ValueError, buffer.readable))
+    test(name + " closed writable raises", raises(ValueError, buffer.writable))
+    test(name + " closed seekable raises", raises(ValueError, buffer.seekable))
+
+b = io.BytesIO(b"abc")
+test("BytesIO negative relative seek clamps", b.seek(-10, 1) == 0)
+test("BytesIO negative end-relative seek clamps", b.seek(-10, 2) == 0)
+s = io.StringIO("abc")
+test("StringIO nonzero relative seek raises", raises(OSError, lambda: s.seek(1, 1)))
+test("StringIO nonzero end-relative seek raises", raises(OSError, lambda: s.seek(-1, 2)))
+test("StringIO zero end-relative seek", s.seek(0, 2) == 3)
+test("StringIO zero relative seek", s.seek(0, 1) == 3)
+test("BytesIO exact line hint", io.BytesIO(b"a\nb\n").readlines(2) == [b"a\n"])
+test("StringIO exact line hint", io.StringIO("a\nb\n").readlines(2) == ["a\n", "b\n"])
+s.close()
+test("StringIO closed iteration raises", raises(ValueError, lambda: iter(s)))
+
+
 # ============================================================================
 # Summary
 # ============================================================================

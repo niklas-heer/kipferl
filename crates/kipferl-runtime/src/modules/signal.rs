@@ -99,7 +99,7 @@ const SIGNATURES: &[NativeSignature] = &[NativeSignature {
     callback: raise_signal,
 }];
 
-const COMPATIBILITY_SOURCE: &str = r#"
+const COMPATIBILITY_SOURCE: &str = r"
 _handlers = {}
 
 
@@ -121,7 +121,7 @@ def alarm(seconds):
 
 def pause():
     return None
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"signal",
@@ -133,6 +133,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -141,9 +145,9 @@ fn initialize(module: Value) {
     }
 }
 
-unsafe extern "C" fn raise_signal(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn raise_signal(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(signum) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"signum must be an integer");
     };

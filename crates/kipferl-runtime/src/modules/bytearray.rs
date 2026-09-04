@@ -38,7 +38,7 @@ impl ByteArrayState {
         state
     }
 
-    fn as_slice(&self) -> &[u8] {
+    const fn as_slice(&self) -> &[u8] {
         if self.length == 0 {
             return &[];
         }
@@ -47,7 +47,7 @@ impl ByteArrayState {
         unsafe { slice::from_raw_parts(self.data, self.length) }
     }
 
-    fn as_mut_slice(&mut self) -> &mut [u8] {
+    const fn as_mut_slice(&mut self) -> &mut [u8] {
         if self.length == 0 {
             return &mut [];
         }
@@ -94,10 +94,14 @@ pub(super) fn register() {
     builtins.set_attribute(c"bytearray", type_object(value_type));
 }
 
-unsafe extern "C" fn bytearray_new(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    reason = "Exact VM type guards precede conversions; the userdata is two machine words whose size and alignment match the PocketPy native allocation ABI."
+)]
+unsafe extern "C" fn bytearray_new(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // The signature binder supplies `cls` plus zero or one source arguments.
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 2) {
         return false;
     }
@@ -122,7 +126,17 @@ unsafe extern "C" fn bytearray_new(argc: c_int, argv: ffi::py_StackRef) -> bool 
             let Ok(count) = usize::try_from(count) else {
                 return value_error(c"bytearray is too large");
             };
-            vec![0; count]
+            // Match the native archive/data budget before allocating through
+            // an extern-C callback, where capacity panics would abort the VM.
+            if count > 64 * 1024 * 1024 {
+                return value_error(c"bytearray is too large (maximum 64 MiB)");
+            }
+            let mut bytes = Vec::new();
+            if bytes.try_reserve_exact(count).is_err() {
+                return value_error(c"unable to allocate bytearray");
+            }
+            bytes.resize(count, 0);
+            bytes
         }
         Some(source) if source.is_type(ffi::py_PredefinedType_tp_str) => {
             source.string().expect("string checked").into_bytes()
@@ -153,13 +167,16 @@ unsafe extern "C" fn bytearray_new(argc: c_int, argv: ffi::py_StackRef) -> bool 
     return_value(instance)
 }
 
-unsafe extern "C" fn bytearray_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn bytearray_len(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     // SAFETY: method binding guarantees a bytearray receiver.
     let length = unsafe { (&*instance.userdata::<ByteArrayState>()).length };
     let Ok(length) = i64::try_from(length) else {
@@ -170,14 +187,20 @@ unsafe extern "C" fn bytearray_len(argc: c_int, argv: ffi::py_StackRef) -> bool 
     return_value(length)
 }
 
-unsafe extern "C" fn bytearray_getitem(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn bytearray_getitem(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
-    let key = arguments.get(1).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
+    let Some(key) = arguments.get(1) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     // SAFETY: method binding guarantees a bytearray receiver.
     let state = unsafe { &*instance.userdata::<ByteArrayState>() };
 
@@ -186,7 +209,10 @@ unsafe extern "C" fn bytearray_getitem(argc: c_int, argv: ffi::py_StackRef) -> b
             return index_error(c"bytearray index out of range");
         };
         let mut roots = RootFrame::new();
-        let value = roots.integer(i64::from(state.as_slice()[index]));
+        let Some(byte) = state.as_slice().get(index) else {
+            return index_error(c"bytearray index out of range");
+        };
+        let value = roots.integer(i64::from(*byte));
         return return_value(value);
     }
 
@@ -194,19 +220,25 @@ unsafe extern "C" fn bytearray_getitem(argc: c_int, argv: ffi::py_StackRef) -> b
         let Some((start, stop)) = normalized_slice(key, state.length) else {
             return value_error(c"slice step not supported");
         };
-        return return_bytes(&state.as_slice()[start..stop]);
+        let Some(bytes) = state.as_slice().get(start..stop) else {
+            return index_error(c"bytearray slice out of range");
+        };
+        return return_bytes(bytes);
     }
 
     type_error(c"bytearray indices must be integers or slices")
 }
 
-unsafe extern "C" fn bytearray_setitem(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn bytearray_setitem(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(3, 3) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     let Some(index) = arguments.get(1).and_then(Value::integer) else {
         return type_error(c"bytearray indices must be integers");
     };
@@ -222,7 +254,10 @@ unsafe extern "C" fn bytearray_setitem(argc: c_int, argv: ffi::py_StackRef) -> b
     let Some(index) = normalize_index(index, state.length) else {
         return index_error(c"bytearray index out of range");
     };
-    state.as_mut_slice()[index] = value;
+    let Some(byte) = state.as_mut_slice().get_mut(index) else {
+        return index_error(c"bytearray index out of range");
+    };
+    *byte = value;
     let mut roots = RootFrame::new();
     let none = roots.none();
     return_value(none)
@@ -237,7 +272,8 @@ fn normalize_index(index: i64, length: usize) -> Option<usize> {
     };
     (0..length)
         .contains(&index)
-        .then(|| usize::try_from(index).expect("non-negative index fits usize"))
+        .then(|| usize::try_from(index).ok())
+        .flatten()
 }
 
 fn normalized_slice(key: Value, length: usize) -> Option<(usize, usize)> {
@@ -252,15 +288,15 @@ fn normalized_slice(key: Value, length: usize) -> Option<(usize, usize)> {
     };
     let mut start = read_bound(0, 0)?;
     let mut stop = read_bound(1, length)?;
-    let step = read_bound(2, 1)?;
-    if step != 1 {
+    let stride = read_bound(2, 1)?;
+    if stride != 1 {
         return None;
     }
     if start < 0 {
-        start += length;
+        start = start.saturating_add(length);
     }
     if stop < 0 {
-        stop += length;
+        stop = stop.saturating_add(length);
     }
     start = start.clamp(0, length);
     stop = stop.clamp(0, length);
@@ -270,21 +306,27 @@ fn normalized_slice(key: Value, length: usize) -> Option<(usize, usize)> {
     Some((usize::try_from(start).ok()?, usize::try_from(stop).ok()?))
 }
 
-unsafe extern "C" fn bytearray_eq(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn bytearray_eq(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
-    let other = arguments.get(1).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
+    let Some(other) = arguments.get(1) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     // SAFETY: method binding guarantees a bytearray receiver.
     let bytes = unsafe { (&*instance.userdata::<ByteArrayState>()).as_slice() };
     let equal = if other.value_type() == BYTEARRAY_TYPE.load(Ordering::Acquire) {
         // SAFETY: the exact native type check establishes our userdata.
         bytes == unsafe { (&*other.userdata::<ByteArrayState>()).as_slice() }
     } else if other.is_type(ffi::py_PredefinedType_tp_bytes) {
-        bytes == other.bytes().expect("bytes checked")
+        other.bytes().is_some_and(|other| bytes == other)
     } else {
         false
     };

@@ -3,7 +3,7 @@ use std::ffi::c_int;
 use kipferl_pocketpy_sys as ffi;
 
 use super::ansi_core;
-use crate::native::{Arguments, NativeFunction, NativeModule, return_string, type_error};
+use crate::native::{Arguments, NativeFunction, NativeModule, Value, return_string, type_error};
 
 const FUNCTIONS: &[NativeFunction] = &[
     NativeFunction {
@@ -66,25 +66,27 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn reset(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    no_argument_style(argc, argv, "\x1b[0m")
+unsafe extern "C" fn reset(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    no_argument_style(argc, stack, "\x1b[0m")
 }
 
-unsafe extern "C" fn foreground(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    color(argc, argv, false)
+unsafe extern "C" fn foreground(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    color(argc, stack, false)
 }
 
-unsafe extern "C" fn background(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    color(argc, argv, true)
+unsafe extern "C" fn background(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    color(argc, stack, true)
 }
 
-fn color(argc: c_int, argv: ffi::py_StackRef, background: bool) -> bool {
+fn color(argc: c_int, stack: ffi::py_StackRef, background: bool) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let value = arguments.get(0).expect("arity checked");
+    let Some(value) = arguments.get(0) else {
+        return type_error(c"missing color");
+    };
     if let Some(index) = value.integer() {
         let code = if background {
             ansi_core::background(index)
@@ -113,40 +115,40 @@ fn color(argc: c_int, argv: ffi::py_StackRef, background: bool) -> bool {
     type_error(c"color must be a string or int")
 }
 
-unsafe extern "C" fn rgb(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn rgb(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(3, 4) {
         return false;
     }
-    let Some(red) = arguments.get(0).and_then(|value| value.integer()) else {
+    let Some(red) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"r must be int");
     };
-    let Some(green) = arguments.get(1).and_then(|value| value.integer()) else {
+    let Some(green) = arguments.get(1).and_then(Value::integer) else {
         return type_error(c"g must be int");
     };
-    let Some(blue) = arguments.get(2).and_then(|value| value.integer()) else {
+    let Some(blue) = arguments.get(2).and_then(Value::integer) else {
         return type_error(c"b must be int");
     };
-    let background = arguments.get(3).is_some_and(|value| value.truthy());
+    let background = arguments.get(3).is_some_and(Value::truthy);
     return_string(&ansi_core::rgb(
-        red as u8,
-        green as u8,
-        blue as u8,
+        low_byte(red),
+        low_byte(green),
+        low_byte(blue),
         background,
     ))
 }
 
-fn no_argument_style(argc: c_int, argv: ffi::py_StackRef, code: &'static str) -> bool {
+fn no_argument_style(argc: c_int, stack: ffi::py_StackRef, code: &'static str) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     arguments.require_arity(0, 0) && return_string(code)
 }
 
 macro_rules! style_callback {
     ($name:ident, $code:literal) => {
-        unsafe extern "C" fn $name(argc: c_int, argv: ffi::py_StackRef) -> bool {
-            no_argument_style(argc, argv, $code)
+        unsafe extern "C" fn $name(argc: c_int, stack: ffi::py_StackRef) -> bool {
+            no_argument_style(argc, stack, $code)
         }
     };
 }
@@ -159,3 +161,8 @@ style_callback!(blink, "\x1b[5m");
 style_callback!(reverse, "\x1b[7m");
 style_callback!(hidden, "\x1b[8m");
 style_callback!(strikethrough, "\x1b[9m");
+
+const fn low_byte(value: i64) -> u8 {
+    let [low, ..] = value.to_le_bytes();
+    low
+}

@@ -15,8 +15,7 @@ pub(super) fn unique_path(prefix: &str) -> PathBuf {
 pub(super) fn temporary_directory() -> PathBuf {
     std::env::var_os("TMPDIR")
         .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .map_or_else(|| PathBuf::from("/tmp"), PathBuf::from)
 }
 
 pub(super) fn path_string(path: &Path) -> Option<String> {

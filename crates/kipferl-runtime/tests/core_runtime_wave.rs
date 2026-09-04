@@ -148,7 +148,10 @@ fn writes_sys_streams_and_returns_byte_lengths() {
     assert_eq!(text(&output.stdout), "output");
     assert_eq!(text(&output.stderr), "error");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

@@ -1,6 +1,11 @@
 #![no_std]
 #![allow(non_camel_case_types, non_upper_case_globals)]
 
+#[expect(
+    clippy::pub_underscore_fields,
+    clippy::doc_markdown,
+    reason = "Generated bindgen declarations preserve upstream C ABI field names and documentation verbatim"
+)]
 mod bindings;
 
 pub use bindings::*;

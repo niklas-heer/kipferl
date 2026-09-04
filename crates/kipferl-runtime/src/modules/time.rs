@@ -48,23 +48,29 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
+#[expect(
+    clippy::as_conversions,
+    clippy::cast_possible_truncation,
+    reason = "Finite seconds are floored to calendar seconds; values outside i64 saturate and are then rejected by the narrower Jiff Timestamp range."
+)]
 fn timestamp(value: Option<Value>) -> Result<Timestamp, &'static CStr> {
-    if value.is_none_or(Value::is_none) {
+    let Some(value) = value.filter(|value| !value.is_none()) else {
         return Ok(Timestamp::now());
-    }
+    };
     let seconds = value
-        .expect("checked Some above")
         .cast_number()
         .map_err(|()| c"timestamp must be a number")?;
     if !seconds.is_finite() {
         return Err(c"timestamp out of range");
     }
-    Timestamp::from_second(seconds as i64).map_err(|_| c"timestamp out of range")
+    // Calendar timestamps round toward negative infinity, not toward zero:
+    // -0.25 belongs to the final second before the Unix epoch.
+    Timestamp::from_second(seconds.floor() as i64).map_err(|_| c"timestamp out of range")
 }
 
-unsafe extern "C" fn localtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn localtime(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let timestamp = match timestamp(arguments.get(0)) {
         Ok(value) => value,
         Err(message) => return type_error(message),
@@ -75,9 +81,9 @@ unsafe extern "C" fn localtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_datetime(datetime, is_dst)
 }
 
-unsafe extern "C" fn gmtime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn gmtime(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let timestamp = match timestamp(arguments.get(0)) {
         Ok(value) => value,
         Err(message) => return type_error(message),
@@ -166,9 +172,14 @@ fn resolve_local(fields: &TimeFields) -> Result<Zoned, ()> {
     ambiguous.compatible().map_err(|_| ())
 }
 
-unsafe extern "C" fn mktime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::as_conversions,
+    clippy::cast_precision_loss,
+    reason = "Jiff supports years -9999 through 9999, so integer epoch seconds remain below 2^53 and are represented exactly as f64."
+)]
+unsafe extern "C" fn mktime(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(value) = arguments.get(0) else {
         return type_error(c"mktime() requires a time tuple");
     };
@@ -176,23 +187,20 @@ unsafe extern "C" fn mktime(argc: c_int, argv: ffi::py_StackRef) -> bool {
         Ok(value) => value,
         Err(message) => return type_error(message),
     };
-    let zoned = match resolve_local(&fields) {
-        Ok(value) => value,
-        Err(()) => return value_error(c"mktime argument out of range"),
+    let Ok(zoned) = resolve_local(&fields) else {
+        return value_error(c"mktime argument out of range");
     };
     return_number(zoned.timestamp().as_second() as f64)
 }
 
-unsafe extern "C" fn strftime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn strftime(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(format) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"strftime() format must be a string");
     };
-    let zoned = if arguments.get(1).is_none_or(Value::is_none) {
-        Timestamp::now().to_zoned(TimeZone::system())
-    } else {
-        let fields = match time_fields(arguments.get(1).expect("checked Some above")) {
+    let zoned = if let Some(value) = arguments.get(1).filter(|value| !value.is_none()) {
+        let fields = match time_fields(value) {
             Ok(value) => value,
             Err(message) => return type_error(message),
         };
@@ -200,23 +208,24 @@ unsafe extern "C" fn strftime(argc: c_int, argv: ffi::py_StackRef) -> bool {
             Ok(value) => value,
             Err(()) => return value_error(c"invalid time"),
         }
+    } else {
+        Timestamp::now().to_zoned(TimeZone::system())
     };
     let output = zoned.strftime(&format).to_string();
     return_string_bytes(output.as_bytes())
 }
 
-unsafe extern "C" fn strptime(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn strptime(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(input) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"strptime() input must be a string");
     };
     let Some(format) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"strptime() format must be a string");
     };
-    let mut parsed = match BrokenDownTime::parse(format.as_bytes(), input.as_bytes()) {
-        Ok(value) => value,
-        Err(_) => return value_error(c"time data does not match format"),
+    let Ok(mut parsed) = BrokenDownTime::parse(format.as_bytes(), input.as_bytes()) else {
+        return value_error(c"time data does not match format");
     };
     if parsed.year().is_none()
         && parsed.iso_week_year().is_none()
@@ -245,9 +254,8 @@ unsafe extern "C" fn strptime(argc: c_int, argv: ffi::py_StackRef) -> bool {
     if parsed.second().is_none() && parsed.set_second(Some(0)).is_err() {
         return value_error(c"time data does not match format");
     }
-    let datetime = match parsed.to_datetime() {
-        Ok(value) => value,
-        Err(_) => return value_error(c"time data does not match format"),
+    let Ok(datetime) = parsed.to_datetime() else {
+        return value_error(c"time data does not match format");
     };
     return_datetime(datetime, -1)
 }

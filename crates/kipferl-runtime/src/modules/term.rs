@@ -6,7 +6,7 @@ use kipferl_pocketpy_sys as ffi;
 
 use super::term_core::{self, DecodedKey};
 use crate::native::{
-    Arguments, NativeFunction, NativeModule, RootFrame, return_string, return_string_bytes,
+    Arguments, NativeFunction, NativeModule, RootFrame, Value, return_string, return_string_bytes,
     return_value, runtime_error, type_error,
 };
 
@@ -94,7 +94,7 @@ enum RawModeError {
 fn raw_mode_state() -> MutexGuard<'static, RawModeState> {
     RAW_MODE
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn enable_raw_mode() -> Result<(), RawModeError> {
@@ -116,15 +116,20 @@ fn enable_raw_mode() -> Result<(), RawModeError> {
     raw.c_iflag &= !(libc::IXON | libc::ICRNL | libc::BRKINT | libc::INPCK | libc::ISTRIP);
     raw.c_oflag &= !libc::OPOST;
     raw.c_cflag |= libc::CS8;
-    raw.c_cc[libc::VMIN] = 0;
-    raw.c_cc[libc::VTIME] = 1;
+    if let Some(minimum) = raw.c_cc.get_mut(libc::VMIN) {
+        *minimum = 0;
+    }
+    if let Some(timeout) = raw.c_cc.get_mut(libc::VTIME) {
+        *timeout = 1;
+    }
 
     // SAFETY: both the file descriptor and initialized settings are valid for
     // the duration of this call.
-    if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &raw) } != 0 {
+    if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &raw const raw) } != 0 {
         return Err(RawModeError::Enable);
     }
     state.original = Some(original);
+    drop(state);
     Ok(())
 }
 
@@ -136,7 +141,7 @@ fn restore_raw_mode() {
     // SAFETY: stdin and the saved settings were valid when raw mode was
     // enabled. Retain the saved value if restoration fails so shutdown gets
     // another opportunity to restore it.
-    if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &original) } == 0 {
+    if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSAFLUSH, &raw const original) } == 0 {
         state.original = None;
     }
 }
@@ -163,9 +168,9 @@ fn return_bool(value: bool) -> bool {
     return_value(value)
 }
 
-unsafe extern "C" fn size(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn size(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
@@ -198,13 +203,13 @@ unsafe extern "C" fn size(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
     return_value(result)
 }
 
-unsafe extern "C" fn raw_mode(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn raw_mode(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let Some(enable) = arguments.get(0).and_then(|value| value.boolean()) else {
+    let Some(enable) = arguments.get(0).and_then(Value::boolean) else {
         return type_error(c"expected bool");
     };
     if enable {
@@ -221,31 +226,31 @@ unsafe extern "C" fn raw_mode(argc: libc::c_int, argv: ffi::py_StackRef) -> bool
     return_none()
 }
 
-unsafe extern "C" fn read_key(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn read_key(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
     let mut buffer = [0_u8; 8];
     let count = io::stdin().read(&mut buffer).unwrap_or(0);
-    match term_core::decode_key(&buffer[..count]) {
+    match term_core::decode_key(buffer.get(..count).unwrap_or_default()) {
         DecodedKey::None => return_none(),
         DecodedKey::Named(name) => return_string(name),
         DecodedKey::Text(bytes) => return_string_bytes(bytes),
     }
 }
 
-unsafe extern "C" fn cursor_pos(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn cursor_pos(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    let Some(x) = arguments.get(0).and_then(|value| value.integer()) else {
+    let Some(x) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"x must be int");
     };
-    let Some(y) = arguments.get(1).and_then(|value| value.integer()) else {
+    let Some(y) = arguments.get(1).and_then(Value::integer) else {
         return type_error(c"y must be int");
     };
     let Some(sequence) = term_core::cursor_position(x, y) else {
@@ -255,16 +260,13 @@ unsafe extern "C" fn cursor_pos(argc: libc::c_int, argv: ffi::py_StackRef) -> bo
     return_none()
 }
 
-fn move_cursor(argc: libc::c_int, argv: ffi::py_StackRef, direction: char) -> bool {
+fn move_cursor(argc: libc::c_int, stack: ffi::py_StackRef, direction: char) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 1) {
         return false;
     }
-    let count = arguments
-        .get(0)
-        .and_then(|value| value.integer())
-        .unwrap_or(1);
+    let count = arguments.get(0).and_then(Value::integer).unwrap_or(1);
     let Some(sequence) = term_core::cursor_move(count, direction) else {
         return runtime_error(c"failed to format cursor move");
     };
@@ -272,25 +274,25 @@ fn move_cursor(argc: libc::c_int, argv: ffi::py_StackRef, direction: char) -> bo
     return_none()
 }
 
-unsafe extern "C" fn cursor_up(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    move_cursor(argc, argv, 'A')
+unsafe extern "C" fn cursor_up(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    move_cursor(argc, stack, 'A')
 }
 
-unsafe extern "C" fn cursor_down(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    move_cursor(argc, argv, 'B')
+unsafe extern "C" fn cursor_down(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    move_cursor(argc, stack, 'B')
 }
 
-unsafe extern "C" fn cursor_left(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    move_cursor(argc, argv, 'D')
+unsafe extern "C" fn cursor_left(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    move_cursor(argc, stack, 'D')
 }
 
-unsafe extern "C" fn cursor_right(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    move_cursor(argc, argv, 'C')
+unsafe extern "C" fn cursor_right(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    move_cursor(argc, stack, 'C')
 }
 
-fn fixed_output(argc: libc::c_int, argv: ffi::py_StackRef, bytes: &'static [u8]) -> bool {
+fn fixed_output(argc: libc::c_int, stack: ffi::py_StackRef, bytes: &'static [u8]) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
@@ -298,38 +300,38 @@ fn fixed_output(argc: libc::c_int, argv: ffi::py_StackRef, bytes: &'static [u8])
     return_none()
 }
 
-unsafe extern "C" fn clear(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    fixed_output(argc, argv, b"\x1b[2J\x1b[H")
+unsafe extern "C" fn clear(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    fixed_output(argc, stack, b"\x1b[2J\x1b[H")
 }
 
-unsafe extern "C" fn clear_line(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    fixed_output(argc, argv, b"\x1b[2K\r")
+unsafe extern "C" fn clear_line(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    fixed_output(argc, stack, b"\x1b[2K\r")
 }
 
-unsafe extern "C" fn hide_cursor(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    fixed_output(argc, argv, b"\x1b[?25l")
+unsafe extern "C" fn hide_cursor(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    fixed_output(argc, stack, b"\x1b[?25l")
 }
 
-unsafe extern "C" fn show_cursor(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
-    fixed_output(argc, argv, b"\x1b[?25h")
+unsafe extern "C" fn show_cursor(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
+    fixed_output(argc, stack, b"\x1b[?25h")
 }
 
-unsafe extern "C" fn is_tty(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn is_tty(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
     return_bool(io::stdout().is_terminal())
 }
 
-unsafe extern "C" fn write(argc: libc::c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn write(argc: libc::c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let Some(text) = arguments.get(0).and_then(|value| value.string()) else {
+    let Some(text) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"text must be a string");
     };
     write_output(text.as_bytes());

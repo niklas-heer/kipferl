@@ -37,17 +37,17 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn fnmatch(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    match_names(argc, argv)
+unsafe extern "C" fn fnmatch(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    match_names(argc, stack)
 }
 
-unsafe extern "C" fn fnmatchcase(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    match_names(argc, argv)
+unsafe extern "C" fn fnmatchcase(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    match_names(argc, stack)
 }
 
-fn match_names(argc: c_int, argv: ffi::py_StackRef) -> bool {
+fn match_names(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
@@ -63,13 +63,16 @@ fn match_names(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(matched)
 }
 
-unsafe extern "C" fn filter(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn filter(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    let names = arguments.get(0).expect("arity checked");
+    let Some(names) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if names.list_len().is_none() {
         return type_error(c"names must be a list");
     }
@@ -93,9 +96,9 @@ unsafe extern "C" fn filter(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(output)
 }
 
-unsafe extern "C" fn translate(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn translate(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }

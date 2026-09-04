@@ -7,6 +7,10 @@ use crate::native::{
     bind_type_method, call, type_error, type_magic,
 };
 
+#[expect(
+    clippy::as_conversions,
+    reason = "libc errno constants are signed C ints; widening them to i64 is lossless on all supported targets."
+)]
 const CONSTANTS: &[NativeIntConstant] = &[
     NativeIntConstant {
         name: c"EPERM",
@@ -84,6 +88,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::expect_used,
+    reason = "The initializer just created errorcode; constant errno names are short ASCII C strings and fit the VM string length."
+)]
 fn initialize(module: Value) {
     let mut roots = RootFrame::new();
     let errorcode = roots.dict();
@@ -107,27 +115,30 @@ fn initialize(module: Value) {
     }
 
     bind_type_method(
-        ffi::py_PredefinedType_tp_OSError as ffi::py_Type,
+        crate::native::predefined_type(ffi::py_PredefinedType_tp_OSError),
         c"__init__",
         oserror_init,
     );
 }
 
-unsafe extern "C" fn oserror_init(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn oserror_init(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 3) {
         return false;
     }
     let Some(initializer) = type_magic(
-        ffi::py_PredefinedType_tp_BaseException as ffi::py_Type,
+        crate::native::predefined_type(ffi::py_PredefinedType_tp_BaseException),
         c"__init__",
     ) else {
         return type_error(c"BaseException.__init__ is unavailable");
     };
-    let self_value = arguments.get(0).expect("arity checked");
-    match arguments.get(1) {
-        Some(errno) => call(initializer, &[self_value, errno]),
-        None => call(initializer, &[self_value]),
-    }
+    let Some(self_value) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
+    arguments.get(1).map_or_else(
+        || call(initializer, &[self_value]),
+        |errno| call(initializer, &[self_value, errno]),
+    )
 }

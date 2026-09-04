@@ -21,7 +21,7 @@ fn passes_all_process_regex_wave_compatibility_fixtures() {
         (
             "subprocess",
             include_str!("../../../tests/cpython/test_subprocess.py"),
-            "Results: 19 passed, 0 failed, 0 skipped",
+            "Results: 28 passed, 0 failed, 0 skipped",
         ),
     ] {
         let output = run_runtime(source);
@@ -119,7 +119,10 @@ fn preserves_logging_thresholds_and_legacy_stderr_format() {
     assert_eq!(text(&output.stdout), "");
     assert_eq!(text(&output.stderr), "ERROR: visible\nWARNING: root\n");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run_runtime(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

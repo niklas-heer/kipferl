@@ -29,11 +29,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     let loader = fs::read(rust_loader)?;
 
+    let runtime_offset = u64::try_from(loader.len())?;
+    let runtime_size = u64::try_from(runtime.len())?;
     let trailer = Trailer {
-        runtime_offset: loader.len() as u64,
-        runtime_size: runtime.len() as u64,
-        python_offset: (loader.len() + runtime.len()) as u64,
-        python_size: python.len() as u64,
+        runtime_offset,
+        runtime_size,
+        python_offset: runtime_offset
+            .checked_add(runtime_size)
+            .ok_or("bundle offset exceeds u64")?,
+        python_size: u64::try_from(python.len())?,
     };
     let output = PathBuf::from(output);
     let mut file = File::create(&output)?;

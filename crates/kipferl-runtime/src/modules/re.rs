@@ -134,6 +134,14 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
+#[expect(
+    clippy::expect_used,
+    reason = "The just-executed checked-in module source defines match, Pattern, and Pattern.match before lookup."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -153,9 +161,9 @@ fn initialize(module: Value) {
     pattern.set_attribute(c"match", pattern_match);
 }
 
-unsafe extern "C" fn captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn captures(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
     };
@@ -175,9 +183,9 @@ unsafe extern "C" fn captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_spans(&regex, &found)
 }
 
-unsafe extern "C" fn all_captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn all_captures(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
     };
@@ -198,9 +206,14 @@ unsafe extern "C" fn all_captures(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(output)
 }
 
-unsafe extern "C" fn substitute(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "regex-lite guarantees capture zero exists and match offsets are ordered UTF-8 boundaries within the unchanged input string."
+)]
+unsafe extern "C" fn substitute(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
     };
@@ -233,9 +246,13 @@ unsafe extern "C" fn substitute(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string(&output)
 }
 
-unsafe extern "C" fn split(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::string_slice,
+    reason = "regex-lite match offsets are ordered UTF-8 boundaries within the unchanged input string."
+)]
+unsafe extern "C" fn split(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(pattern) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"pattern must be a string");
     };
@@ -292,27 +309,40 @@ fn spans_value(roots: &mut RootFrame, regex: &Regex, captures: &Captures<'_>) ->
 }
 
 fn expand_replacement(replacement: &str, captures: &Captures<'_>, output: &mut String) {
-    let bytes = replacement.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'\\' && index + 1 < bytes.len() {
-            let next = bytes[index + 1];
-            if next.is_ascii_digit() {
-                let group = usize::from(next - b'0');
-                if let Some(capture) = captures.get(group) {
-                    output.push_str(capture.as_str());
-                }
-                index += 2;
-                continue;
-            }
-            output.push(char::from(next));
-            index += 2;
+    let mut characters = replacement.chars();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            output.push(character);
             continue;
         }
-        let remainder = &replacement[index..];
-        let character = remainder.chars().next().expect("index is in bounds");
-        output.push(character);
-        index += character.len_utf8();
+        let Some(escaped) = characters.next() else {
+            output.push('\\');
+            break;
+        };
+        if let Some(group) = escaped
+            .to_digit(10)
+            .and_then(|group| usize::try_from(group).ok())
+        {
+            if let Some(capture) = captures.get(group) {
+                output.push_str(capture.as_str());
+            }
+            continue;
+        }
+        match escaped {
+            'n' => output.push('\n'),
+            'r' => output.push('\r'),
+            't' => output.push('\t'),
+            'f' => output.push('\x0c'),
+            'v' => output.push('\x0b'),
+            'a' => output.push('\x07'),
+            'b' => output.push('\x08'),
+            '\\' => output.push('\\'),
+            value if !value.is_ascii() => {
+                output.push('\\');
+                output.push(value);
+            }
+            value => output.push(value),
+        }
     }
 }
 

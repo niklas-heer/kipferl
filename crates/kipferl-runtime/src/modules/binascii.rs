@@ -61,15 +61,15 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn hexlify(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(input) = one_bytes_argument(argc, argv) else {
+unsafe extern "C" fn hexlify(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(input) = one_bytes_argument(argc, stack) else {
         return false;
     };
     return_bytes(&encoding_core::hex_encode(&input))
 }
 
-unsafe extern "C" fn unhexlify(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(input) = one_bytes_or_string_argument(argc, argv) else {
+unsafe extern "C" fn unhexlify(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(input) = one_bytes_or_string_argument(argc, stack) else {
         return false;
     };
     match encoding_core::hex_decode(&input) {
@@ -79,20 +79,20 @@ unsafe extern "C" fn unhexlify(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn b2a_base64(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(input) = one_bytes_argument(argc, argv) else {
+unsafe extern "C" fn b2a_base64(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(input) = one_bytes_argument(argc, stack) else {
         return false;
     };
     let mut output = encoding_core::base64_encode(&input, false);
-    if output.len() + 1 > 8192 {
+    if output.len() >= 8192 {
         return value_error(c"data too large");
     }
     output.push(b'\n');
     return_bytes(&output)
 }
 
-unsafe extern "C" fn a2b_base64(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(mut input) = one_bytes_or_string_argument(argc, argv) else {
+unsafe extern "C" fn a2b_base64(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(mut input) = one_bytes_or_string_argument(argc, stack) else {
         return false;
     };
     while input
@@ -110,11 +110,11 @@ unsafe extern "C" fn a2b_base64(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_bytes(&output)
 }
 
-unsafe extern "C" fn crc32(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn crc32(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // The declaration binder supplies the default second argument. The Zig
     // implementation intentionally ignores it, so only validate `data`.
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(input) = arguments.get(0).and_then(Value::bytes) else {
         return type_error(c"a bytes-like object is required");
     };
@@ -123,9 +123,9 @@ unsafe extern "C" fn crc32(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(checksum)
 }
 
-fn one_bytes_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
+fn one_bytes_argument(argc: c_int, stack: ffi::py_StackRef) -> Option<Vec<u8>> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return None;
     }
@@ -136,13 +136,16 @@ fn one_bytes_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
     Some(input)
 }
 
-fn one_bytes_or_string_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Vec<u8>> {
+fn one_bytes_or_string_argument(argc: c_int, stack: ffi::py_StackRef) -> Option<Vec<u8>> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return None;
     }
-    let value = arguments.get(0).expect("arity checked");
+    let Some(value) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return None;
+    };
     if let Some(bytes) = value.bytes() {
         return Some(bytes);
     }

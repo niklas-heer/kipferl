@@ -66,6 +66,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -88,9 +92,9 @@ fn initialize(module: Value) {
     module.set_attribute(c"environ", environment);
 }
 
-unsafe extern "C" fn listdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn listdir(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"path must be a string");
     };
@@ -109,9 +113,9 @@ unsafe extern "C" fn listdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string_list(&names)
 }
 
-unsafe extern "C" fn mkdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn mkdir(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"path must be a string");
     };
@@ -122,9 +126,9 @@ unsafe extern "C" fn mkdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn makedirs(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn makedirs(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(path) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"name must be a string");
     };
@@ -138,8 +142,8 @@ unsafe extern "C" fn makedirs(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn remove(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(path) = one_path(argc, argv) else {
+unsafe extern "C" fn remove(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(path) = one_path(argc, stack) else {
         return false;
     };
     match std::fs::remove_file(path) {
@@ -148,8 +152,8 @@ unsafe extern "C" fn remove(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn rmdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(path) = one_path(argc, argv) else {
+unsafe extern "C" fn rmdir(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(path) = one_path(argc, stack) else {
         return false;
     };
     match std::fs::remove_dir(path) {
@@ -158,8 +162,8 @@ unsafe extern "C" fn rmdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn stat(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(path) = one_path(argc, argv) else {
+unsafe extern "C" fn stat(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(path) = one_path(argc, stack) else {
         return false;
     };
     let Ok(metadata) = std::fs::metadata(path) else {
@@ -188,9 +192,9 @@ unsafe extern "C" fn stat(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(result)
 }
 
-fn one_path(argc: c_int, argv: ffi::py_StackRef) -> Option<String> {
+fn one_path(argc: c_int, stack: ffi::py_StackRef) -> Option<String> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return None;
     }

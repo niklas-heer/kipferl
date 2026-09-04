@@ -9,7 +9,7 @@ use crate::native::{
     return_bytes, return_value, runtime_error, type_error, value_error,
 };
 
-const MAX_ARCHIVE_SIZE: usize = 64 * 1024 * 1024;
+const MAX_ARCHIVE_SIZE: u32 = 64 * 1024 * 1024;
 
 const COMPATIBILITY_SOURCE: &str = r#"
 import io
@@ -77,6 +77,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -88,15 +92,15 @@ fn initialize(module: Value) {
 fn open_archive(path: &str) -> Result<tar::Archive<File>, ()> {
     let file = File::open(path).map_err(|_| ())?;
     let length = file.metadata().map_err(|_| ())?.len();
-    if !(1024..=MAX_ARCHIVE_SIZE as u64).contains(&length) {
+    if !(1024..=u64::from(MAX_ARCHIVE_SIZE)).contains(&length) {
         return Err(());
     }
     Ok(tar::Archive::new(file))
 }
 
-unsafe extern "C" fn names(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn names(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -136,9 +140,9 @@ unsafe extern "C" fn names(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(output)
 }
 
-unsafe extern "C" fn read_member(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn read_member(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
@@ -164,18 +168,18 @@ unsafe extern "C" fn read_member(argc: c_int, argv: ffi::py_StackRef) -> bool {
         if entry_path != std::path::Path::new(&name) {
             continue;
         }
-        if entry.size() > MAX_ARCHIVE_SIZE as u64 {
+        if entry.size() > u64::from(MAX_ARCHIVE_SIZE) {
             return value_error(c"tar member is too large");
         }
-        let mut bytes = Vec::with_capacity(entry.size() as usize);
+        let mut bytes = Vec::new();
         if entry
-            .take(MAX_ARCHIVE_SIZE as u64 + 1)
+            .take(u64::from(MAX_ARCHIVE_SIZE.saturating_add(1)))
             .read_to_end(&mut bytes)
             .is_err()
         {
             return runtime_error(c"unable to read tar member");
         }
-        if bytes.len() > MAX_ARCHIVE_SIZE {
+        if bytes.len() > usize::try_from(MAX_ARCHIVE_SIZE).unwrap_or(usize::MAX) {
             return value_error(c"tar member is too large");
         }
         return return_bytes(&bytes);

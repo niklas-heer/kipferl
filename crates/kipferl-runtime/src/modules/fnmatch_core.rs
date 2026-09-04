@@ -4,109 +4,80 @@ struct CharacterClass {
 }
 
 fn match_character_class(pattern: &[u8], character: u8) -> CharacterClass {
-    if pattern.len() < 2 || pattern[0] != b'[' {
-        return CharacterClass {
-            matched: false,
-            consumed: 0,
-        };
+    let unmatched = CharacterClass {
+        matched: false,
+        consumed: 0,
+    };
+    let Some((&b'[', mut remaining)) = pattern.split_first() else {
+        return unmatched;
+    };
+    let negated = matches!(remaining.first(), Some(b'!' | b'^'));
+    if negated {
+        remaining = remaining.get(1..).unwrap_or_default();
     }
-
-    let mut index = 1;
-    let mut negated = false;
+    let mut first = true;
     let mut matched = false;
-
-    if index < pattern.len() && matches!(pattern[index], b'!' | b'^') {
-        negated = true;
-        index += 1;
-    }
-
-    let start = index;
-    while index < pattern.len() {
-        if pattern[index] == b']' && index > start {
-            break;
+    while let Some((&byte, tail)) = remaining.split_first() {
+        if byte == b']' && !first {
+            return CharacterClass {
+                matched: matched != negated,
+                consumed: pattern.len().saturating_sub(tail.len()),
+            };
         }
-
-        if index + 2 < pattern.len() && pattern[index + 1] == b'-' && pattern[index + 2] != b']' {
-            if (pattern[index]..=pattern[index + 2]).contains(&character) {
-                matched = true;
-            }
-            index += 3;
-        } else {
-            if pattern[index] == character {
-                matched = true;
-            }
-            index += 1;
+        first = false;
+        if let [b'-', end, rest @ ..] = tail
+            && *end != b']'
+        {
+            matched |= (byte..=*end).contains(&character);
+            remaining = rest;
+            continue;
         }
+        matched |= byte == character;
+        remaining = tail;
     }
-
-    if index >= pattern.len() || pattern[index] != b']' {
-        return CharacterClass {
-            matched: false,
-            consumed: 0,
-        };
-    }
-
-    CharacterClass {
-        matched: matched != negated,
-        consumed: index + 1,
-    }
+    unmatched
 }
 
 pub(super) fn matches(pattern: &str, text: &str) -> bool {
-    let pattern = pattern.as_bytes();
-    let text = text.as_bytes();
-    let mut pattern_index = 0;
-    let mut text_index = 0;
-    let mut star_index = None;
-    let mut match_index = 0;
-
-    while text_index < text.len() {
-        if pattern_index < pattern.len() {
-            if pattern[pattern_index] == b'[' {
-                let class = match_character_class(&pattern[pattern_index..], text[text_index]);
-                if class.consumed > 0 {
-                    if class.matched {
-                        pattern_index += class.consumed;
-                        text_index += 1;
-                        continue;
-                    }
-                    if let Some(star) = star_index {
-                        pattern_index = star + 1;
-                        match_index += 1;
-                        text_index = match_index;
-                        continue;
-                    }
-                    return false;
+    let mut pattern = pattern.as_bytes();
+    let mut text = text.as_bytes();
+    let mut star_pattern = None;
+    let mut star_text: Option<&[u8]> = None;
+    while let Some((&character, text_tail)) = text.split_first() {
+        if let Some((&token, pattern_tail)) = pattern.split_first() {
+            if token == b'[' {
+                let class = match_character_class(pattern, character);
+                if class.consumed > 0 && class.matched {
+                    pattern = pattern.get(class.consumed..).unwrap_or_default();
+                    text = text_tail;
+                    continue;
                 }
-            }
-
-            if pattern[pattern_index] == text[text_index] || pattern[pattern_index] == b'?' {
-                pattern_index += 1;
-                text_index += 1;
+                if class.consumed == 0 && character == token {
+                    pattern = pattern_tail;
+                    text = text_tail;
+                    continue;
+                }
+            } else if token == character || token == b'?' {
+                pattern = pattern_tail;
+                text = text_tail;
                 continue;
-            }
-
-            if pattern[pattern_index] == b'*' {
-                star_index = Some(pattern_index);
-                match_index = text_index;
-                pattern_index += 1;
+            } else if token == b'*' {
+                star_pattern = Some(pattern_tail);
+                star_text = Some(text);
+                pattern = pattern_tail;
                 continue;
             }
         }
-
-        if let Some(star) = star_index {
-            pattern_index = star + 1;
-            match_index += 1;
-            text_index = match_index;
-        } else {
-            return false;
+        match (star_pattern, star_text.and_then(<[u8]>::split_first)) {
+            (Some(retry_pattern), Some((_, retry_text))) => {
+                pattern = retry_pattern;
+                text = retry_text;
+                star_text = Some(retry_text);
+            }
+            _ => return false,
         }
     }
-
-    while pattern_index < pattern.len() && pattern[pattern_index] == b'*' {
-        pattern_index += 1;
-    }
-    pattern_index == pattern.len()
+    pattern.iter().all(|token| *token == b'*')
 }
 
 pub(super) fn translate(pattern: &str) -> Vec<u8> {

@@ -127,14 +127,20 @@ fn exposes_script_file_to_python() {
     assert_eq!(text(&output.stdout).trim(), path.to_string_lossy());
     assert_eq!(text(&output.stderr), "");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run_runtime(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
         .output()
         .expect("run Rust PocketPy runtime")
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run_file(path: &std::path::Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .arg(path)

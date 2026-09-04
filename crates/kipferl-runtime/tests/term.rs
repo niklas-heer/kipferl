@@ -160,7 +160,10 @@ fn restores_terminal_settings_when_the_vm_exits() {
     assert_eq!(restored.c_lflag, original.c_lflag);
     assert_eq!(restored.c_cc, original.c_cc);
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str, input: &[u8]) -> Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
@@ -207,8 +210,8 @@ fn open_pty() -> (FileDescriptor, FileDescriptor) {
     // settings, and window-size pointers are intentionally null.
     let status = unsafe {
         libc::openpty(
-            &mut master,
-            &mut slave,
+            &raw mut master,
+            &raw mut slave,
             ptr::null_mut(),
             ptr::null_mut(),
             ptr::null_mut(),

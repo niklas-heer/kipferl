@@ -61,44 +61,50 @@ fn sys_argv() -> Option<Value> {
         if sys.is_null() {
             return None;
         }
-        let argv = ffi::py_getdict(sys, ffi::py_name(c"argv".as_ptr()));
-        if argv.is_null() {
+        let stack = ffi::py_getdict(sys, ffi::py_name(c"argv".as_ptr()));
+        if stack.is_null() {
             return None;
         }
-        Some(Value::from_raw(argv))
+        Some(Value::from_raw(stack))
     }
 }
 
-unsafe extern "C" fn raw(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn raw(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
-    return_value(argv)
+    return_value(stack)
 }
 
-unsafe extern "C" fn get(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn get(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 2) {
         return false;
     }
     let Some(mut index) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"index must be int");
     };
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
-    let length = argv.list_len().unwrap_or(0);
+    let length = stack.list_len().unwrap_or(0);
     if index < 0 {
-        index += i64::try_from(length).unwrap_or(i64::MAX);
+        let Some(normalized) = i64::try_from(length)
+            .ok()
+            .and_then(|length| index.checked_add(length))
+        else {
+            return type_error(c"argument index is out of range");
+        };
+        index = normalized;
     }
     if let Ok(index) = usize::try_from(index)
-        && let Some(item) = argv.list_item(index)
+        && let Some(item) = stack.list_item(index)
     {
         return return_value(item);
     }
@@ -110,34 +116,38 @@ unsafe extern "C" fn get(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(none)
 }
 
-unsafe extern "C" fn count(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn count(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
     let mut roots = RootFrame::new();
-    let count = roots.integer(argv.list_len().unwrap_or(0) as i64);
+    let Ok(length) = i64::try_from(stack.list_len().unwrap_or(0)) else {
+        return type_error(c"argument list is too large");
+    };
+    let count = roots.integer(length);
     return_value(count)
 }
 
-unsafe extern "C" fn has(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn has(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
     let Some(flag) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"flag must be a string");
     };
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
-    let found = (0..argv.list_len().unwrap_or(0)).any(|index| {
-        argv.list_item(index)
+    let found = (0..stack.list_len().unwrap_or(0)).any(|index| {
+        stack
+            .list_item(index)
             .and_then(Value::string)
             .is_some_and(|argument| argument == flag)
     });
@@ -160,14 +170,18 @@ impl FoundValue {
     }
 }
 
-fn find_value(argv: Value, flag: &str) -> Option<FoundValue> {
-    for index in 0..argv.list_len().unwrap_or(0) {
-        let item = argv.list_item(index)?;
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Argument indexes are below the VM list length (a signed C int); looking ahead by one fits usize on every supported target."
+)]
+fn find_value(stack: Value, flag: &str) -> Option<FoundValue> {
+    for index in 0..stack.list_len().unwrap_or(0) {
+        let item = stack.list_item(index)?;
         let Some(argument) = item.string() else {
             continue;
         };
         if argument == flag {
-            return argv.list_item(index + 1).map(FoundValue::Existing);
+            return stack.list_item(index + 1).map(FoundValue::Existing);
         }
         if let Some(value) = argument
             .strip_prefix(flag)
@@ -179,19 +193,19 @@ fn find_value(argv: Value, flag: &str) -> Option<FoundValue> {
     None
 }
 
-unsafe extern "C" fn value(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn value(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 2) {
         return false;
     }
     let Some(flag) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"flag must be a string");
     };
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
-    match find_value(argv, &flag) {
+    match find_value(stack, &flag) {
         Some(FoundValue::Existing(value)) => return return_value(value),
         Some(FoundValue::Inline(value)) => {
             let mut roots = RootFrame::new();
@@ -210,19 +224,19 @@ unsafe extern "C" fn value(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(none)
 }
 
-unsafe extern "C" fn int_value(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn int_value(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 2) {
         return false;
     }
     let Some(flag) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"flag must be a string");
     };
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
-    if let Some(value) = find_value(argv, &flag).and_then(|value| value.string())
+    if let Some(value) = find_value(stack, &flag).and_then(|value| value.string())
         && args_core::is_valid_integer(&value)
     {
         let mut roots = RootFrame::new();
@@ -242,18 +256,22 @@ fn is_flag(value: &str) -> bool {
         || (args_core::is_short_flag(value) && !args_core::is_negative_number(value))
 }
 
-unsafe extern "C" fn positional(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Argument indexes are below the VM list length (a signed C int); looking ahead by one fits usize on every supported target."
+)]
+unsafe extern "C" fn positional(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
     let mut roots = RootFrame::new();
     let output = roots.list();
-    let length = argv.list_len().unwrap_or(0);
+    let length = stack.list_len().unwrap_or(0);
     let mut after_double_dash = false;
     let mut skip_next = false;
 
@@ -262,7 +280,7 @@ unsafe extern "C" fn positional(argc: c_int, argv: ffi::py_StackRef) -> bool {
             skip_next = false;
             continue;
         }
-        let Some(item) = argv.list_item(index) else {
+        let Some(item) = stack.list_item(index) else {
             continue;
         };
         let Some(argument) = item.string() else {
@@ -278,7 +296,7 @@ unsafe extern "C" fn positional(argc: c_int, argv: ffi::py_StackRef) -> bool {
         }
         if args_core::is_long_flag(&argument) {
             if !argument.contains('=')
-                && let Some(next) = argv.list_item(index + 1).and_then(Value::string)
+                && let Some(next) = stack.list_item(index + 1).and_then(Value::string)
                 && !args_core::is_long_flag(&next)
                 && !args_core::is_short_flag(&next)
             {
@@ -287,7 +305,7 @@ unsafe extern "C" fn positional(argc: c_int, argv: ffi::py_StackRef) -> bool {
             continue;
         }
         if args_core::is_short_flag(&argument) && !args_core::is_negative_number(&argument) {
-            if let Some(next) = argv.list_item(index + 1).and_then(Value::string)
+            if let Some(next) = stack.list_item(index + 1).and_then(Value::string)
                 && !args_core::is_long_flag(&next)
                 && !args_core::is_short_flag(&next)
             {
@@ -387,9 +405,14 @@ unsafe extern "C" fn collect_default(
     true
 }
 
-unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::arithmetic_side_effects,
+    clippy::too_many_lines,
+    reason = "One pass keeps alias lookup, flag consumption, and defaults together; the cursor is bounded by the C-int-sized argv list and advances at most one beyond its final item."
+)]
+unsafe extern "C" fn parse(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -399,7 +422,7 @@ unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
     if !spec.is_type(ffi::py_PredefinedType_tp_dict) {
         return type_error(c"spec must be a dict");
     }
-    let Some(argv) = sys_argv() else {
+    let Some(stack) = sys_argv() else {
         return runtime_error(c"sys.argv not available");
     };
 
@@ -414,19 +437,15 @@ unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
     let aliases = roots.dict();
     let mut alias_context = AliasContext { aliases };
-    if !dict_apply(
-        spec,
-        collect_alias,
-        (&mut alias_context as *mut AliasContext).cast(),
-    ) {
+    if !dict_apply(spec, collect_alias, (&raw mut alias_context).cast()) {
         return false;
     }
 
-    let length = argv.list_len().unwrap_or(0);
+    let length = stack.list_len().unwrap_or(0);
     let mut after_double_dash = false;
     let mut index = 1;
     while index < length {
-        let Some(argument_value) = argv.list_item(index) else {
+        let Some(argument_value) = stack.list_item(index) else {
             index += 1;
             continue;
         };
@@ -452,12 +471,12 @@ unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
         }
 
         let mut iteration = RootFrame::new();
-        let (mut flag_key, inline_value) = match argument.find('=') {
-            Some(position) if position < 127 => {
-                let Some(key) = iteration.string(&argument[..position]) else {
+        let (mut flag_key, inline_value) = match argument.split_once('=') {
+            Some((name, value)) if name.len() < 127 => {
+                let Some(key) = iteration.string(name) else {
                     return type_error(c"argument name is too large");
                 };
-                (key, Some(&argument[position + 1..]))
+                (key, Some(value))
             }
             _ => (argument_value, None),
         };
@@ -534,7 +553,7 @@ unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
                 value
             } else if index + 1 < length {
                 index += 1;
-                let Some(value) = argv.list_item(index) else {
+                let Some(value) = stack.list_item(index) else {
                     return runtime_error(c"sys.argv changed during parsing");
                 };
                 value
@@ -560,11 +579,7 @@ unsafe extern "C" fn parse(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 
     let mut defaults_context = DefaultsContext { result };
-    if !dict_apply(
-        spec,
-        collect_default,
-        (&mut defaults_context as *mut DefaultsContext).cast(),
-    ) {
+    if !dict_apply(spec, collect_default, (&raw mut defaults_context).cast()) {
         return false;
     }
     return_value(result)

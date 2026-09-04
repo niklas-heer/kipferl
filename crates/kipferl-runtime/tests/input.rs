@@ -191,7 +191,7 @@ fn preserves_binding_and_argument_errors() {
 fn restores_real_terminal_settings_after_interaction() {
     let _pty_guard = PTY_TEST_LOCK
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (master, slave) = open_pty();
     let original = terminal_settings(slave.0);
     // SAFETY: duplicating a valid descriptor creates an independently owned
@@ -260,11 +260,14 @@ fn ratatui_multiselect_handles_batched_keys_in_a_real_terminal() {
     assert!(output.contains("[Space] toggle"), "{output:?}");
     assert!(output.contains("['Logging', 'HTTP']"), "{output:?}");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run_ratatui_in_pty(source: &str, keys: &[u8]) -> String {
     let _pty_guard = PTY_TEST_LOCK
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (master, slave) = open_pty();
     let original = terminal_settings(slave.0);
     set_terminal_size(master.0, 80, 24);
@@ -324,7 +327,10 @@ fn run_ratatui_in_pty(source: &str, keys: &[u8]) -> String {
     assert_eq!(restored.c_cc, original.c_cc);
     output
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str, keys: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
@@ -365,8 +371,8 @@ fn open_pty() -> (FileDescriptor, FileDescriptor) {
     // settings, and window-size pointers are intentionally null.
     let status = unsafe {
         libc::openpty(
-            &mut master,
-            &mut slave,
+            &raw mut master,
+            &raw mut slave,
             ptr::null_mut(),
             ptr::null_mut(),
             ptr::null_mut(),
@@ -425,13 +431,20 @@ fn read_available(descriptor: libc::c_int, output: &mut Vec<u8>) {
         if count == 0 {
             break;
         }
-        output.extend_from_slice(&buffer[..count]);
+        output.extend(buffer.iter().copied().take(count));
     }
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn write_descriptor(descriptor: libc::c_int, bytes: &[u8]) {
     // SAFETY: `bytes` remains live for the synchronous write and the descriptor
     // is the PTY master.
     let count = unsafe { libc::write(descriptor, bytes.as_ptr().cast(), bytes.len()) };
-    assert_eq!(count, bytes.len() as isize, "write PTY input");
+    assert_eq!(
+        count,
+        isize::try_from(bytes.len()).expect("PTY input length fits ssize_t"),
+        "write PTY input"
+    );
 }

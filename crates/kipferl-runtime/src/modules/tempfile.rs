@@ -39,18 +39,18 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn gettempdir(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn gettempdir(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
-    return_path(filesystem_core::temporary_directory())
+    return_path(&filesystem_core::temporary_directory())
 }
 
-unsafe extern "C" fn mktemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn mktemp(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
@@ -58,15 +58,15 @@ unsafe extern "C" fn mktemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
     for _ in 0..1000 {
         let candidate = filesystem_core::unique_path(&prefix.to_string_lossy());
         if !candidate.exists() {
-            return return_path(candidate);
+            return return_path(&candidate);
         }
     }
     os_error(c"mktemp failed")
 }
 
-unsafe extern "C" fn mkstemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn mkstemp(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
@@ -80,18 +80,18 @@ unsafe extern "C" fn mkstemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
         {
             Ok(file) => {
                 drop(file);
-                return return_path(candidate);
+                return return_path(&candidate);
             }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(_) => return os_error(c"mkstemp failed"),
         }
     }
     os_error(c"mkstemp failed")
 }
 
-unsafe extern "C" fn mkdtemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn mkdtemp(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let prefix = match arguments.get(0) {
         None => filesystem_core::temporary_directory().join("tmp"),
         Some(value) if value.is_none() => filesystem_core::temporary_directory().join("tmp"),
@@ -105,16 +105,16 @@ unsafe extern "C" fn mkdtemp(argc: c_int, argv: ffi::py_StackRef) -> bool {
     for _ in 0..1000 {
         let candidate = filesystem_core::unique_path(&prefix.to_string_lossy());
         match std::fs::create_dir(&candidate) {
-            Ok(()) => return return_path(candidate),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Ok(()) => return return_path(&candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(_) => return os_error(c"mkdtemp failed"),
         }
     }
     os_error(c"mkdtemp failed")
 }
 
-fn return_path(path: std::path::PathBuf) -> bool {
-    let Some(path) = filesystem_core::path_string(&path) else {
+fn return_path(path: &std::path::Path) -> bool {
+    let Some(path) = filesystem_core::path_string(path) else {
         return os_error(c"temporary path is not valid UTF-8");
     };
     return_string(&path)

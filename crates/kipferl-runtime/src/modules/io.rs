@@ -1,6 +1,16 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
 const COMPATIBILITY_SOURCE: &str = r#"
+def _index(value):
+    if isinstance(value, (int, bool)):
+        return int(value)
+    if hasattr(value, "__index__"):
+        result = value.__index__()
+        if isinstance(result, (int, bool)):
+            return int(result)
+    raise TypeError("an integer is required")
+
+
 class _Buffer:
     def _initialize(self, initial_value, binary):
         if binary:
@@ -34,21 +44,31 @@ class _Buffer:
 
     def seek(self, offset, whence=0):
         self._check_open()
+        offset = _index(offset)
+        whence = _index(whence)
         if whence == 0:
             position = offset
         elif whence == 1:
+            if not self._binary and offset != 0:
+                raise OSError("Can't do nonzero cur-relative seeks")
             position = self._position + offset
         elif whence == 2:
+            if not self._binary and offset != 0:
+                raise OSError("Can't do nonzero cur-relative seeks")
             position = len(self._value) + offset
         else:
             raise ValueError("invalid whence")
         if position < 0:
-            raise ValueError("negative seek position")
+            if whence == 0:
+                raise ValueError("negative seek position")
+            position = 0
         self._position = position
         return position
 
     def read(self, size=-1):
         self._check_open()
+        if size is not None:
+            size = _index(size)
         if size is None or size < 0:
             end = len(self._value)
         else:
@@ -68,18 +88,25 @@ class _Buffer:
                 raise TypeError("a bytes-like object is required")
         elif not isinstance(value, str):
             raise TypeError("string argument expected")
-        while self._position > len(self._value):
-            self._value += self._zero
+        if len(value) == 0:
+            return 0
         end = self._position + len(value)
-        suffix = self._empty
-        if end < len(self._value):
-            suffix = self._value[end:]
-        self._value = self._value[:self._position] + value + suffix
+        if self._position >= len(self._value):
+            if self._position > len(self._value):
+                self._value += self._zero * (self._position - len(self._value))
+            self._value += value
+        else:
+            suffix = self._empty
+            if end < len(self._value):
+                suffix = self._value[end:]
+            self._value = self._value[:self._position] + value + suffix
         self._position = end
         return len(value)
 
     def readline(self, size=-1):
         self._check_open()
+        if size is not None:
+            size = _index(size)
         if self._position >= len(self._value) or size == 0:
             return self._empty
         start = self._position
@@ -94,6 +121,8 @@ class _Buffer:
 
     def readlines(self, hint=-1):
         self._check_open()
+        if hint is not None:
+            hint = _index(hint)
         output = []
         total = 0
         while True:
@@ -102,8 +131,9 @@ class _Buffer:
                 break
             output.append(line)
             total += len(line)
-            if hint is not None and hint > 0 and total >= hint:
-                break
+            if hint is not None and hint > 0:
+                if total > hint or (self._binary and total == hint):
+                    break
         return output
 
     def writelines(self, lines):
@@ -115,6 +145,8 @@ class _Buffer:
         self._check_open()
         if size is None:
             size = self._position
+        else:
+            size = _index(size)
         if size < 0:
             raise ValueError("negative size value")
         if size < len(self._value):
@@ -122,19 +154,23 @@ class _Buffer:
         return size
 
     def close(self):
+        self._value = self._empty
         self.closed = True
 
     def flush(self):
         self._check_open()
 
     def readable(self):
-        return not self.closed
+        self._check_open()
+        return True
 
     def writable(self):
-        return not self.closed
+        self._check_open()
+        return True
 
     def seekable(self):
-        return not self.closed
+        self._check_open()
+        return True
 
     def __enter__(self):
         self._check_open()
@@ -144,6 +180,8 @@ class _Buffer:
         self.close()
 
     def __iter__(self):
+        if not self._binary:
+            self._check_open()
         return self
 
     def __next__(self):
@@ -175,6 +213,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.

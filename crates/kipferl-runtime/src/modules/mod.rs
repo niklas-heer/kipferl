@@ -165,14 +165,14 @@ const MODULES: &[NativeModule] = &[
     zipfile::MODULE,
 ];
 
-pub(crate) fn register_all() {
+pub fn register_all() {
     string_methods::register();
     bytes_methods::register();
     bytearray::register();
     register_modules(MODULES);
 }
 
-pub(crate) fn shutdown_all() {
+pub fn shutdown_all() {
     #[cfg(feature = "interactive")]
     input::shutdown();
     term::shutdown();

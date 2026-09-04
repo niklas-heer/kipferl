@@ -1,7 +1,7 @@
 //! Allocation-free primitives shared by Kipferl's interactive input module.
 
 #[must_use]
-pub fn string_length(value: &str) -> usize {
+pub const fn string_length(value: &str) -> usize {
     value.len()
 }
 
@@ -17,7 +17,7 @@ pub fn starts_with(value: &str, prefix: &str) -> bool {
 
 /// Clamps without panicking when the legacy caller supplies an inverted range.
 #[must_use]
-pub fn clamp(value: i32, minimum: i32, maximum: i32) -> i32 {
+pub const fn clamp(value: i32, minimum: i32, maximum: i32) -> i32 {
     if value < minimum {
         minimum
     } else if value > maximum {
@@ -28,7 +28,7 @@ pub fn clamp(value: i32, minimum: i32, maximum: i32) -> i32 {
 }
 
 #[must_use]
-pub fn wrap_index(value: i32, count: i32) -> i32 {
+pub const fn wrap_index(value: i32, count: i32) -> i32 {
     if count <= 0 {
         0
     } else {

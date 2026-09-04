@@ -8,8 +8,8 @@ use crate::native::{
 };
 
 pub(super) fn register() {
-    for (name, callback) in [
-        (c"isdigit", isdigit as crate::native::Callback),
+    let methods: &[(&std::ffi::CStr, crate::native::Callback)] = &[
+        (c"isdigit", isdigit),
         (c"isalpha", isalpha),
         (c"isalnum", isalnum),
         (c"isspace", isspace),
@@ -20,20 +20,21 @@ pub(super) fn register() {
         (c"isidentifier", isidentifier),
         (c"isprintable", isprintable),
         (c"isascii", isascii),
-    ] {
+    ];
+    for &(name, callback) in methods {
         bind_type_method(
-            ffi::py_PredefinedType_tp_str as ffi::py_Type,
+            crate::native::predefined_type(ffi::py_PredefinedType_tp_str),
             name,
             callback,
         );
     }
     bind_type_method(
-        ffi::py_PredefinedType_tp_str as ffi::py_Type,
+        crate::native::predefined_type(ffi::py_PredefinedType_tp_str),
         c"isupper",
         isupper,
     );
     bind_type_signature(
-        ffi::py_PredefinedType_tp_str as ffi::py_Type,
+        crate::native::predefined_type(ffi::py_PredefinedType_tp_str),
         c"rsplit(self, sep=None, maxsplit=-1)",
         rsplit,
     );
@@ -45,9 +46,9 @@ fn return_bool(value: bool) -> bool {
     return_value(result)
 }
 
-fn string_argument(argc: c_int, argv: ffi::py_StackRef) -> Result<String, ()> {
+fn string_argument(argc: c_int, stack: ffi::py_StackRef) -> Result<String, ()> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return Err(());
     }
@@ -56,29 +57,29 @@ fn string_argument(argc: c_int, argv: ffi::py_StackRef) -> Result<String, ()> {
     })
 }
 
-unsafe extern "C" fn isdigit(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isdigit(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     return_bool(!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
-unsafe extern "C" fn isalpha(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isalpha(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     return_bool(!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_alphabetic()))
 }
 
-unsafe extern "C" fn isalnum(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isalnum(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     return_bool(!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_alphanumeric()))
 }
 
-unsafe extern "C" fn isspace(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isspace(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     return_bool(
@@ -89,16 +90,16 @@ unsafe extern "C" fn isspace(argc: c_int, argv: ffi::py_StackRef) -> bool {
     )
 }
 
-unsafe extern "C" fn islower(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn islower(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     let has_cased = value.bytes().any(|byte| byte.is_ascii_lowercase());
     return_bool(has_cased && !value.bytes().any(|byte| byte.is_ascii_uppercase()))
 }
 
-unsafe extern "C" fn istitle(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn istitle(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     let mut previous_cased = false;
@@ -123,8 +124,8 @@ unsafe extern "C" fn istitle(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_bool(has_cased)
 }
 
-unsafe extern "C" fn isidentifier(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isidentifier(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     let mut bytes = value.bytes();
@@ -137,27 +138,30 @@ unsafe extern "C" fn isidentifier(argc: c_int, argv: ffi::py_StackRef) -> bool {
     )
 }
 
-unsafe extern "C" fn isprintable(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isprintable(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     return_bool(value.bytes().all(|byte| (0x20..=0x7e).contains(&byte)))
 }
 
-unsafe extern "C" fn isascii(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Ok(value) = string_argument(argc, argv) else {
+unsafe extern "C" fn isascii(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Ok(value) = string_argument(argc, stack) else {
         return false;
     };
     return_bool(value.is_ascii())
 }
 
-unsafe extern "C" fn isupper(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn isupper(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let Some(value) = arguments.get(0).and_then(|value| value.string()) else {
+    let Some(value) = arguments
+        .get(0)
+        .and_then(super::super::native::Value::string)
+    else {
         return type_error(c"expected string");
     };
     let mut has_cased = false;
@@ -176,9 +180,9 @@ unsafe extern "C" fn isupper(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(result)
 }
 
-unsafe extern "C" fn rsplit(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn rsplit(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(value) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"expected string");
     };

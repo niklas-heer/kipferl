@@ -89,8 +89,8 @@ impl Sequence {
     }
 }
 
-unsafe extern "C" fn mean(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(sequence) = sequence_argument(argc, argv) else {
+unsafe extern "C" fn mean(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(sequence) = sequence_argument(argc, stack) else {
         return false;
     };
     if sequence.len() == 0 {
@@ -109,8 +109,8 @@ unsafe extern "C" fn mean(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_number(statistics_core::mean(&values))
 }
 
-unsafe extern "C" fn median(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(sequence) = sequence_argument(argc, argv) else {
+unsafe extern "C" fn median(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(sequence) = sequence_argument(argc, stack) else {
         return false;
     };
     if sequence.len() == 0 {
@@ -125,8 +125,8 @@ unsafe extern "C" fn median(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_number(statistics_core::median(&mut values))
 }
 
-unsafe extern "C" fn median_low(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(sequence) = sequence_argument(argc, argv) else {
+unsafe extern "C" fn median_low(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(sequence) = sequence_argument(argc, stack) else {
         return false;
     };
     if sequence.len() == 0 || sequence.len() > 256 {
@@ -138,8 +138,8 @@ unsafe extern "C" fn median_low(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_number(statistics_core::median_low(&mut values))
 }
 
-unsafe extern "C" fn median_high(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(sequence) = sequence_argument(argc, argv) else {
+unsafe extern "C" fn median_high(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(sequence) = sequence_argument(argc, stack) else {
         return false;
     };
     if sequence.len() == 0 || sequence.len() > 256 {
@@ -151,8 +151,8 @@ unsafe extern "C" fn median_high(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_number(statistics_core::median_high(&mut values))
 }
 
-unsafe extern "C" fn mode(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(sequence) = sequence_argument(argc, argv) else {
+unsafe extern "C" fn mode(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(sequence) = sequence_argument(argc, stack) else {
         return false;
     };
     if sequence.len() == 0 {
@@ -172,7 +172,10 @@ unsafe extern "C" fn mode(argc: c_int, argv: ffi::py_StackRef) -> bool {
             for entry in &mut values {
                 match entry.0.equals(candidate) {
                     Ok(true) => {
-                        entry.1 += 1;
+                        let Some(count) = entry.1.checked_add(1) else {
+                            return value_error(c"too many observations");
+                        };
+                        entry.1 = count;
                         found = true;
                         break;
                     }
@@ -196,35 +199,38 @@ unsafe extern "C" fn mode(argc: c_int, argv: ffi::py_StackRef) -> bool {
         }
     }
 
-    let mut mode_index = 0;
+    let mut selected = None;
     let mut maximum_count = 0;
-    for (index, (_, count)) in values.iter().enumerate() {
+    for (value, count) in &values {
         if *count > maximum_count {
             maximum_count = *count;
-            mode_index = index;
+            selected = Some(*value);
         }
     }
-    return_value(values[mode_index].0)
+    selected.map_or_else(
+        || value_error(c"mode requires at least one data point"),
+        return_value,
+    )
 }
 
-unsafe extern "C" fn variance(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    dispersion(argc, argv, true, false)
+unsafe extern "C" fn variance(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    dispersion(argc, stack, true, false)
 }
 
-unsafe extern "C" fn pvariance(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    dispersion(argc, argv, false, false)
+unsafe extern "C" fn pvariance(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    dispersion(argc, stack, false, false)
 }
 
-unsafe extern "C" fn stdev(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    dispersion(argc, argv, true, true)
+unsafe extern "C" fn stdev(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    dispersion(argc, stack, true, true)
 }
 
-unsafe extern "C" fn pstdev(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    dispersion(argc, argv, false, true)
+unsafe extern "C" fn pstdev(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    dispersion(argc, stack, false, true)
 }
 
-fn dispersion(argc: c_int, argv: ffi::py_StackRef, sample: bool, square_root: bool) -> bool {
-    let Some(sequence) = sequence_argument(argc, argv) else {
+fn dispersion(argc: c_int, stack: ffi::py_StackRef, sample: bool, square_root: bool) -> bool {
+    let Some(sequence) = sequence_argument(argc, stack) else {
         return false;
     };
     let minimum = if sample { 2 } else { 1 };
@@ -246,13 +252,16 @@ fn dispersion(argc: c_int, argv: ffi::py_StackRef, sample: bool, square_root: bo
     })
 }
 
-fn sequence_argument(argc: c_int, argv: ffi::py_StackRef) -> Option<Sequence> {
+fn sequence_argument(argc: c_int, stack: ffi::py_StackRef) -> Option<Sequence> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return None;
     }
-    let value = arguments.get(0).expect("arity checked");
+    let Some(value) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return None;
+    };
     if let Some(sequence) = Sequence::from_value(value) {
         return Some(sequence);
     }

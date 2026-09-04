@@ -1,6 +1,6 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 class ConfigParser:
     def __init__(self):
         self._sections = {}
@@ -77,7 +77,7 @@ class ConfigParser:
 
     def has_option(self, section, option):
         return section in self._sections and option in self._sections[section]
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"configparser",

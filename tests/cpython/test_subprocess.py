@@ -167,6 +167,28 @@ if hasattr(subprocess, "Popen"):
     proc = subprocess.Popen(["true"])
     proc.wait()
     test("Popen true - wait returncode", proc.returncode == 0)
+
+    proc = subprocess.Popen(
+        ["sh", "-c", "printf 'first\\r\\nsecond\\r'; printf 'error\\r\\n' >&2"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    stdout, stderr = proc.communicate()
+    test("Popen text stdout", stdout == "first\nsecond\n")
+    test("Popen text stderr", stderr == "error\n")
+    test("Popen repeated communicate", proc.communicate() == (stdout, stderr))
+    test("Popen wait after communicate", proc.wait() == 0)
+
+    proc = subprocess.Popen(["printf", "retained"], stdout=subprocess.PIPE)
+    test("Popen wait before communicate", proc.wait() == 0)
+    stdout, stderr = proc.communicate()
+    test("Popen wait preserves captured output", stdout == b"retained")
+    test("Popen uncaptured stderr remains None", stderr is None)
+
+    result = subprocess.run(["sh", "-c", "kill -TERM $$"], capture_output=True)
+    test("run preserves terminating signal", get_returncode(result) == -15)
+    test("call preserves terminating signal", subprocess.call(["sh", "-c", "kill -TERM $$"]) == -15)
 else:
     skip("Popen echo - returncode", "subprocess.Popen not available")
     skip("Popen echo - stdout", "subprocess.Popen not available")

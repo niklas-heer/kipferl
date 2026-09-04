@@ -18,7 +18,7 @@ const SIGNATURES: &[NativeSignature] = &[
     },
 ];
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 class ParseResult:
     def __init__(self, scheme, netloc, path, params, query, fragment):
         self.scheme = scheme
@@ -97,7 +97,7 @@ def urlencode(query, doseq=False, safe='', encoding=None, errors=None, quote_via
     for key, value in items:
         parts.append(quote(str(key), '').replace('%20', '+') + '=' + quote(str(value), '').replace('%20', '+'))
     return '&'.join(parts)
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"urllib.parse",
@@ -116,9 +116,9 @@ fn initialize(module: Value) {
     );
 }
 
-unsafe extern "C" fn quote(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn quote(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(input) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"quote() requires a string");
     };
@@ -141,31 +141,25 @@ unsafe extern "C" fn quote(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string(&output)
 }
 
-unsafe extern "C" fn unquote(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn unquote(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(input) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"unquote() requires a string");
     };
-    let bytes = input.as_bytes();
+    let mut bytes = input.as_bytes();
     let mut output = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%'
-            && index + 2 < bytes.len()
-            && let (Some(high), Some(low)) =
-                (hex_value(bytes[index + 1]), hex_value(bytes[index + 2]))
+    while let Some((&first, rest)) = bytes.split_first() {
+        if first == b'%'
+            && let [high, low, tail @ ..] = rest
+            && let (Some(high), Some(low)) = (hex_value(*high), hex_value(*low))
         {
             output.push((high << 4) | low);
-            index += 3;
+            bytes = tail;
             continue;
         }
-        output.push(if bytes[index] == b'+' {
-            b' '
-        } else {
-            bytes[index]
-        });
-        index += 1;
+        output.push(if first == b'+' { b' ' } else { first });
+        bytes = rest;
     }
     let Ok(output) = String::from_utf8(output) else {
         return type_error(c"decoded URL is not UTF-8");
@@ -175,9 +169,13 @@ unsafe extern "C" fn unquote(argc: c_int, argv: ffi::py_StackRef) -> bool {
 
 fn hex_value(byte: u8) -> Option<u8> {
     match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
+        b'0'..=b'9' => byte.checked_sub(b'0'),
+        b'a'..=b'f' => byte
+            .checked_sub(b'a')
+            .and_then(|digit| digit.checked_add(10)),
+        b'A'..=b'F' => byte
+            .checked_sub(b'A')
+            .and_then(|digit| digit.checked_add(10)),
         _ => None,
     }
 }

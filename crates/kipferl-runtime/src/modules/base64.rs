@@ -29,9 +29,9 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn urlsafe_b64encode(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn urlsafe_b64encode(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -45,13 +45,16 @@ unsafe extern "C" fn urlsafe_b64encode(argc: c_int, argv: ffi::py_StackRef) -> b
     return_bytes(&output)
 }
 
-unsafe extern "C" fn urlsafe_b64decode(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn urlsafe_b64decode(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let value = arguments.get(0).expect("arity checked");
+    let Some(value) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     let input = if let Some(bytes) = value.bytes() {
         bytes
     } else if let Some(string) = value.string() {

@@ -19,7 +19,7 @@ const SIGNATURES: &[NativeSignature] = &[
     },
 ];
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 import json as _json
 
 def loads(text):
@@ -47,7 +47,7 @@ def dump(data, stream=None):
     output.write(text)
     output.close()
     return None
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"toml",
@@ -63,9 +63,9 @@ fn initialize(module: Value) {
     assert!(execute_module(module, SOURCE), "embedded TOML module");
 }
 
-unsafe extern "C" fn loads(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn loads(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(value) = arguments.get(0) else {
         return type_error(c"TOML input must be a string or bytes");
     };
@@ -85,9 +85,9 @@ unsafe extern "C" fn loads(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn dumps(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn dumps(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(data) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"TOML data must be JSON-compatible");
     };

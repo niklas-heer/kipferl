@@ -13,7 +13,7 @@ const SIGNATURES: &[NativeSignature] = &[NativeSignature {
     callback: loads,
 }];
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 import json as _json
 
 def loads(data):
@@ -26,7 +26,7 @@ def load(source):
     data = stream.read()
     stream.close()
     return loads(data)
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"tomllib",
@@ -42,9 +42,9 @@ fn initialize(module: Value) {
     assert!(execute_module(module, SOURCE), "embedded tomllib module");
 }
 
-unsafe extern "C" fn loads(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn loads(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(value) = arguments.get(0) else {
         return type_error(c"TOML input must be a string or bytes");
     };

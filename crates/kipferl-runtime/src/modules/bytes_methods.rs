@@ -7,14 +7,14 @@ use crate::native::{Arguments, Value, bind_type_signature, return_bytes, type_er
 const MAX_BYTES_SIZE: usize = 64 * 1024 * 1024;
 
 pub(super) fn register() {
-    let bytes_type = ffi::py_PredefinedType_tp_bytes as ffi::py_Type;
+    let bytes_type = crate::native::predefined_type(ffi::py_PredefinedType_tp_bytes);
     bind_type_signature(bytes_type, c"__mul__(self, count)", multiply);
     bind_type_signature(bytes_type, c"__rmul__(self, count)", multiply);
 }
 
-unsafe extern "C" fn multiply(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn multiply(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }

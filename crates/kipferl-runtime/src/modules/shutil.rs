@@ -36,8 +36,8 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: None,
 };
 
-unsafe extern "C" fn copy(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some((source, destination)) = two_paths(argc, argv) else {
+unsafe extern "C" fn copy(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some((source, destination)) = two_paths(argc, stack) else {
         return false;
     };
     match std::fs::copy(&source, &destination) {
@@ -46,8 +46,8 @@ unsafe extern "C" fn copy(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn move_path(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some((source, destination)) = two_paths(argc, argv) else {
+unsafe extern "C" fn move_path(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some((source, destination)) = two_paths(argc, stack) else {
         return false;
     };
     if std::fs::rename(&source, &destination).is_err()
@@ -58,8 +58,8 @@ unsafe extern "C" fn move_path(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string(&destination)
 }
 
-unsafe extern "C" fn rmtree(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(path) = one_path(argc, argv) else {
+unsafe extern "C" fn rmtree(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(path) = one_path(argc, stack) else {
         return false;
     };
     match std::fs::remove_dir_all(path) {
@@ -72,8 +72,8 @@ unsafe extern "C" fn rmtree(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn exists(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    let Some(path) = one_path(argc, argv) else {
+unsafe extern "C" fn exists(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    let Some(path) = one_path(argc, stack) else {
         return false;
     };
     let mut roots = RootFrame::new();
@@ -81,9 +81,9 @@ unsafe extern "C" fn exists(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(value)
 }
 
-fn one_path(argc: c_int, argv: ffi::py_StackRef) -> Option<String> {
+fn one_path(argc: c_int, stack: ffi::py_StackRef) -> Option<String> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return None;
     }
@@ -94,9 +94,9 @@ fn one_path(argc: c_int, argv: ffi::py_StackRef) -> Option<String> {
     Some(path)
 }
 
-fn two_paths(argc: c_int, argv: ffi::py_StackRef) -> Option<(String, String)> {
+fn two_paths(argc: c_int, stack: ffi::py_StackRef) -> Option<(String, String)> {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return None;
     }

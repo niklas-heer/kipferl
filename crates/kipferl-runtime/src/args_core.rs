@@ -40,7 +40,9 @@ pub fn parse_integer(value: &str) -> i64 {
     let digits = value.strip_prefix('-').unwrap_or(value);
     let parsed = digits.bytes().fold(0_i64, |result, byte| {
         if byte.is_ascii_digit() {
-            result.wrapping_mul(10).wrapping_add(i64::from(byte - b'0'))
+            result
+                .wrapping_mul(10)
+                .wrapping_add(i64::from(byte.wrapping_sub(b'0')))
         } else {
             result
         }
@@ -108,11 +110,10 @@ pub fn is_negated_flag(value: &str) -> bool {
 
 #[must_use]
 pub fn negated_base(value: &str) -> &str {
-    if is_negated_flag(value) {
-        &value[3..]
-    } else {
-        value
-    }
+    value
+        .strip_prefix("no-")
+        .filter(|rest| !rest.is_empty())
+        .unwrap_or(value)
 }
 
 #[cfg(test)]

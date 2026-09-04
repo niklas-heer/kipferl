@@ -396,7 +396,7 @@ print("\n=== length_hint ===")
 if hasattr(operator, "length_hint"):
     test("length_hint list", operator.length_hint([1, 2, 3]) == 3)
     test("length_hint str", operator.length_hint("hello") == 5)
-    test("length_hint default", operator.length_hint(iter([]), 10) == 10)
+    test("length_hint default", operator.length_hint(object(), 10) == 10)
 else:
     skip("length_hint list", "not available")
     skip("length_hint str", "not available")

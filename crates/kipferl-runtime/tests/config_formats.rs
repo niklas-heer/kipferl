@@ -102,7 +102,10 @@ fn reports_invalid_or_unsupported_configuration_data() {
     assert!(output.status.success(), "{}", diagnostic(&output));
     assert_eq!(text(&output.stderr), "");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
@@ -128,6 +131,10 @@ struct TemporaryDirectory {
 }
 
 impl TemporaryDirectory {
+    #[expect(
+        clippy::expect_used,
+        reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+    )]
     fn new(label: &str) -> Self {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)

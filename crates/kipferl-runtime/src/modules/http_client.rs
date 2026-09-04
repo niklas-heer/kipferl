@@ -1,3 +1,14 @@
+// HTTP inputs cross an extern-C callback: keep conversions and indexing fallible.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::string_slice,
+    clippy::as_conversions,
+    clippy::arithmetic_side_effects,
+    clippy::panic_in_result_fn
+)]
+
 use std::ffi::{c_int, c_void};
 use std::time::Duration;
 
@@ -71,6 +82,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: module initialization failed with a live PocketPy exception.
@@ -120,9 +135,13 @@ unsafe extern "C" fn collect_header(
     true
 }
 
-unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep ordered input validation, request execution, and bounded response construction together at the FFI boundary for review."
+)]
+unsafe extern "C" fn request(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(8, 8) {
         return false;
     }
@@ -152,12 +171,13 @@ unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
     let body = match arguments.get(5) {
         Some(value) if value.is_none() => Vec::new(),
-        Some(value) if value.is_type(ffi::py_PredefinedType_tp_bytes) => {
-            value.bytes().expect("bytes checked")
-        }
-        Some(value) if value.is_type(ffi::py_PredefinedType_tp_str) => {
-            value.string().expect("string checked").into_bytes()
-        }
+        Some(value) => match value
+            .bytes()
+            .or_else(|| value.string().map(String::into_bytes))
+        {
+            Some(body) => body,
+            None => return type_error(c"body must be str, bytes, or None"),
+        },
         _ => return type_error(c"body must be str, bytes, or None"),
     };
 
@@ -174,7 +194,7 @@ unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
         if !dict_apply(
             headers,
             collect_header,
-            (&mut collector as *mut HeaderCollector).cast(),
+            std::ptr::from_mut(&mut collector).cast(),
         ) {
             return false;
         }
@@ -192,7 +212,11 @@ unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
                 .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
         }
     });
-    if !arguments.get(7).is_some_and(|value| value.is_none()) && timeout.is_none() {
+    if !arguments
+        .get(7)
+        .is_some_and(super::super::native::Value::is_none)
+        && timeout.is_none()
+    {
         return value_error(c"timeout must be a finite non-negative number or None");
     }
 
@@ -217,7 +241,15 @@ unsafe extern "C" fn request(argc: c_int, argv: ffi::py_StackRef) -> bool {
         .user_agent("")
         .accept("");
     if let Some(seconds) = timeout {
-        config = config.timeout_global(Some(Duration::from_secs_f64(seconds)));
+        let Ok(duration) = Duration::try_from_secs_f64(seconds) else {
+            return value_error(c"timeout is too large");
+        };
+        // The HTTP client computes deadlines using Instant addition. A valid
+        // Duration can still exceed the platform clock's representable range.
+        if std::time::Instant::now().checked_add(duration).is_none() {
+            return value_error(c"timeout is too large");
+        }
+        config = config.timeout_global(Some(duration));
     }
     let agent: Agent = config.build().into();
     let Ok(mut response) = agent.run(request) else {
@@ -256,7 +288,10 @@ fn request_path(url: &str) -> &str {
         .strip_prefix("http://")
         .or_else(|| url.strip_prefix("https://"))
     {
-        return rest.find('/').map_or("/", |index| &rest[index..]);
+        return rest
+            .find('/')
+            .and_then(|index| rest.get(index..))
+            .unwrap_or("/");
     }
     if url.is_empty() {
         "/"

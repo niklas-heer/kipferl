@@ -130,8 +130,12 @@ print("\n=== shutil.exists() tests ===")
 
 exist_file = f"{_test_dir}/exists_test.txt"
 write_file(exist_file, "Exists")
-test("exists file true", shutil.exists(exist_file))
-test("exists false", not shutil.exists(f"{_test_dir}/no_such_file.txt"))
+if hasattr(shutil, "exists"):
+    test("exists file true", shutil.exists(exist_file))
+    test("exists false", not shutil.exists(f"{_test_dir}/no_such_file.txt"))
+else:
+    skip("exists file true", "Kipferl extension")
+    skip("exists false", "Kipferl extension")
 
 
 cleanup_test_dir()

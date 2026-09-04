@@ -1,148 +1,77 @@
 const WRAP_BUFFER_LIMIT: usize = 4096;
 
-fn is_whitespace(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\n' | b'\t' | b'\r' | 0x0b | 0x0c)
+fn words(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|character: char| character.is_ascii_whitespace() || character == '\u{b}')
+        .filter(|word| !word.is_empty())
 }
 
-fn collapse_whitespace(text: &str) -> Vec<u8> {
-    let bytes = text.as_bytes();
-    let mut collapsed = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    let mut seen_word = false;
-
-    while index < bytes.len() {
-        while index < bytes.len() && is_whitespace(bytes[index]) {
-            index += 1;
-        }
-        if index == bytes.len() {
-            break;
-        }
-        let start = index;
-        while index < bytes.len() && !is_whitespace(bytes[index]) {
-            index += 1;
-        }
-        if seen_word {
-            collapsed.push(b' ');
-        }
-        collapsed.extend_from_slice(&bytes[start..index]);
-        seen_word = true;
-    }
-    collapsed
+fn collapse_whitespace(text: &str) -> String {
+    words(text).collect::<Vec<_>>().join(" ")
 }
 
-fn collapse_for_wrap(text: &str) -> Vec<u8> {
-    let bytes = text.as_bytes();
-    let mut collapsed = Vec::with_capacity(bytes.len().min(WRAP_BUFFER_LIMIT));
-    let mut index = 0;
+fn collapse_for_wrap(text: &str) -> String {
+    let mut collapsed = String::with_capacity(text.len().min(WRAP_BUFFER_LIMIT));
     let mut need_space = false;
-
-    while index < bytes.len() {
-        while index < bytes.len() && is_whitespace(bytes[index]) {
-            index += 1;
-        }
-        if index == bytes.len() {
-            break;
-        }
-        let start = index;
-        while index < bytes.len() && !is_whitespace(bytes[index]) {
-            index += 1;
-        }
-        let word = &bytes[start..index];
-        if need_space && collapsed.len() + 1 + word.len() <= WRAP_BUFFER_LIMIT {
-            collapsed.push(b' ');
+    for word in words(text) {
+        if need_space
+            && collapsed.len().saturating_add(1).saturating_add(word.len()) <= WRAP_BUFFER_LIMIT
+        {
+            collapsed.push(' ');
         }
         need_space = true;
-        if collapsed.len() + word.len() <= WRAP_BUFFER_LIMIT {
-            collapsed.extend_from_slice(word);
+        if collapsed.len().saturating_add(word.len()) <= WRAP_BUFFER_LIMIT {
+            collapsed.push_str(word);
         }
     }
     collapsed
 }
 
 pub(super) fn wrap(text: &str, width: i64) -> Vec<String> {
-    if text.is_empty() {
-        return Vec::new();
-    }
-    let width = if width > 0 { width as usize } else { 70 };
+    let width = usize::try_from(width)
+        .ok()
+        .filter(|width| *width > 0)
+        .unwrap_or(70);
     let collapsed = collapse_for_wrap(text);
     let mut lines = Vec::new();
-    let mut index = 0;
-
-    while index < collapsed.len() {
-        while index < collapsed.len() && collapsed[index] == b' ' {
-            index += 1;
+    let mut line = String::new();
+    for word in words(&collapsed) {
+        if line.is_empty() {
+            line.push_str(word);
+        } else if line.len().saturating_add(1).saturating_add(word.len()) <= width {
+            line.push(' ');
+            line.push_str(word);
+        } else {
+            // The legacy wrap API consumes the overflowing word without emitting it.
+            lines.push(std::mem::take(&mut line));
         }
-        if index == collapsed.len() {
-            break;
-        }
-        let line_start = index;
-        let mut line_end = index;
-
-        while index < collapsed.len() {
-            while index < collapsed.len() && collapsed[index] != b' ' {
-                index += 1;
-            }
-            let word_end = index;
-            if line_end == line_start || word_end - line_start <= width {
-                line_end = word_end;
-            } else {
-                break;
-            }
-            while index < collapsed.len() && collapsed[index] == b' ' {
-                index += 1;
-            }
-        }
-
-        if line_end > line_start {
-            lines.push(
-                String::from_utf8(collapsed[line_start..line_end].to_vec())
-                    .expect("text originated as UTF-8"),
-            );
-        }
+    }
+    if !line.is_empty() {
+        lines.push(line);
     }
     lines
 }
 
 pub(super) fn fill(text: &str, width: i64) -> String {
-    let width = if width > 0 { width as usize } else { 1 };
-    let collapsed = collapse_whitespace(text);
-    let mut lines: Vec<&[u8]> = Vec::new();
-    let mut index = 0;
-    let mut line_start = 0;
-    let mut line_len = 0;
-
-    while index < collapsed.len() {
-        let word_start = index;
-        while index < collapsed.len() && collapsed[index] != b' ' {
-            index += 1;
+    let width = usize::try_from(width)
+        .ok()
+        .filter(|width| *width > 0)
+        .unwrap_or(1);
+    let mut output = String::with_capacity(text.len());
+    let mut line_len: usize = 0;
+    for word in words(text) {
+        if line_len != 0 {
+            if line_len.saturating_add(1).saturating_add(word.len()) <= width {
+                output.push(' ');
+                line_len = line_len.saturating_add(1);
+            } else {
+                output.push('\n');
+                line_len = 0;
+            }
         }
-        let word_len = index - word_start;
-        if line_len == 0 {
-            line_start = word_start;
-            line_len = word_len;
-        } else if line_len + 1 + word_len <= width {
-            line_len += 1 + word_len;
-        } else {
-            lines.push(&collapsed[line_start..line_start + line_len]);
-            line_start = word_start;
-            line_len = word_len;
-        }
-        if index < collapsed.len() {
-            index += 1;
-        }
+        output.push_str(word);
+        line_len = line_len.saturating_add(word.len());
     }
-    if line_len > 0 {
-        lines.push(&collapsed[line_start..line_start + line_len]);
-    }
-
-    let mut output = Vec::with_capacity(collapsed.len());
-    for (line_index, line) in lines.iter().enumerate() {
-        if line_index != 0 {
-            output.push(b'\n');
-        }
-        output.extend_from_slice(line);
-    }
-    String::from_utf8(output).expect("text originated as UTF-8")
+    output
 }
 
 pub(super) fn dedent(text: &str) -> String {
@@ -150,25 +79,21 @@ pub(super) fn dedent(text: &str) -> String {
         .split('\n')
         .filter_map(|line| {
             let count = line
-                .as_bytes()
-                .iter()
+                .bytes()
                 .take_while(|byte| matches!(byte, b' ' | b'\t'))
                 .count();
             (count != line.len()).then_some(count)
         })
         .min()
         .unwrap_or(0);
-
     text.split('\n')
         .map(|line| {
-            let mut start = 0;
-            while start < indent
-                && start < line.len()
-                && matches!(line.as_bytes()[start], b' ' | b'\t')
-            {
-                start += 1;
-            }
-            &line[start..]
+            let count = line
+                .bytes()
+                .take(indent)
+                .take_while(|byte| matches!(byte, b' ' | b'\t'))
+                .count();
+            line.get(count..).unwrap_or(line)
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -178,7 +103,7 @@ pub(super) fn indent(text: &str, prefix: &str) -> String {
     if text.is_empty() {
         return String::new();
     }
-    let mut output = String::with_capacity(text.len() + prefix.len());
+    let mut output = String::with_capacity(text.len().saturating_add(prefix.len()));
     for (index, line) in text.split('\n').enumerate() {
         if index != 0 {
             output.push('\n');
@@ -190,51 +115,48 @@ pub(super) fn indent(text: &str, prefix: &str) -> String {
 }
 
 pub(super) fn shorten(text: &str, width: i64) -> String {
-    if width <= 0 {
+    const PLACEHOLDER: &str = "...";
+    let Ok(width) = usize::try_from(width) else {
+        return String::new();
+    };
+    if width == 0 {
         return String::new();
     }
-    let width = width as usize;
     let collapsed = collapse_whitespace(text);
     if collapsed.len() <= width {
-        return String::from_utf8(collapsed).expect("text originated as UTF-8");
+        return collapsed;
     }
-
-    const PLACEHOLDER: &[u8] = b"...";
     if width <= PLACEHOLDER.len() {
-        return String::from_utf8(PLACEHOLDER[..width].to_vec()).expect("ASCII placeholder");
+        return ".".repeat(width);
     }
-    let maximum_body = width - PLACEHOLDER.len();
-    let mut output = Vec::with_capacity(width);
-    let mut index = 0;
-
-    while index < collapsed.len() {
-        while index < collapsed.len() && collapsed[index] == b' ' {
-            index += 1;
-        }
-        if index == collapsed.len() {
-            break;
-        }
-        let start = index;
-        while index < collapsed.len() && collapsed[index] != b' ' {
-            index += 1;
-        }
-        let word = &collapsed[start..index];
-        let needed = word.len() + usize::from(!output.is_empty());
-        if output.len() + needed > maximum_body {
+    let maximum_body = width.saturating_sub(PLACEHOLDER.len());
+    let mut output = String::new();
+    for word in words(&collapsed) {
+        let needed = word.len().saturating_add(usize::from(!output.is_empty()));
+        if output.len().saturating_add(needed) > maximum_body {
             break;
         }
         if !output.is_empty() {
-            output.push(b' ');
+            output.push(' ');
         }
-        output.extend_from_slice(word);
+        output.push_str(word);
     }
-    output.extend_from_slice(PLACEHOLDER);
-    String::from_utf8(output).expect("text originated as UTF-8")
+    output.push_str(PLACEHOLDER);
+    output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unicode_and_extreme_widths_preserve_whole_words() {
+        assert_eq!(fill("é\u{b}界 🙂", i64::MAX), "é 界 🙂");
+        assert_eq!(wrap("é 界 🙂", i64::MAX), ["é 界 🙂"]);
+        assert_eq!(shorten("é 界 🙂", i64::MAX), "é 界 🙂");
+        assert_eq!(shorten("é 界 🙂", 5), "é...");
+        assert_eq!(dedent("  é\n  界"), "é\n界");
+    }
 
     #[test]
     fn preserves_legacy_wrap_overflow_behavior() {

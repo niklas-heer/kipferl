@@ -20,7 +20,7 @@ const SIGNATURES: &[NativeSignature] = &[
     },
 ];
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 import json as _json
 
 def loads(text):
@@ -62,7 +62,7 @@ def node(name, entries=None, children=None, type=None):
         'entries': [] if entries is None else entries,
         'children': [] if children is None else children,
     }
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"kdl",
@@ -78,9 +78,9 @@ fn initialize(module: Value) {
     assert!(execute_module(module, SOURCE), "embedded KDL module");
 }
 
-unsafe extern "C" fn loads(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn loads(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(text) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"KDL input must be a string");
     };
@@ -98,9 +98,9 @@ unsafe extern "C" fn loads(argc: c_int, argv: ffi::py_StackRef) -> bool {
     }
 }
 
-unsafe extern "C" fn dumps(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn dumps(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(data) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"KDL document must be JSON-compatible");
     };
@@ -109,7 +109,7 @@ unsafe extern "C" fn dumps(argc: c_int, argv: ffi::py_StackRef) -> bool {
         Err(error) => return value_error_message(&format!("unsupported KDL data: {error}")),
     };
     let mut document = match document_from_json(&value) {
-        Ok(document) => document,
+        Ok(value) => value,
         Err(error) => return value_error_message(&error),
     };
     document.autoformat();
@@ -133,9 +133,9 @@ fn node_to_json(node: &KdlNode) -> Result<JsonValue, String> {
     );
     value.insert(
         "type".into(),
-        node.ty()
-            .map(|value| JsonValue::String(value.value().to_owned()))
-            .unwrap_or(JsonValue::Null),
+        node.ty().map_or(JsonValue::Null, |value| {
+            JsonValue::String(value.value().to_owned())
+        }),
     );
     let entries = node
         .entries()
@@ -157,17 +157,15 @@ fn entry_to_json(entry: &KdlEntry) -> Result<JsonValue, String> {
     let mut value = Map::new();
     value.insert(
         "name".into(),
-        entry
-            .name()
-            .map(|value| JsonValue::String(value.value().to_owned()))
-            .unwrap_or(JsonValue::Null),
+        entry.name().map_or(JsonValue::Null, |value| {
+            JsonValue::String(value.value().to_owned())
+        }),
     );
     value.insert(
         "type".into(),
-        entry
-            .ty()
-            .map(|value| JsonValue::String(value.value().to_owned()))
-            .unwrap_or(JsonValue::Null),
+        entry.ty().map_or(JsonValue::Null, |value| {
+            JsonValue::String(value.value().to_owned())
+        }),
     );
     value.insert("value".into(), kdl_value_to_json(entry.value())?);
     Ok(JsonValue::Object(value))
@@ -248,18 +246,13 @@ fn kdl_value_from_json(value: &JsonValue) -> Result<KdlValue, String> {
         JsonValue::Null => Ok(KdlValue::Null),
         JsonValue::Bool(value) => Ok(KdlValue::Bool(*value)),
         JsonValue::String(value) => Ok(KdlValue::String(value.clone())),
-        JsonValue::Number(value) => {
-            if let Some(value) = value.as_i64() {
-                Ok(KdlValue::Integer(i128::from(value)))
-            } else if let Some(value) = value.as_u64() {
-                Ok(KdlValue::Integer(i128::from(value)))
-            } else {
-                value
-                    .as_f64()
-                    .map(KdlValue::Float)
-                    .ok_or_else(|| "invalid KDL number".to_owned())
-            }
-        }
+        JsonValue::Number(value) => value
+            .as_i64()
+            .map(i128::from)
+            .or_else(|| value.as_u64().map(i128::from))
+            .map(KdlValue::Integer)
+            .or_else(|| value.as_f64().map(KdlValue::Float))
+            .ok_or_else(|| "invalid KDL number".to_owned()),
         JsonValue::Array(_) | JsonValue::Object(_) => {
             Err("KDL entry values must be strings, numbers, booleans, or null".into())
         }

@@ -13,7 +13,7 @@ const SIGNATURES: &[NativeSignature] = &[NativeSignature {
     callback: stream_write,
 }];
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 version_info = (3, 11, 0)
 path = []
 modules = {}
@@ -61,7 +61,7 @@ def intern(value):
         return _interned[value]
     _interned[value] = value
     return value
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"sys",
@@ -73,6 +73,14 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
+#[expect(
+    clippy::expect_used,
+    reason = "The initializer just created sys.modules and uses the literal three-byte sys key."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -108,9 +116,9 @@ fn initialize(module: Value) {
     assert!(modules.dict_set(key, module), "insert sys into sys.modules");
 }
 
-unsafe extern "C" fn stream_write(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn stream_write(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(error) = arguments.get(0).and_then(Value::boolean) else {
         return type_error(c"stream selector must be bool");
     };

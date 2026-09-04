@@ -1,6 +1,6 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
-const COMPATIBILITY_SOURCE: &str = r#"
+const COMPATIBILITY_SOURCE: &str = r"
 partial.func = property(lambda self: self.f)
 partial.keywords = property(lambda self: self.kwargs)
 
@@ -134,7 +134,7 @@ def lru_cache(maxsize=128, typed=False):
 
 def cache(function):
     return _RustLruCacheWrapper(function, None, False)
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"functools",

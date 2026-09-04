@@ -92,9 +92,9 @@ fn initialize(module: Value) {
     bind_type_method(repeat_type, c"__next__", repeat_next);
 }
 
-unsafe extern "C" fn count_new(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn count_new(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 3) {
         return false;
     }
@@ -104,9 +104,9 @@ unsafe extern "C" fn count_new(argc: c_int, argv: ffi::py_StackRef) -> bool {
     new_count(start, step)
 }
 
-unsafe extern "C" fn count(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn count(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 2) {
         return false;
     }
@@ -124,7 +124,7 @@ fn count_arguments(arguments: &Arguments, offset: usize) -> Option<(i64, i64)> {
         })?,
         None => 0,
     };
-    let step = match arguments.get(offset + 1) {
+    let step = match arguments.get(offset.checked_add(1)?) {
         Some(value) => value.integer().or_else(|| {
             type_error(c"count() arguments must be integers");
             None
@@ -144,22 +144,28 @@ fn new_count(current: i64, step: i64) -> bool {
     return_value(instance)
 }
 
-unsafe extern "C" fn iterator_self(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn iterator_self(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    return_value(arguments.get(0).expect("arity checked"))
+    let Some(value) = arguments.get(0) else {
+        return type_error(c"missing iterator");
+    };
+    return_value(value)
 }
 
-unsafe extern "C" fn count_next(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn count_next(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     // SAFETY: this method is bound only to objects created with `CountState`.
     let state = unsafe { &mut *instance.userdata::<CountState>() };
     let current = state.current;
@@ -167,9 +173,13 @@ unsafe extern "C" fn count_next(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(global_integer(6, current))
 }
 
-unsafe extern "C" fn cycle(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    reason = "Arity and exact iterable types are checked; copying list or tuple items into a private list invokes no Python callbacks."
+)]
+unsafe extern "C" fn cycle(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -202,13 +212,21 @@ unsafe extern "C" fn cycle(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(instance)
 }
 
-unsafe extern "C" fn cycle_next(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    clippy::arithmetic_side_effects,
+    reason = "Cycle owns a private nonempty list and keeps its index below its C-int-sized length by modulo after each increment."
+)]
+unsafe extern "C" fn cycle_next(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     // SAFETY: this method is bound only to objects created with `CycleState`.
     let state = unsafe { &mut *instance.userdata::<CycleState>() };
     if state.length == 0 {
@@ -222,22 +240,26 @@ unsafe extern "C" fn cycle_next(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(item)
 }
 
-unsafe extern "C" fn repeat(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn repeat(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 2) {
         return false;
     }
-    let value = arguments.get(0).expect("arity checked").snapshot();
-    let mut times = -1;
-    if let Some(candidate) = arguments.get(1)
+    let Some(value) = arguments.get(0) else {
+        return type_error(c"missing repeat value");
+    };
+    let value = value.snapshot();
+    let times = if let Some(candidate) = arguments.get(1)
         && !candidate.is_none()
     {
         let Ok(candidate) = candidate.cast_integer() else {
             return false;
         };
-        times = candidate.max(0);
-    }
+        candidate.max(0)
+    } else {
+        -1
+    };
 
     let mut roots = RootFrame::new();
     let Some(instance) =
@@ -249,27 +271,34 @@ unsafe extern "C" fn repeat(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(instance)
 }
 
-unsafe extern "C" fn repeat_next(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn repeat_next(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let instance = arguments.get(0).expect("arity checked");
+    let Some(instance) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     // SAFETY: this method is bound only to objects created with `RepeatState`.
     let state = unsafe { &mut *instance.userdata::<RepeatState>() };
     if state.times == 0 {
         return stop_iteration();
     }
     if state.times > 0 {
-        state.times -= 1;
+        state.times = state.times.saturating_sub(1);
     }
     return_value(instance.slot(0))
 }
 
-unsafe extern "C" fn chain(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    reason = "Arity is checked before reading arguments; the one-tuple branch bounds reads by immutable tuple length, and the other branch by argc."
+)]
+unsafe extern "C" fn chain(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let mut roots = RootFrame::new();
     roots.list();
     let output = roots.top().expect("output list remains rooted");
@@ -298,6 +327,10 @@ unsafe extern "C" fn chain(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(output)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "List and tuple branches iterate checked lengths and only append to a separate output list; no user callback can mutate the input."
+)]
 fn append_iterable(output: Value, iterable: Value) -> bool {
     if let Some(length) = iterable.list_len() {
         for index in 0..length {
@@ -323,14 +356,22 @@ fn append_iterable(output: Value, iterable: Value) -> bool {
     false
 }
 
-unsafe extern "C" fn islice(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    clippy::arithmetic_side_effects,
+    reason = "Argument arity and index signs are validated; private cycle indexes remain below C-int list lengths, and materialized-list reads are bounded without user callbacks."
+)]
+unsafe extern "C" fn islice(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
     let iterable_snapshot = arguments.get(0).expect("arity checked").snapshot();
-    let packed = arguments.get(1).expect("arity checked");
+    let Some(packed) = arguments.get(1) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     let Some(count) = packed.tuple_len() else {
         return type_error(c"islice() args must be tuple");
     };
@@ -344,13 +385,16 @@ unsafe extern "C" fn islice(argc: c_int, argv: ffi::py_StackRef) -> bool {
         };
         *destination = value;
     }
-    let (start, stop, step) = match count {
+    let (start, stop, stride) = match count {
         1 => (0, values[0], 1),
         2 => (values[0], values[1], 1),
-        3 => (values[0], values[1], values[2]),
-        _ => unreachable!(),
+        3 => values.into(),
+        _ => return type_error(c"islice requires one to three indices"),
     };
-    if step < 1 {
+    if start < 0 || stop < 0 {
+        return value_error(c"islice indices must be non-negative");
+    }
+    if stride < 1 {
         return value_error(c"step must be >= 1");
     }
 
@@ -362,7 +406,7 @@ unsafe extern "C" fn islice(argc: c_int, argv: ffi::py_StackRef) -> bool {
         // SAFETY: the instance check establishes `CountState` userdata.
         let state = unsafe { &mut *iterable.userdata::<CountState>() };
         for index in 0..stop {
-            if selected(index, start, step) {
+            if selected(index, start, stride) {
                 output.list_append(global_integer(6, state.current));
             }
             state.current = state.current.wrapping_add(state.step);
@@ -377,7 +421,7 @@ unsafe extern "C" fn islice(argc: c_int, argv: ffi::py_StackRef) -> bool {
         }
         let items = iterable.slot(0);
         for index in 0..stop {
-            if selected(index, start, step) {
+            if selected(index, start, stride) {
                 output.list_append(
                     items
                         .list_item(state.index)
@@ -391,7 +435,7 @@ unsafe extern "C" fn islice(argc: c_int, argv: ffi::py_StackRef) -> bool {
     if let Some(length) = iterable.list_len() {
         let available = i64::try_from(length).unwrap_or(i64::MAX);
         for index in 0..stop.min(available) {
-            if selected(index, start, step) {
+            if selected(index, start, stride) {
                 output.list_append(
                     iterable
                         .list_item(usize::try_from(index).expect("index is non-negative"))
@@ -405,27 +449,33 @@ unsafe extern "C" fn islice(argc: c_int, argv: ffi::py_StackRef) -> bool {
 }
 
 fn selected(index: i64, start: i64, step: i64) -> bool {
-    index >= start && (index - start) % step == 0
+    index >= start
+        && index
+            .checked_sub(start)
+            .and_then(|delta| delta.checked_rem(step))
+            == Some(0)
 }
 
-unsafe extern "C" fn takewhile(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    predicate_list(argc, argv, true)
+unsafe extern "C" fn takewhile(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    predicate_list(argc, stack, true)
 }
 
-unsafe extern "C" fn dropwhile(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    predicate_list(argc, argv, false)
+unsafe extern "C" fn dropwhile(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    predicate_list(argc, stack, false)
 }
 
-fn predicate_list(argc: c_int, argv: ffi::py_StackRef, take: bool) -> bool {
-    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+fn predicate_list(argc: c_int, stack: ffi::py_StackRef, take: bool) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing argc values.
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    let predicate_snapshot = arguments.get(0).expect("arity checked").snapshot();
-    let iterable_snapshot = arguments.get(1).expect("arity checked").snapshot();
-    let predicate = predicate_snapshot.value();
-    let iterable = iterable_snapshot.value();
+    let Some(predicate) = arguments.get(0) else {
+        return type_error(c"missing predicate");
+    };
+    let Some(iterable) = arguments.get(1) else {
+        return type_error(c"missing iterable");
+    };
     let Some(length) = iterable.list_len() else {
         return type_error(if take {
             c"takewhile() iterable must be a list"
@@ -434,42 +484,38 @@ fn predicate_list(argc: c_int, argv: ffi::py_StackRef, take: bool) -> bool {
         });
     };
     let mut roots = RootFrame::new();
-    roots.list();
+    let predicate = roots.copy(predicate);
+    let iterable = roots.copy(iterable);
+    let output = roots.list();
     let mut dropping = !take;
     for index in 0..length {
-        let item = iterable
-            .list_item(index)
-            .expect("index is in bounds")
-            .snapshot();
-        if take {
-            match call_one_bool(predicate, item.value()) {
-                Ok(true) => roots
-                    .top()
-                    .expect("output list remains rooted")
-                    .list_append(item.value()),
-                Ok(false) => break,
-                Err(()) => return false,
+        let Some(item) = iterable.list_item(index) else {
+            return crate::native::runtime_error(c"list changed during predicate evaluation");
+        };
+        // A Python predicate can remove this item from the input and trigger
+        // allocation; keep it in a VM root until it is appended or discarded.
+        let mut iteration = RootFrame::new();
+        let item = iteration.copy(item);
+        if take || dropping {
+            let Ok(accepted) = call_one_bool(predicate, item) else {
+                return false;
+            };
+            if iterable.list_len() != Some(length) {
+                return crate::native::runtime_error(c"list changed during predicate evaluation");
             }
-        } else if dropping {
-            match call_one_bool(predicate, item.value()) {
-                Ok(true) => {}
-                Ok(false) => {
-                    dropping = false;
-                    roots
-                        .top()
-                        .expect("output list remains rooted")
-                        .list_append(item.value());
+            if take {
+                if !accepted {
+                    break;
                 }
-                Err(()) => return false,
+            } else if accepted {
+                continue;
+            } else {
+                dropping = false;
             }
-        } else {
-            roots
-                .top()
-                .expect("output list remains rooted")
-                .list_append(item.value());
         }
+        output.list_append(item);
     }
-    return_value(roots.top().expect("output list remains rooted"))
+    return_value(output)
 }
 
 fn load_type(value: &AtomicI16) -> ffi::py_Type {

@@ -55,7 +55,7 @@ pub(super) struct BoxChars {
     pub v: &'static str,
 }
 
-pub(super) fn box_chars(style: BorderStyle) -> BoxChars {
+pub(super) const fn box_chars(style: BorderStyle) -> BoxChars {
     match style {
         BorderStyle::Rounded => BoxChars {
             tl: "╭",
@@ -114,7 +114,7 @@ pub(super) struct TableChars {
     pub cross: &'static str,
 }
 
-pub(super) fn table_chars(style: BorderStyle) -> TableChars {
+pub(super) const fn table_chars(style: BorderStyle) -> TableChars {
     let (h, v, th, bh, lv, rv, cross) = match style {
         BorderStyle::Double => ("═", "║", "╦", "╩", "╠", "╣", "╬"),
         BorderStyle::Heavy => ("━", "┃", "┳", "┻", "┣", "┫", "╋"),
@@ -146,37 +146,23 @@ pub(super) fn table_chars(style: BorderStyle) -> TableChars {
 /// Mirrors the legacy byte-oriented width algorithm, including its treatment
 /// of every three- and four-byte UTF-8 scalar as double-width.
 pub(super) fn visible_len(value: &str) -> usize {
-    let bytes = value.as_bytes();
-    let end = bytes
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(bytes.len());
-    let mut index = 0;
-    let mut length = 0;
-    while index < end {
-        if bytes[index] == 0x1b && bytes.get(index + 1) == Some(&b'[') {
-            index += 2;
-            while index < end && !matches!(bytes[index], b'm' | b'H' | b'J' | b'K') {
-                index += 1;
-            }
-            if index < end {
-                index += 1;
+    let mut characters = value
+        .split('\0')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .peekable();
+    let mut length = 0_usize;
+    while let Some(character) = characters.next() {
+        if character == '\x1b' && characters.peek() == Some(&'[') {
+            characters.next();
+            for escaped in characters.by_ref() {
+                if matches!(escaped, 'm' | 'H' | 'J' | 'K') {
+                    break;
+                }
             }
         } else {
-            let byte = bytes[index];
-            if byte < 0x80 {
-                length += 1;
-                index += 1;
-            } else if byte < 0xe0 {
-                length += 1;
-                index += 2;
-            } else if byte < 0xf0 {
-                length += 2;
-                index += 3;
-            } else {
-                length += 2;
-                index += 4;
-            }
+            length = length.saturating_add(if character.len_utf8() >= 3 { 2 } else { 1 });
         }
     }
     length
@@ -198,31 +184,17 @@ pub(super) fn color_code(name: &str) -> Option<i32> {
 }
 
 pub(super) fn parse_hex(value: &str) -> Option<(u8, u8, u8)> {
-    let digits = value.strip_prefix('#')?;
-    let digits = digits.as_bytes();
-    let nibble = |value: u8| match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    };
-    match digits.len() {
-        3 => {
-            let r = nibble(digits[0])?;
-            let g = nibble(digits[1])?;
-            let b = nibble(digits[2])?;
-            Some((r * 17, g * 17, b * 17))
-        }
-        6 => {
-            let r = nibble(digits[0])? * 16 + nibble(digits[1])?;
-            let g = nibble(digits[2])? * 16 + nibble(digits[3])?;
-            let b = nibble(digits[4])? * 16 + nibble(digits[5])?;
-            Some((r, g, b))
-        }
-        _ => None,
-    }
+    super::ansi_core::parse_hex(value)
 }
 
+#[expect(
+    clippy::fn_params_excessive_bools,
+    reason = "The five independent decorations correspond directly to the existing Python style API flags."
+)]
+#[expect(
+    clippy::expect_used,
+    reason = "fmt::Write for String is infallible; every write here formats only integer channels into a String."
+)]
 pub(super) fn style_code(
     foreground: Option<&str>,
     background: Option<&str>,
@@ -265,7 +237,8 @@ pub(super) fn style_code(
     if let Some(background) = background {
         if let Some(code) = color_code(background) {
             push_style_separator(&mut output);
-            write!(&mut output, "{}", code + 10).expect("writing to a String cannot fail");
+            write!(&mut output, "{}", code.saturating_add(10))
+                .expect("writing to a String cannot fail");
         } else if let Some((r, g, b)) = parse_hex(background) {
             push_style_separator(&mut output);
             write!(&mut output, "48;2;{r};{g};{b}").expect("writing to a String cannot fail");
@@ -295,7 +268,7 @@ pub(super) fn pad_left(value: &str, width: usize) -> String {
     if visible >= width {
         value.to_owned()
     } else {
-        format!("{value}{}", " ".repeat(width - visible))
+        format!("{value}{}", " ".repeat(width.saturating_sub(visible)))
     }
 }
 
@@ -303,11 +276,18 @@ pub(super) fn progress_bar(current: u32, total: u32, width: u32) -> String {
     if total == 0 || width == 0 {
         return String::new();
     }
-    let filled = width.min(width.wrapping_mul(current) / total);
+    let filled = u64::from(width).min(
+        u64::from(width)
+            .saturating_mul(u64::from(current))
+            .checked_div(u64::from(total))
+            .unwrap_or(0),
+    );
+    let filled = usize::try_from(filled).unwrap_or(usize::MAX);
+    let width = usize::try_from(width).unwrap_or(usize::MAX);
     format!(
         "{}{}",
-        PROGRESS_FILL.repeat(filled as usize),
-        PROGRESS_EMPTY.repeat((width - filled) as usize)
+        PROGRESS_FILL.repeat(filled),
+        PROGRESS_EMPTY.repeat(width.saturating_sub(filled))
     )
 }
 
@@ -315,21 +295,26 @@ pub(super) fn percent_string(current: u32, total: u32) -> String {
     if total == 0 {
         return "0%".to_owned();
     }
-    let value = 100_u32.wrapping_mul(current) / total;
-    let mut output = String::new();
-    if value >= 100 {
-        output.push(char::from(b'0' + ((value / 100) % 10) as u8));
-    }
-    if value >= 10 {
-        output.push(char::from(b'0' + ((value / 10) % 10) as u8));
-    }
-    output.push(char::from(b'0' + (value % 10) as u8));
-    output.push('%');
-    output
+    let value = 100_u32
+        .wrapping_mul(current)
+        .checked_div(total)
+        .unwrap_or(0);
+    let digits = if value >= 100 {
+        3
+    } else if value >= 10 {
+        2
+    } else {
+        1
+    };
+    format!("{:0digits$}%", value % 1000)
 }
 
 pub(super) fn spinner_frame(index: u32) -> &'static str {
-    SPINNER_FRAMES[index as usize % SPINNER_FRAMES.len()]
+    usize::try_from(index % 10)
+        .ok()
+        .and_then(|index| SPINNER_FRAMES.get(index))
+        .copied()
+        .unwrap_or("⠋")
 }
 
 pub(super) fn elapsed_string(value: f64) -> String {
@@ -381,6 +366,14 @@ mod tests {
         assert_eq!(spinner_frame(10), "⠋");
         assert_eq!(elapsed_string(1.25), "1.3");
         assert_eq!(elapsed_string(-1.25), "-1.3");
+    }
+
+    #[test]
+    fn progress_uses_the_full_counter_range_without_wrapping() {
+        assert_eq!(progress_bar(u32::MAX, u32::MAX, 10), "██████████");
+        assert_eq!(progress_bar(u32::MAX / 2, u32::MAX, 10), "████░░░░░░");
+        assert_eq!(progress_bar(u32::MAX, 1, 10), "██████████");
+        assert_eq!(visible_len("é界🙂\x1b[xyz"), 5);
     }
 
     #[test]

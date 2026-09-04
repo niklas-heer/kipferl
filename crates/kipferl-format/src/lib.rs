@@ -1,16 +1,49 @@
 #![no_std]
+#![forbid(unsafe_code)]
+// Pilot stricter API/documentation checks in the small, stable wire-format crate.
+#![deny(clippy::pedantic, clippy::nursery)]
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        clippy::arithmetic_side_effects,
+        clippy::unreachable,
+        clippy::string_slice,
+        clippy::panic_in_result_fn,
+        clippy::panic,
+        clippy::exit,
+        clippy::as_conversions
+    )
+)]
 
 use core::error::Error;
 use core::fmt;
 
 pub const TRAILER_MAGIC: [u8; 8] = *b"MCHARM01";
 pub const TRAILER_SIZE: usize = 48;
+const TRAILER_SIZE_U64: u64 = 48;
 
 /// Version 1 trailer appended to every Kipferl universal executable.
 ///
 /// The encoded field order remains compatible with the original Zig loader,
 /// where the runtime fields were named `micropython_offset` and
 /// `micropython_size`.
+///
+/// ```
+/// use kipferl_format::Trailer;
+///
+/// let trailer = Trailer {
+///     runtime_offset: 1,
+///     runtime_size: 2,
+///     python_offset: 3,
+///     python_size: 4,
+/// };
+/// let decoded = Trailer::decode(&trailer.encode())?;
+/// assert_eq!(decoded, trailer);
+/// # Ok::<(), kipferl_format::DecodeError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Trailer {
     pub runtime_offset: u64,
@@ -74,41 +107,75 @@ impl Trailer {
     #[must_use]
     pub fn encode(self) -> [u8; TRAILER_SIZE] {
         let mut bytes = [0; TRAILER_SIZE];
-        bytes[0..8].copy_from_slice(&TRAILER_MAGIC);
-        bytes[8..16].copy_from_slice(&self.runtime_offset.to_le_bytes());
-        bytes[16..24].copy_from_slice(&self.runtime_size.to_le_bytes());
-        bytes[24..32].copy_from_slice(&self.python_offset.to_le_bytes());
-        bytes[32..40].copy_from_slice(&self.python_size.to_le_bytes());
-        bytes[40..48].copy_from_slice(&TRAILER_MAGIC);
+        for (destination, field) in bytes.chunks_exact_mut(8).zip([
+            TRAILER_MAGIC,
+            self.runtime_offset.to_le_bytes(),
+            self.runtime_size.to_le_bytes(),
+            self.python_offset.to_le_bytes(),
+            self.python_size.to_le_bytes(),
+            TRAILER_MAGIC,
+        ]) {
+            destination.copy_from_slice(&field);
+        }
         bytes
     }
 
+    /// Decode exactly one trailer, checking its size and both magic markers.
+    ///
+    /// This does not validate the payload ranges; call [`Self::validate_layout`]
+    /// with the complete executable's length before reading payloads.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecodeError`] if the input is not exactly [`TRAILER_SIZE`]
+    /// bytes or either magic marker is invalid.
     pub fn decode(bytes: &[u8]) -> Result<Self, DecodeError> {
         let bytes: &[u8; TRAILER_SIZE] = bytes.try_into().map_err(|_| DecodeError::WrongSize {
             actual: bytes.len(),
         })?;
 
-        if bytes[0..8] != TRAILER_MAGIC {
+        let (fields, _) = bytes.as_chunks::<8>();
+        let [
+            leading,
+            runtime_offset,
+            runtime_size,
+            python_offset,
+            python_size,
+            trailing,
+        ] = fields
+        else {
+            return Err(DecodeError::WrongSize {
+                actual: bytes.len(),
+            });
+        };
+        if leading != &TRAILER_MAGIC {
             return Err(DecodeError::InvalidLeadingMagic);
         }
-        if bytes[40..48] != TRAILER_MAGIC {
+        if trailing != &TRAILER_MAGIC {
             return Err(DecodeError::InvalidTrailingMagic);
         }
 
         Ok(Self {
-            runtime_offset: read_u64(bytes, 8),
-            runtime_size: read_u64(bytes, 16),
-            python_offset: read_u64(bytes, 24),
-            python_size: read_u64(bytes, 32),
+            runtime_offset: u64::from_le_bytes(*runtime_offset),
+            runtime_size: u64::from_le_bytes(*runtime_size),
+            python_offset: u64::from_le_bytes(*python_offset),
+            python_size: u64::from_le_bytes(*python_size),
         })
     }
 
     /// Decode the trailer at the end of an in-memory universal executable.
+    ///
+    /// Payload ranges still require [`Self::validate_layout`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DecodeError`] if the file is shorter than [`TRAILER_SIZE`]
+    /// or its final trailer has an invalid magic marker.
     pub fn decode_from_end(file: &[u8]) -> Result<Self, DecodeError> {
-        if file.len() < TRAILER_SIZE {
-            return Err(DecodeError::WrongSize { actual: file.len() });
-        }
-        Self::decode(&file[file.len() - TRAILER_SIZE..])
+        let trailer = file
+            .last_chunk::<TRAILER_SIZE>()
+            .ok_or(DecodeError::WrongSize { actual: file.len() })?;
+        Self::decode(trailer)
     }
 
     /// Match the original Zig loader's basic value checks.
@@ -124,10 +191,30 @@ impl Trailer {
     ///
     /// Gaps are accepted for compatibility, but payload overlap, integer
     /// overflow, and truncated files are rejected.
+    ///
+    /// ```
+    /// use kipferl_format::{Trailer, TRAILER_SIZE};
+    ///
+    /// let trailer = Trailer {
+    ///     runtime_offset: 1,
+    ///     runtime_size: 2,
+    ///     python_offset: 3,
+    ///     python_size: 4,
+    /// };
+    /// let file_size = 7 + TRAILER_SIZE as u64;
+    /// assert!(trailer.validate_layout(file_size).is_ok());
+    /// assert!(trailer.validate_layout(file_size - 1).is_err());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LayoutError`] for a file shorter than the trailer, zero runtime
+    /// offset, empty payloads, reversed offsets, overflowing ranges, overlapping
+    /// payloads, or payloads extending into the trailer or beyond the file.
     pub fn validate_layout(self, file_size: u64) -> Result<(), LayoutError> {
-        if file_size < TRAILER_SIZE as u64 {
-            return Err(LayoutError::FileTooSmall);
-        }
+        let trailer_offset = file_size
+            .checked_sub(TRAILER_SIZE_U64)
+            .ok_or(LayoutError::FileTooSmall)?;
         if self.runtime_offset == 0 {
             return Err(LayoutError::RuntimeStartsAtZero);
         }
@@ -154,21 +241,12 @@ impl Trailer {
             return Err(LayoutError::RuntimeOverlapsPython);
         }
 
-        let trailer_offset = file_size - TRAILER_SIZE as u64;
         if python_end > trailer_offset {
             return Err(LayoutError::PayloadOverlapsTrailer);
         }
 
         Ok(())
     }
-}
-
-fn read_u64(bytes: &[u8; TRAILER_SIZE], offset: usize) -> u64 {
-    u64::from_le_bytes(
-        bytes[offset..offset + 8]
-            .try_into()
-            .expect("field width is fixed by the trailer layout"),
-    )
 }
 
 #[cfg(test)]
@@ -356,12 +434,10 @@ mod tests {
     }
 
     fn hex_nibble(byte: u8) -> u8 {
-        match byte {
-            b'0'..=b'9' => byte - b'0',
-            b'a'..=b'f' => byte - b'a' + 10,
-            b'A'..=b'F' => byte - b'A' + 10,
-            _ => panic!("fixture contains a non-hex character"),
-        }
+        char::from(byte)
+            .to_digit(16)
+            .and_then(|nibble| u8::try_from(nibble).ok())
+            .expect("fixture contains a hexadecimal digit")
     }
 
     #[test]

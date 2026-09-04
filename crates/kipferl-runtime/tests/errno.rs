@@ -83,7 +83,10 @@ fn preserves_oserror_compatibility_and_repairs_the_one_argument_crash() {
         assert!(text(&output.stderr).contains("Python execution failed"));
     }
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

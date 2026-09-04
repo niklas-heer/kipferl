@@ -56,8 +56,8 @@ pub(super) fn hmac(algorithm: Algorithm, key: &[u8], message: &[u8]) -> Vec<u8> 
     };
     normalized_key.resize(block_size, 0);
 
-    let mut inner = Vec::with_capacity(block_size + message.len());
-    let mut outer = Vec::with_capacity(block_size + algorithm.digest_size());
+    let mut inner = Vec::with_capacity(block_size.saturating_add(message.len()));
+    let mut outer = Vec::with_capacity(block_size.saturating_add(algorithm.digest_size()));
     for byte in normalized_key {
         inner.push(byte ^ 0x36);
         outer.push(byte ^ 0x5c);

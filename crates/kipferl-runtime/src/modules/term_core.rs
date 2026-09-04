@@ -10,8 +10,8 @@ pub(super) fn decode_key(bytes: &[u8]) -> DecodedKey<'_> {
         return DecodedKey::None;
     }
 
-    if bytes.len() >= 3 && bytes[0] == 0x1b && bytes[1] == b'[' {
-        let named = match bytes[2] {
+    if let [0x1b, b'[', key, ..] = bytes {
+        let named = match *key {
             b'A' => Some("up"),
             b'B' => Some("down"),
             b'C' => Some("right"),
@@ -25,7 +25,7 @@ pub(super) fn decode_key(bytes: &[u8]) -> DecodedKey<'_> {
         }
 
         if bytes.get(3) == Some(&b'~') {
-            let named = match bytes[2] {
+            let named = match *key {
                 b'3' => Some("delete"),
                 b'5' => Some("pageup"),
                 b'6' => Some("pagedown"),
@@ -37,8 +37,8 @@ pub(super) fn decode_key(bytes: &[u8]) -> DecodedKey<'_> {
         }
     }
 
-    if bytes.len() == 1 {
-        let named = match bytes[0] {
+    if let [key] = bytes {
+        let named = match *key {
             b'\r' | b'\n' => Some("enter"),
             0x1b => Some("escape"),
             0x7f | 0x08 => Some("backspace"),

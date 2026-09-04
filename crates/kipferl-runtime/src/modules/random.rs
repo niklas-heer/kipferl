@@ -85,9 +85,13 @@ fn initialize(module: Value) {
     );
 }
 
-unsafe extern "C" fn secure_word(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    reason = "secure_bytes(8) returns exactly eight bytes; the high bits are masked so the result fits i64."
+)]
+unsafe extern "C" fn secure_word(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
@@ -99,7 +103,7 @@ unsafe extern "C" fn secure_word(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let value =
         u64::from_le_bytes(bytes.try_into().expect("requested eight bytes")) & ((1_u64 << 62) - 1);
     let mut roots = RootFrame::new();
-    let value = roots.integer(value as i64);
+    let value = roots.integer(value.cast_signed());
     return_value(value)
 }
 

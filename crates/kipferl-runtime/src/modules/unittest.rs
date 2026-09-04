@@ -2,7 +2,7 @@ use kipferl_pocketpy_sys as ffi;
 
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 class SkipTest(Exception):
     pass
 
@@ -184,7 +184,7 @@ class TestLoader:
             if name.startswith('test'):
                 suite.addTest(test_case_class(name))
         return suite
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"unittest",
@@ -196,6 +196,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, SOURCE) {
         // SAFETY: module initialization failed with a live PocketPy exception.

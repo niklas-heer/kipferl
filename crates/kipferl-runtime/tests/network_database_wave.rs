@@ -112,7 +112,10 @@ fn preserves_sqlite_types_persistence_lifecycle_and_errors() {
     assert!(output.status.success(), "{}", diagnostic(&output));
     assert_eq!(text(&output.stderr), "");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

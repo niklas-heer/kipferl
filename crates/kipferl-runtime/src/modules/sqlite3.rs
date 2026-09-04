@@ -51,6 +51,10 @@ struct CursorState {
     closed: bool,
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "The compiled SQLite version is a short ASCII string that fits the VM signed-int string length."
+)]
 fn initialize(module: Value) {
     let connection =
         create_type_with_destructor(module, c"Connection", Some(connection_destructor));
@@ -91,9 +95,13 @@ fn close_connection(state: &mut ConnectionState) {
     }
 }
 
-unsafe extern "C" fn connect(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    reason = "ConnectionState is one pointer, with size and alignment guaranteed by the PocketPy userdata ABI on supported targets."
+)]
+unsafe extern "C" fn connect(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 8) {
         return false;
     }
@@ -122,13 +130,16 @@ fn connection(value: Value) -> Option<NonNull<rusqlite::Connection>> {
     NonNull::new(state.connection)
 }
 
-unsafe extern "C" fn connection_cursor(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn connection_cursor(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let owner = arguments.get(0).expect("arity checked");
+    let Some(owner) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if connection(owner).is_none() {
         return runtime_error(c"connection is closed");
     }
@@ -153,22 +164,24 @@ fn new_cursor(owner: Value) -> bool {
     return_value(cursor)
 }
 
-unsafe extern "C" fn connection_execute(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn connection_execute(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 3) {
         return false;
     }
-    let owner = arguments.get(0).expect("arity checked");
+    let Some(owner) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if connection(owner).is_none() {
         return runtime_error(c"connection is closed");
     }
     let Some(sql) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"sql must be str");
     };
-    let params = match python_params(arguments.get(2)) {
-        Ok(params) => params,
-        Err(()) => return false,
+    let Ok(params) = python_params(arguments.get(2)) else {
+        return false;
     };
     if !new_cursor(owner) {
         return false;
@@ -181,9 +194,13 @@ unsafe extern "C" fn connection_execute(argc: c_int, argv: ffi::py_StackRef) -> 
     return_value(cursor)
 }
 
-unsafe extern "C" fn connection_commit(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    reason = "Arity is checked before reading the receiver; connection() then validates its exact type and non-null owned pointer."
+)]
+unsafe extern "C" fn connection_commit(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -197,13 +214,16 @@ unsafe extern "C" fn connection_commit(argc: c_int, argv: ffi::py_StackRef) -> b
     return_value(none)
 }
 
-unsafe extern "C" fn connection_close(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn connection_close(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let owner = arguments.get(0).expect("arity checked");
+    let Some(owner) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if !owner.is_instance(CONNECTION_TYPE.load(Ordering::Acquire)) {
         return type_error(c"expected Connection");
     }
@@ -215,13 +235,16 @@ unsafe extern "C" fn connection_close(argc: c_int, argv: ffi::py_StackRef) -> bo
     return_value(none)
 }
 
-unsafe extern "C" fn cursor_execute(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn cursor_execute(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 3) {
         return false;
     }
-    let cursor = arguments.get(0).expect("arity checked");
+    let Some(cursor) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if !cursor.is_instance(CURSOR_TYPE.load(Ordering::Acquire)) {
         return type_error(c"expected Cursor");
     }
@@ -233,9 +256,8 @@ unsafe extern "C" fn cursor_execute(argc: c_int, argv: ffi::py_StackRef) -> bool
     let Some(sql) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"sql must be str");
     };
-    let params = match python_params(arguments.get(2)) {
-        Ok(params) => params,
-        Err(()) => return false,
+    let Ok(params) = python_params(arguments.get(2)) else {
+        return false;
     };
     execute_statement(cursor, &sql, params)
 }
@@ -265,9 +287,8 @@ fn execute_statement(cursor: Value, sql: &str, params: Vec<SqlValue>) -> bool {
             return runtime_error(c"sqlite3 query failed");
         };
         loop {
-            let next = match query.next() {
-                Ok(next) => next,
-                Err(_) => return runtime_error(c"sqlite3 row fetch failed"),
+            let Ok(next) = query.next() else {
+                return runtime_error(c"sqlite3 row fetch failed");
             };
             let Some(row) = next else {
                 break;
@@ -316,6 +337,10 @@ fn execute_statement(cursor: Value, sql: &str, params: Vec<SqlValue>) -> bool {
     return_value(cursor)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "Tuple/list lengths and exact float types are checked before conversion; this loop invokes no Python conversion hooks."
+)]
 fn python_params(value: Option<Value>) -> Result<Vec<SqlValue>, ()> {
     let Some(value) = value else {
         return Ok(Vec::new());
@@ -364,13 +389,21 @@ fn python_value(roots: &mut RootFrame, value: SqlValue) -> Option<Value> {
     }
 }
 
-unsafe extern "C" fn cursor_fetchone(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    clippy::arithmetic_side_effects,
+    reason = "Cursor rows are a private list; the index is checked against its C-int-sized length immediately before access and increment."
+)]
+unsafe extern "C" fn cursor_fetchone(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let cursor = arguments.get(0).expect("arity checked");
+    let Some(cursor) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if !cursor.is_instance(CURSOR_TYPE.load(Ordering::Acquire)) {
         return type_error(c"expected Cursor");
     }
@@ -395,13 +428,21 @@ unsafe extern "C" fn cursor_fetchone(argc: c_int, argv: ffi::py_StackRef) -> boo
     return_value(row)
 }
 
-unsafe extern "C" fn cursor_fetchall(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    clippy::arithmetic_side_effects,
+    reason = "Cursor rows are a private list; the index stays below its C-int-sized length while appending to a separate output list."
+)]
+unsafe extern "C" fn cursor_fetchall(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let cursor = arguments.get(0).expect("arity checked");
+    let Some(cursor) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if !cursor.is_instance(CURSOR_TYPE.load(Ordering::Acquire)) {
         return type_error(c"expected Cursor");
     }
@@ -425,13 +466,16 @@ unsafe extern "C" fn cursor_fetchall(argc: c_int, argv: ffi::py_StackRef) -> boo
     return_value(output)
 }
 
-unsafe extern "C" fn cursor_close(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn cursor_close(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    let cursor = arguments.get(0).expect("arity checked");
+    let Some(cursor) = arguments.get(0) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     if !cursor.is_instance(CURSOR_TYPE.load(Ordering::Acquire)) {
         return type_error(c"expected Cursor");
     }

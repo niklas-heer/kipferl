@@ -31,7 +31,7 @@ fn passes_all_crypto_compression_and_archive_fixtures() {
         (
             "io",
             include_str!("../../../tests/cpython/test_io.py"),
-            "Results: 53 passed, 0 failed, 0 skipped",
+            "Results: 100 passed, 0 failed, 0 skipped",
         ),
     ] {
         let output = run_runtime(source);
@@ -128,7 +128,10 @@ fn preserves_crypto_buffer_state_limits_and_error_paths_under_stress() {
     assert!(output.status.success(), "{}", diagnostic(&output));
     assert_eq!(text(&output.stderr), "");
 }
-
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when its explicitly described process or fixture setup fails."
+)]
 fn run_runtime(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])

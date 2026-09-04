@@ -38,7 +38,7 @@ except ImportError:
 
 if HAS_TOMLLIB:
     print("\n=== tomllib.loads ===")
-    data = b"a=1\nb='x'\n[tool]\nname='kipferl'\n"
+    data = "a=1\nb='x'\n[tool]\nname='kipferl'\n"
     try:
         obj = tomllib.loads(data)
         test("loads returns dict", isinstance(obj, dict))

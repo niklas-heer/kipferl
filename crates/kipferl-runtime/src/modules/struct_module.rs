@@ -118,9 +118,9 @@ fn initialize(module: Value) {
     );
 }
 
-unsafe extern "C" fn calcsize(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn calcsize(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -134,16 +134,25 @@ unsafe extern "C" fn calcsize(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(value)
 }
 
-unsafe extern "C" fn pack(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::expect_used,
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
+    reason = "parse_format uses checked size/count accumulation; the exact argument count is validated and every output span follows the validated format sizes."
+)]
+unsafe extern "C" fn pack(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
     let Some(format) = format_argument(&arguments) else {
         return false;
     };
-    let packed_values = arguments.get(1).expect("arity checked");
+    let Some(packed_values) = arguments.get(1) else {
+        crate::native::type_error(c"missing native argument");
+        return false;
+    };
     let Some(value_count) = packed_values.tuple_len() else {
         return type_error(c"pack values must be a tuple");
     };
@@ -186,9 +195,14 @@ unsafe extern "C" fn pack(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_bytes(&output)
 }
 
-unsafe extern "C" fn unpack(argc: c_int, argv: ffi::py_StackRef) -> bool {
+#[expect(
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
+    reason = "Input length equals the checked format size; each successive span is exactly the corresponding format item size."
+)]
+unsafe extern "C" fn unpack(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
@@ -239,19 +253,25 @@ fn format_argument(arguments: &Arguments) -> Option<Format> {
         type_error(c"format must be a string");
         return None;
     };
-    match parse_format(source.as_bytes()) {
-        Some(format) => Some(format),
-        None => {
+    parse_format(source.as_bytes()).map_or_else(
+        || {
             value_error(c"bad char in struct format");
             None
-        }
-    }
+        },
+        Some,
+    )
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    clippy::indexing_slicing,
+    reason = "The parser guards source indexes and ASCII digit subtraction; dynamic repeat counts and total sizes use checked arithmetic."
+)]
 fn parse_format(source: &[u8]) -> Option<Format> {
     let mut index = 0;
-    let endian = if let Some(prefix) = source.first() {
-        match prefix {
+    let endian = source
+        .first()
+        .map_or_else(native_endian, |prefix| match prefix {
             b'<' => {
                 index = 1;
                 Endian::Little
@@ -265,10 +285,7 @@ fn parse_format(source: &[u8]) -> Option<Format> {
                 native_endian()
             }
             _ => native_endian(),
-        }
-    } else {
-        native_endian()
-    };
+        });
 
     let mut items = Vec::new();
     let mut value_count = 0_usize;
@@ -300,7 +317,7 @@ fn parse_format(source: &[u8]) -> Option<Format> {
     })
 }
 
-fn parse_code(code: u8) -> Option<Code> {
+const fn parse_code(code: u8) -> Option<Code> {
     Some(match code {
         b'b' => Code::SignedByte,
         b'B' => Code::UnsignedByte,
@@ -340,6 +357,11 @@ const fn code_size(code: Code) -> usize {
     }
 }
 
+#[expect(
+    clippy::as_conversions,
+    clippy::cast_possible_truncation,
+    reason = "The f32 format explicitly requires IEEE-754 rounding from Python f64; narrowing is part of the struct format contract."
+)]
 fn pack_value(code: Code, endian: Endian, output: &mut [u8], value: Value) -> bool {
     match code {
         Code::SignedByte => integer_bytes::<i8>(value, output, endian),
@@ -354,7 +376,11 @@ fn pack_value(code: Code, endian: Endian, output: &mut [u8], value: Value) -> bo
             let Ok(value) = value.cast_number() else {
                 return false;
             };
-            write_bytes(output, (value as f32).to_bits(), endian);
+            let narrowed = value as f32;
+            if value.is_finite() && !narrowed.is_finite() {
+                return value_error(c"float is too large for the f32 struct format");
+            }
+            write_bytes(output, narrowed.to_bits(), endian);
             true
         }
         Code::Double => {
@@ -429,6 +455,11 @@ impl IntoBytes<8> for u64 {
     }
 }
 
+#[expect(
+    clippy::indexing_slicing,
+    clippy::unreachable,
+    reason = "The caller passes exactly code_size bytes and skips padding codes, so first-byte access is valid and the padding arm is impossible."
+)]
 fn unpack_value(code: Code, endian: Endian, input: &[u8]) -> Decoded {
     match code {
         Code::SignedByte => Decoded::Integer(i64::from(i8::from_ne_bytes([input[0]]))),
@@ -439,7 +470,7 @@ fn unpack_value(code: Code, endian: Endian, input: &[u8]) -> Decoded {
         Code::UnsignedInt => Decoded::Integer(i64::from(read_u32(input, endian))),
         Code::SignedLong | Code::SignedLongLong => Decoded::Integer(read_i64(input, endian)),
         Code::UnsignedLong | Code::UnsignedLongLong => {
-            Decoded::Integer(read_u64(input, endian) as i64)
+            Decoded::Integer(i64::from_ne_bytes(read_u64(input, endian).to_ne_bytes()))
         }
         Code::Float => Decoded::Number(f64::from(f32::from_bits(read_u32(input, endian)))),
         Code::Double => Decoded::Number(f64::from_bits(read_u64(input, endian))),

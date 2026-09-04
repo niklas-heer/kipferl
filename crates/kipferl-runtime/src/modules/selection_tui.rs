@@ -19,7 +19,7 @@ pub(super) struct SelectionView<'a> {
 }
 
 impl SelectionView<'_> {
-    fn is_multiple(&self) -> bool {
+    const fn is_multiple(&self) -> bool {
         self.selected.is_some()
     }
 }

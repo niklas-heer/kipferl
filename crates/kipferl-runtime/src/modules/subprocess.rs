@@ -1,6 +1,8 @@
 use std::ffi::c_int;
 use std::io::{self, Read};
-use std::process::{Command, Stdio};
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
+use std::process::{Command, ExitStatus, Stdio};
 
 use kipferl_pocketpy_sys as ffi;
 
@@ -45,12 +47,16 @@ class Popen:
             self.returncode = result["returncode"]
             self._stdout = result["stdout"] if self._stdout_pipe else None
             self._stderr = result["stderr"] if self._stderr_pipe else None
+            if self.text:
+                if self._stdout is not None:
+                    self._stdout = self._stdout.decode().replace("\r\n", "\n").replace("\r", "\n")
+                if self._stderr is not None:
+                    self._stderr = self._stderr.decode().replace("\r\n", "\n").replace("\r", "\n")
         return (self._stdout, self._stderr)
 
     def wait(self):
         if self.returncode is None:
-            result = _run(self.args, False, self.shell)
-            self.returncode = result["returncode"]
+            self.communicate()
         return self.returncode
 
 
@@ -91,6 +97,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -99,9 +109,9 @@ fn initialize(module: Value) {
     }
 }
 
-unsafe extern "C" fn run(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn run(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let capture = arguments.get(1).and_then(Value::boolean).unwrap_or(false);
     let shell = arguments.get(2).and_then(Value::boolean).unwrap_or(false);
     let Some(argument) = arguments.get(0) else {
@@ -120,9 +130,8 @@ unsafe extern "C" fn run(argc: c_int, argv: ffi::py_StackRef) -> bool {
         command
     };
 
-    let result = match execute(&command, capture) {
-        Ok(result) => result,
-        Err(_) => return runtime_error(c"failed to run process"),
+    let Ok(result) = execute(&command, capture) else {
+        return runtime_error(c"failed to run process");
     };
     return_result(result)
 }
@@ -133,16 +142,26 @@ struct ProcessResult {
     stderr: Option<Vec<u8>>,
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "The child was successfully spawned with stdout and stderr explicitly piped, which guarantees both handles are present."
+)]
 fn execute(arguments: &[String], capture: bool) -> io::Result<ProcessResult> {
-    let mut command = Command::new(&arguments[0]);
-    command.args(&arguments[1..]).stdin(Stdio::null());
+    let Some((program, parameters)) = arguments.split_first() else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "empty command",
+        ));
+    };
+    let mut command = Command::new(program);
+    command.args(parameters).stdin(Stdio::null());
     if !capture {
         let status = command
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()?;
         return Ok(ProcessResult {
-            status: i64::from(status.code().unwrap_or(-1)),
+            status: return_code(status),
             stdout: None,
             stderr: None,
         });
@@ -158,15 +177,30 @@ fn execute(arguments: &[String], capture: bool) -> io::Result<ProcessResult> {
         let stdout_reader = scope.spawn(move || read_capped(stdout));
         let stderr_reader = scope.spawn(move || read_capped(stderr));
         let status = child.wait()?;
-        let stdout = stdout_reader.join().expect("stdout reader did not panic")?;
-        let stderr = stderr_reader.join().expect("stderr reader did not panic")?;
+        let stdout = stdout_reader
+            .join()
+            .map_err(|_| std::io::Error::other("stdout reader panicked"))??;
+        let stderr = stderr_reader
+            .join()
+            .map_err(|_| std::io::Error::other("stderr reader panicked"))??;
         Ok((status, stdout, stderr))
     })?;
     Ok(ProcessResult {
-        status: i64::from(status.code().unwrap_or(-1)),
+        status: return_code(status),
         stdout: Some(stdout),
         stderr: Some(stderr),
     })
+}
+
+fn return_code(status: ExitStatus) -> i64 {
+    if let Some(code) = status.code() {
+        return i64::from(code);
+    }
+    #[cfg(unix)]
+    if let Some(signal) = status.signal() {
+        return i64::from(signal).wrapping_neg();
+    }
+    -1
 }
 
 fn read_capped(mut reader: impl Read) -> io::Result<Vec<u8>> {
@@ -178,8 +212,8 @@ fn read_capped(mut reader: impl Read) -> io::Result<Vec<u8>> {
             return Ok(output);
         }
         if output.len() < MAX_CAPTURE_BYTES {
-            let remaining = MAX_CAPTURE_BYTES - output.len();
-            output.extend_from_slice(&buffer[..count.min(remaining)]);
+            let remaining = MAX_CAPTURE_BYTES.saturating_sub(output.len());
+            output.extend(buffer.iter().copied().take(count.min(remaining)));
         }
     }
 }
@@ -212,6 +246,10 @@ fn command_arguments(value: Value) -> Option<Vec<String>> {
     Some(arguments)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "Output reads are capped at 1 MiB per stream and dictionary keys are short literals, all strictly below the VM signed-int string/bytes limit."
+)]
 fn return_result(result: ProcessResult) -> bool {
     let mut roots = RootFrame::new();
     let output = roots.dict();

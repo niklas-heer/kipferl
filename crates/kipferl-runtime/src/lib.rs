@@ -1,3 +1,7 @@
+// Native callbacks must report failures through Python or structured Rust
+// errors; implicit unwraps and process exits bypass that boundary.
+#![deny(clippy::unwrap_used, clippy::exit, clippy::panic_in_result_fn)]
+
 pub mod args_core;
 pub mod input_core;
 mod modules;
@@ -19,9 +23,9 @@ const VM_FINALIZED: u8 = 2;
 
 static VM_STATE: AtomicU8 = AtomicU8::new(VM_NEVER_INITIALIZED);
 
-/// The process-wide PocketPy virtual machine.
+/// The process-wide `PocketPy` virtual machine.
 ///
-/// PocketPy exposes global VM state and cannot be initialized again after
+/// `PocketPy` exposes global VM state and cannot be initialized again after
 /// finalization. This owner is therefore deliberately neither `Send` nor
 /// `Sync`, and only one instance can exist during the process lifetime.
 pub struct Vm {
@@ -77,7 +81,42 @@ impl From<NulError> for ExecuteError {
     }
 }
 
+/// Failure to install script metadata into the VM.
+#[derive(Debug)]
+pub enum ContextError {
+    InteriorNul(NulError),
+    TooLarge,
+    MissingMainModule,
+}
+
+impl fmt::Display for ContextError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InteriorNul(_) => formatter.write_str("script path contains a NUL byte"),
+            Self::TooLarge => formatter.write_str("script metadata exceeds PocketPy's C ABI limit"),
+            Self::MissingMainModule => formatter.write_str("PocketPy main module is unavailable"),
+        }
+    }
+}
+
+impl Error for ContextError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::InteriorNul(error) => Some(error),
+            Self::TooLarge | Self::MissingMainModule => None,
+        }
+    }
+}
+
+fn context_length(length: usize) -> Result<i32, ContextError> {
+    i32::try_from(length).map_err(|_| ContextError::TooLarge)
+}
+
 impl Vm {
+    /// Create the process-wide VM.
+    ///
+    /// # Errors
+    /// Returns an error if a VM is already active or was previously finalized.
     pub fn initialize() -> Result<Self, InitializeError> {
         match VM_STATE.compare_exchange(
             VM_NEVER_INITIALIZED,
@@ -100,6 +139,10 @@ impl Vm {
         }
     }
 
+    /// Execute source in the main module.
+    ///
+    /// # Errors
+    /// Returns an error when Python raises an exception; the VM retains it for reporting.
     pub fn execute(&self, source: &CStr, filename: &CStr) -> Result<(), ExecuteError> {
         // SAFETY: `self` proves the process-wide VM is active. Both C strings
         // remain alive for the duration of the call, and a null module selects
@@ -120,32 +163,58 @@ impl Vm {
         }
     }
 
+    /// Execute UTF-8 source with its diagnostic filename.
+    ///
+    /// # Errors
+    /// Returns an error for embedded NUL bytes or a Python exception.
     pub fn execute_str(&self, source: &str, filename: &str) -> Result<(), ExecuteError> {
         let source = CString::new(source)?;
         let filename = CString::new(filename)?;
         self.execute(&source, &filename)
     }
 
-    pub fn set_argv(&self, arguments: &[CString]) {
+    /// Set Python's argument vector, copying every argument into the VM.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the argument count exceeds `PocketPy`'s C ABI limit.
+    #[deny(
+        clippy::as_conversions,
+        clippy::expect_used,
+        clippy::panic_in_result_fn
+    )]
+    pub fn set_argv(&self, arguments: &[CString]) -> Result<(), ContextError> {
+        let count = context_length(arguments.len())?;
         let mut pointers: Vec<*mut c_char> = arguments
             .iter()
             .map(|argument| argument.as_ptr().cast_mut())
             .collect();
 
         // SAFETY: every pointer is NUL-terminated and remains valid throughout
-        // the call. PocketPy converts the arguments into VM-owned strings.
-        unsafe { ffi::py_sys_setargv(pointers.len() as i32, pointers.as_mut_ptr()) };
+        // the call; `count` was checked against the C ABI's signed length.
+        // PocketPy converts the arguments into VM-owned strings.
+        unsafe { ffi::py_sys_setargv(count, pointers.as_mut_ptr()) };
+        Ok(())
     }
 
-    pub fn set_file(&self, filename: &str) -> Result<(), NulError> {
-        let filename = CString::new(filename)?;
+    /// Set `__main__.__file__` to the script's original filename.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for embedded NUL bytes, filenames exceeding `PocketPy`'s
+    /// C ABI string limit, or an unavailable main module.
+    #[deny(clippy::expect_used, clippy::panic_in_result_fn)]
+    pub fn set_file(&self, filename: &str) -> Result<(), ContextError> {
+        let length = context_length(filename.len())?;
+        let filename = CString::new(filename).map_err(ContextError::InteriorNul)?;
         let bytes = filename.as_bytes();
-        let length = i32::try_from(bytes.len()).expect("script path fits PocketPy string length");
         // SAFETY: the VM is active, `__main__` is a process-global module, and
         // register zero is a stable VM root used synchronously for assignment.
         unsafe {
             let main = ffi::py_getmodule(c"__main__".as_ptr());
-            assert!(!main.is_null(), "PocketPy main module is missing");
+            if main.is_null() {
+                return Err(ContextError::MissingMainModule);
+            }
             let value = ffi::py_getreg(0);
             let destination = ffi::py_newstrn(value, length);
             ptr::copy_nonoverlapping(bytes.as_ptr(), destination.cast::<u8>(), bytes.len());
@@ -175,7 +244,24 @@ impl Drop for Vm {
 mod tests {
     use std::ffi::CString;
 
-    use super::{InitializeError, Vm};
+    use super::{ContextError, InitializeError, Vm, context_length};
+
+    #[test]
+    fn rejects_metadata_lengths_outside_the_c_abi_without_allocating() {
+        assert_eq!(context_length(0).expect("zero fits"), 0);
+        assert_eq!(
+            context_length(2_147_483_647).expect("maximum fits"),
+            i32::MAX
+        );
+        assert!(matches!(
+            context_length(2_147_483_648),
+            Err(ContextError::TooLarge)
+        ));
+        assert!(matches!(
+            context_length(usize::MAX),
+            Err(ContextError::TooLarge)
+        ));
+    }
 
     #[test]
     fn enforces_the_process_lifecycle_and_executes_python() {
@@ -185,10 +271,14 @@ mod tests {
             Err(InitializeError::AlreadyActive)
         ));
         let arguments = [CString::new("-c").expect("valid C string")];
-        vm.set_argv(&arguments);
+        vm.set_argv(&arguments).expect("set Python arguments");
+        assert!(vm.set_file("invalid\0path").is_err());
+        vm.set_file("original.py")
+            .expect("set original script path");
         vm.execute_str(
             "import ansi, sys\n\
 assert sys.argv == ['-c']\n\
+assert __file__ == 'original.py'\n\
 assert ansi.fg('red') == '\\x1b[31m'\n\
 assert ansi.bg('#f50') == '\\x1b[48;2;255;85;0m'\n\
 assert ansi.rgb(1, 2, 3, True) == '\\x1b[48;2;1;2;3m'\n\

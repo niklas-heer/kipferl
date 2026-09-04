@@ -5,35 +5,44 @@ use std::slice;
 
 use kipferl_pocketpy_sys as ffi;
 
-pub(crate) type Callback = unsafe extern "C" fn(c_int, ffi::py_StackRef) -> bool;
+/// Convert an identifier from the vendored predefined-type enum to its ABI type.
+#[expect(
+    clippy::expect_used,
+    reason = "Internal callers pass vendored predefined IDs (0..=65), which fit the signed 16-bit ABI; check future ABI changes rather than truncate"
+)]
+pub fn predefined_type(value: ffi::py_PredefinedType) -> ffi::py_Type {
+    ffi::py_Type::try_from(value).expect("predefined PocketPy type ID fits py_Type")
+}
 
-pub(crate) struct NativeFunction {
+pub type Callback = unsafe extern "C" fn(c_int, ffi::py_StackRef) -> bool;
+
+pub struct NativeFunction {
     pub name: &'static CStr,
     pub callback: Callback,
 }
 
-pub(crate) struct NativeSignature {
+pub struct NativeSignature {
     pub signature: &'static CStr,
     pub callback: Callback,
 }
 
-pub(crate) struct NativeIntConstant {
+pub struct NativeIntConstant {
     pub name: &'static CStr,
     pub value: i64,
 }
 
-pub(crate) struct NativeTypeAlias {
+pub struct NativeTypeAlias {
     pub name: &'static CStr,
     pub value_type: ffi::py_PredefinedType,
 }
 
-pub(crate) enum NativeModuleKind {
+pub enum NativeModuleKind {
     Create,
     Extend,
     ImportAndExtend,
 }
 
-pub(crate) struct NativeModule {
+pub struct NativeModule {
     pub name: &'static CStr,
     pub kind: NativeModuleKind,
     pub functions: &'static [NativeFunction],
@@ -43,7 +52,7 @@ pub(crate) struct NativeModule {
     pub initializer: Option<fn(Value)>,
 }
 
-pub(crate) fn register_modules(modules: &[NativeModule]) {
+pub fn register_modules(modules: &[NativeModule]) {
     for module in modules {
         // SAFETY: registration runs while the uniquely owned VM is active.
         // Module, function, constant, and alias names have static storage;
@@ -90,15 +99,17 @@ pub(crate) fn register_modules(modules: &[NativeModule]) {
                 ffi::py_setdict(
                     object,
                     ffi::py_name(alias.name.as_ptr()),
-                    ffi::py_tpobject(alias.value_type as ffi::py_Type),
+                    ffi::py_tpobject(predefined_type(alias.value_type)),
                 );
             }
         }
     }
 }
 
-pub(crate) fn execute_module(module: Value, source: &str) -> bool {
-    let source = CString::new(source).expect("embedded Python source contains no NUL bytes");
+pub fn execute_module(module: Value, source: &str) -> bool {
+    let Ok(source) = CString::new(source) else {
+        return value_error(c"embedded module source contains a NUL byte");
+    };
     // SAFETY: `module` is active and rooted globally, the source CString lives
     // through the call, and the static filename is NUL-terminated.
     unsafe {
@@ -111,11 +122,11 @@ pub(crate) fn execute_module(module: Value, source: &str) -> bool {
     }
 }
 
-pub(crate) fn create_type(module: Value, name: &'static CStr) -> ffi::py_Type {
+pub fn create_type(module: Value, name: &'static CStr) -> ffi::py_Type {
     create_type_with_destructor(module, name, None)
 }
 
-pub(crate) fn create_type_with_destructor(
+pub fn create_type_with_destructor(
     module: Value,
     name: &'static CStr,
     destructor: ffi::py_Dtor,
@@ -125,14 +136,14 @@ pub(crate) fn create_type_with_destructor(
     unsafe {
         ffi::py_newtype(
             name.as_ptr(),
-            ffi::py_PredefinedType_tp_object as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_object),
             module.raw,
             destructor,
         )
     }
 }
 
-pub(crate) fn type_object(value_type: ffi::py_Type) -> Value {
+pub fn type_object(value_type: ffi::py_Type) -> Value {
     Value {
         // SAFETY: PocketPy type objects are process-global and remain valid for
         // the lifetime of the active VM.
@@ -140,11 +151,7 @@ pub(crate) fn type_object(value_type: ffi::py_Type) -> Value {
     }
 }
 
-pub(crate) fn bind_type_signature(
-    value_type: ffi::py_Type,
-    signature: &'static CStr,
-    callback: Callback,
-) {
+pub fn bind_type_signature(value_type: ffi::py_Type, signature: &'static CStr, callback: Callback) {
     // SAFETY: the type object is VM-global, the signature has static storage,
     // and the callback uses PocketPy's C ABI.
     unsafe {
@@ -152,24 +159,24 @@ pub(crate) fn bind_type_signature(
             ffi::py_tpobject(value_type),
             signature.as_ptr(),
             Some(callback),
-        )
+        );
     };
 }
 
-pub(crate) fn bind_type_method(value_type: ffi::py_Type, name: &'static CStr, callback: Callback) {
+pub fn bind_type_method(value_type: ffi::py_Type, name: &'static CStr, callback: Callback) {
     // SAFETY: the type is active, the name has static storage, and the callback
     // uses PocketPy's C ABI.
     unsafe { ffi::py_bindmethod(value_type, name.as_ptr(), Some(callback)) };
 }
 
-pub(crate) fn type_magic(value_type: ffi::py_Type, name: &'static CStr) -> Option<Value> {
+pub fn type_magic(value_type: ffi::py_Type, name: &'static CStr) -> Option<Value> {
     // SAFETY: `value_type` identifies a live VM type and `name` has static
     // storage. PocketPy returns a VM-global function or null when absent.
     let raw = unsafe { ffi::py_tpfindmagic(value_type, ffi::py_name(name.as_ptr())) };
     (!raw.is_null()).then_some(Value { raw })
 }
 
-pub(crate) struct Arguments {
+pub struct Arguments {
     count: usize,
     values: ffi::py_StackRef,
 }
@@ -177,7 +184,7 @@ pub(crate) struct Arguments {
 impl Arguments {
     /// # Safety
     ///
-    /// `values` must point to the active callback's PocketPy argument stack,
+    /// `values` must point to the active callback's `PocketPy` argument stack,
     /// which contains at least `count` initialized values.
     pub unsafe fn from_raw(count: c_int, values: ffi::py_StackRef) -> Self {
         Self {
@@ -196,7 +203,7 @@ impl Arguments {
         true
     }
 
-    pub fn get(&self, index: usize) -> Option<Value> {
+    pub const fn get(&self, index: usize) -> Option<Value> {
         if index >= self.count {
             return None;
         }
@@ -209,21 +216,21 @@ impl Arguments {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct Value {
+pub struct Value {
     raw: ffi::py_Ref,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ValueSnapshot {
+pub struct ValueSnapshot {
     raw: ffi::py_TValue,
 }
 
 impl Value {
     /// # Safety
     ///
-    /// `raw` must point to an initialized PocketPy value that remains alive
+    /// `raw` must point to an initialized `PocketPy` value that remains alive
     /// for every use of the returned wrapper.
-    pub unsafe fn from_raw(raw: ffi::py_Ref) -> Self {
+    pub const unsafe fn from_raw(raw: ffi::py_Ref) -> Self {
         Self { raw }
     }
 
@@ -244,13 +251,10 @@ impl Value {
     }
 
     pub fn number(self) -> Option<f64> {
-        if self.is_type(ffi::py_PredefinedType_tp_int) {
-            // SAFETY: the exact type check above establishes an integer value.
-            return Some(unsafe { ffi::py_toint(self.raw) } as f64);
-        }
-        if self.is_type(ffi::py_PredefinedType_tp_float) {
-            // SAFETY: the exact type check above establishes a float value.
-            return Some(unsafe { ffi::py_tofloat(self.raw) });
+        if self.is_type(ffi::py_PredefinedType_tp_int)
+            || self.is_type(ffi::py_PredefinedType_tp_float)
+        {
+            return self.cast_number().ok();
         }
         None
     }
@@ -259,7 +263,7 @@ impl Value {
         let mut output = 0.0;
         // SAFETY: `self.raw` is initialized and `output` is writable. PocketPy
         // accepts integers or floats and raises TypeError for other types.
-        if unsafe { ffi::py_castfloat(self.raw, &mut output) } {
+        if unsafe { ffi::py_castfloat(self.raw, &raw mut output) } {
             Ok(output)
         } else {
             Err(())
@@ -307,7 +311,7 @@ impl Value {
         let mut length = 0;
         // SAFETY: the exact type check establishes a string. PocketPy owns the
         // returned UTF-8 buffer for at least the duration of this callback.
-        let data = unsafe { ffi::py_tostrn(self.raw, &mut length) };
+        let data = unsafe { ffi::py_tostrn(self.raw, &raw mut length) };
         let length = usize::try_from(length).ok()?;
         if length == 0 {
             return Some(String::new());
@@ -326,7 +330,7 @@ impl Value {
         // SAFETY: the exact type check establishes bytes. The returned buffer
         // remains valid until the next allocating VM operation, so copy it
         // before returning to safe Rust.
-        let data = unsafe { ffi::py_tobytes(self.raw, &mut length) };
+        let data = unsafe { ffi::py_tobytes(self.raw, &raw mut length) };
         let length = usize::try_from(length).ok()?;
         if length == 0 {
             return Some(Vec::new());
@@ -343,13 +347,13 @@ impl Value {
     pub fn is_type(self, value_type: ffi::py_PredefinedType) -> bool {
         // SAFETY: `self.raw` points to an initialized callback argument, and
         // predefined type identifiers fit PocketPy's `py_Type` representation.
-        unsafe { ffi::py_istype(self.raw, value_type as ffi::py_Type) }
+        unsafe { ffi::py_istype(self.raw, predefined_type(value_type)) }
     }
 
     pub fn is_type_object(self, value_type: ffi::py_PredefinedType) -> bool {
         // SAFETY: `self.raw` is initialized and `py_tpobject` returns a
         // process-global type object for a predefined type.
-        unsafe { ffi::py_isidentical(self.raw, ffi::py_tpobject(value_type as ffi::py_Type)) }
+        unsafe { ffi::py_isidentical(self.raw, ffi::py_tpobject(predefined_type(value_type))) }
     }
 
     pub fn is_instance(self, value_type: ffi::py_Type) -> bool {
@@ -373,7 +377,7 @@ impl Value {
         let mut output = 0;
         // SAFETY: `self.raw` is initialized and `output` is writable. PocketPy
         // raises TypeError when the value cannot be interpreted as an integer.
-        if unsafe { ffi::py_castint(self.raw, &mut output) } {
+        if unsafe { ffi::py_castint(self.raw, &raw mut output) } {
             Ok(output)
         } else {
             Err(())
@@ -508,6 +512,10 @@ impl Value {
         unsafe { ffi::py_setdict(self.raw, ffi::py_name(name.as_ptr()), value.raw) };
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "Native slot callers use only indices 0 and 1, established by each type's fixed slot layout"
+    )]
     pub fn slot(self, index: usize) -> Self {
         let index = c_int::try_from(index).expect("native object slot index fits c_int");
         Self {
@@ -517,6 +525,10 @@ impl Value {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "Native slot callers use only indices 0 and 1, established by each type's fixed slot layout"
+    )]
     pub fn set_slot(self, index: usize, value: Self) {
         let index = c_int::try_from(index).expect("native object slot index fits c_int");
         // SAFETY: callers use this only with native types and slot indices
@@ -524,17 +536,15 @@ impl Value {
         unsafe { ffi::py_setslot(self.raw, index, value.raw) };
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "Native slot callers use only indices 0 and 1, established by each type's fixed slot layout"
+    )]
     pub fn set_slot_snapshot(self, index: usize, value: ValueSnapshot) {
         let index = c_int::try_from(index).expect("native object slot index fits c_int");
         // SAFETY: the snapshot contains one initialized value and the native
         // object owns the requested slot.
-        unsafe {
-            ffi::py_setslot(
-                self.raw,
-                index,
-                (&value.raw as *const ffi::py_TValue).cast_mut(),
-            )
-        };
+        unsafe { ffi::py_setslot(self.raw, index, (&raw const value.raw).cast_mut()) };
     }
 
     /// # Safety
@@ -548,14 +558,14 @@ impl Value {
 }
 
 impl ValueSnapshot {
-    pub fn value(&self) -> Value {
+    pub const fn value(&self) -> Value {
         Value {
-            raw: (&self.raw as *const ffi::py_TValue).cast_mut(),
+            raw: (&raw const self.raw).cast_mut(),
         }
     }
 }
 
-pub(crate) fn global_list(index: c_int) -> Value {
+pub fn global_list(index: c_int) -> Value {
     assert!((0..8).contains(&index), "PocketPy global register index");
     // SAFETY: the VM is active and its eight global scratch registers have
     // stable addresses. Replacing one with a list keeps that list GC-rooted.
@@ -565,7 +575,7 @@ pub(crate) fn global_list(index: c_int) -> Value {
     Value { raw }
 }
 
-pub(crate) fn global_tuple(index: c_int, length: usize) -> Option<Value> {
+pub fn global_tuple(index: c_int, length: usize) -> Option<Value> {
     assert!((0..8).contains(&index), "PocketPy global register index");
     let length = c_int::try_from(length).ok()?;
     // SAFETY: the VM is active, the register has a stable writable address,
@@ -576,7 +586,7 @@ pub(crate) fn global_tuple(index: c_int, length: usize) -> Option<Value> {
     Some(Value { raw })
 }
 
-pub(crate) fn global_string_bytes(index: c_int, value: &[u8]) -> Option<Value> {
+pub fn global_string_bytes(index: c_int, value: &[u8]) -> Option<Value> {
     assert!((0..8).contains(&index), "PocketPy global register index");
     let length = c_int::try_from(value.len()).ok()?;
     // SAFETY: the register has a stable address and PocketPy reserves exactly
@@ -591,7 +601,7 @@ pub(crate) fn global_string_bytes(index: c_int, value: &[u8]) -> Option<Value> {
     Some(Value { raw })
 }
 
-pub(crate) fn global_integer(index: c_int, value: i64) -> Value {
+pub fn global_integer(index: c_int, value: i64) -> Value {
     assert!((0..8).contains(&index), "PocketPy global register index");
     // SAFETY: the VM is active and the selected global register has a stable
     // writable address.
@@ -601,7 +611,7 @@ pub(crate) fn global_integer(index: c_int, value: i64) -> Value {
     Value { raw }
 }
 
-pub(crate) fn global_number(index: c_int, value: f64) -> Value {
+pub fn global_number(index: c_int, value: f64) -> Value {
     assert!((0..8).contains(&index), "PocketPy global register index");
     // SAFETY: the VM is active and the selected global register has a stable
     // writable address.
@@ -611,7 +621,7 @@ pub(crate) fn global_number(index: c_int, value: f64) -> Value {
     Value { raw }
 }
 
-pub(crate) fn call_one_bool(function: Value, argument: Value) -> Result<bool, ()> {
+pub fn call_one_bool(function: Value, argument: Value) -> Result<bool, ()> {
     // Copy both values before PocketPy grows its stack for the call. Their
     // owning Python objects remain rooted by the active callback arguments or
     // containers, while these local trivial values give `py_call` stable refs.
@@ -620,7 +630,7 @@ pub(crate) fn call_one_bool(function: Value, argument: Value) -> Result<bool, ()
     // SAFETY: `argument` points to an initialized, rooted value.
     let mut argument = unsafe { *argument.raw };
     // SAFETY: both local values are initialized and form a one-element argv.
-    if !unsafe { ffi::py_call(&mut function, 1, &mut argument) } {
+    if !unsafe { ffi::py_call(&raw mut function, 1, &raw mut argument) } {
         return Err(());
     }
     let returned = Value {
@@ -634,7 +644,7 @@ pub(crate) fn call_one_bool(function: Value, argument: Value) -> Result<bool, ()
     Ok(value)
 }
 
-pub(crate) fn call(function: Value, arguments: &[Value]) -> bool {
+pub fn call(function: Value, arguments: &[Value]) -> bool {
     let Ok(count) = c_int::try_from(arguments.len()) else {
         return type_error(c"too many native call arguments");
     };
@@ -650,10 +660,10 @@ pub(crate) fn call(function: Value, arguments: &[Value]) -> bool {
         .collect::<Vec<_>>();
     // SAFETY: `function` and all `count` argument values are initialized. An
     // empty slice is accepted with argc zero; current callers always pass self.
-    unsafe { ffi::py_call(&mut function, count, copied.as_mut_ptr()) }
+    unsafe { ffi::py_call(&raw mut function, count, copied.as_mut_ptr()) }
 }
 
-pub(crate) fn call_type(value_type: ffi::py_Type, arguments: &[Value]) -> bool {
+pub fn call_type(value_type: ffi::py_Type, arguments: &[Value]) -> bool {
     let Ok(count) = c_int::try_from(arguments.len()) else {
         return type_error(c"too many native call arguments");
     };
@@ -667,7 +677,7 @@ pub(crate) fn call_type(value_type: ffi::py_Type, arguments: &[Value]) -> bool {
     unsafe { ffi::py_tpcall(value_type, count, copied.as_mut_ptr()) }
 }
 
-pub(crate) fn optional_attribute(
+pub fn optional_attribute(
     roots: &mut RootFrame,
     object: Value,
     name: &'static CStr,
@@ -680,7 +690,7 @@ pub(crate) fn optional_attribute(
     // Missing optional hooks are expected. Preserve every other exception,
     // including failures raised by a user-defined `__getattr__`.
     // SAFETY: the VM has an active exception from the failed lookup above.
-    if unsafe { ffi::py_matchexc(ffi::py_PredefinedType_tp_AttributeError as ffi::py_Type) } {
+    if unsafe { ffi::py_matchexc(predefined_type(ffi::py_PredefinedType_tp_AttributeError)) } {
         // SAFETY: the matched AttributeError is intentionally discarded and
         // no stack unwinding point is required for `py_getattr`.
         unsafe { ffi::py_clearexc(ptr::null_mut()) };
@@ -690,26 +700,30 @@ pub(crate) fn optional_attribute(
     }
 }
 
-pub(crate) fn clear_exception() {
+pub fn clear_exception() {
     // SAFETY: callers use this only to implement an explicitly documented
     // fallback after a failed PocketPy operation.
     unsafe { ffi::py_clearexc(ptr::null_mut()) };
 }
 
-/// A LIFO frame for PocketPy temporary stack roots.
+/// A LIFO frame for `PocketPy` temporary stack roots.
 ///
-/// Values created by native callbacks must live on PocketPy's stack—not only
+/// Values created by native callbacks must live on `PocketPy`'s stack—not only
 /// on Rust's stack—while later VM calls may allocate. This frame owns those
 /// roots and releases them in one place when the callback finishes.
-pub(crate) struct RootFrame {
+pub struct RootFrame {
     count: usize,
 }
 
 impl RootFrame {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { count: 0 }
     }
 
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "Each counted root occupies a 24-byte VM stack slot, so allocated roots cannot exhaust usize"
+    )]
     fn push(&mut self) -> Value {
         // SAFETY: native callbacks run with the VM active. Each successful
         // push is paired with one `py_pop` in this frame's `Drop`.
@@ -770,7 +784,7 @@ impl RootFrame {
             // SAFETY: both buffers are valid for `value.len()` bytes and do
             // not overlap.
             unsafe {
-                ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len())
+                ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len());
             };
         }
         Some(root)
@@ -864,7 +878,7 @@ impl RootFrame {
         // requested slots followed by `size_of::<T>()` userdata bytes, whose
         // alignment supports PocketPy's own pointer-sized native states.
         let destination = unsafe { ffi::py_newobject(root.raw, value_type, slots, size) };
-        if !(destination as usize).is_multiple_of(mem::align_of::<T>()) {
+        if !destination.addr().is_multiple_of(mem::align_of::<T>()) {
             return None;
         }
         // SAFETY: the allocation above reserved enough suitably aligned bytes
@@ -895,27 +909,27 @@ impl Drop for RootFrame {
     }
 }
 
-pub(crate) type DictCallback = unsafe extern "C" fn(ffi::py_Ref, ffi::py_Ref, *mut c_void) -> bool;
+pub type DictCallback = unsafe extern "C" fn(ffi::py_Ref, ffi::py_Ref, *mut c_void) -> bool;
 
-pub(crate) fn dict_apply(dict: Value, callback: DictCallback, context: *mut c_void) -> bool {
+pub fn dict_apply(dict: Value, callback: DictCallback, context: *mut c_void) -> bool {
     debug_assert!(dict.is_type(ffi::py_PredefinedType_tp_dict));
     // SAFETY: `dict` remains rooted for the call and `context` is supplied by
     // the caller with a lifetime covering the synchronous traversal.
     unsafe { ffi::py_dict_apply(dict.raw, Some(callback), context) }
 }
 
-pub(crate) fn return_value(value: Value) -> bool {
+pub fn return_value(value: Value) -> bool {
     // SAFETY: the value and return register are initialized storage for one
     // `py_TValue`; `ptr::copy` permits overlap.
     unsafe { ptr::copy(value.raw, ffi::py_retval(), 1) };
     true
 }
 
-pub(crate) fn return_string(value: &str) -> bool {
+pub fn return_string(value: &str) -> bool {
     return_string_bytes(value.as_bytes())
 }
 
-pub(crate) fn return_string_bytes(value: &[u8]) -> bool {
+pub fn return_string_bytes(value: &[u8]) -> bool {
     let Ok(length) = c_int::try_from(value.len()) else {
         return type_error(c"return string is too large");
     };
@@ -930,7 +944,7 @@ pub(crate) fn return_string_bytes(value: &[u8]) -> bool {
     true
 }
 
-pub(crate) fn return_string_list(values: &[String]) -> bool {
+pub fn return_string_list(values: &[String]) -> bool {
     // Global scratch registers have stable addresses and remain VM roots while
     // list appends allocate. This avoids retaining pointers into PocketPy's
     // movable value stack when a callback returns many strings.
@@ -950,7 +964,7 @@ pub(crate) fn return_string_list(values: &[String]) -> bool {
             // SAFETY: PocketPy reserved exactly `value.len()` writable bytes
             // and the source and destination do not overlap.
             unsafe {
-                ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len())
+                ptr::copy_nonoverlapping(value.as_ptr(), destination.cast::<u8>(), value.len());
             };
         }
         // SAFETY: both scratch registers contain initialized, globally rooted
@@ -962,7 +976,7 @@ pub(crate) fn return_string_list(values: &[String]) -> bool {
     true
 }
 
-pub(crate) fn return_bytes(value: &[u8]) -> bool {
+pub fn return_bytes(value: &[u8]) -> bool {
     let mut roots = RootFrame::new();
     let Some(value) = roots.bytes(value) else {
         return value_error(c"return bytes are too large");
@@ -970,54 +984,54 @@ pub(crate) fn return_bytes(value: &[u8]) -> bool {
     return_value(value)
 }
 
-pub(crate) fn return_number(value: f64) -> bool {
+pub fn return_number(value: f64) -> bool {
     let mut roots = RootFrame::new();
     let value = roots.number(value);
     return_value(value)
 }
 
-pub(crate) fn type_error(message: &'static CStr) -> bool {
+pub fn type_error(message: &'static CStr) -> bool {
     // SAFETY: the VM is active during a callback. The format string and message
     // have static storage and match PocketPy's `%s` vararg contract.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_TypeError as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_TypeError),
             c"%s".as_ptr(),
             message.as_ptr(),
         )
     }
 }
 
-pub(crate) fn runtime_error(message: &'static CStr) -> bool {
+pub fn runtime_error(message: &'static CStr) -> bool {
     // SAFETY: the VM is active during a callback. The format string and message
     // have static storage and match PocketPy's `%s` vararg contract.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_RuntimeError as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_RuntimeError),
             c"%s".as_ptr(),
             message.as_ptr(),
         )
     }
 }
 
-pub(crate) fn os_error(message: &'static CStr) -> bool {
+pub fn os_error(message: &'static CStr) -> bool {
     // SAFETY: the VM is active during a callback. The format string and message
     // have static storage and match PocketPy's `%s` vararg contract.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_OSError as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_OSError),
             c"%s".as_ptr(),
             message.as_ptr(),
         )
     }
 }
 
-pub(crate) fn value_error(message: &'static CStr) -> bool {
+pub fn value_error(message: &'static CStr) -> bool {
     // SAFETY: the VM is active during a callback. The format string and message
     // have static storage and match PocketPy's `%s` vararg contract.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_ValueError as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_ValueError),
             c"%s".as_ptr(),
             message.as_ptr(),
         )
@@ -1025,39 +1039,38 @@ pub(crate) fn value_error(message: &'static CStr) -> bool {
 }
 
 #[cfg(feature = "formats")]
-pub(crate) fn value_error_message(message: &str) -> bool {
-    let message = CString::new(message).unwrap_or_else(|_| {
-        CString::new("invalid value (error contains a NUL byte)").expect("static CString")
-    });
+pub fn value_error_message(message: &str) -> bool {
+    let message = CString::new(message)
+        .unwrap_or_else(|_| c"invalid value (error contains a NUL byte)".to_owned());
     // SAFETY: the VM is active during a callback. PocketPy consumes the
     // temporary NUL-terminated message synchronously through its `%s` format.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_ValueError as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_ValueError),
             c"%s".as_ptr(),
             message.as_ptr(),
         )
     }
 }
 
-pub(crate) fn stop_iteration() -> bool {
+pub fn stop_iteration() -> bool {
     // SAFETY: the VM is active during a callback and the empty message has
     // static storage.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_StopIteration as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_StopIteration),
             c"%s".as_ptr(),
             c"".as_ptr(),
         )
     }
 }
 
-pub(crate) fn index_error(message: &'static CStr) -> bool {
+pub fn index_error(message: &'static CStr) -> bool {
     // SAFETY: the VM is active during a callback. The format string and message
     // have static storage and match PocketPy's `%s` vararg contract.
     unsafe {
         ffi::py_exception(
-            ffi::py_PredefinedType_tp_IndexError as ffi::py_Type,
+            predefined_type(ffi::py_PredefinedType_tp_IndexError),
             c"%s".as_ptr(),
             message.as_ptr(),
         )

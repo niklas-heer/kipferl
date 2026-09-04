@@ -22,7 +22,13 @@ const BACKGROUND_CODES: &[&str; 16] = &[
 
 pub(super) fn foreground(value: i64) -> String {
     match u8::try_from(value) {
-        Ok(index @ 0..=15) => format!("\x1b[{}m", FOREGROUND_CODES[index as usize]),
+        Ok(index @ 0..=15) => format!(
+            "\x1b[{}m",
+            FOREGROUND_CODES
+                .get(usize::from(index))
+                .copied()
+                .unwrap_or_default()
+        ),
         Ok(index) => format!("\x1b[38;5;{index}m"),
         Err(_) => String::new(),
     }
@@ -30,7 +36,13 @@ pub(super) fn foreground(value: i64) -> String {
 
 pub(super) fn background(value: i64) -> String {
     match u8::try_from(value) {
-        Ok(index @ 0..=15) => format!("\x1b[{}m", BACKGROUND_CODES[index as usize]),
+        Ok(index @ 0..=15) => format!(
+            "\x1b[{}m",
+            BACKGROUND_CODES
+                .get(usize::from(index))
+                .copied()
+                .unwrap_or_default()
+        ),
         Ok(index) => format!("\x1b[48;5;{index}m"),
         Err(_) => String::new(),
     }
@@ -69,22 +81,22 @@ pub(super) fn rgb(red: u8, green: u8, blue: u8, background: bool) -> String {
 
 fn color_index(value: &str) -> Option<u8> {
     if let Some(name) = value.strip_prefix("bright_") {
-        return STANDARD_COLORS
-            .iter()
-            .find_map(|&(candidate, index)| (candidate == name).then_some(index + 8));
+        return STANDARD_COLORS.iter().find_map(|&(candidate, index)| {
+            (candidate == name).then_some(index.saturating_add(8))
+        });
     }
     STANDARD_COLORS
         .iter()
         .find_map(|&(candidate, index)| (candidate == value).then_some(index))
 }
 
-fn parse_hex(value: &str) -> Option<(u8, u8, u8)> {
+pub(super) fn parse_hex(value: &str) -> Option<(u8, u8, u8)> {
     let value = value.strip_prefix('#')?;
     match value.as_bytes() {
         [red, green, blue] => Some((
-            hex_digit(*red)? * 17,
-            hex_digit(*green)? * 17,
-            hex_digit(*blue)? * 17,
+            hex_digit(*red)?.saturating_mul(17),
+            hex_digit(*green)?.saturating_mul(17),
+            hex_digit(*blue)?.saturating_mul(17),
         )),
         [
             red_high,
@@ -94,21 +106,16 @@ fn parse_hex(value: &str) -> Option<(u8, u8, u8)> {
             blue_high,
             blue_low,
         ] => Some((
-            hex_digit(*red_high)? * 16 + hex_digit(*red_low)?,
-            hex_digit(*green_high)? * 16 + hex_digit(*green_low)?,
-            hex_digit(*blue_high)? * 16 + hex_digit(*blue_low)?,
+            (hex_digit(*red_high)? << 4) | hex_digit(*red_low)?,
+            (hex_digit(*green_high)? << 4) | hex_digit(*green_low)?,
+            (hex_digit(*blue_high)? << 4) | hex_digit(*blue_low)?,
         )),
         _ => None,
     }
 }
 
 fn hex_digit(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
+    u8::try_from(char::from(value).to_digit(16)?).ok()
 }
 
 #[cfg(test)]

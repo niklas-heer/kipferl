@@ -156,9 +156,9 @@ fn style_prefix(color: Option<&str>) -> (String, &'static str) {
     }
 }
 
-unsafe extern "C" fn visible_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn visible_len(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -169,13 +169,13 @@ unsafe extern "C" fn visible_len(argc: c_int, argv: ffi::py_StackRef) -> bool {
         return value_error(c"text too long");
     }
     let mut roots = RootFrame::new();
-    let length = roots.integer(tui_core::visible_len(&text) as i64);
+    let length = roots.integer(i64::try_from(tui_core::visible_len(&text)).unwrap_or(i64::MAX));
     return_value(length)
 }
 
-unsafe extern "C" fn style(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn style(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(text) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"text must be a string");
     };
@@ -196,16 +196,19 @@ unsafe extern "C" fn style(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_string(&format!("{prefix}{text}\x1b[0m"))
 }
 
-unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn box_output(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(content) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"content must be a string");
     };
     let title = optional_string(&arguments, 1, true);
     let border = optional_string(&arguments, 2, true).unwrap_or_else(|| "rounded".to_owned());
     let border_color = optional_string(&arguments, 3, true);
-    let padding = arguments.get(4).and_then(Value::integer).unwrap_or(1) as u32 as usize;
+    let Ok(padding) = usize::try_from(arguments.get(4).and_then(Value::integer).unwrap_or(1))
+    else {
+        return value_error(c"padding must be non-negative");
+    };
     if padding > 1_000_000 {
         return runtime_error(c"box is too large");
     }
@@ -232,9 +235,9 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
 
     let (color_start, color_end) = style_prefix(border_color.as_deref());
     let mut output = String::new();
+    output.push_str(&color_start);
+    output.push_str(chars.tl);
     if let Some(title) = title.as_deref() {
-        output.push_str(&color_start);
-        output.push_str(chars.tl);
         output.push_str(chars.h);
         output.push_str(color_end);
         output.push_str("\x1b[1m ");
@@ -245,17 +248,13 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
             chars.h,
             inner_width.saturating_sub(title_length.saturating_add(3)),
         ));
-        output.push_str(chars.tr);
-        output.push_str(color_end);
-        output.push('\n');
     } else {
-        output.push_str(&color_start);
-        output.push_str(chars.tl);
         output.push_str(&tui_core::repeat(chars.h, inner_width));
-        output.push_str(chars.tr);
-        output.push_str(color_end);
-        output.push('\n');
     }
+
+    output.push_str(chars.tr);
+    output.push_str(color_end);
+    output.push('\n');
 
     let side_padding = " ".repeat(padding);
     for line in content.split('\n') {
@@ -282,9 +281,9 @@ unsafe extern "C" fn box_output(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_none()
 }
 
-unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn rule(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let title = optional_string(&arguments, 0, true);
     let character = optional_string(&arguments, 1, true).unwrap_or_else(|| "─".to_owned());
     let color = optional_string(&arguments, 2, true);
@@ -292,14 +291,20 @@ unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
         .get(3)
         .and_then(Value::integer)
         .unwrap_or(80)
-        .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        .max(0);
+    if width > 1_000_000 {
+        return runtime_error(c"rule is too large");
+    }
     let (color_start, color_end) = style_prefix(color.as_deref());
     let mut output = String::new();
     if let Some(title) = title.as_deref() {
-        let title_length = i32::try_from(title.len()).unwrap_or(i32::MAX);
+        let title_length = i64::try_from(title.len()).unwrap_or(i64::MAX);
         let side = ((width.saturating_sub(title_length).saturating_sub(2)) / 2).max(0);
         output.push_str(&color_start);
-        output.push_str(&tui_core::repeat(&character, side as usize));
+        output.push_str(&tui_core::repeat(
+            &character,
+            usize::try_from(side).unwrap_or(0),
+        ));
         output.push_str(color_end);
         output.push(' ');
         output.push_str(title);
@@ -310,27 +315,31 @@ unsafe extern "C" fn rule(argc: c_int, argv: ffi::py_StackRef) -> bool {
             .saturating_sub(2)
             .max(0);
         output.push_str(&color_start);
-        output.push_str(&tui_core::repeat(&character, remaining as usize));
-        output.push_str(color_end);
-        output.push('\n');
+        output.push_str(&tui_core::repeat(
+            &character,
+            usize::try_from(remaining).unwrap_or(0),
+        ));
     } else {
         output.push_str(&color_start);
-        output.push_str(&tui_core::repeat(&character, width.max(0) as usize));
-        output.push_str(color_end);
-        output.push('\n');
+        output.push_str(&tui_core::repeat(
+            &character,
+            usize::try_from(width).unwrap_or(0),
+        ));
     }
+    output.push_str(color_end);
+    output.push('\n');
     write_output(output.as_bytes());
     return_none()
 }
 
 fn status_message(
     argc: c_int,
-    argv: ffi::py_StackRef,
+    stack: ffi::py_StackRef,
     color: &'static str,
     symbol: &'static str,
 ) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -341,25 +350,25 @@ fn status_message(
     return_none()
 }
 
-unsafe extern "C" fn success(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "32", tui_core::SYMBOL_SUCCESS)
+unsafe extern "C" fn success(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    status_message(argc, stack, "32", tui_core::SYMBOL_SUCCESS)
 }
 
-unsafe extern "C" fn error(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "31", tui_core::SYMBOL_ERROR)
+unsafe extern "C" fn error(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    status_message(argc, stack, "31", tui_core::SYMBOL_ERROR)
 }
 
-unsafe extern "C" fn warning(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "33", tui_core::SYMBOL_WARNING)
+unsafe extern "C" fn warning(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    status_message(argc, stack, "33", tui_core::SYMBOL_WARNING)
 }
 
-unsafe extern "C" fn info(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    status_message(argc, argv, "34", tui_core::SYMBOL_INFO)
+unsafe extern "C" fn info(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    status_message(argc, stack, "34", tui_core::SYMBOL_INFO)
 }
 
-unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn progress(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(current) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"current must be int");
     };
@@ -367,7 +376,9 @@ unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
         return type_error(c"total must be int");
     };
     let label = optional_string(&arguments, 2, true);
-    let width = arguments.get(3).and_then(Value::integer).unwrap_or(40) as u32;
+    let Ok(width) = u32::try_from(arguments.get(3).and_then(Value::integer).unwrap_or(40)) else {
+        return value_error(c"width must be a non-negative 32-bit integer");
+    };
     if width > 1_000_000 {
         return runtime_error(c"progress bar is too large");
     }
@@ -386,10 +397,17 @@ unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
         output.push(' ');
     }
     output.push_str(&color_start);
-    output.push_str(&tui_core::progress_bar(current as u32, total as u32, width));
+    output.push_str(&tui_core::progress_bar(
+        low_word(current),
+        low_word(total),
+        width,
+    ));
     output.push_str(color_end);
     output.push(' ');
-    output.push_str(&tui_core::percent_string(current as u32, total as u32));
+    output.push_str(&tui_core::percent_string(
+        low_word(current),
+        low_word(total),
+    ));
     if let Some(elapsed) = elapsed {
         let _ = write!(output, "  {}s", tui_core::elapsed_string(elapsed));
     }
@@ -398,9 +416,9 @@ unsafe extern "C" fn progress(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_none()
 }
 
-unsafe extern "C" fn progress_done(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn progress_done(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(0, 0) {
         return false;
     }
@@ -408,21 +426,21 @@ unsafe extern "C" fn progress_done(argc: c_int, argv: ffi::py_StackRef) -> bool 
     return_none()
 }
 
-unsafe extern "C" fn spinner_frame(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn spinner_frame(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
     let Some(index) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"index must be int");
     };
-    return_string(tui_core::spinner_frame(index as u32))
+    return_string(tui_core::spinner_frame(low_word(index)))
 }
 
-unsafe extern "C" fn spinner(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn spinner(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(index) = arguments.get(0).and_then(Value::integer) else {
         return type_error(c"index must be int");
     };
@@ -431,7 +449,7 @@ unsafe extern "C" fn spinner(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let (color_start, color_end) = style_prefix(color.as_deref());
     let mut output = format!(
         "\r{color_start}{}{color_end}",
-        tui_core::spinner_frame(index as u32)
+        tui_core::spinner_frame(low_word(index))
     );
     if let Some(message) = message {
         output.push(' ');
@@ -454,8 +472,8 @@ fn horizontal_line(
     output.push_str(color_start);
     output.push_str(left);
     for (index, width) in widths.iter().enumerate() {
-        output.push_str(&tui_core::repeat(horizontal, width + 2));
-        if index + 1 < widths.len() {
+        output.push_str(&tui_core::repeat(horizontal, width.saturating_add(2)));
+        if index < widths.len().saturating_sub(1) {
             output.push_str(middle);
         }
     }
@@ -464,9 +482,9 @@ fn horizontal_line(
     output.push('\n');
 }
 
-unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn table(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(rows) = arguments.get(0) else {
         return type_error(c"rows must be a list");
     };
@@ -492,25 +510,7 @@ unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let chars = tui_core::table_chars(BorderStyle::for_table(&border));
     let actual_columns = column_count.min(32);
     let mut widths = vec![0_usize; actual_columns];
-    for row_index in 0..row_count {
-        let Some(row) = rows.list_item(row_index) else {
-            continue;
-        };
-        let Some(row_length) = row.list_len() else {
-            continue;
-        };
-        for (column_index, width) in widths
-            .iter_mut()
-            .enumerate()
-            .take(row_length.min(actual_columns))
-        {
-            let cell = row
-                .list_item(column_index)
-                .and_then(Value::string)
-                .unwrap_or_default();
-            *width = (*width).max(tui_core::visible_len(&cell));
-        }
-    }
+    measure_columns(rows, row_count, actual_columns, &mut widths);
 
     let (color_start, color_end) = style_prefix(border_color.as_deref());
     let mut output = String::new();
@@ -576,4 +576,32 @@ unsafe extern "C" fn table(argc: c_int, argv: ffi::py_StackRef) -> bool {
     );
     write_output(output.as_bytes());
     return_none()
+}
+
+// These legacy counters use their low 32 bits, including negative spinner indices.
+const fn low_word(value: i64) -> u32 {
+    let [a, b, c, d, ..] = value.to_le_bytes();
+    u32::from_le_bytes([a, b, c, d])
+}
+
+fn measure_columns(rows: Value, row_count: usize, actual_columns: usize, widths: &mut [usize]) {
+    for row_index in 0..row_count {
+        let Some(row) = rows.list_item(row_index) else {
+            continue;
+        };
+        let Some(row_length) = row.list_len() else {
+            continue;
+        };
+        for (column_index, width) in widths
+            .iter_mut()
+            .enumerate()
+            .take(row_length.min(actual_columns))
+        {
+            let cell = row
+                .list_item(column_index)
+                .and_then(Value::string)
+                .unwrap_or_default();
+            *width = (*width).max(tui_core::visible_len(&cell));
+        }
+    }
 }

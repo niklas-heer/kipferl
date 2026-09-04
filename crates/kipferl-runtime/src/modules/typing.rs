@@ -5,7 +5,7 @@ use kipferl_pocketpy_sys as ffi;
 
 use crate::native::{
     Arguments, NativeFunction, NativeModule, NativeModuleKind, RootFrame, Value, bind_type_method,
-    bind_type_signature, create_type, return_string, return_value, type_object,
+    bind_type_signature, create_type, return_string, return_value, type_error, type_object,
 };
 
 static TYPEVAR_TYPE: AtomicI16 = AtomicI16::new(0);
@@ -126,7 +126,9 @@ fn initialize(module: Value) {
     }
     for &name in SENTINELS {
         let mut roots = RootFrame::new();
-        let sentinel = roots.object(ffi::py_PredefinedType_tp_object as ffi::py_Type);
+        let sentinel = roots.object(crate::native::predefined_type(
+            ffi::py_PredefinedType_tp_object,
+        ));
         module.set_attribute(name, sentinel);
     }
     let mut roots = RootFrame::new();
@@ -134,10 +136,10 @@ fn initialize(module: Value) {
     module.set_attribute(c"TYPE_CHECKING", type_checking);
 }
 
-unsafe extern "C" fn typevar_new(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn typevar_new(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // The declaration binder validates and expands the TypeVar signature.
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     let Some(name) = arguments.get(1) else {
         return false;
     };
@@ -149,9 +151,9 @@ unsafe extern "C" fn typevar_new(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(instance)
 }
 
-unsafe extern "C" fn typevar_repr(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn typevar_repr(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -160,33 +162,43 @@ unsafe extern "C" fn typevar_repr(argc: c_int, argv: ffi::py_StackRef) -> bool {
         .and_then(|value| value.attribute(c"__name__"))
         .and_then(Value::string);
     if let Some(name) = name
-        && name.len() + 1 < 128
+        && name.len() < 127
     {
         return return_string(&format!("~{name}"));
     }
     return_string("~T")
 }
 
-unsafe extern "C" fn cast(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn cast(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
-    return_value(arguments.get(1).expect("arity checked"))
+    let Some(value) = arguments.get(1) else {
+        return type_error(c"cast() requires a value");
+    };
+    return_value(value)
 }
 
-unsafe extern "C" fn identity(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn identity(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
-    return_value(arguments.get(0).expect("arity checked"))
+    let Some(value) = arguments.get(0) else {
+        return type_error(c"decorator requires an argument");
+    };
+    return_value(value)
 }
 
-unsafe extern "C" fn get_args(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    if !require_arity(argc, argv, 1, 1) {
+#[expect(
+    clippy::expect_used,
+    reason = "A zero-length tuple is always representable by the VM signed-int length API."
+)]
+unsafe extern "C" fn get_args(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    if !require_arity(argc, stack, 1, 1) {
         return false;
     }
     let mut roots = RootFrame::new();
@@ -194,8 +206,8 @@ unsafe extern "C" fn get_args(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(value)
 }
 
-unsafe extern "C" fn get_origin(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    if !require_arity(argc, argv, 1, 1) {
+unsafe extern "C" fn get_origin(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    if !require_arity(argc, stack, 1, 1) {
         return false;
     }
     let mut roots = RootFrame::new();
@@ -203,8 +215,8 @@ unsafe extern "C" fn get_origin(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(value)
 }
 
-unsafe extern "C" fn get_type_hints(argc: c_int, argv: ffi::py_StackRef) -> bool {
-    if !require_arity(argc, argv, 1, 3) {
+unsafe extern "C" fn get_type_hints(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    if !require_arity(argc, stack, 1, 3) {
         return false;
     }
     let mut roots = RootFrame::new();
@@ -212,7 +224,7 @@ unsafe extern "C" fn get_type_hints(argc: c_int, argv: ffi::py_StackRef) -> bool
     return_value(value)
 }
 
-fn require_arity(argc: c_int, argv: ffi::py_StackRef, minimum: usize, maximum: usize) -> bool {
+fn require_arity(argc: c_int, stack: ffi::py_StackRef, minimum: usize, maximum: usize) -> bool {
     // SAFETY: called only from a PocketPy callback with its active argument stack.
-    unsafe { Arguments::from_raw(argc, argv) }.require_arity(minimum, maximum)
+    unsafe { Arguments::from_raw(argc, stack) }.require_arity(minimum, maximum)
 }

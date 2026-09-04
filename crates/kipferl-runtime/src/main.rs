@@ -1,3 +1,7 @@
+// Native callbacks must report failures through Python or structured Rust
+// errors; implicit unwraps and process exits bypass that boundary.
+#![deny(clippy::unwrap_used, clippy::exit, clippy::panic_in_result_fn)]
+
 use std::env;
 use std::ffi::CString;
 use std::fs;
@@ -24,8 +28,7 @@ fn run() -> Result<(), String> {
             return Err(format!("usage: {program} [-c code | script.py] [args...]"));
         }
         [_, flag, code, rest @ ..] if flag == "-c" => {
-            let argv: Vec<String> = ["-c"]
-                .into_iter()
+            let argv: Vec<String> = std::iter::once("-c")
                 .chain(rest.iter().map(String::as_str))
                 .map(str::to_owned)
                 .collect();
@@ -40,7 +43,7 @@ fn run() -> Result<(), String> {
                 .collect();
             (source, script.clone(), argv, Some(script.clone()))
         }
-        _ => unreachable!("the no-argument case is handled above"),
+        [] => return Err("usage: pocketpy-kipferl [-c code | script.py] [args...]".to_owned()),
     };
 
     let python_arguments: Vec<CString> = python_arguments
@@ -48,10 +51,11 @@ fn run() -> Result<(), String> {
         .map(|argument| CString::new(argument.as_str()))
         .collect::<Result<_, _>>()
         .map_err(|_| "an argument contains a NUL byte".to_owned())?;
-    vm.set_argv(&python_arguments);
+    vm.set_argv(&python_arguments)
+        .map_err(|error| error.to_string())?;
     if let Some(script_file) = script_file {
         vm.set_file(&script_file)
-            .map_err(|_| "script path contains a NUL byte".to_owned())?;
+            .map_err(|error| error.to_string())?;
     }
 
     match vm.execute_str(&source, &filename) {

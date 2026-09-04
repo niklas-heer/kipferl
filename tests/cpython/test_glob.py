@@ -135,8 +135,7 @@ test("glob file?.py", "file1.py" in basenames and "file2.py" in basenames)
 
 print("\n=== glob.glob() recursive tests ===")
 
-# Use positional args for PocketPy compatibility: glob(pattern, root_dir, dir_fd, recursive)
-results = glob.glob(path_join(tempdir, "**", "*.py"), None, None, True)
+results = glob.glob(path_join(tempdir, "**", "*.py"), recursive=True)
 basenames = get_basenames(results)
 test("glob **/*.py recursive", "nested1.py" in basenames)
 

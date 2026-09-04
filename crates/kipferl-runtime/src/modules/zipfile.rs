@@ -10,7 +10,7 @@ use crate::native::{
     return_bytes, return_value, runtime_error, type_error, value_error,
 };
 
-const MAX_ARCHIVE_SIZE: usize = 64 * 1024 * 1024;
+const MAX_ARCHIVE_SIZE: u32 = 64 * 1024 * 1024;
 
 const COMPATIBILITY_SOURCE: &str = r#"
 ZIP_STORED = 0
@@ -73,6 +73,10 @@ pub(super) const MODULE: NativeModule = NativeModule {
     initializer: Some(initialize),
 };
 
+#[expect(
+    clippy::panic,
+    reason = "Initialization runs before user code; failure to compile the checked-in compatibility source is a fatal runtime build defect."
+)]
 fn initialize(module: Value) {
     if !execute_module(module, COMPATIBILITY_SOURCE) {
         // SAFETY: initialization failed with a live PocketPy exception.
@@ -83,15 +87,15 @@ fn initialize(module: Value) {
 
 fn open_archive(path: &str) -> Result<ZipArchive<File>, ()> {
     let file = File::open(path).map_err(|_| ())?;
-    if file.metadata().map_err(|_| ())?.len() > MAX_ARCHIVE_SIZE as u64 {
+    if file.metadata().map_err(|_| ())?.len() > u64::from(MAX_ARCHIVE_SIZE) {
         return Err(());
     }
     ZipArchive::new(file).map_err(|_| ())
 }
 
-unsafe extern "C" fn names(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn names(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(1, 1) {
         return false;
     }
@@ -113,9 +117,9 @@ unsafe extern "C" fn names(argc: c_int, argv: ffi::py_StackRef) -> bool {
     return_value(output)
 }
 
-unsafe extern "C" fn read_member(argc: c_int, argv: ffi::py_StackRef) -> bool {
+unsafe extern "C" fn read_member(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
-    let arguments = unsafe { Arguments::from_raw(argc, argv) };
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
     if !arguments.require_arity(2, 2) {
         return false;
     }
@@ -131,18 +135,18 @@ unsafe extern "C" fn read_member(argc: c_int, argv: ffi::py_StackRef) -> bool {
     let Ok(member) = archive.by_name(&name) else {
         return runtime_error(c"unable to read zip member");
     };
-    if member.size() > MAX_ARCHIVE_SIZE as u64 {
+    if member.size() > u64::from(MAX_ARCHIVE_SIZE) {
         return value_error(c"zip member is too large");
     }
-    let mut bytes = Vec::with_capacity(member.size() as usize);
+    let mut bytes = Vec::new();
     if member
-        .take(MAX_ARCHIVE_SIZE as u64 + 1)
+        .take(u64::from(MAX_ARCHIVE_SIZE.saturating_add(1)))
         .read_to_end(&mut bytes)
         .is_err()
     {
         return runtime_error(c"unable to read zip member");
     }
-    if bytes.len() > MAX_ARCHIVE_SIZE {
+    if bytes.len() > usize::try_from(MAX_ARCHIVE_SIZE).unwrap_or(usize::MAX) {
         return value_error(c"zip member is too large");
     }
     return_bytes(&bytes)

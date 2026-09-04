@@ -9,6 +9,10 @@ pub(super) enum HexDecodeError {
     InvalidDigit,
 }
 
+#[expect(
+    clippy::indexing_slicing,
+    reason = "Every alphabet index is formed from at most six bits, within the fixed 64-byte alphabet."
+)]
 pub(super) fn base64_encode(input: &[u8], urlsafe: bool) -> Vec<u8> {
     let alphabet = if urlsafe {
         URLSAFE_ALPHABET
@@ -18,7 +22,9 @@ pub(super) fn base64_encode(input: &[u8], urlsafe: bool) -> Vec<u8> {
     let mut output = Vec::with_capacity(input.len().div_ceil(3).saturating_mul(4));
 
     for chunk in input.chunks(3) {
-        let first = chunk[0];
+        let Some((&first, _)) = chunk.split_first() else {
+            continue;
+        };
         let second = chunk.get(1).copied().unwrap_or(0);
         let third = chunk.get(2).copied().unwrap_or(0);
 
@@ -49,31 +55,39 @@ pub(super) fn base64_decode(input: &[u8], urlsafe: bool) -> Result<Vec<u8>, ()> 
 
     let padding = if input.ends_with(b"==") {
         2
-    } else if input.ends_with(b"=") {
-        1
     } else {
-        0
+        usize::from(input.ends_with(b"="))
     };
-    if input[..input.len() - padding].contains(&b'=') {
+    if input
+        .get(..input.len().checked_sub(padding).ok_or(())?)
+        .ok_or(())?
+        .contains(&b'=')
+    {
         return Err(());
     }
 
-    let output_length = input.len() / 4 * 3 - padding;
+    let output_length = (input.len() / 4)
+        .checked_mul(3)
+        .and_then(|length| length.checked_sub(padding))
+        .ok_or(())?;
     let mut output = Vec::with_capacity(output_length);
     let chunk_count = input.len() / 4;
 
     for (index, chunk) in input.chunks_exact(4).enumerate() {
-        let last = index + 1 == chunk_count;
+        let last = index == chunk_count.saturating_sub(1);
+        let [first_byte, second_byte, third_byte, fourth_byte] = chunk else {
+            return Err(());
+        };
         let chunk_padding = if last { padding } else { 0 };
-        let first = decode_digit(chunk[0], urlsafe).ok_or(())?;
-        let second = decode_digit(chunk[1], urlsafe).ok_or(())?;
+        let first = decode_digit(*first_byte, urlsafe).ok_or(())?;
+        let second = decode_digit(*second_byte, urlsafe).ok_or(())?;
         let third = if chunk_padding < 2 {
-            decode_digit(chunk[2], urlsafe).ok_or(())?
+            decode_digit(*third_byte, urlsafe).ok_or(())?
         } else {
             0
         };
         let fourth = if chunk_padding == 0 {
-            decode_digit(chunk[3], urlsafe).ok_or(())?
+            decode_digit(*fourth_byte, urlsafe).ok_or(())?
         } else {
             0
         };
@@ -98,7 +112,11 @@ pub(super) fn base64_decode(input: &[u8], urlsafe: bool) -> Result<Vec<u8>, ()> 
     Ok(output)
 }
 
-fn decode_digit(value: u8, urlsafe: bool) -> Option<u8> {
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Match arms restrict ASCII inputs before subtracting their range start; resulting values are at most 61."
+)]
+const fn decode_digit(value: u8, urlsafe: bool) -> Option<u8> {
     match value {
         b'A'..=b'Z' => Some(value - b'A'),
         b'a'..=b'z' => Some(value - b'a' + 26),
@@ -111,6 +129,10 @@ fn decode_digit(value: u8, urlsafe: bool) -> Option<u8> {
     }
 }
 
+#[expect(
+    clippy::indexing_slicing,
+    reason = "Both lookup indices are four-bit nibbles, within the fixed 16-byte hex alphabet."
+)]
 pub(super) fn hex_encode(input: &[u8]) -> Vec<u8> {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = Vec::with_capacity(input.len().saturating_mul(2));
@@ -127,20 +149,18 @@ pub(super) fn hex_decode(input: &[u8]) -> Result<Vec<u8>, HexDecodeError> {
     }
     let mut output = Vec::with_capacity(input.len() / 2);
     for pair in input.chunks_exact(2) {
-        let high = hex_digit(pair[0]).ok_or(HexDecodeError::InvalidDigit)?;
-        let low = hex_digit(pair[1]).ok_or(HexDecodeError::InvalidDigit)?;
+        let [high_byte, low_byte] = pair else {
+            return Err(HexDecodeError::OddLength);
+        };
+        let high = hex_digit(*high_byte).ok_or(HexDecodeError::InvalidDigit)?;
+        let low = hex_digit(*low_byte).ok_or(HexDecodeError::InvalidDigit)?;
         output.push((high << 4) | low);
     }
     Ok(output)
 }
 
 fn hex_digit(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
+    u8::try_from(char::from(value).to_digit(16)?).ok()
 }
 
 pub(super) fn crc32(input: &[u8]) -> u32 {

@@ -1,6 +1,6 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
-const SOURCE: &str = r#"
+const SOURCE: &str = r"
 class Namespace:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
@@ -185,7 +185,7 @@ class ArgumentParser:
             if spec['required'] and spec['dest'] not in seen:
                 raise SystemExit('required option missing')
         return namespace
-"#;
+";
 
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"argparse",
