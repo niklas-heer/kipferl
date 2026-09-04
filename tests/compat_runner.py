@@ -17,7 +17,9 @@ Like Bun does with Node.js tests, we:
 
 import json
 import os
+import platform
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -471,6 +473,18 @@ def parse_test_output(
     skipped = 0
     failures = []
 
+    def finish():
+        # A summary printed before a crash must never hide process failure.
+        nonlocal failed
+        if returncode != 0 and failed == 0:
+            failed = 1
+            detail = stderr.strip()[-200:]
+            failures.append(
+                f"Process exited with status {returncode}"
+                + (f": {detail}" if detail else "")
+            )
+        return passed, failed, skipped, failures
+
     # Try to find our custom format first: "Results: X passed, Y failed, Z skipped"
     results_match = re.search(
         r"Results:\s*(\d+)\s*passed,\s*(\d+)\s*failed(?:,\s*(\d+)\s*skipped)?", stdout
@@ -485,14 +499,14 @@ def parse_test_output(
             if "FAIL:" in line:
                 failures.append(line.strip())
 
-        return passed, failed, skipped, failures
+        return finish()
 
     # Try unittest format: "Ran X tests" ... "OK" or "FAILED (failures=Y)"
     ran_match = re.search(r"Ran\s+(\d+)\s+test", stdout + stderr)
     if ran_match:
         total = int(ran_match.group(1))
 
-        if "OK" in stdout or "OK" in stderr:
+        if re.search(r"^OK(?: \(.*\))?\s*$", stdout + "\n" + stderr, re.MULTILINE):
             # Check for skips
             skip_match = re.search(r"skipped=(\d+)", stdout + stderr)
             skipped = int(skip_match.group(1)) if skip_match else 0
@@ -511,7 +525,7 @@ def parse_test_output(
             for match in re.finditer(r"(FAIL|ERROR):\s*(\S+)", stdout + stderr):
                 failures.append(f"{match.group(1)}: {match.group(2)}")
 
-        return passed, failed, skipped, failures
+        return finish()
 
     # Fallback: count PASS/FAIL lines
     for line in stdout.split("\n"):
@@ -525,7 +539,7 @@ def parse_test_output(
             skipped += 1
 
     # If still nothing, use return code
-    if passed == 0 and failed == 0:
+    if passed == 0 and failed == 0 and skipped == 0:
         if returncode == 0:
             passed = 1
         else:
@@ -533,7 +547,7 @@ def parse_test_output(
             if stderr:
                 failures.append(stderr[:200])
 
-    return passed, failed, skipped, failures
+    return finish()
 
 
 def test_module(
@@ -555,7 +569,7 @@ def test_module(
     print(f"  {BOLD}{module:15}{RESET} ", end="", flush=True)
 
     # Run with CPython
-    stdout, stderr, code, duration = run_test_file("python3", str(test_file))
+    stdout, stderr, code, duration = run_test_file(sys.executable, str(test_file))
     passed, failed, skipped, failures = parse_test_output(stdout, stderr, code)
     result.cpython_passed = passed
     result.cpython_failed = failed
@@ -578,7 +592,10 @@ def test_module(
 
     bar = progress_bar(result.kipferl_compared_passed, result.cpython_total, 20)
 
-    if parity >= 100:
+    if result.kipferl_failed:
+        status = f"{RED}✗{RESET}"
+        bar_color = RED
+    elif parity >= 100:
         status = f"{GREEN}✓{RESET}"
         bar_color = GREEN
     elif parity >= 90:
@@ -636,7 +653,8 @@ def print_summary(results: list[ModuleResult]):
     baseline = [r for r in results if r.cpython_total > 0]
     total_cpython = sum(r.cpython_total for r in baseline)
     total_kipferl_passed = sum(r.kipferl_compared_passed for r in baseline)
-    total_kipferl_failed = sum(r.kipferl_failed for r in baseline)
+    total_kipferl_failed = sum(r.kipferl_failed for r in results)
+    total_cpython_failed = sum(r.cpython_failed for r in results)
     total_skipped = sum(r.kipferl_skipped for r in baseline)
     no_baseline = sum(
         1 for r in results if r.cpython_total == 0 and r.category == "stdlib"
@@ -647,7 +665,8 @@ def print_summary(results: list[ModuleResult]):
     )
 
     passed_modules = sum(
-        1 for r in results if r.parity_percent >= 100 and r.cpython_total > 0
+        1 for r in results
+        if r.parity_percent >= 100 and r.cpython_total > 0 and not r.kipferl_failed
     )
     partial_modules = sum(1 for r in results if 0 < r.parity_percent < 100)
     failed_modules = sum(
@@ -679,7 +698,7 @@ def print_summary(results: list[ModuleResult]):
 
     # Module breakdown for targeted
     print(
-        f"  {BOLD}Targeted Modules ({len(STDLIB_MODULES)} of {len(CPYTHON_STDLIB_ALL)} CPython stdlib){RESET}"
+        f"  {BOLD}Targeted Modules ({len(STDLIB_MODULES)} compatibility groups){RESET}"
     )
     print(f"  {GREEN}✓ {passed_modules} full compatibility{RESET}")
     if partial_modules:
@@ -689,7 +708,13 @@ def print_summary(results: list[ModuleResult]):
     if missing_modules:
         print(f"  {DIM}? {missing_modules} missing tests{RESET}")
     if no_baseline:
-        print(f"  {DIM}({no_baseline} modules not in this CPython version){RESET}")
+        print(f"  {DIM}({no_baseline} groups without a baseline in this Python environment){RESET}")
+
+    if total_cpython_failed:
+        print(f"  {RED}✗ {total_cpython_failed} CPython baseline failures{RESET}")
+
+    if total_kipferl_failed:
+        print(f"  {RED}✗ {total_kipferl_failed} runtime test/process failures{RESET}")
 
     if total_skipped:
         print(f"\n  {DIM}({total_skipped} tests skipped - missing dependencies){RESET}")
@@ -697,10 +722,11 @@ def print_summary(results: list[ModuleResult]):
     # Full CPython stdlib coverage
     print()
     print(f"  {BOLD}Full CPython Stdlib Coverage{RESET}")
-    stdlib_coverage = (len(STDLIB_MODULES) / len(CPYTHON_STDLIB_ALL)) * 100
-    not_started = len(CPYTHON_STDLIB_ALL) - len(STDLIB_MODULES)
+    targeted_stdlib = set(STDLIB_MODULES) & set(CPYTHON_STDLIB_ALL)
+    stdlib_coverage = (len(targeted_stdlib) / len(CPYTHON_STDLIB_ALL)) * 100
+    not_started = len(CPYTHON_STDLIB_ALL) - len(targeted_stdlib)
     print(
-        f"  {DIM}Modules targeted: {len(STDLIB_MODULES)}/{len(CPYTHON_STDLIB_ALL)} ({stdlib_coverage:.1f}%){RESET}"
+        f"  {DIM}Modules targeted: {len(targeted_stdlib)}/{len(CPYTHON_STDLIB_ALL)} ({stdlib_coverage:.1f}%){RESET}"
     )
     print(f"  {DIM}Not yet started: {not_started} modules{RESET}")
 
@@ -717,14 +743,16 @@ def generate_report(results: list[ModuleResult], output_path: Path):
     )
 
     passed_modules = sum(
-        1 for r in results if r.parity_percent >= 100 and r.cpython_total > 0
+        1 for r in results
+        if r.parity_percent >= 100 and r.cpython_total > 0 and not r.kipferl_failed
     )
     partial_modules = sum(1 for r in results if 0 < r.parity_percent < 100)
     no_baseline = sum(
         1 for r in results if r.cpython_total == 0 and r.category == "stdlib"
     )
 
-    stdlib_coverage = (len(STDLIB_MODULES) / len(CPYTHON_STDLIB_ALL)) * 100
+    targeted_stdlib = set(STDLIB_MODULES) & set(CPYTHON_STDLIB_ALL)
+    stdlib_coverage = (len(targeted_stdlib) / len(CPYTHON_STDLIB_ALL)) * 100
     not_started_modules = set(CPYTHON_STDLIB_ALL.keys()) - set(STDLIB_MODULES)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -733,6 +761,8 @@ def generate_report(results: list[ModuleResult], output_path: Path):
         "# Kipferl Compatibility Report",
         "",
         f"Generated: {timestamp}",
+        "",
+        f"Host baseline: CPython {platform.python_version()} ({sys.platform}, {platform.machine()}).",
         "",
         "## Summary",
         "",
@@ -749,7 +779,9 @@ def generate_report(results: list[ModuleResult], output_path: Path):
         "",
         "### CPython Stdlib Coverage",
         "",
-        f"- **Modules targeted**: {len(STDLIB_MODULES)}/{len(CPYTHON_STDLIB_ALL)} ({stdlib_coverage:.1f}%)",
+        "Compatibility groups also include third-party `toml`; it is excluded from the standard-library coverage below.",
+        "",
+        f"- **Modules targeted**: {len(targeted_stdlib)}/{len(CPYTHON_STDLIB_ALL)} ({stdlib_coverage:.1f}%)",
         f"- **Not yet started**: {len(not_started_modules)} modules",
         "",
         "## Targeted Module Status",
@@ -761,12 +793,12 @@ def generate_report(results: list[ModuleResult], output_path: Path):
     for r in sorted(results, key=lambda x: (-x.parity_percent, x.name)):
         if r.error:
             notes = f"⚠️ {r.error}"
+        elif r.kipferl_failed > 0:
+            notes = f"{r.kipferl_failed} failing"
         elif r.parity_percent >= 100:
             notes = "✅ Full"
         elif r.kipferl_skipped > 0:
             notes = f"{r.kipferl_skipped} skipped"
-        elif r.kipferl_failed > 0:
-            notes = f"{r.kipferl_failed} failing"
         else:
             notes = ""
 
@@ -1053,11 +1085,7 @@ def main():
 
     # Check pocketpy-kipferl exists
     mpy_path = args.runtime or get_runtime_path()
-    try:
-        mpy_path = str(Path(mpy_path).expanduser().resolve())
-    except Exception:
-        # If it's not a filesystem path, treat it as a PATH lookup.
-        pass
+    mpy_path = str(Path(shutil.which(mpy_path) or mpy_path).expanduser().resolve())
     try:
         # Validate runtime with a tiny temp script (works across all builds).
         import tempfile
@@ -1065,9 +1093,13 @@ def main():
         with tempfile.TemporaryDirectory() as tmpdir:
             smoke = Path(tmpdir) / "smoke.py"
             smoke.write_text("print('ok')\n")
-            subprocess.run([mpy_path, str(smoke)], capture_output=True, timeout=5)
+            validation = subprocess.run(
+                [mpy_path, str(smoke)], capture_output=True, timeout=5, check=True
+            )
+            if validation.stdout.strip() != b"ok":
+                raise ValueError("runtime did not execute the smoke script")
     except Exception as e:
-        print(f"{RED}Error: pocketpy-kipferl not found at {mpy_path}{RESET}")
+        print(f"{RED}Error: runtime validation failed at {mpy_path}: {e}{RESET}")
         print(f"{DIM}Build it with: cargo build --release -p kipferl-runtime{RESET}")
         sys.exit(1)
 
@@ -1100,7 +1132,9 @@ def main():
         # In CI mode, always exit 0 - we're tracking progress, not gating on 100%
         sys.exit(0)
     else:
-        total_failed = sum(r.kipferl_failed for r in results)
+        total_failed = sum(
+            r.kipferl_failed + r.cpython_failed + bool(r.error) for r in results
+        )
         sys.exit(1 if total_failed > 0 else 0)
 
 

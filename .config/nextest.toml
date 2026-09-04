@@ -1,0 +1,34 @@
+# Each test runs in its own process. A retry must never hide a flaky failure.
+nextest-version = { required = "0.9.143" }
+
+[profile.default]
+retries = 0
+fail-fast = false
+failure-output = "immediate-final"
+status-level = "slow"
+final-status-level = "slow"
+slow-timeout = { period = "30s", terminate-after = 4, grace-period = "10s" }
+# Detect descendants that retain inherited stdout/stderr after their test exits.
+# This is process-leak detection, not a replacement for the FFI memory sanitizers.
+leak-timeout = { period = "1s", result = "fail" }
+
+[profile.core]
+inherits = "default"
+
+[profile.ci]
+inherits = "default"
+
+[profile.ci.junit]
+path = "junit.xml"
+report-name = "kipferl-full"
+store-failure-output = true
+report-skipped = "all"
+
+[profile.ci-core]
+inherits = "ci"
+
+[profile.ci-core.junit]
+path = "junit.xml"
+report-name = "kipferl-core"
+store-failure-output = true
+report-skipped = "all"

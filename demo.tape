@@ -1,5 +1,5 @@
 # Kipferl Demo
-# Regenerate with: just demo-gif
+# Regenerate with: mise run demo-gif
 
 Output demo.gif
 

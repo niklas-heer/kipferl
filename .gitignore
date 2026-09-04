@@ -53,3 +53,7 @@ tests/vision/vision_report.md
 
 # Claude Code local settings (user-specific)
 .claude/settings.local.json
+
+# Personal mise overrides
+mise.local.toml
+mise.local.lock

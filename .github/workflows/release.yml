@@ -34,6 +34,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
+
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}
 
@@ -47,7 +52,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release \
+          cargo build --locked --release \
             -p kipferl-runtime \
             -p kipferl-loader \
             --target ${{ matrix.target }}
@@ -67,7 +72,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release \
+          cargo build --locked --release \
             -p kipferl-runtime \
             --no-default-features \
             --target ${{ matrix.target }}
@@ -139,6 +144,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
+
       - name: Download current Rust component assets
         uses: actions/download-artifact@v4
         with:
@@ -165,7 +175,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release -p kipferl-cli --target ${{ matrix.target }}
+          cargo build --locked --release -p kipferl-cli --target ${{ matrix.target }}
 
       - name: Verify static Linux CLI
         if: runner.os == 'Linux'
@@ -224,16 +234,17 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: jdx/mise-action@v4
         with:
-          python-version: "3.12"
+          version: 2026.9.1
+          install_args: "rust python node bun"
       - name: Verify and replay PocketPy vendor patchset
         run: >-
           python3 scripts/verify-pocketpy-patches.py
           --check-upstream
           --report release-evidence/pocketpy-patch-verification.json
       - name: Build canonical runtime
-        run: cargo build --release -p kipferl-runtime
+        run: cargo build --locked --release -p kipferl-runtime
       - name: Generate and enforce compatibility report
         run: >-
           python3 tests/compat_runner.py
@@ -262,6 +273,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -286,10 +302,6 @@ jobs:
             -name 'kipferl-loader-*' \
           \) ! -name '*.sha256' -exec chmod +x {} +
           ls -la release
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
       - name: Install release-note dependencies
         run: pip install requests

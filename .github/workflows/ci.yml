@@ -9,26 +9,58 @@ jobs:
   quality:
     name: Quality
     runs-on: ubuntu-24.04
+    env:
+      RUST_BACKTRACE: 1
+      NEXTEST_PROFILE: ci
+      NEXTEST_CORE_PROFILE: ci-core
     steps:
       - uses: actions/checkout@v5
-      - name: Check canonical stub manifest
-        run: python3 scripts/generate_stubs.py --check
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Lint tree-shaken core runtime
-        run: >-
-          cargo clippy -p kipferl-runtime
-          --no-default-features --all-targets -- -D warnings
-      - run: cargo test --workspace
-      - name: Test tree-shaken core runtime
-        run: cargo test -p kipferl-runtime --no-default-features
-      - name: Test release tooling
-        run: >-
-          python3 -m unittest
-          scripts/test_generate_stubs.py
-          scripts/test_release.py
-          scripts/test_release_notes.py
-          scripts/test_verify_pocketpy_patches.py
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun cargo:bacon aqua:nextest-rs/nextest/cargo-nextest watchexec"
+      - run: mise tasks validate
+      - run: mise run check
+      - name: Upload full and core Rust test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-test-reports
+          path: |
+            target/nextest/ci/junit.xml
+            target/nextest/ci-core/junit.xml
+          if-no-files-found: warn
+
+  lint-audit:
+    name: Complete Clippy restriction audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
+      # Enforce zero outstanding findings and retain every reviewed exception
+      # with its source location and reason in the uploaded report.
+      - run: mise run lint-audit
+      - name: Upload complete restriction diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-restriction-audit
+          path: target/lint-audit/
+          if-no-files-found: error
+
+  website:
+    name: Website
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
+      - run: mise run website-check
 
   ffi-sanitizers:
     name: PocketPy FFI sanitizers
@@ -41,8 +73,12 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
     steps:
       - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
       - name: Build instrumented PocketPy tests
-        run: cargo test -p kipferl-runtime --lib --test ffi_stress --no-run
+        run: cargo test --locked -p kipferl-runtime --lib --test ffi_stress --no-run
       - name: Stress PocketPy callbacks and lifecycle
         shell: bash
         run: |
@@ -75,6 +111,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}
       - name: Install musl tools
@@ -86,7 +126,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release \
+          cargo build --locked --release \
             -p kipferl-runtime \
             -p kipferl-loader \
             --target ${{ matrix.target }}
@@ -104,7 +144,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release \
+          cargo build --locked --release \
             -p kipferl-runtime \
             --no-default-features \
             --target ${{ matrix.target }}
@@ -146,7 +186,7 @@ jobs:
           if [[ "${{ runner.os }}" == "Linux" ]]; then
             export CC=musl-gcc
           fi
-          cargo build --release -p kipferl-cli --target ${{ matrix.target }}
+          cargo build --locked --release -p kipferl-cli --target ${{ matrix.target }}
       - name: Verify static Linux CLI
         if: runner.os == 'Linux'
         shell: bash
@@ -200,6 +240,11 @@ jobs:
       - name: Smoke-test Rust CLI
         shell: bash
         run: target/${{ matrix.target }}/release/kipferl --version | grep -q "Kipferl"
+      - name: Test documented recipes and portable applications
+        run: >-
+          python3 scripts/check_recipes.py
+          --runtime target/${{ matrix.target }}/release/pocketpy-kipferl
+          --cli target/${{ matrix.target }}/release/kipferl
       - name: Smoke-test tree-shaken core runtime
         shell: bash
         run: >-
@@ -267,21 +312,26 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: jdx/mise-action@v4
         with:
-          python-version: "3.12"
+          version: 2026.9.1
+          install_args: "rust python node bun"
       - name: Verify PocketPy vendor patchset
         run: >-
           python3 scripts/verify-pocketpy-patches.py
           --check-upstream
           --report artifacts/pocketpy-patch-verification.json
       - name: Build canonical runtime
-        run: cargo build --release -p kipferl-runtime
+        run: cargo build --locked --release -p kipferl-runtime
       - name: Run full compatibility report
         run: >-
           python3 tests/compat_runner.py
           --runtime target/release/pocketpy-kipferl
           --report
+      - name: Verify and execute documentation recipes
+        run: >-
+          python3 scripts/check_recipes.py
+          --runtime target/release/pocketpy-kipferl
       - name: Run supported Vision suite
         run: >-
           python3 tests/vision/run_vision.py

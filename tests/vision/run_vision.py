@@ -28,11 +28,11 @@ SUPPORTED_TEST_SCRIPTS = [
     "t_io.py",
     "t_errno.py",
     "t_sqlite3.py",
+    "t_toml.py",
 ]
 
 ROADMAP_GAPS = {
     "t_template.py": "template engine is not part of the supported runtime",
-    "t_toml.py": "third-party toml remains unimplemented; tomllib is supported",
     "t_fetch_https.py": "the removed fetch API is superseded by http.client",
 }
 
@@ -44,13 +44,18 @@ BENCH_SCRIPTS = [
 
 
 def run_cmd(cmd, timeout):
-    proc = subprocess.run(
-        cmd,
-        cwd=str(ROOT),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return -1, "", f"Timed out after {timeout} seconds"
+    except OSError as exc:
+        return -1, "", str(exc)
     return proc.returncode, proc.stdout, proc.stderr
 
 
@@ -62,7 +67,7 @@ def run_tests(runtime, timeout):
         code, out, err = run_cmd([runtime, str(path)], timeout)
         out_lines = [line for line in out.strip().splitlines() if line]
         last = out_lines[-1] if out_lines else ""
-        ok = last.startswith("ok") and code == 0
+        ok = last == "ok" and code == 0
         results[name] = ok
         if not ok:
             msg = last or (
@@ -77,25 +82,37 @@ def benchmark(runtime, runs, warmup, timeout):
     failures = {}
     for name in BENCH_SCRIPTS:
         path = BENCH_DIR / name
+        warmup_failures = 0
         for _ in range(warmup):
-            run_cmd([runtime, str(path)], timeout)
+            code, _, _ = run_cmd([runtime, str(path)], timeout)
+            if code != 0:
+                warmup_failures += 1
         samples = []
         for _ in range(runs):
             start = time.perf_counter()
             code, _, _ = run_cmd([runtime, str(path)], timeout)
             samples.append((time.perf_counter() - start, code == 0))
         ok_samples = [t for t, ok in samples if ok]
+        issues = []
+        if warmup_failures:
+            issues.append(f"{warmup_failures} warmup runs failed")
         if not ok_samples:
-            failures[name] = "all runs failed"
+            issues.append("all runs failed")
+            failures[name] = "; ".join(issues)
             continue
         timings[name] = {
             "avg_ms": statistics.mean(ok_samples) * 1000,
             "med_ms": statistics.median(ok_samples) * 1000,
-            "p90_ms": statistics.quantiles(ok_samples, n=10)[8] * 1000,
+            "p90_ms": (
+                statistics.quantiles(ok_samples, n=10)[8]
+                if len(ok_samples) > 1 else ok_samples[0]
+            ) * 1000,
             "runs": len(ok_samples),
         }
         if len(ok_samples) != len(samples):
-            failures[name] = f"{len(samples) - len(ok_samples)} runs failed"
+            issues.append(f"{len(samples) - len(ok_samples)} runs failed")
+        if issues:
+            failures[name] = "; ".join(issues)
     return timings, failures
 
 
@@ -171,6 +188,13 @@ def main():
         "--report", default=str(Path(__file__).parent / "vision_report.md")
     )
     args = parser.parse_args()
+
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    if args.runs <= 0:
+        parser.error("--runs must be positive")
+    if args.warmup < 0:
+        parser.error("--warmup must not be negative")
 
     runtime = args.runtime
 

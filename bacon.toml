@@ -1,0 +1,41 @@
+# https://dystroy.org/bacon/config/
+default_job = "check"
+# Explicit roots cover the entire workspace and vendored C build inputs.
+default_watch = false
+watch = ["crates", "pocketpy", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "mise.toml", "clippy.toml", ".config/nextest.toml"]
+on_change_strategy = "wait_then_restart"
+
+[jobs.check]
+command = ["cargo", "check", "--locked", "--workspace", "--all-targets", "--all-features"]
+
+[jobs.clippy]
+command = ["cargo", "clippy", "--locked", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
+
+[jobs.test]
+command = ["cargo", "nextest", "run", "--locked", "--workspace", "--all-features", "--color", "always", "--status-level", "fail", "--final-status-level", "fail"]
+analyzer = "nextest"
+need_stdout = true
+
+[jobs.core]
+command = ["cargo", "clippy", "--locked", "-p", "kipferl-runtime", "--no-default-features", "--all-targets", "--", "-D", "warnings"]
+
+[jobs.test-core]
+command = ["cargo", "nextest", "run", "--locked", "-p", "kipferl-runtime", "--no-default-features", "--profile", "core", "--color", "always", "--status-level", "fail", "--final-status-level", "fail"]
+analyzer = "nextest"
+need_stdout = true
+
+[jobs.doc]
+command = ["cargo", "test", "--locked", "--workspace", "--all-features", "--doc"]
+need_stdout = true
+
+[exports.locations]
+auto = true
+path = "target/bacon-locations"
+line_format = "{kind} {path}:{line}:{column} {message}"
+
+[keybindings]
+c = "job:clippy"
+t = "job:test"
+r = "job:core"
+shift-r = "job:test-core"
+d = "job:doc"

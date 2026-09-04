@@ -30,7 +30,7 @@ echo -e "${DIM}Checking dependencies...${NC}"
 command -v python3 >/dev/null || { echo "python3 not found"; exit 1; }
 command -v go >/dev/null || { echo "go not found"; exit 1; }
 command -v micropython >/dev/null || { echo "micropython not found"; exit 1; }
-[ -f "$KIPFERL_CLI" ] || { echo "Kipferl not built; run 'just build'"; exit 1; }
+[ -f "$KIPFERL_CLI" ] || { echo "Kipferl not built; run 'mise run build'"; exit 1; }
 
 # Build Go binaries
 echo -e "${DIM}Building Go binaries...${NC}"

@@ -13,3 +13,10 @@ kipferl-format = { path = "../kipferl-format" }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+criterion = { version = "=0.8.2", default-features = false, features = ["cargo_bench_support", "plotters", "html_reports"] }
+
+[[bench]]
+name = "loader"
+harness = false

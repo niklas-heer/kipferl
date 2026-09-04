@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Run the debug CLI with arbitrary arguments"
+#MISE raw_args=true
+set -euo pipefail
+exec cargo run --locked -p kipferl-cli --bin kipferl -- "$@"

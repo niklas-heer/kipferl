@@ -1,0 +1,232 @@
+min_version = "2026.9.1"
+
+# Keep Rust aligned with rust-toolchain.toml for direct Cargo users.
+[tools]
+rust = { version = "1.97.1", profile = "minimal", components = ["clippy", "rustfmt", "rust-analyzer", "rust-src"] }
+python = "3.12.14"
+node = "26.7.0"
+bun = "1.2.20"
+# Bacon publishes source releases; Cargo uses the release Cargo.lock.
+"cargo:bacon" = { version = "3.25.0", locked = true, default-features = false }
+"aqua:nextest-rs/nextest/cargo-nextest" = "0.9.143"
+watchexec = "2.7.1"
+
+[tasks.default]
+description = "List development tasks"
+run = "mise tasks ls"
+
+[tasks.doctor]
+description = "Verify pinned tools and the native compiler"
+run = "python3 scripts/check_setup.py"
+
+[tasks.setup]
+description = "Prepare the complete Rust and website development environment"
+run = [
+  { task = "doctor" },
+  "cargo fetch --locked",
+  { task = "website-install" },
+  { task = "build" },
+  "echo 'Setup complete. Try: mise run demo or mise run website-dev'",
+]
+
+[tasks.check]
+description = "Check tooling, stubs, Rust formatting, lint, and full/core tests"
+run = [
+  { task = "doctor" },
+  "python3 scripts/generate_stubs.py --check",
+  "python3 -m unittest discover -s scripts -p 'test_*.py'",
+  "cargo fmt --all --check",
+  "cargo check --locked --workspace --all-targets --all-features",
+  "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+  "cargo clippy --locked -p kipferl-runtime --no-default-features --all-targets -- -D warnings",
+  { task = "test-rust" },
+  { task = "test-core" },
+  { task = "test-doc" },
+]
+
+[tasks.build]
+description = "Build the release CLI, runtime, and loader"
+run = "cargo build --locked --release --workspace"
+
+[tasks.build-debug]
+description = "Build the debug workspace"
+run = "cargo build --locked --workspace"
+
+[tasks.build-runtime]
+description = "Build only the release runtime"
+run = "cargo build --locked --release -p kipferl-runtime"
+
+[tasks.compat]
+description = "Run the full CPython compatibility report"
+depends = ["build"]
+run = "python3 tests/compat_runner.py --runtime target/release/pocketpy-kipferl --report"
+
+[tasks.vision]
+description = "Run the supported vision suite"
+depends = ["build"]
+run = "python3 tests/vision/run_vision.py --runtime target/release/pocketpy-kipferl"
+
+[tasks.recipes]
+description = "Verify documentation recipes and isolated standalone binaries"
+depends = ["build"]
+run = "python3 scripts/check_recipes.py --runtime target/release/pocketpy-kipferl --cli target/release/kipferl"
+
+# Keep full/core Cargo gates and performance measurements sequential.
+[tasks.test]
+description = "Run all project checks, including the website"
+run = [{ task = "check" }, { task = "compat" }, { task = "vision" }, { task = "recipes" }, { task = "website-check" }]
+
+[tasks.test-e2e]
+description = "Run CLI end-to-end tests"
+run = "cargo nextest run --locked -p kipferl-cli --tests"
+
+[tasks.demo]
+description = "Run the example through the public CLI"
+depends = ["build"]
+run = "target/release/kipferl run examples/demo.py"
+
+[tasks.demo-full]
+description = "Run the full feature demo"
+depends = ["build"]
+run = "target/release/kipferl run examples/simple_cli.py"
+
+[tasks.demo-gif]
+description = "Regenerate demo recordings (requires VHS and its video/browser tools)"
+depends = ["build"]
+run = ["command -v vhs >/dev/null || { echo 'Install VHS to record the demo.' >&2; exit 1; }", "VHS_NO_SANDBOX=1 vhs demo.tape", "cp demo.gif website/public/demo.gif"]
+
+[tasks.bindings]
+description = "Regenerate PocketPy FFI bindings (requires bindgen and libclang)"
+run = ["command -v bindgen >/dev/null || { echo 'Install bindgen-cli and libclang to regenerate bindings.' >&2; exit 1; }", "./scripts/generate-rust-bindings.sh"]
+
+[tasks.stubs]
+description = "Regenerate the canonical stub manifest"
+run = "python3 scripts/generate_stubs.py"
+
+[tasks.stubs-check]
+description = "Check stub syntax and generated manifest drift"
+run = "python3 scripts/generate_stubs.py --check"
+
+[tasks.check-pocketpy]
+description = "Verify vendored PocketPy patches against upstream"
+run = "python3 scripts/verify-pocketpy-patches.py --check-upstream"
+
+[tasks.clean]
+description = "Remove Cargo build artifacts"
+run = "cargo clean"
+
+[tasks.fmt]
+description = "Format the Rust workspace"
+run = "cargo fmt --all"
+
+[tasks.fmt-check]
+description = "Check Rust formatting"
+run = "cargo fmt --all --check"
+
+[tasks.release]
+description = "Run the interactive release helper"
+depends = ["build"]
+raw = true
+run = "target/release/kipferl run scripts/release.py"
+
+[tasks.size]
+description = "Show public executable sizes"
+depends = ["build"]
+run = "ls -lh target/release/kipferl target/release/pocketpy-kipferl target/release/kipferl-loader"
+
+[tasks.install]
+description = "Link the release CLI into ~/.local/bin"
+depends = ["build"]
+run = '''
+mkdir -p "$HOME/.local/bin"
+ln -sf "$PWD/target/release/kipferl" "$HOME/.local/bin/kipferl"
+'''
+
+[tasks.uninstall]
+description = "Remove the local CLI symlink"
+run = 'rm -f "$HOME/.local/bin/kipferl"'
+
+[tasks.watch]
+description = "Continuously check, test, and build Rust changes"
+run = "watchexec --on-busy-update queue --debounce 300ms -w crates -w pocketpy -w Cargo.toml -w Cargo.lock -w rust-toolchain.toml -w mise.toml -w clippy.toml -w .config/nextest.toml -- mise run dev-check"
+
+[tasks.website-install]
+description = "Install website dependencies from bun.lock without changing it"
+dir = "website"
+run = "bun install --frozen-lockfile"
+
+[tasks.website-dev]
+description = "Start the documentation website"
+depends = ["website-install"]
+dir = "website"
+run = "bun run dev"
+
+[tasks.website-build]
+description = "Build the production website"
+depends = ["website-install"]
+dir = "website"
+run = "bun run build"
+
+[tasks.website-check]
+description = "Type-check and build the website"
+depends = ["website-install"]
+dir = "website"
+run = ["bun run types:check", "bun run build"]
+
+[tasks.build-app]
+description = "Build a standalone executable"
+depends = ["build"]
+usage = '''
+arg "<script>" help="Python entry script"
+arg "[output]" default="app" help="Output executable"
+'''
+run = 'target/release/kipferl build "$usage_script" -o "$usage_output" --mode universal'
+
+[tasks.runtime]
+description = "Execute Python code directly in the runtime"
+usage = 'arg "<code>" help="Python code to execute"'
+run = 'cargo run --locked -p kipferl-runtime --bin pocketpy-kipferl -- -c "$usage_code"'
+
+[tasks.homebrew]
+description = "Generate the Homebrew formula for a release"
+usage = 'arg "<version>" help="Release version"'
+run = './scripts/update-homebrew.sh "$usage_version"'
+
+[tasks.test-doc]
+description = "Run public Rust API documentation examples"
+run = "cargo test --locked --workspace --all-features --doc"
+
+[tasks.test-rust]
+description = "Run all Rust unit and integration tests with nextest diagnostics"
+run = 'cargo nextest run --locked --workspace --all-features --profile "${NEXTEST_PROFILE:-default}"'
+
+[tasks.test-core]
+description = "Test the minimal runtime profile with nextest"
+run = 'cargo nextest run --locked -p kipferl-runtime --no-default-features --profile "${NEXTEST_CORE_PROFILE:-core}"'
+
+[tasks.test-ci]
+description = "Run full/core nextest suites with JUnit reports, then doctests"
+run = ["cargo nextest run --locked --workspace --all-features --profile ci", "cargo nextest run --locked -p kipferl-runtime --no-default-features --profile ci-core", { task = "test-doc" }]
+
+[tasks.dev-check]
+description = "Check, test, and build without executing an application"
+run = ["cargo check --locked --workspace --all-targets --all-features", { task = "test-rust" }, { task = "build-debug" }]
+
+[tasks.bacon]
+description = "Continuous compiler feedback (c: Clippy, t: tests, r: core, d: docs)"
+raw = true
+run = "bacon"
+
+[tasks.seek]
+description = "Inspect crates, feature flags, and MSRV interactively (optional tool)"
+tools = { "github:tareqimbasher/cargo-seek" = "0.2.0" }
+raw = true
+run = "cargo-seek"
+
+[tasks.lint-audit]
+description = "Enforce all review lints and inventory justified exceptions"
+run = "python3 scripts/lint_audit.py --deny-findings"
+
+[tasks.bench]
+description = "Measure loader format and cache performance with Criterion"
+run = "cargo bench --locked -p kipferl-loader --bench loader"

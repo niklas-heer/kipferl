@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Run a Python script through the release CLI"
+#MISE depends=["build"]
+#MISE raw_args=true
+set -euo pipefail
+exec target/release/kipferl run "$@"
