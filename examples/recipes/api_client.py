@@ -3,9 +3,7 @@ import argparse
 import json
 import sys
 
-http = __import__("http.client")
-# CPython returns the parent package; Kipferl returns the module directly.
-http = getattr(http, "client", http)
+import http.client as http
 
 parser = argparse.ArgumentParser(description='Fetch JSON from an HTTP or HTTPS API.')
 parser.add_argument("host", help="Hostname without a URL scheme")

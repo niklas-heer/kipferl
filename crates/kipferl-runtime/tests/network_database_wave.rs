@@ -59,7 +59,7 @@ fn sends_and_parses_a_real_loopback_http_exchange() {
 
     let output = run(&format!(
         concat!(
-            "http = __import__('http.client')\n",
+            "import http.client as http\n",
             "connection = http.HTTPConnection('127.0.0.1', {port}, 2)\n",
             "connection.request('GET', '/health', None, {{'X-Kipferl': 'yes'}})\n",
             "response = connection.getresponse()\n",

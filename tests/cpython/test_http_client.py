@@ -1,8 +1,4 @@
-"""
-Minimal http.client tests for kipferl compatibility testing.
-
-PocketPy doesn't support dotted import statements (e.g. `import http.client`),
-so we import via __import__ and resolve attributes when available.
+"""Minimal http.client tests, including native dotted-import binding.
 """
 
 import sys
@@ -30,20 +26,8 @@ def skip(name, reason):
     print(f"  SKIP: {name} ({reason})")
 
 
-def import_dotted(name):
-    m = __import__(name)
-    parts = name.split(".")
-    cur = m
-    for p in parts[1:]:
-        if hasattr(cur, p):
-            cur = getattr(cur, p)
-        else:
-            return m
-    return cur
-
-
 try:
-    http_client = import_dotted("http.client")
+    import http.client as http_client
     HAS_HTTP_CLIENT = True
 except Exception:
     HAS_HTTP_CLIENT = False

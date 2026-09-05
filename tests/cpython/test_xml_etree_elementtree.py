@@ -1,8 +1,4 @@
-"""
-Minimal xml.etree.ElementTree tests for kipferl compatibility testing.
-
-PocketPy doesn't support dotted import statements, so we import via __import__
-and resolve attributes when available.
+"""Minimal xml.etree.ElementTree tests, including native dotted-import binding.
 """
 
 import sys
@@ -30,20 +26,8 @@ def skip(name, reason):
     print(f"  SKIP: {name} ({reason})")
 
 
-def import_dotted(name):
-    m = __import__(name)
-    parts = name.split(".")
-    cur = m
-    for p in parts[1:]:
-        if hasattr(cur, p):
-            cur = getattr(cur, p)
-        else:
-            return m
-    return cur
-
-
 try:
-    ET = import_dotted("xml.etree.ElementTree")
+    import xml.etree.ElementTree as ET
     HAS_ET = True
 except Exception:
     HAS_ET = False

@@ -351,11 +351,11 @@ impl Collector {
                         .ok_or_else(|| invalid("invalid import source span"))?;
                     return Err(unsupported_import(path, prefix, &name));
                 }
-                loads.push(name.clone());
+                loads.push((name.clone(), false));
                 for member in &statement.members {
                     let child = format!("{name}.{member}");
                     if self.add_module(&child)? {
-                        loads.push(child);
+                        loads.push((child, true));
                     }
                 }
             }
@@ -363,25 +363,20 @@ impl Collector {
                 let mut replacement = String::new();
                 for (name, alias) in statement.modules.iter().zip(&statement.aliases) {
                     let root = name.split('.').next().unwrap_or(name);
-                    let load = |module: &str| {
-                        if self.modules.contains_key(module) {
-                            format!(
-                                "__import__('{HELPER}').load({})",
-                                run_command::python_string(module)
-                            )
-                        } else {
-                            format!("__import__({})", run_command::python_string(module))
-                        }
-                    };
+                    let load =
+                        |module: &str| module_load(module, self.modules.contains_key(module));
                     if let Some(alias) = alias {
-                        write!(replacement, "{alias} = {}; ", load(name))
+                        // Native alias traversal preserves overwritten parent attributes
+                        // and falls back to the module cache when attributes are deleted.
+                        write!(replacement, "{}; import {name} as {alias}; ", load(name))
                             .map_err(io::Error::other)?;
                     } else {
-                        write!(replacement, "{root} = {}; ", load(root))
-                            .map_err(io::Error::other)?;
                         if root != name {
                             write!(replacement, "{}; ", load(name)).map_err(io::Error::other)?;
                         }
+                        // A failed dotted import must not bind the root in the caller.
+                        write!(replacement, "{root} = {}; ", load(root))
+                            .map_err(io::Error::other)?;
                     }
                 }
                 let newline_count = source
@@ -400,10 +395,11 @@ impl Collector {
                 insertions.push((statement.start, statement.end, replacement));
             } else if !loads.is_empty() {
                 let mut prefix = String::new();
-                for name in loads {
+                for (name, member) in loads {
+                    let method = if member { "load_member" } else { "load" };
                     write!(
                         prefix,
-                        "__import__('{HELPER}').load({}); ",
+                        "__import__('{HELPER}').{method}({}); ",
                         run_command::python_string(&name)
                     )
                     .map_err(io::Error::other)?;
@@ -525,7 +521,7 @@ impl Collector {
         }
         mappings.push('}');
         let helper = format!(
-            "import os\nroot = os.getcwd()\ncaller_directory = root\npaths = {mappings}\nclass Scope:\n    def __init__(self, directory):\n        self.directory = directory\n    def __enter__(self):\n        self.previous = os.getcwd()\n        os.chdir(self.directory)\n    def __exit__(self, *args):\n        os.chdir(self.previous)\n        return False\ndef load(name):\n    global caller_directory\n    parts = name.split('.')\n    if len(parts) > 1:\n        load('.'.join(parts[:-1]))\n    caller_directory = os.getcwd()\n    with Scope(root + '/' + paths.get(name, '')):\n        module = __import__(name)\n    return module\n"
+            "import os\nroot = os.getcwd()\ncaller_directory = root\npaths = {mappings}\nclass Scope:\n    def __init__(self, directory):\n        self.directory = directory\n    def __enter__(self):\n        self.previous = os.getcwd()\n        os.chdir(self.directory)\n    def __exit__(self, *args):\n        os.chdir(self.previous)\n        return False\ndef load(name):\n    global caller_directory\n    parts = name.split('.')\n    if len(parts) > 1:\n        load('.'.join(parts[:-1]))\n    caller_directory = os.getcwd()\n    with Scope(root + '/' + paths.get(name, '')):\n        module = __import__(name, None, None, ['__name__'])\n    return module\ndef load_member(name):\n    parts = name.split('.')\n    parent = load('.'.join(parts[:-1]))\n    if not hasattr(parent, parts[-1]):\n        load(name)\n"
         );
         files.insert(PathBuf::from(format!("{HELPER}.py")), helper.into_bytes());
         let mut data = String::from("[\n");
@@ -565,6 +561,15 @@ impl Collector {
             run_command::python_string(entry_source),
             run_command::python_string(&original)
         ))
+    }
+}
+
+fn module_load(module: &str, bundled: bool) -> String {
+    let name = run_command::python_string(module);
+    if bundled {
+        format!("__import__('{HELPER}').load({name})")
+    } else {
+        format!("__import__({name}, None, None, ['__name__'])")
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 3,
+  "patchset_version": 4,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -16,7 +16,11 @@
         "kipferl patch: accept a trailing comma before the parameter-list terminator",
         "kipferl patch: accept trailing commas only inside parenthesized from-imports",
         "kipferl patch: join adjacent plain string/bytes tokens once, preserving token ownership",
-        "kipferl patch: preserve adjacent literals and binary lengths in default arguments"
+        "kipferl patch: preserve adjacent literals and binary lengths in default arguments",
+        "kipferl patch: module identity survives removal and retry of its cache entry",
+        "kipferl patch: initialize dotted parents and publish children only after success",
+        "kipferl patch: submodule fallback belongs to import-from, not ordinary getattr",
+        "kipferl patch: dotted imports bind the root unless an alias is requested"
       ]
     }
   ],
@@ -44,6 +48,10 @@
     {
       "id": "0006-adjacent-literals",
       "file": "pocketpy/patches/0006-adjacent-literals.patch"
+    },
+    {
+      "id": "0007-dotted-imports",
+      "file": "pocketpy/patches/0007-dotted-imports.patch"
     }
   ]
 }
