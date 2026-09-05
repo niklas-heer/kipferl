@@ -881,7 +881,7 @@ dependencies = [
 
 [[package]]
 name = "kipferl-cli"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "flate2",
  "kipferl-format",
@@ -897,11 +897,11 @@ dependencies = [
 
 [[package]]
 name = "kipferl-format"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 
 [[package]]
 name = "kipferl-loader"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "criterion",
  "kipferl-format",
@@ -910,14 +910,14 @@ dependencies = [
 
 [[package]]
 name = "kipferl-pocketpy-sys"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "kipferl-runtime"
-version = "0.6.0"
+version = "0.7.0-rc.1"
 dependencies = [
  "flate2",
  "jiff",
