@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const title = "Kipferl 0.7 RC1: packages with evidence";
+const title = "Kipferl 0.7: packages with evidence";
 const description =
-  "Try the new project workflow, compatibility-checked PyPI dependencies, and native dotted imports in Kipferl v0.7.0-rc.1.";
+  "Try the new project workflow, compatibility-checked PyPI dependencies, and native dotted imports in Kipferl v0.7.0.";
 
 export const metadata: Metadata = {
   title,
@@ -12,15 +12,14 @@ export const metadata: Metadata = {
     title,
     description,
     type: "article",
-    publishedTime: "2026-09-05T13:34:42Z",
-    url: "https://kipferl.dev/blog/kipferl-0-7-rc-1",
+    publishedTime: "2026-09-05T14:07:05Z",
+    url: "https://kipferl.dev/blog/kipferl-0-7",
   },
 };
 
-const releaseUrl =
-  "https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0-rc.1";
+const releaseUrl = "https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0";
 const downloadRoot =
-  "https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1";
+  "https://github.com/niklas-heer/kipferl/releases/download/v0.7.0";
 const assets = [
   ["macOS Apple Silicon", "kipferl-macos-aarch64"],
   ["macOS Intel", "kipferl-macos-x86_64"],
@@ -28,7 +27,7 @@ const assets = [
   ["Linux x86_64", "kipferl-linux-x86_64"],
 ] as const;
 
-export default function ReleaseCandidatePage() {
+export default function StableReleasePage() {
   return (
     <main className="min-h-screen px-6 py-16 md:py-24">
       <article className="max-w-4xl mx-auto">
@@ -43,29 +42,30 @@ export default function ReleaseCandidatePage() {
         </nav>
         <header className="mb-12">
           <p className="font-mono text-sm text-cyan-600 dark:text-cyan-400 mb-5">
-            SEPTEMBER 5, 2026 · RELEASE CANDIDATE
+            SEPTEMBER 5, 2026 · STABLE RELEASE
           </p>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.05] mb-8">
             {title}
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 leading-relaxed">
             Start a project, check its PyPI dependencies, and ship an executable
-            that carries its modules and resources. Version 0.7.0-rc.1 is ready
-            to test with your applications before the stable 0.7 release.
+            that carries its modules and resources. Version 0.7.0 is the stable
+            release of the project and package workflow introduced in RC1.
           </p>
         </header>
 
         <aside className="mb-14 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6 text-gray-700 dark:text-gray-300">
-          <strong>This is the historical RC1 announcement.</strong> Stable 0.7.0
-          is now available. Follow the{" "}
+          <strong>Install stable 0.7.0 with Homebrew.</strong> Run{" "}
+          <code>brew install niklas-heer/tap/kipferl</code>, or{" "}
+          <code>brew update</code> and <code>brew upgrade kipferl</code> for an
+          existing installation. The{" "}
           <Link
             className="text-cyan-600 dark:text-cyan-400 underline"
             href="/docs/getting-started/installation#stable-release"
           >
-            stable installation guide
+            installation guide
           </Link>{" "}
-          to install the final release. The article below records RC1 and its
-          validation.
+          also provides direct downloads and checksum verification.
         </aside>
 
         <div className="prose prose-lg dark:prose-invert max-w-none">
@@ -152,7 +152,7 @@ print(urls.quote("hello world"))`}</code>
             The <Link href="/docs/guides/package-audit">searchable audit</Link>{" "}
             retains its original package versions and recorded runtime hash.
             Fresh per-platform release catalogs provide separate evidence for
-            the binaries in this RC.
+            the binaries in this release.
           </p>
 
           <h2>Two upgrade changes to review</h2>
@@ -194,23 +194,24 @@ print(urls.quote("hello world"))`}</code>
             exercises the CLI’s offline mode on disposable runners.
           </p>
           <p>
-            The RC’s local compatibility run passed 1,725 available checks, with
-            22 explicit dependency skips. The published Apple Silicon download
-            also passed checksum verification and a fresh package-install,
-            offline-restore, and detached-executable smoke test.
+            The stable release compatibility run passed 1,725 available checks, with
+            22 explicit dependency skips. The published stable Apple Silicon
+            download also passed checksum verification and a fresh
+            package-install, offline-restore, and detached-executable smoke
+            test.
           </p>
           <p>
-            The <a href={releaseUrl}>GitHub release</a> includes 55 assets:
-            executables and checksums, per-platform catalogs and package smoke
-            reports, plus compatibility, Vision, and vendor-patch verification
-            reports. See the{" "}
-            <a href="https://github.com/niklas-heer/kipferl/actions/runs/33968906936">
-              completed release workflow
+            The <a href={releaseUrl}>GitHub release</a> includes executables and
+            checksums, per-platform catalogs and package smoke reports, plus
+            compatibility, Vision, and vendor-patch verification reports. See
+            the{" "}
+            <a href="https://github.com/niklas-heer/kipferl/actions/runs/33970383103">
+              stable release workflow
             </a>{" "}
             for the build and validation logs.
           </p>
 
-          <h2>Download v0.7.0-rc.1</h2>
+          <h2>Download v0.7.0</h2>
           <div className="overflow-x-auto">
             <table>
               <thead>
@@ -240,8 +241,8 @@ print(urls.quote("hello world"))`}</code>
             <Link href="/docs/getting-started/installation#stable-release">
               installation guide
             </Link>{" "}
-            to install the final stable release. Report reproducible problems
-            through{" "}
+            for checksum commands and upgrade instructions. Try the release with
+            your project and report reproducible problems through{" "}
             <a href="https://github.com/niklas-heer/kipferl/issues">
               GitHub issues
             </a>

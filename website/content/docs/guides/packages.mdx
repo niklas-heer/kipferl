@@ -4,9 +4,9 @@ description: Install pure-Python dependencies with compatibility evidence and re
 ---
 
 Kipferl can resolve and install pure-Python wheels from PyPI without pip or a
-system Python installation in the published **v0.7.0-rc.1 release candidate**.
-[Install the candidate](/docs/getting-started/installation#release-candidate)
-to use these commands; stable v0.6.0 predates the package manager.
+system Python installation in **Kipferl 0.7.0**.
+[Install the stable release](/docs/getting-started/installation#stable-release)
+to use these commands; v0.6.0 predates the package manager.
 
 ## Find a package that fits
 
@@ -63,13 +63,15 @@ downloaded wheels may remain cached for another attempt.
 
 ## Try a recorded positive
 
-Each v0.7.0-rc.1 release CLI includes fresh `tzdata==2025.2` evidence for its
-exact runtime on macOS Apple Silicon, macOS Intel, Linux x86_64, or Linux ARM64.
-Its checks cover version constants and the `TZif` headers of
-four timezone data files. This is evidence for loading package resources;
+The release pipeline generates `tzdata==2025.2` evidence for each exact runtime
+on macOS Apple Silicon, macOS Intel, Linux x86_64, and Linux ARM64. All four
+v0.7.0 release binaries passed with their own matching records. Inspect
+`kipferl deps catalog` for your binary. The reviewed
+checks cover version constants and the `TZif` headers of four timezone data
+files. This is evidence for loading package resources;
 it does not establish timezone conversion support or provide `zoneinfo`.
 
-With the release-candidate CLI and a project, install the exact version:
+With the v0.7.0 CLI and a project, install the exact version:
 
 ```bash
 kipferl deps catalog
@@ -134,11 +136,11 @@ preparing the application.
 Review and commit a changed lock after resolving. Do not edit wheel hashes or
 runtime identity in the lock to work around a mismatch.
 
-## Upgrade to 0.7.0-rc.1
+## Upgrade to 0.7.0
 
 An existing `kipferl.lock` identifies the exact runtime binary and platform.
-Switching from a development build or another target can invalidate it even
-when the visible version matches. Run `kipferl add` again for your declared
+Switching from a release candidate, development build, or another target can
+invalidate it even when the visible version matches. Run `kipferl add` again for your declared
 requirements, review the resolved versions and new lock, then run your tests:
 
 ```bash
@@ -167,7 +169,7 @@ levels, namespace packages, and custom import finders remain unsupported.
 Import installed modules normally. The PyPI distribution name can differ from
 the Python import name; consult the package's documentation.
 
-v0.7.0-rc.1 supports ordinary dotted imports:
+v0.7.0 supports ordinary dotted imports:
 
 ```python
 import http.client

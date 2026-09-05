@@ -31,6 +31,25 @@ export default function BlogPage() {
 
         <div className="space-y-6">
           <Link
+            href="/blog/kipferl-0-7"
+            className="group block rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/15 via-transparent to-blue-500/15 p-8 md:p-12 hover:border-cyan-500/60 transition-colors"
+          >
+            <div className="font-mono text-sm text-cyan-600 dark:text-cyan-400 mb-5">
+              SEPTEMBER 5, 2026 · STABLE RELEASE
+            </div>
+            <h2 className="text-3xl md:text-5xl font-bold mb-5 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+              Kipferl 0.7: packages with evidence
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl leading-relaxed mb-8">
+              A project workflow, compatibility-checked PyPI dependencies,
+              native dotted imports, and a release pipeline that tests what you
+              download.
+            </p>
+            <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+              Explore the release and upgrade notes →
+            </span>
+          </Link>
+          <Link
             href="/blog/kipferl-0-7-rc-1"
             className="group block rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/15 via-transparent to-blue-500/15 p-8 md:p-12 hover:border-cyan-500/60 transition-colors"
           >

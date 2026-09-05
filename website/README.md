@@ -25,7 +25,9 @@ npm, pnpm, or Yarn lockfile.
 | `src/app/llms-full.txt/route.ts` | Complete documentation text |
 | `public/` | Images and demo recording |
 
-Documentation tracks the current `main` checkout, including unreleased work.
+Documentation covers stable v0.7.0 and the current `main` checkout. Clearly
+label future source-only changes, and keep the shared notice and AI-readable
+export aligned with the version offered by the installation guide.
 Preserve the historical scope of release articles and performance measurements;
 do not imply that rebuilding source updates the CLI's embedded release assets.
 The public contributor guide lives in `content/docs/guides/development.mdx`.

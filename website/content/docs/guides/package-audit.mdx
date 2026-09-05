@@ -12,8 +12,9 @@ downloads. It measures download activity, including automation, rather than
 unique users or the suitability of a library for your application.
 
 The 1,000-package screen below is **historical evidence for its recorded runtime**,
-not a new run against each v0.7.0-rc.1 binary. Each release CLI carries fresh
-reviewed catalog evidence for its own platform separately. The broad report
+not a new run against each v0.7.0 binary. The release pipeline generates
+reviewed catalog evidence for each exact runtime and platform separately;
+candidate results are not copied to stable runtime hashes. The broad report
 retains its original hashes and displays a runtime mismatch where applicable.
 
 ## Explore the results
@@ -78,7 +79,7 @@ runtime build, or platform needs new evidence.
 
 ## View the report from the CLI
 
-The v0.7.0-rc.1 CLI embeds the report and can show it offline, including outside a
+The v0.7.0 CLI embeds the report and can show it offline, including outside a
 project directory:
 
 ```bash

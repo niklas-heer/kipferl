@@ -27,7 +27,7 @@ Kipferl is a focused runtime for beautiful, fast CLI apps. You write Python-styl
 scripts, and Kipferl ships them as single-file binaries that start quickly.
 
 [Documentation](https://kipferl.dev/docs) ·
-[Kipferl 0.7 RC1 release story](https://kipferl.dev/blog/kipferl-0-7-rc-1) ·
+[Kipferl 0.7 release story](https://kipferl.dev/blog/kipferl-0-7) ·
 [Changelog](CHANGELOG.md) · [Releases](https://github.com/niklas-heer/kipferl/releases)
 
 - Tree-shaken standalone binaries (1.4 MB in the v0.6 minimal Apple Silicon baseline;
@@ -40,19 +40,20 @@ scripts, and Kipferl ships them as single-file binaries that start quickly.
 
 ## Quickstart
 
-**[v0.7.0-rc.1 is available](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0-rc.1).**
-The release candidate ships project templates, configuration defaults,
-completions, compatibility-checked PyPI dependencies, and portable packaging
-with local modules and resources. Follow the
-[installation guide](https://kipferl.dev/docs/getting-started/installation) to
-install its platform binary and verify the checksum, then try the workflow below.
-Read the [RC release story](https://kipferl.dev/blog/kipferl-0-7-rc-1) for the
-changes and upgrade notes. Test your applications before adopting the RC.
+**[Kipferl v0.7.0](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0)**
+brings project templates, configuration defaults, completions,
+compatibility-checked PyPI dependencies, and portable packaging with local
+modules and resources. Follow the
+[stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
+for Homebrew or a platform binary with checksum verification, then try the
+workflow below. Read the [0.7 release story](https://kipferl.dev/blog/kipferl-0-7)
+for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-070)
+before moving a project from v0.6 or the release candidate.
 
-Homebrew and GitHub's latest stable release remain **v0.6.0**.
-`brew install niklas-heer/tap/kipferl` installs that stable version, whose
-explicit-script workflow includes `kipferl dev app.py` and
-`kipferl build app.py -o app`. The commands below require v0.7.0-rc.1.
+Homebrew follows the stable release: use `brew install niklas-heer/tap/kipferl`
+or `brew update && brew upgrade kipferl`, then check `kipferl --version` reports
+`v0.7.0`. The project workflow below requires 0.7; v0.6 still supports explicit
+script commands such as `kipferl dev app.py` and `kipferl build app.py -o app`.
 
 ```bash
 kipferl new hello --template cli
@@ -98,7 +99,7 @@ the lock for reproducible syncs; compilation alone is not a behavioral test.
 
 ```bash
 kipferl deps catalog
-# Reviewed for each official RC platform and its exact embedded runtime:
+# Requires a tested record for your exact release runtime and platform:
 kipferl add 'tzdata==2025.2'
 kipferl deps list
 kipferl deps check
@@ -107,10 +108,10 @@ kipferl sync --locked
 kipferl sync --locked --offline
 ```
 
-Each official RC binary embeds a fresh catalog for its exact release runtime
+The release pipeline generates a fresh catalog for each exact runtime
 and platform: macOS/Linux on ARM64 and x86_64. The tested `tzdata` scope covers
 version constants and four timezone data headers, not timezone conversion or
-`zoneinfo`. Test your own package usage. The release also publishes
+`zoneinfo`. Test your own package usage. Release verification produces
 `package-catalog-<target>.json` and `package-smoke-<target>.json` evidence.
 
 Upgrading the CLI can change its runtime hash and invalidate an existing lock.
@@ -119,7 +120,7 @@ run your application tests; do not edit hashes to bypass a mismatch. Dynamic
 `__import__("http.client")` now returns the root `http` module. Use
 `import http.client as client` for the child module. See the
 [package guide](https://kipferl.dev/docs/guides/packages) and
-[RC upgrade notes](https://kipferl.dev/blog/kipferl-0-7-rc-1) for details.
+[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-070) for details.
 
 Commit `kipferl.json` and `kipferl.lock`. Run, test, and build use the same
 verified installation; standalone builds carry the imported Python modules,
@@ -135,7 +136,7 @@ with exact wheel/runtime hashes and focused behavior hooks.
 The completed source audit covers the top **1,000 PyPI projects** in the August
 2026 monthly download snapshot, inspecting each selected latest release against
 the recorded macOS ARM64 runtime. This dated source screen is separate from
-the fresh per-platform release catalog: it was not rerun against each RC
+the fresh per-platform release catalog: it was not rerun against every release
 binary. `deps audit` identifies a differing runtime hash. Browse the
 [searchable audit](https://kipferl.dev/docs/guides/package-audit) for top-100 and
 top-1,000 summaries, package/error search, reason filters, and exact evidence.
@@ -354,29 +355,31 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Stable v0.6.0: Homebrew (macOS/Linux)
+### Stable v0.7.0: Homebrew (macOS/Linux)
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
-`brew upgrade kipferl` follows stable releases and does not install this RC.
-Keep the stable binary available for rollback when testing a prerelease. Users
-with the old μcharm 0.5 formula should replace it once:
+For an existing installation, run `brew update && brew upgrade kipferl` and
+verify `kipferl --version` reports `v0.7.0`. If you added an RC directory to your
+`PATH`, remove that entry so it does not shadow Homebrew. Read the
+[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-070)
+for dependency-lock changes. Users with the old μcharm 0.5 formula should replace
+it once:
 
 ```bash
 brew uninstall --force ucharm
 brew install niklas-heer/tap/kipferl
 ```
 
-Kipferl 0.6 installs `ucharm` as a deprecated command alias for one release
-cycle. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
+Kipferl 0.6 introduced `ucharm` as a deprecated migration alias. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
 the final artifact sizes, migration outcome, and verified release evidence.
 
-### v0.7.0-rc.1: direct download
+### v0.7.0: direct download
 
-Download the RC explicitly from its
-[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0-rc.1).
+Download the stable binary explicitly from its
+[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0).
 Choose the release asset for the machine running Kipferl:
 
 | Platform | Asset |
@@ -391,22 +394,23 @@ matches the filename inside the `.sha256` file. For example, on Apple Silicon:
 
 ```bash
 asset=kipferl-macos-aarch64
-release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1
-rc_dir=$(mktemp -d "$HOME/kipferl-0.7.0-rc.1.XXXXXX")
-cd "$rc_dir"
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.0
+release_dir=$(mktemp -d)
+cd "$release_dir"
 curl -fLO "$release/$asset"
 curl -fLO "$release/$asset.sha256"
 shasum -a 256 -c "$asset.sha256"
 # On Linux, use: sha256sum -c "$asset.sha256"
-chmod +x "$asset"
-mv "$asset" kipferl
-export PATH="$rc_dir:$PATH"
+mkdir -p "$HOME/.local/bin"
+install -m 755 "$asset" "$HOME/.local/bin/kipferl"
+export PATH="$HOME/.local/bin:$PATH"
 kipferl --version
 ```
 
 Choose the correct `asset` before running the commands. Verify the checksum
-successfully before installing the binary. The RC stays in a separate directory;
-opening a fresh shell restores your prior `PATH` and stable CLI selection.
+successfully before installing the binary. Add `~/.local/bin` to your shell's
+`PATH` permanently if needed, and remove an earlier RC directory that would
+otherwise select the old binary.
 
 ---
 
@@ -435,9 +439,9 @@ kipferl build app.py -o app --mode executable
 kipferl build app.py -o app.py --mode single
 ```
 
-The sizes above are historical v0.6 measurements; RC components and bundled
+The sizes above are historical v0.6 measurements; 0.7 components and bundled
 package resources change the result. Check the release assets and measure your
-own application rather than treating them as RC size guarantees.
+own application rather than treating them as 0.7 size guarantees.
 
 Universal builds inspect imports and choose the smallest prebuilt Rust runtime
 that is safe for the application. JSON, CSV, XML, INI, filesystem, subprocess,
@@ -608,9 +612,9 @@ Read [the migration plan](RUST_MIGRATION.md), the
 [public retrospective](https://kipferl.dev/blog/rust-migration) for the why,
 the incremental process, accepted tradeoffs, and final measurements.
 
-Release-candidate validation on 2026-09-05 (see
+Stable 0.7 validation on 2026-09-05 (see
 [the generated compatibility report](tests/compat_report_pocketpy.md) and the
-[published RC evidence](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0-rc.1)):
+[published stable evidence](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0)):
 
 - Rust runtime: 1,725/1,725 available checks passing (CPython 3.12.14 host)
 - 52 compatibility groups: 51 with a passing baseline and no partial groups;
@@ -618,9 +622,13 @@ Release-candidate validation on 2026-09-05 (see
 - 51 of the 160 modules in the standard-library inventory are targeted;
   22 dependency-related checks are explicitly skipped
 - 312 full-profile and 125 core Rust tests, including 13 CPython-oracle
-  dotted-import tests; 125 Python tooling tests and a clean strict audit
-- All four release platforms passed package installation, offline restoration,
+  dotted-import tests; 131 Python tooling tests and a clean strict audit
+- All four stable release platforms passed package installation, offline restoration,
   and detached standalone smoke checks
+
+The stable release repeated artifact checks and generated fresh per-platform
+evidence. Its results identify the actual binaries; candidate hashes were not
+reused for rebuilt stable components.
 
 Historical performance measurements from the migration and v0.6.0 release:
 
@@ -673,7 +681,7 @@ The v0.6 tree-shaken ARM64 baseline measured a 7.679ms median. Fast startup come
 
 In the v0.6 baseline, the core ARM64 runtime was 1.13MB; full runtimes reached
 5.45MB across the four release targets. Those are historical measurements,
-not RC size promises. The runtime stays compact because:
+not 0.7 size promises. The runtime stays compact because:
 
 1. PocketPy core is small
 2. The Rust release profile uses `-O2`, fat LTO, one codegen unit, overflow
@@ -705,7 +713,7 @@ MicroPython excels at microcontrollers. PocketPy excels at embedding Python in a
 <details>
 <summary>What Python features are supported?</summary>
 
-The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7.0-rc.1 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals.
+The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals.
 
 Not supported:
 - `async`/`await` (limited support)
