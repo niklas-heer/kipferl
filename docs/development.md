@@ -135,6 +135,15 @@ reads stored or Deflate-compressed wheel entries, and Serde models the strict lo
 schema. These dependencies belong to the development CLI, not a packaged app's
 runtime. New package artifacts are checked in staging before publication.
 
+Compatibility JSON is compressed deterministically at build time using the
+existing gzip dependency. Decoding has an 8 MiB limit per document, and parsed
+evidence is cached. Tests compare the decoded values with the canonical files.
+This removed about 3.70 MB from the macOS ARM64 CLI (10.85 MB to 7.15 MB before
+the dotted-import asset refresh). The development CLI's CI budget is 9.25 MB
+to cover native dependency resolution, TLS, wheel validation, and evidence
+across release targets. Runtime and loader size budgets remain separate and
+unchanged; packaged applications do not carry this package-manager code.
+
 `mise run catalog-check` validates the checked-in compatibility evidence offline.
 The normal Python test task also checks the catalog and smoke-hook hashes.
 See [the package catalog guide](../compatibility/packages/README.md) for reviewed
@@ -148,6 +157,12 @@ compilation before replacing an asset and skips identical files. When using
 Cargo directly after interpreter changes, run `mise run refresh-runtime-assets`
 before CLI tests or builds. Other target assets are built and verified by their
 native CI matrix jobs; a host refresh does not claim cross-platform validation.
+
+Import changes have CPython-oracle package-tree tests covering bindings,
+initialization order, cycles, failed-import cleanup, and surviving module
+globals. The Linux ASan/UBSan job includes these tests alongside FFI stress
+tests. The CPython oracle subprocess does not inherit sanitizer preloads;
+the instrumented Kipferl subprocess does.
 
 Keep package manager tests deterministic: Rust fixtures create wheels and seed
 an offline cache, then exercise transitive resolution, extraction checks,

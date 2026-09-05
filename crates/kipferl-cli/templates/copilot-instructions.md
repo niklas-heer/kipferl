@@ -25,7 +25,7 @@ tui.progress(5, 10, label="Loading", elapsed=2.5)
 tui.progress_done()
 
 # HTTP requests
-http = __import__("http.client")
+import http.client as http
 connection = http.HTTPSConnection("api.example.com", timeout=10)
 connection.request("GET", "/data")
 print(connection.getresponse().read().decode())

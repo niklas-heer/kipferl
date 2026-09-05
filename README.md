@@ -144,8 +144,11 @@ compilation-only successes do not create tested approvals.
 See [the compatibility priorities](compatibility/packages/priorities.md) for the
 most common first parser failures and candidates for focused behavior tests.
 The [first language-patch rerun](compatibility/packages/language-patch-comparison.md)
-increased source-bearing compilation-complete candidates from **12 to 20**;
-these remain unverified until dependency and behavior tests pass.
+increased source-bearing compilation-complete candidates from **12 to 20**.
+The [dotted-import rerun](compatibility/packages/dotted-import-comparison.md)
+raises that to **24**: all **170** releases that first hit dotted imports
+progress, with four completing compilation and 166 reaching later blockers.
+These remain unverified until dependency and behavior tests pass.
 
 ### Useful, tested recipes
 
@@ -271,7 +274,7 @@ print(result["stdout"].decode().strip())
 ### HTTP and HTTPS
 
 ```python
-http = __import__("http.client")
+import http.client as http
 
 connection = http.HTTPSConnection("example.com")
 connection.request("GET", "/")
@@ -632,7 +635,7 @@ binary. Before 0.6, the project was called μcharm.
 The measured tree-shaken ARM64 median is 7.679ms. Fast startup comes from:
 
 1. No external CPython startup or virtual-environment activation
-2. No import machinery (modules compiled into the binary)
+2. Built-in native modules avoid filesystem discovery
 3. Minimal runtime (PocketPy is much smaller than CPython)
 4. Native Rust modules (TUI components are compiled, not imported packages)
 </details>
@@ -663,7 +666,7 @@ We evaluated both and chose PocketPy for CLI tooling:
 |--------|----------|-------------|
 | Target | General Python 3.x | Embedded/IoT |
 | C API | Clean, embedding-focused | Complex, hardware-focused |
-| Syntax | Full Python 3.x | Subset of Python 3.4 |
+| Syntax | Python 3 subset with project compatibility tests | Subset of Python 3.4 |
 | Rust host integration | Narrow C FFI | More embedded-runtime glue |
 | Product fit | CLI-focused embedding | Microcontroller-focused runtime |
 
@@ -673,11 +676,11 @@ MicroPython excels at microcontrollers. PocketPy excels at embedding Python in a
 <details>
 <summary>What Python features are supported?</summary>
 
-Most Python 3.x syntax works: classes, decorators, generators, comprehensions, f-strings, `*args`/`**kwargs`, context managers, and more.
+The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Current source builds also support dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals.
 
 Not supported:
 - `async`/`await` (limited support)
-- Implicit string concatenation (`"a" "b"`)
+- Adjacent f-string combinations and generator expressions
 - Some metaclass features
 - C extension packages (numpy, etc.)
 

@@ -137,6 +137,25 @@ runtime identity in the lock to work around a mismatch.
 Import installed modules normally. The PyPI distribution name can differ from
 the Python import name; consult the package's documentation.
 
+Current source builds support ordinary dotted imports:
+
+```python
+import http.client
+import urllib.parse as urls
+
+connection = http.client.HTTPSConnection("example.com")
+print(urls.quote("hello world"))
+```
+
+An unaliased dotted import binds the root package; an alias binds the requested
+child. Packages initialize before their children. Relative from-imports,
+reexports, circular imports, and failed-import retries have regression coverage
+against CPython. Dynamic `__import__` returns the root by default; a nonempty
+positional fromlist returns the leaf. Nonzero dynamic import levels, custom
+finders, and custom `__path__` searches remain unsupported. `sys.modules`
+reflects loading and loaded modules, but editing it does not control the native
+import cache. Use regular `__init__.py` packages and static imports when bundling.
+
 New editor configurations include `.kipferl/packages` in `extraPaths`. For an
 existing project, add that entry to `pyrightconfig.json` to enable package
 completions. Package annotations do not expand Kipferl's runtime API support.

@@ -15,6 +15,21 @@ unique users or the suitability of a library for your application.
 
 <PackageAudit />
 
+## Dotted-import results
+
+Native dotted imports now initialize parents, bind roots and aliases, and handle
+circular imports and failed-import retries. All **170 releases** whose first
+blocker was a dotted import progress. Four now finish compilation:
+`entrypoints==0.4`, `pytest-metadata==3.1.1`, `zope-event==6.2`, and
+`python-http-client==3.3.7`. The other **166** reach later syntax blockers.
+
+The audit now has **44 compilation-complete distributions**, including **24 with
+Python source**, up from 40 and 20 respectively. These are candidates for
+focused dependency and behavior tests, not new compatibility approvals. Both
+screens use the same module compiler mode and the same 999 available metadata
+pins; ddtrace remains metadata-limited. Read the
+[dotted-import comparison](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/dotted-import-comparison.md).
+
 ## First language-patch results
 
 The rerun adds trailing commas in parenthesized imports and function parameters,
