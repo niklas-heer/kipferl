@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -9,8 +10,20 @@ permissions:
   contents: write
 
 jobs:
+  preflight:
+    name: Verify release version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.9.1
+          install_args: "rust python node bun"
+      - run: python3 scripts/check_release_version.py
+
   build-components:
     name: Build runtime and loader (${{ matrix.target }})
+    needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -94,6 +107,21 @@ jobs:
             fi
           done
 
+      - name: Verify full and core runtime versions
+        shell: bash
+        run: |
+          expected="Kipferl runtime $(cat VERSION)"
+          test "$(release-assets/pocketpy-kipferl-${{ matrix.suffix }} --version)" = "$expected"
+          test "$(release-assets/pocketpy-kipferl-core-${{ matrix.suffix }} --version)" = "$expected"
+
+      - name: Generate exact release package evidence
+        run: >-
+          python3 scripts/release_package_catalog.py
+          --runtime release-assets/pocketpy-kipferl-${{ matrix.suffix }}
+          --target ${{ matrix.suffix }}
+          --output release-assets/package-catalog-${{ matrix.suffix }}.json
+          --disposable-ci
+
       - name: Checksum component assets
         shell: bash
         run: |
@@ -105,6 +133,7 @@ jobs:
               Path("release-assets/pocketpy-kipferl-${{ matrix.suffix }}"),
               Path("release-assets/pocketpy-kipferl-core-${{ matrix.suffix }}"),
               Path("release-assets/kipferl-loader-${{ matrix.suffix }}"),
+              Path("release-assets/package-catalog-${{ matrix.suffix }}.json"),
           ]:
               digest = hashlib.sha256(component.read_bytes()).hexdigest()
               component.with_name(component.name + ".sha256").write_text(
@@ -156,11 +185,13 @@ jobs:
           path: release-inputs
           merge-multiple: true
 
-      - name: Refresh CLI embedded assets
-        shell: bash
-        run: |
-          find release-inputs -type f ! -name '*.sha256' \
-            -exec cp {} crates/kipferl-cli/assets/ \;
+      - name: Verify and install the complete release component set
+        run: >-
+          python3 scripts/prepare_release_assets.py
+          --input release-inputs
+          --destination crates/kipferl-cli/assets
+          --target ${{ matrix.suffix }}
+          --catalog-output compatibility/packages/catalog.json
 
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}
@@ -192,7 +223,7 @@ jobs:
         shell: bash
         run: |
           cli="target/${{ matrix.target }}/release/kipferl"
-          "$cli" --version | grep -q "Kipferl"
+          "$cli" --version
           smoke_dir="$RUNNER_TEMP/kipferl-release-smoke"
           mkdir -p "$smoke_dir"
           printf '%s\n' 'print("rust release")' > "$smoke_dir/app.py"
@@ -200,6 +231,29 @@ jobs:
             -o "$smoke_dir/app" \
             --target ${{ matrix.suffix }}
           "$smoke_dir/app" | grep -q "rust release"
+
+      - name: Verify package installation, offline sync, and detached application
+        run: >-
+          python3 scripts/check_release_packages.py
+          --cli target/${{ matrix.target }}/release/kipferl
+          --runtime crates/kipferl-cli/assets/pocketpy-kipferl-${{ matrix.suffix }}
+          --target ${{ matrix.suffix }}
+          --offline-isolation ${{ runner.os == 'macOS' && 'required' || 'cli' }}
+          --output release-assets/package-smoke-${{ matrix.suffix }}.json
+
+      - name: Verify documented recipes with the release artifacts
+        run: >-
+          python3 scripts/check_recipes.py
+          --runtime crates/kipferl-cli/assets/pocketpy-kipferl-${{ matrix.suffix }}
+          --cli target/${{ matrix.target }}/release/kipferl
+
+      - name: Enforce release size budgets
+        run: >-
+          python3 scripts/check_release_sizes.py
+          --runtime crates/kipferl-cli/assets/pocketpy-kipferl-${{ matrix.suffix }}
+          --core crates/kipferl-cli/assets/pocketpy-kipferl-core-${{ matrix.suffix }}
+          --loader crates/kipferl-cli/assets/kipferl-loader-${{ matrix.suffix }}
+          --cli target/${{ matrix.target }}/release/kipferl
 
       - name: Collect CLI asset
         shell: bash
@@ -231,6 +285,7 @@ jobs:
 
   release-evidence:
     name: Verify release evidence
+    needs: preflight
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -265,6 +320,7 @@ jobs:
 
   release:
     name: Create Release
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-components, build-cli, release-evidence]
     runs-on: ubuntu-latest
 
@@ -293,6 +349,9 @@ jobs:
             -name 'pocketpy-kipferl-*' -o \
             -name 'kipferl-loader-*' -o \
             -name 'compatibility-report.md' -o \
+            -name 'vision-report.md' -o \
+            -name 'package-catalog-*' -o \
+            -name 'package-smoke-*.json' -o \
             -name 'pocketpy-patch-verification.json' \
           \) -exec cp {} release/ \;
           find release -type f \( \
@@ -336,6 +395,7 @@ jobs:
           files: release/*
           generate_release_notes: false
           prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

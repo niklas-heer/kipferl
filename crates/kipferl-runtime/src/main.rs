@@ -5,7 +5,7 @@
 use std::env;
 use std::ffi::CString;
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::process::ExitCode;
 
@@ -32,6 +32,20 @@ fn run() -> Result<(), String> {
                 .map_err(|_| "arguments must use UTF-8".to_owned())
         })
         .collect::<Result<_, _>>()?;
+    if let [_, flag, rest @ ..] = arguments.as_slice()
+        && flag == "--version"
+    {
+        if !rest.is_empty() {
+            return Err("--version does not accept arguments".to_owned());
+        }
+        writeln!(
+            std::io::stdout().lock(),
+            "Kipferl runtime {}",
+            env!("CARGO_PKG_VERSION")
+        )
+        .map_err(|error| format!("cannot write runtime version: {error}"))?;
+        return Ok(());
+    }
     let vm = Vm::initialize().map_err(|error| error.to_string())?;
     if let [_, flag, paths @ ..] = arguments.as_slice()
         && flag == "--check-syntax"
@@ -48,7 +62,7 @@ fn run() -> Result<(), String> {
 
     let (source, filename, python_arguments, script_file) = match arguments.as_slice() {
         [program] => {
-            return Err(format!("usage: {program} [-c code | script.py] [args...] | --check-syntax [--] file.py [...]"));
+            return Err(format!("usage: {program} [-c code | script.py] [args...] | --check-syntax [--] file.py [...] | --version"));
         }
         [_, flag, code, rest @ ..] if flag == "-c" => {
             let argv: Vec<String> = std::iter::once("-c")
@@ -66,7 +80,7 @@ fn run() -> Result<(), String> {
                 .collect();
             (source, script.clone(), argv, Some(script.clone()))
         }
-        [] => return Err("usage: pocketpy-kipferl [-c code | script.py] [args...] | --check-syntax [--] file.py [...]".to_owned()),
+        [] => return Err("usage: pocketpy-kipferl [-c code | script.py] [args...] | --check-syntax [--] file.py [...] | --version".to_owned()),
     };
 
     let python_arguments: Vec<CString> = python_arguments

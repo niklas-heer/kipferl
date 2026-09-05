@@ -169,3 +169,39 @@ an offline cache, then exercise transitive resolution, extraction checks,
 lock restoration, and standalone execution after source removal. Fetching real
 PyPI artifacts is an explicit catalog-maintenance or smoke-testing action, not
 part of every local test run.
+
+## Prepare a release candidate
+
+Keep `VERSION`, the Cargo workspace version, and workspace lock entries aligned.
+`python3 scripts/check_release_version.py` validates them and, in a tag workflow,
+requires the tag to match. Both full and core runtimes expose `--version` for
+artifact verification.
+
+After pushing a prepared commit and obtaining green CI, dispatch the Release
+workflow on that branch to exercise the whole build without publishing:
+
+```sh
+gh workflow run release.yml --ref main
+```
+
+Manual runs build and check every platform but skip the release and Homebrew
+jobs. Once that exact commit passes both workflows, create and push its version
+tag. A tag containing `-rc.N` publishes a prerelease and leaves the stable latest
+release and Homebrew formula unchanged. Use curated notes under
+`.github/release-notes/<tag>.md` to explain upgrade behavior.
+
+Each component job generates fresh catalog evidence from the reviewed wheel
+pins against its final full runtime. macOS keeps the behavior hook sandbox;
+Linux requires explicit disposable GitHub Actions execution. Only the pinned,
+reviewed tzdata hook executes. Historical catalog records remain, and the broad
+popularity audit retains its original runtime identity.
+
+Before building a CLI, `prepare_release_assets.py` checks the complete set of
+12 components and four catalog checksums, verifies matching tested evidence,
+and restores executable permissions. Missing files cannot silently fall back
+to tracked assets. `check_release_packages.py` then uses isolated project and
+cache directories to test installation, missing-cache failure, locked offline
+restoration, and a standalone app after deleting the project and caches. Reports
+record exact artifact hashes and whether offline checks used OS network denial
+(macOS) or the CLI offline flag (Linux). CI and releases share executable size
+budgets through `check_release_sizes.py`.

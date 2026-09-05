@@ -215,3 +215,18 @@ Content lives in `website/content/docs/`; navigation is controlled by
 `website/src/app/`. Keep historical release measurements dated, and distinguish
 current source behavior from published artifacts. Recipe code blocks are
 checked against `examples/recipes/`; edit both together when changing a recipe.
+
+## Release artifact verification
+
+Release candidates build all four native targets and generate reviewed package
+catalog evidence against each final runtime binary. The release pipeline checks
+component checksums and exact versions before embedding them, then tests package
+installation, locked offline restoration, and standalone execution after removing
+the project and caches. Published package reports state the scope and isolation
+used for each target. The broad popularity audit remains a dated screen against
+its recorded runtime; it is not relabeled as evidence for a new binary.
+
+Contributors can dispatch the Release workflow on a branch to run these gates
+without publishing. Only a matching version tag publishes a release, and release
+candidates leave the stable Homebrew formula and latest stable release unchanged.
+See the [release preparation reference](https://github.com/niklas-heer/kipferl/blob/main/docs/development.md#prepare-a-release-candidate).
