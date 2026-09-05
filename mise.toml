@@ -98,9 +98,8 @@ depends = ["build"]
 run = "target/release/kipferl run examples/simple_cli.py"
 
 [tasks.demo-gif]
-description = "Regenerate demo recordings (requires VHS and its video/browser tools)"
-depends = ["build"]
-run = ["command -v vhs >/dev/null || { echo 'Install VHS to record the demo.' >&2; exit 1; }", "VHS_NO_SANDBOX=1 vhs demo.tape", "cp demo.gif website/public/demo.gif"]
+description = "Record the published v0.7.0 workflow as homepage MP4 and poster (requires VHS)"
+run = "bash scripts/record_demo.sh"
 
 [tasks.bindings]
 description = "Regenerate PocketPy FFI bindings (requires bindgen and libclang)"

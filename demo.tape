@@ -1,77 +1,99 @@
-# Kipferl Demo
-# Regenerate with: mise run demo-gif
-
-Output demo.gif
-
+# Real stable-release workflow. Run through scripts/record_demo.sh (mise run demo-gif).
+# The wrapper provides an isolated workspace and checks every command's exit status.
+Output "website/public/demos/kipferl-0.7.mp4"
 Set Shell "bash"
-Set FontSize 16
-Set Width 720
-Set Height 520
+Set FontFamily "Menlo"
+Set FontSize 22
+Set Width 1280
+Set Height 800
 Set Theme "Catppuccin Mocha"
-Set Padding 20
+Set Padding 28
 Set Framerate 24
-Set TypingSpeed 60ms
-
-# Setup - add kipferl to PATH
+Set TypingSpeed 35ms
+Set CursorBlink false
 Hide
-Type "export PATH=$PWD/target/release:$PATH"
+Type `source "$DEMO_ROOT/environment"`
 Enter
-Type "clear"
-Enter
-Show
+Sleep 150ms
 Sleep 500ms
-
-# Introduce the tool before showing the app
+Show
+Type "# 01 / Create a project"
+Enter
+Sleep 150ms
 Type "kipferl --version"
 Enter
-Sleep 2s
-
-# Show the code with syntax highlighting
-Type "bat --style=plain --paging=never examples/quick_demo.py"
-Enter
-Sleep 4s
-
-# Clear and run it
-Type "clear"
-Enter
-Sleep 500ms
-
-Type "kipferl run examples/quick_demo.py"
-Enter
-Sleep 2s
-
-# Navigate select - take time so people can see
-Down
-Sleep 600ms
-Enter
+Sleep 150ms
 Sleep 1s
-
-# Confirm
-Type "y"
+Type "kipferl new hello"
 Enter
-Sleep 2.5s
-
-# Build it
-Type "kipferl build examples/quick_demo.py -o hello-kipferl"
-Enter
+Sleep 150ms
+Wait+Line /^\$$/
 Sleep 3s
-
-# Show size
-Type "ls -lh hello-kipferl"
+Ctrl+L
+Type "cd hello"
 Enter
-Sleep 3s
-
-# Run built binary
-Type "./hello-kipferl"
+Sleep 150ms
+Type "kipferl run -- --name Ada"
 Enter
-Sleep 1.5s
+Sleep 150ms
+Wait+Line /^\$$/
+Sleep 2s
+Type "kipferl test"
 Enter
-Sleep 800ms
-Type "y"
+Sleep 150ms
+Wait+Line /^\$$/
+Sleep 4s
+Ctrl+L
+Type "# 02 / Add a reviewed PyPI package"
 Enter
-Sleep 3s
-
-# Cleanup
+Sleep 150ms
+Type "kipferl add tzdata==2025.2"
+Enter
+Sleep 150ms
+Wait+Line /^\$$/
+Sleep 2s
+Type "kipferl deps check"
+Enter
+Sleep 150ms
+Wait+Line /^\$$/
+Sleep 2s
+Type "cp ../fixtures/zones.py ."
+Enter
+Sleep 150ms
+Type "cat zones.py"
+Enter
+Sleep 150ms
+Sleep 6s
+Ctrl+L
+Type "# 03 / Ship one executable"
+Enter
+Sleep 150ms
+Type "kipferl build zones.py --mode universal -o ../dist/zones"
+Enter
+Sleep 150ms
+Wait+Line /^\$$/
+Sleep 5s
+Ctrl+L
+Type "cd ../dist"
+Enter
+Sleep 150ms
+Type "rm -rf ../hello ../state"
+Enter
+Sleep 150ms
+Type "unset TMPDIR KIPFERL_CACHE_DIR"
+Enter
+Sleep 150ms
+Type "# Source, installed packages and caches are gone."
+Enter
+Sleep 150ms
+Sleep 1s
+Type "./zones"
+Enter
+Sleep 150ms
+Wait+Line /^\$$/
+Sleep 6s
 Hide
-Type "rm -f hello-kipferl"
+Type `test ! -e ../hello && test ! -e ../state && touch "$DEMO_ROOT/complete"`
 Enter
+Sleep 150ms
+Sleep 500ms

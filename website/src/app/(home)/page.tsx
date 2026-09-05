@@ -1,765 +1,687 @@
 "use client";
 
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  CheckCheck,
+  ChevronRight,
+  Code2,
+  Copy,
+  FileCode2,
+  FolderOpen,
+  Github,
+  Layers3,
+  Package,
+  Play,
+  ShieldCheck,
+  Terminal,
+  Zap,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import styles from "./home.module.css";
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
+const installCommand = "brew install niklas-heer/tap/kipferl";
+const chapters = [
+  {
+    title: "Create a project",
+    detail: "A working app. Tests included.",
+    time: 0,
+    icon: FolderOpen,
+  },
+  {
+    title: "Check your packages",
+    detail: "Real evidence. Locked dependencies.",
+    time: 15,
+    icon: ShieldCheck,
+  },
+  {
+    title: "Ship one executable",
+    detail: "Code, runtime, and resources together.",
+    time: 30,
+    icon: Package,
+  },
+];
+const starters = [
+  {
+    id: "cli",
+    label: "Command-line tool",
+    description:
+      "Arguments, helpful output, and a starter test. Your next useful command starts here.",
+  },
+  {
+    id: "api",
+    label: "API client",
+    description:
+      "Fetch JSON with built-in HTTP support. Turn an API into a tool your team can use.",
+  },
+  {
+    id: "interactive",
+    label: "Interactive app",
+    description:
+      "Give your script a friendly interface with keyboard-driven prompts and selections.",
+  },
+];
 
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
+function InstallCommand() {
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    if (status === "idle") return;
+    const timer = setTimeout(() => setStatus("idle"), 2500);
+    return () => clearTimeout(timer);
+  }, [status]);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(installCommand);
+      setStatus("copied");
+    } catch {
+      setStatus("failed");
+    }
+  }
   return (
-    <button
-      type="button"
-      onClick={copy}
-      className="text-gray-400 hover:text-white transition-colors"
-      title="Copy to clipboard"
+    <div>
+      <div className={styles.install}>
+        <span aria-hidden="true">$</span>
+        <code>{installCommand}</code>
+        <button
+          type="button"
+          onClick={copy}
+          aria-label={
+            status === "copied"
+              ? "Install command copied"
+              : "Copy install command"
+          }
+        >
+          {status === "copied" ? <Check size={16} /> : <Copy size={16} />}
+        </button>
+      </div>
+      <output className={styles.copyStatus}>
+        {status === "copied"
+          ? "Copied. See you in the terminal."
+          : status === "failed"
+            ? "Select the command above to copy it."
+            : "macOS & Linux · ARM64 & x86_64"}
+      </output>
+    </div>
+  );
+}
+
+function WorkflowDemo() {
+  const video = useRef<HTMLVideoElement>(null);
+  const pendingSeek = useRef<number | null>(null);
+  const [active, setActive] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [error, setError] = useState(false);
+  function playChapter(index: number) {
+    const player = video.current;
+    if (!player) return;
+    setActive(index);
+    const chapter = chapters[index];
+    if (!chapter) return;
+    if (player.readyState >= 1) player.currentTime = chapter.time;
+    else pendingSeek.current = chapter.time;
+    void player.play().catch(() => setPlaying(false));
+    player.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+  }
+  return (
+    <section
+      id="demo"
+      className={styles.demoSection}
+      aria-labelledby="demo-title"
     >
-      {copied ? (
-        <svg
-          aria-hidden="true"
-          className="w-4 h-4 text-green-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M5 13l4 4L19 7"
-          />
-        </svg>
-      ) : (
-        <svg
-          aria-hidden="true"
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-          />
-        </svg>
-      )}
-    </button>
-  );
-}
-
-function StatCard({
-  value,
-  label,
-  suffix = "",
-}: {
-  value: string;
-  label: string;
-  suffix?: string;
-}) {
-  return (
-    <div className="text-center">
-      <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-        {value}
-        <span className="text-2xl">{suffix}</span>
+      <div className={styles.demoHeading}>
+        <div>
+          <span className={styles.eyebrow}>LESS SETUP. MORE SHIPPING.</span>
+          <h2 id="demo-title">Meet your new workflow.</h2>
+        </div>
+        <span className={styles.recordingLabel}>
+          <span /> 51 sec · Kipferl 0.7.0
+        </span>
       </div>
-      <div className="text-gray-500 dark:text-gray-400 mt-1">{label}</div>
-    </div>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  description,
-  gradient,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  gradient: string;
-}) {
-  return (
-    <div className="group relative p-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:border-cyan-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10">
-      <div className={`inline-flex p-3 rounded-xl ${gradient} mb-4`}>
-        {icon}
+      <div className={styles.terminalWindow}>
+        <div className={styles.terminalBar}>
+          <span className={styles.windowDots} aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span>
+            <Terminal size={14} /> hello / kipferl
+          </span>
+          <span className={styles.terminalTag}>
+            REAL TERMINAL. REAL OUTPUT.
+          </span>
+        </div>
+        <div className={styles.videoFrame}>
+          <video
+            ref={video}
+            controls={playing}
+            playsInline
+            muted
+            preload="none"
+            poster="/demos/kipferl-0.7.webp"
+            aria-label="Silent terminal recording: create a Kipferl project, install and check tzdata, and build a standalone application. A text walkthrough follows."
+            onPlay={() => setPlaying(true)}
+            onError={() => setError(true)}
+            onEnded={() => setPlaying(false)}
+            onLoadedMetadata={() => {
+              if (pendingSeek.current !== null && video.current) {
+                video.current.currentTime = pendingSeek.current;
+                pendingSeek.current = null;
+              }
+            }}
+            onTimeUpdate={() => {
+              const time = video.current?.currentTime ?? 0;
+              const index = chapters.findLastIndex(
+                (chapter) => time >= chapter.time,
+              );
+              if (index >= 0) setActive(index);
+            }}
+          >
+            <source src="/demos/kipferl-0.7.mp4" type="video/mp4" />
+            Your browser does not support this video. Read the walkthrough
+            below.
+          </video>
+          {!playing && !error && (
+            <button
+              className={styles.playOverlay}
+              type="button"
+              onClick={() => playChapter(0)}
+            >
+              <span>
+                <Play size={24} fill="currentColor" />
+              </span>
+              <strong>Watch it come together</strong>
+              <small>Create → check → ship</small>
+            </button>
+          )}
+          {error && (
+            <p className={styles.videoError}>
+              The recording could not load.{" "}
+              <a href="/demos/kipferl-0.7.mp4">Download the video</a> or follow
+              the text walkthrough below.
+            </p>
+          )}
+        </div>
+        <div className={styles.chapters}>
+          {chapters.map((chapter, index) => (
+            <button
+              key={chapter.title}
+              type="button"
+              className={active === index ? styles.activeChapter : ""}
+              aria-pressed={active === index}
+              onClick={() => playChapter(index)}
+            >
+              <span className={styles.chapterNumber}>0{index + 1}</span>
+              <span>
+                <strong>{chapter.title}</strong>
+                <small>{chapter.detail}</small>
+              </span>
+              <chapter.icon size={19} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
       </div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
-        {description}
-      </p>
-    </div>
+      <div className={styles.demoFootnote}>
+        <details>
+          <summary>
+            Prefer reading? Follow the workflow <ChevronRight size={14} />
+          </summary>
+          <div className={styles.transcript}>
+            <p>
+              The recording uses the released macOS Apple Silicon CLI. The same
+              workflow is available on all four release targets.
+            </p>
+            <ol>
+              <li>
+                Create a CLI project, run its greeting, and execute its starter
+                test.
+              </li>
+              <li>
+                Install the reviewed tzdata 2025.2 wheel and check the installed
+                files. Add a small app that reads a bundled timezone data
+                resource.
+              </li>
+              <li>
+                Build an executable, remove the original project and caches, and
+                run the executable independently.
+              </li>
+            </ol>
+            <pre>{`kipferl new hello --template cli\ncd hello\nkipferl run -- --name Ada\nkipferl test\nkipferl add 'tzdata==2025.2'\nkipferl deps check\nkipferl build`}</pre>
+            <p>
+              Save this as <code>zones.py</code> inside the project:
+            </p>
+            <pre>{`import os
+import tzdata
+
+path = os.path.join(os.path.dirname(tzdata.__file__), "zoneinfo/UTC")
+with open(path, "rb") as zone:
+    assert zone.read(4) == b"TZif"
+print("tzdata " + tzdata.__version__ + ": UTC data bundled")`}</pre>
+            <pre>{`kipferl build zones.py --mode universal -o dist/zones
+./dist/zones
+# tzdata 2025.2: UTC data bundled`}</pre>
+            <p>
+              The recording takes this one step further: it runs the executable
+              after deleting its temporary source project, installed packages,
+              and caches.
+            </p>
+            <p>
+              The tzdata checks cover version constants and resource headers,
+              not timezone calculations.{" "}
+              <Link href="/docs/guides/packages">
+                Try the complete package example →
+              </Link>
+            </p>
+          </div>
+        </details>
+        <a
+          href="https://github.com/niklas-heer/kipferl/blob/main/demo.tape"
+          className={styles.textLink}
+        >
+          Made with VHS <ArrowUpRight size={14} />
+        </a>
+      </div>
+    </section>
   );
 }
 
-function ComparisonRow({
-  feature,
-  kipferl,
-  python,
-  node,
-}: {
-  feature: string;
-  kipferl: string;
-  python: string;
-  node: string;
-}) {
+function StarterPicker() {
+  const [selected, setSelected] = useState("cli");
+  const starter = starters.find((item) => item.id === selected) ?? starters[0];
   return (
-    <tr className="border-b border-gray-200 dark:border-gray-800">
-      <td className="py-4 px-4 font-medium">{feature}</td>
-      <td className="py-4 px-4 text-center">
-        <span className="text-green-500 font-semibold">{kipferl}</span>
-      </td>
-      <td className="py-4 px-4 text-center text-gray-500">{python}</td>
-      <td className="py-4 px-4 text-center text-gray-500">{node}</td>
-    </tr>
+    <div className={styles.starterCard}>
+      <div className={styles.cardIntro}>
+        <span className={styles.cardIcon}>
+          <FolderOpen size={21} />
+        </span>
+        <span className={styles.eyebrow}>01 / START WITH SOMETHING REAL</span>
+      </div>
+      <h3>
+        An empty folder.
+        <br />A running app.
+      </h3>
+      <fieldset className={styles.starterTabs}>
+        <legend className="sr-only">Choose a project template</legend>
+        {starters.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={selected === item.id}
+            onClick={() => setSelected(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </fieldset>
+      <p aria-live="polite">{starter?.description}</p>
+      <div className={styles.codeBlock}>
+        <span className={styles.codeComment}>
+          # Your project, ready to work on
+        </span>
+        <code>kipferl new hello --template {selected}</code>
+        <code>cd hello && kipferl run</code>
+      </div>
+      <div className={styles.fileTree}>
+        <span>
+          <FileCode2 size={15} /> hello.py
+        </span>
+        <span>
+          <CheckCheck size={15} /> tests/
+        </span>
+        <span>
+          <Code2 size={15} /> editor stubs
+        </span>
+        <span>
+          <FolderOpen size={15} /> kipferl.json
+        </span>
+      </div>
+      <Link
+        className={styles.textLink}
+        href="/docs/getting-started/quick-start"
+      >
+        Build your first app <ArrowUpRight size={16} />
+      </Link>
+    </div>
   );
 }
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col overflow-hidden">
-      {/* Hero Section */}
-      <section className="relative py-24 md:py-32 px-6">
-        {/* Background gradient */}
-        <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
-          <div className="absolute top-20 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="absolute -top-40 right-0 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl" />
-        </div>
-
-        <div className="max-w-5xl mx-auto text-center">
-          {/* Logo */}
-          <div className="mb-8">
-            <Image
-              src="/kipferl-logo.png"
-              alt="Kipferl logo"
-              width={80}
-              height={80}
-              className="mx-auto"
-              priority
-            />
-          </div>
-
-          {/* Badge */}
-          <Link
-            href="/blog/kipferl-0-7"
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-sm font-medium mb-8 hover:border-cyan-500/50 transition-colors"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-            </span>
-            Kipferl v0.7.0 is available · stable release
-          </Link>
-
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-[1.1]">
-            Build CLI apps that
-            <br />
-            <span className="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
-              developers love
-            </span>
-          </h1>
-
-          <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Python syntax. Tree-shaken binaries from 1.4 MB.
-            <span className="text-gray-900 dark:text-white font-medium">
-              {" "}
-              Fast startup.
-            </span>
-            <br className="hidden md:block" />
-            Ship beautiful command-line tools without the bloat.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Link
-              href="/docs/getting-started/installation"
-              className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/30 hover:-translate-y-0.5"
-            >
-              Get Started
-              <span className="inline-block ml-2 group-hover:translate-x-1 transition-transform">
-                →
-              </span>
-            </Link>
-            <Link
-              href="https://github.com/niklas-heer/kipferl"
-              className="group px-8 py-4 border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 font-semibold rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-            >
-              <svg
-                aria-hidden="true"
-                className="inline-block w-5 h-5 mr-2 -mt-0.5"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
-              </svg>
-              Star on GitHub
+    <main className={styles.home}>
+      <div className={styles.shell}>
+        <section className={styles.hero}>
+          <div className={styles.heroTopline}>
+            <span className={styles.eyebrow}>THE PYTHON-STYLE CLI TOOLKIT</span>
+            <Link href="/blog/kipferl-0-7" className={styles.releaseBadge}>
+              <span /> 0.7 is here <ArrowUpRight size={14} />
             </Link>
           </div>
-
-          {/* Install command */}
-          <div className="inline-flex items-center gap-4 px-5 py-3 bg-gray-900 dark:bg-gray-950 rounded-xl font-mono text-sm border border-gray-800">
-            <span className="text-cyan-400">$</span>
-            <code className="text-gray-100">
-              brew install niklas-heer/tap/kipferl
-            </code>
-            <CopyButton text="brew install niklas-heer/tap/kipferl" />
-          </div>
-          <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-            Homebrew installs stable v0.7.0. You can also{" "}
-            <Link
-              href="/docs/getting-started/installation#stable-release"
-              className="text-cyan-600 dark:text-cyan-400 underline"
-            >
-              download a platform binary
-            </Link>
-            .
-          </p>
-        </div>
-      </section>
-
-      {/* Demo GIF Section */}
-      <section className="py-20 px-6 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-950">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              See it in action
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-lg">
-              Beautiful output and interactive prompts, built-in.
-            </p>
-          </div>
-          <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl shadow-black/20">
-            <Image
-              src="/demo.gif"
-              alt="kipferl demo showing CLI app with interactive prompts and beautiful output"
-              width={720}
-              height={520}
-              className="w-full"
-              unoptimized
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-            <StatCard value="7.679" suffix="ms" label="v0.6 core median" />
-            <StatCard value="1.451" suffix="MB" label="v0.6 minimal app" />
-            <StatCard value="1,725" label="Compatibility checks" />
-            <StatCard value="4" label="Release targets" />
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 pb-20">
-        <div className="max-w-4xl mx-auto rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-8">
-          <p className="text-sm font-mono text-cyan-600 dark:text-cyan-400 mb-3">
-            AVAILABLE IN v0.7.0
-          </p>
-          <h2 className="text-3xl font-bold mb-4">
-            Create, test, and ship a complete project
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-5">
-            The 0.7 release includes CLI, API, and interactive starters, project
-            defaults, PyPI compatibility checks, and bundled resources. Each
-            starter includes editor support, tests, and a README.
-          </p>
-          <pre className="overflow-x-auto rounded-xl bg-gray-950 p-5 text-sm text-gray-100">
-            <code>{`kipferl new hello --template cli
-cd hello
-kipferl run
-kipferl test
-kipferl build
-./dist/hello --help`}</code>
-          </pre>
-          <div className="mt-5 flex flex-wrap gap-5">
-            <Link
-              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
-              href="/docs/getting-started/installation#stable-release"
-            >
-              Install the stable release →
-            </Link>
-            <Link
-              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
-              href="/docs/guides/recipes"
-            >
-              Explore tested recipes →
-            </Link>
-            <Link
-              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
-              href="/docs/guides/packages"
-            >
-              Find compatible Python packages →
-            </Link>
-            <Link
-              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
-              href="/docs/guides/development"
-            >
-              Contribute with mise →
-            </Link>
-          </div>
-          <p className="mt-5 text-sm text-gray-500 dark:text-gray-400">
-            Size and startup figures above are dated v0.6 measurements. The
-            0.7 release check count uses the pinned CPython 3.12.14
-            baseline; it measures the tested subset, not complete Python
-            compatibility.
-          </p>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 px-6 bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900/50">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Everything you need
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-lg max-w-2xl mx-auto">
-              A complete toolkit for building modern CLI applications, without
-              the complexity.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FeatureCard
-              icon={
-                <svg
-                  aria-hidden="true"
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              }
-              gradient="bg-gradient-to-br from-yellow-400 to-orange-500"
-              title="Fast Startup"
-              description="The v0.6 Apple Silicon core baseline measured 7.679 ms median startup. App code, target, and runtime profile determine the actual result."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  aria-hidden="true"
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                  />
-                </svg>
-              }
-              gradient="bg-gradient-to-br from-green-400 to-emerald-500"
-              title="Standalone Binaries"
-              description="The v0.6 Apple Silicon baseline produced a 1.451 MB minimal app. Linux release targets use static musl; external commands your app calls remain separate tools."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  aria-hidden="true"
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                  />
-                </svg>
-              }
-              gradient="bg-gradient-to-br from-blue-400 to-indigo-500"
-              title="Python Syntax"
-              description="Use familiar Python syntax and a curated runtime. Check the module reference for supported APIs, return types, and compatibility limits."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  aria-hidden="true"
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
-                  />
-                </svg>
-              }
-              gradient="bg-gradient-to-br from-purple-400 to-pink-500"
-              title="Beautiful Output"
-              description="Tables, boxes, progress bars, spinners, and rich colors, with no extra Python packages to install."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  aria-hidden="true"
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
-              }
-              gradient="bg-gradient-to-br from-cyan-400 to-blue-500"
-              title="Interactive Prompts"
-              description="Select, multiselect, confirm, and password inputs with smooth keyboard navigation."
-            />
-            <FeatureCard
-              icon={
-                <svg
-                  aria-hidden="true"
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
-                  />
-                </svg>
-              }
-              gradient="bg-gradient-to-br from-red-400 to-rose-500"
-              title="50+ Runtime Modules"
-              description="HTTP, SQLite, JSON, regex, subprocess, and more—hosted by Rust with compatibility tests against CPython."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Comparison Section */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              How it compares
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-lg">
-              kipferl vs traditional CLI tooling
-            </p>
-          </div>
-
-          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr className="border-b border-gray-200 dark:border-gray-800">
-                  <th className="py-4 px-4 text-left font-semibold">Feature</th>
-                  <th className="py-4 px-4 text-center font-semibold text-cyan-500">
-                    kipferl
-                  </th>
-                  <th className="py-4 px-4 text-center font-semibold">
-                    Python + Click
-                  </th>
-                  <th className="py-4 px-4 text-center font-semibold">
-                    Node.js
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-950">
-                <ComparisonRow
-                  feature="v0.6 core startup baseline"
-                  kipferl="7.679ms (Apple Silicon)"
-                  python="Runtime-dependent"
-                  node="Runtime-dependent"
-                />
-                <ComparisonRow
-                  feature="Binary size"
-                  kipferl="~1.4–5.9MB"
-                  python="Runtime + app"
-                  node="Runtime + app"
-                />
-                <ComparisonRow
-                  feature="Python installation required"
-                  kipferl="No"
-                  python="Yes"
-                  node="Node.js runtime"
-                />
-                <ComparisonRow
-                  feature="Distribution"
-                  kipferl="Single file"
-                  python="Interpreter + app"
-                  node="Runtime + app"
-                />
-                <ComparisonRow
-                  feature="TUI built-in"
-                  kipferl="Yes"
-                  python="Requires Rich"
-                  node="Requires libs"
-                />
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* Code Example Section */}
-      <section className="py-20 px-6 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900/50 dark:to-gray-950">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className={styles.heroGrid}>
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Simple, expressive API
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 text-lg mb-6 leading-relaxed">
-                Build useful tools with familiar syntax, built-in terminal
-                output, and a curated runtime. Start with a tested recipe, then
-                adapt it to your application.
+              <h1>
+                From Python script
+                <br />
+                to <span>shipped tool.</span>
+              </h1>
+              <p className={styles.heroLead}>
+                Write familiar code. Add compatible packages.
+                <br className={styles.desktopBreak} /> Hand someone a single
+                executable.
               </p>
-              <ul className="space-y-3">
-                {[
-                  "Beautiful boxes and tables",
-                  "Interactive prompts with keyboard nav",
-                  "Progress bars and spinners",
-                  "Colored status messages",
-                  "HTTP requests with built-in TLS",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-3">
-                    <svg
-                      aria-hidden="true"
-                      className="w-5 h-5 text-green-500 flex-shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span className="text-gray-700 dark:text-gray-300">
-                      {item}
-                    </span>
-                  </li>
-                ))}
-              </ul>
             </div>
-            <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl shadow-black/10">
-              <div className="bg-gray-900 px-4 py-3 flex items-center gap-2 border-b border-gray-800">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
-                </div>
-                <span className="text-sm text-gray-400 ml-2 font-mono">
-                  app.py
+            <div className={styles.heroAction}>
+              <p>
+                A complete workflow for small tools
+                <br />
+                with a lot to do.
+              </p>
+              <Link
+                className={styles.primaryButton}
+                href="/docs/getting-started/quick-start"
+              >
+                Build your first CLI <ArrowRight size={18} />
+              </Link>
+              <a className={styles.secondaryButton} href="#demo">
+                See it in action <ArrowDown size={16} />
+              </a>
+            </div>
+          </div>
+          <div className={styles.heroBottom}>
+            <InstallCommand />
+            <div className={styles.heroPromise}>
+              <span>
+                <Check size={15} /> Built-in terminal UI
+              </span>
+              <span>
+                <Check size={15} /> No Python on the target machine
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <WorkflowDemo />
+
+        <section
+          className={styles.proofStrip}
+          aria-label="Release verification"
+        >
+          <div>
+            <strong>0.7.0</strong>
+            <span>Stable & ready to build with</span>
+          </div>
+          <div>
+            <strong>4 targets</strong>
+            <span>macOS + Linux · ARM64 + x86_64</span>
+          </div>
+          <div>
+            <strong>1,725 checks</strong>
+            <span>Available compatibility checks passed</span>
+          </div>
+          <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0">
+            Inspect the release evidence <ArrowUpRight size={17} />
+          </Link>
+        </section>
+
+        <section className={styles.features} aria-labelledby="features-title">
+          <div className={styles.sectionHeading}>
+            <div>
+              <span className={styles.eyebrow}>
+                A LITTLE TOOL. A COMPLETE WORKFLOW.
+              </span>
+              <h2 id="features-title">
+                Everything between
+                <br />
+                an idea and <span>“here, try this.”</span>
+              </h2>
+            </div>
+            <p>
+              Project scaffolding, checked dependencies, and portable builds.
+              All part of the same CLI.
+            </p>
+          </div>
+          <div className={styles.featureGrid}>
+            <StarterPicker />
+            <div className={styles.packageCard}>
+              <div className={styles.cardIntro}>
+                <span className={styles.cardIcon}>
+                  <ShieldCheck size={21} />
+                </span>
+                <span className={styles.eyebrow}>
+                  02 / KNOW WHAT YOU ARE ADDING
                 </span>
               </div>
-              <pre className="bg-gray-950 p-6 overflow-x-auto text-sm leading-relaxed">
-                <code className="text-gray-100 font-mono">
-                  <span className="text-rose-400">import</span>
-                  {" tui\n"}
-                  <span className="text-rose-400">import</span>
-                  {" input\n\n"}
-                  <span className="text-gray-500"># Beautiful boxes</span>
-                  {"\ntui.box("}
-                  <span className="text-amber-300">{'"Deploying..."'}</span>
-                  {", title="}
-                  <span className="text-amber-300">{'"Release"'}</span>
-                  {")\n\n"}
-                  <span className="text-gray-500"># Interactive prompts</span>
-                  {"\nenv = input.select("}
-                  <span className="text-amber-300">{'"Environment:"'}</span>
-                  {", ["}
-                  <span className="text-amber-300">{'"dev"'}</span>
-                  {", "}
-                  <span className="text-amber-300">{'"prod"'}</span>
-                  {"])\n\n"}
-                  <span className="text-gray-500"># Formatted tables</span>
-                  {"\ntui.table([\n    ["}
-                  <span className="text-amber-300">{'"Artifact"'}</span>
-                  {", "}
-                  <span className="text-amber-300">{'"Size"'}</span>
-                  {"],\n    ["}
-                  <span className="text-amber-300">{'"app"'}</span>
-                  {", "}
-                  <span className="text-amber-300">{'"1.4MB"'}</span>
-                  {"],\n], headers="}
-                  <span className="text-purple-400">True</span>
-                  {")\n\n"}
-                  {"tui.success("}
-                  <span className="text-amber-300">f"Deployed to </span>
-                  <span className="text-gray-100">{"{env}"}</span>
-                  <span className="text-amber-300">!"</span>
-                  {")"}
-                </code>
-              </pre>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Migration story */}
-      <section className="py-20 px-6 bg-gray-950 text-white">
-        <div className="max-w-5xl mx-auto grid lg:grid-cols-[1.15fr_0.85fr] gap-12 items-center">
-          <div>
-            <div className="text-cyan-400 font-mono text-sm mb-4">
-              ENGINEERING RETROSPECTIVE
-            </div>
-            <h2 className="text-3xl md:text-5xl font-bold mb-6 leading-tight">
-              Why we rewrote Kipferl in Rust
-            </h2>
-            <p className="text-gray-300 text-lg leading-relaxed mb-8">
-              We migrated the CLI, loader, runtime host, and native modules
-              incrementally—keeping the application format stable and using
-              compatibility as the release gate. The result is easier to
-              maintain, fully tested on four targets, and still compact enough
-              to ship as one file.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link
-                href="/blog/kipferl-0-6"
-                className="inline-flex items-center font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
-              >
-                Read the 0.6 release story <span className="ml-2">→</span>
-              </Link>
-              <Link
-                href="/blog/rust-migration"
-                className="inline-flex items-center font-semibold text-gray-300 hover:text-white transition-colors"
-              >
-                Migration retrospective <span className="ml-2">→</span>
-              </Link>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              ["1,669 / 1,669", "v0.6 release checks"],
-              ["85,310", "obsolete lines removed"],
-              ["7.044 ms", "median startup"],
-              ["4", "native release targets"],
-            ].map(([value, label]) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-gray-800 bg-gray-900 p-5"
-              >
-                <div className="text-2xl font-bold text-white mb-1">
-                  {value}
+              <h3>
+                Packages with
+                <br />
+                receipts.
+              </h3>
+              <p>
+                Check PyPI dependencies against your exact runtime. Lock their
+                versions and hashes. Restore them offline once their wheels are
+                cached.
+              </p>
+              <div className={styles.packageReceipt}>
+                <div className={styles.receiptTitle}>
+                  <Package size={18} />
+                  <strong>tzdata</strong>
+                  <span>2025.2</span>
                 </div>
-                <div className="text-sm text-gray-400">{label}</div>
+                <div className={styles.receiptStatus}>
+                  <span>
+                    <CheckCheck size={15} /> Tested
+                  </span>
+                  <code>pure Python wheel</code>
+                </div>
+                <ul>
+                  <li>
+                    <Check size={14} /> Wheel checksum verified
+                  </li>
+                  <li>
+                    <Check size={14} /> Source compilation passed
+                  </li>
+                  <li>
+                    <Check size={14} /> Reviewed resource checks passed
+                  </li>
+                </ul>
+                <div className={styles.receiptScope}>
+                  Exact artifact. Exact runtime. A stated test scope.
+                </div>
               </div>
-            ))}
+              <code className={styles.singleCommand}>
+                $ kipferl add 'tzdata==2025.2'
+              </code>
+              <Link className={styles.textLink} href="/docs/guides/packages">
+                Explore the package workflow <ArrowUpRight size={16} />
+              </Link>
+            </div>
+            <div className={styles.shipCard}>
+              <div className={styles.shipCopy}>
+                <div className={styles.cardIntro}>
+                  <span className={styles.cardIcon}>
+                    <Layers3 size={21} />
+                  </span>
+                  <span className={styles.eyebrow}>
+                    03 / GIVE YOUR TOOL A LIFE OUTSIDE YOUR LAPTOP
+                  </span>
+                </div>
+                <h3>
+                  Your app.
+                  <br />
+                  All packed.
+                </h3>
+                <p>
+                  Bundle local modules, package resources, and selected assets
+                  with the runtime. The person running your tool needs neither
+                  Python nor Kipferl installed.
+                </p>
+                <Link className={styles.textLink} href="/docs/guides/packaging">
+                  See how packaging works <ArrowUpRight size={16} />
+                </Link>
+              </div>
+              <div
+                className={styles.bundleDiagram}
+                role="img"
+                aria-label="Python code, resources, and the runtime combine into one executable for a selected target"
+              >
+                <div className={styles.bundleInputs}>
+                  <span>
+                    <FileCode2 size={17} /> Your Python
+                  </span>
+                  <span>
+                    <Package size={17} /> Packages + data
+                  </span>
+                  <span>
+                    <Zap size={17} /> Runtime
+                  </span>
+                </div>
+                <div className={styles.bundleArrow}>
+                  <ArrowRight size={26} />
+                </div>
+                <div className={styles.bundleOutput}>
+                  <Terminal size={32} />
+                  <strong>hello</strong>
+                  <span>One executable</span>
+                </div>
+                <code>kipferl build</code>
+                <p>One binary per operating system and CPU target.</p>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* CTA Section */}
-      <section className="py-24 px-6 relative overflow-hidden">
-        {/* Background gradient */}
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        </div>
-
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Ready to build something
-            <br />
-            <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-              beautiful?
+        <section className={styles.nativeSection}>
+          <div>
+            <span className={styles.eyebrow}>
+              THE GOOD STUFF IS ALREADY BUILT IN
             </span>
-          </h2>
-          <p className="text-xl text-gray-600 dark:text-gray-400 mb-10">
-            Get started in under a minute. Ship your first CLI app today.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/docs/getting-started/installation"
-              className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/30 hover:-translate-y-0.5"
-            >
-              Read the Docs
-              <span className="inline-block ml-2 group-hover:translate-x-1 transition-transform">
-                →
-              </span>
-            </Link>
-            <Link
-              href="https://github.com/niklas-heer/kipferl"
-              className="px-8 py-4 border border-gray-300 dark:border-gray-700 font-semibold rounded-xl transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-            >
-              View Examples
+            <h2>
+              Make the terminal
+              <br />a nicer place to be.
+            </h2>
+            <p>
+              Tables, boxes, prompts, and progress. HTTP, SQLite, and everyday
+              file formats. Familiar dotted imports connect it all.
+            </p>
+            <Link className={styles.textLink} href="/docs/modules">
+              Explore the runtime modules <ArrowUpRight size={16} />
             </Link>
           </div>
-        </div>
-      </section>
+          <div className={styles.nativeCode}>
+            <div>
+              <span>app.py</span>
+              <Code2 size={16} />
+            </div>
+            <pre>
+              <code>
+                <span className={styles.syntaxKeyword}>import</span>
+                {" urllib.parse as urls\n"}
+                <span className={styles.syntaxKeyword}>import</span>
+                {" tui\n\n"}
+                <span className={styles.codeComment}>
+                  # Native modules, ordinary imports
+                </span>
+                {"\ntui.box(\n    urls.quote("}
+                <span className={styles.syntaxString}>"hello world"</span>
+                {"),\n    title="}
+                <span className={styles.syntaxString}>"Ready to ship"</span>
+                {",\n)"}
+              </code>
+            </pre>
+            <div className={styles.nativeOutput}>
+              <span>Ready to ship</span>
+              <code>hello%20world</code>
+            </div>
+            <Link href="/docs/modules/tui">
+              Meet the terminal UI toolkit <ArrowRight size={15} />
+            </Link>
+          </div>
+        </section>
 
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/30">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">
-                <span className="text-cyan-500">K</span>ipferl
-              </span>
-              <span className="text-gray-400 dark:text-gray-500">|</span>
-              <span className="text-gray-600 dark:text-gray-400">
-                Beautiful CLI apps, tiny binaries.
-              </span>
-            </div>
-            <div className="flex items-center gap-8">
-              <Link
-                href="/docs"
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                Docs
-              </Link>
-              <Link
-                href="/blog"
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                Blog
-              </Link>
-              <Link
-                href="https://github.com/niklas-heer/kipferl"
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                GitHub
-              </Link>
-              <Link
-                href="https://github.com/niklas-heer/kipferl/issues"
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                Issues
-              </Link>
-            </div>
+        <section className={styles.evidenceSection}>
+          <div>
+            <span className={styles.eyebrow}>CLEAR ABOUT WHAT WORKS</span>
+            <h2>
+              Less guesswork.
+              <br />
+              More evidence.
+            </h2>
+            <p>
+              Kipferl is a focused Python-style runtime. It supports a useful
+              subset of Python, with explicit boundaries for packages and APIs.
+            </p>
           </div>
-          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-sm text-gray-500">
-            Built with Rust and PocketPy. Open source under the MIT license.
+          <div className={styles.evidenceCards}>
+            <Link href="/docs/guides/package-audit">
+              <span className={styles.evidenceNumber}>1,000</span>
+              <div>
+                <h3>Popular packages. An open audit.</h3>
+                <p>
+                  Search the dated source-screening results, inspect blockers,
+                  and see what still needs work. Compilation success is not a
+                  guarantee that a library works.
+                </p>
+              </div>
+              <ArrowUpRight size={20} />
+            </Link>
+            <Link href="/docs/guides/packages#first-version-boundaries">
+              <ShieldCheck size={27} />
+              <div>
+                <h3>Useful limits, stated up front.</h3>
+                <p>
+                  Pure Python wheels. No native extensions or source builds.
+                  Tested records describe specific behavior on an exact runtime.
+                </p>
+              </div>
+              <ArrowUpRight size={20} />
+            </Link>
           </div>
-        </div>
-      </footer>
-    </div>
+        </section>
+
+        <section className={styles.finalCta}>
+          <Image src="/kipferl-logo.png" alt="" width={64} height={64} />
+          <span className={styles.eyebrow}>
+            SMALL TOOLS DESERVE A GOOD TOOLKIT.
+          </span>
+          <h2>What will you ship?</h2>
+          <div>
+            <Link
+              className={styles.primaryButton}
+              href="/docs/getting-started/quick-start"
+            >
+              Make something useful <ArrowRight size={18} />
+            </Link>
+            <Link
+              className={styles.secondaryButton}
+              href="https://github.com/niklas-heer/kipferl"
+            >
+              <Github size={18} /> Explore the source
+            </Link>
+          </div>
+          <p>Open source. MIT licensed. Built with Rust and PocketPy.</p>
+        </section>
+        <footer className={styles.footer}>
+          <Link href="/" className={styles.footerBrand}>
+            <Image src="/kipferl-logo.png" alt="" width={24} height={24} />{" "}
+            Kipferl
+          </Link>
+          <span>Python-style code. Standalone tools.</span>
+          <nav aria-label="Footer">
+            <Link href="/docs">Docs</Link>
+            <Link href="/blog/kipferl-0-7">What’s new</Link>
+            <Link href="/docs/guides/development">Contribute</Link>
+            <Link href="https://github.com/niklas-heer/kipferl">GitHub</Link>
+          </nav>
+        </footer>
+      </div>
+    </main>
   );
 }

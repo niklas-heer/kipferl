@@ -194,9 +194,9 @@ print(urls.quote("hello world"))`}</code>
             exercises the CLI’s offline mode on disposable runners.
           </p>
           <p>
-            The stable release compatibility run passed 1,725 available checks, with
-            22 explicit dependency skips. The published stable Apple Silicon
-            download also passed checksum verification and a fresh
+            The stable release compatibility run passed 1,725 available checks,
+            with 22 explicit dependency skips. The published stable Apple
+            Silicon download also passed checksum verification and a fresh
             package-install, offline-restore, and detached-executable smoke
             test.
           </p>
