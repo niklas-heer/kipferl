@@ -15,6 +15,7 @@ mod bundle;
 mod completions;
 mod dependencies;
 mod dev_command;
+mod embedded_json;
 mod embedded_runtime;
 mod encoding;
 mod package_compat;

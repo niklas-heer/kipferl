@@ -78,8 +78,8 @@ jobs:
           version: 2026.9.1
           install_args: "rust python node bun"
       - name: Build instrumented PocketPy tests
-        run: cargo test --locked -p kipferl-runtime --lib --test ffi_stress --no-run
-      - name: Stress PocketPy callbacks and lifecycle
+        run: cargo test --locked -p kipferl-runtime --lib --test ffi_stress --test dotted_imports --no-run
+      - name: Stress PocketPy callbacks, imports, and lifecycle
         shell: bash
         run: |
           export LD_PRELOAD="$(gcc -print-file-name=libasan.so)"
@@ -87,8 +87,8 @@ jobs:
           while IFS= read -r test_binary; do
             "$test_binary" --test-threads=1
             test_count=$((test_count + 1))
-          done < <(find target/debug/deps -maxdepth 1 -type f -executable \( -name 'kipferl_runtime-*' -o -name 'ffi_stress-*' \) | sort)
-          test "$test_count" -eq 2
+          done < <(find target/debug/deps -maxdepth 1 -type f -executable \( -name 'kipferl_runtime-*' -o -name 'ffi_stress-*' -o -name 'dotted_imports-*' \) | sort)
+          test "$test_count" -eq 3
 
   build:
     name: Build (${{ matrix.target }})
@@ -302,7 +302,10 @@ jobs:
           cli = Path("target/${{ matrix.target }}/release/kipferl")
           cli_size = cli.stat().st_size
           print(f"{cli}: {cli_size:,} bytes")
-          cli_limit = 6_750_000
+          # The development CLI includes native PyPI resolution, TLS, wheel
+          # validation, and compressed compatibility evidence. This budget is
+          # separate from the runtime/loader budgets that bound shipped apps.
+          cli_limit = 9_250_000
           assert cli_size < cli_limit, (
               f"Rust CLI with embedded runtime exceeds {cli_limit:,} bytes: {cli_size:,} bytes"
           )

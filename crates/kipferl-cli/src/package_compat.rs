@@ -6,9 +6,9 @@ use std::sync::OnceLock;
 
 use serde_json::Value;
 
-const CATALOG: &str = include_str!("../../../compatibility/packages/catalog.json");
-const POPULARITY_CATALOG: &str =
-    include_str!("../../../compatibility/packages/popularity-catalog.json");
+const CATALOG_GZ: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/catalog.json.gz"));
+const POPULARITY_CATALOG_GZ: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/popularity-catalog.json.gz"));
 static COMBINED_CATALOG: OnceLock<io::Result<Value>> = OnceLock::new();
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -40,7 +40,12 @@ pub fn catalog() -> io::Result<Value> {
 
 fn cached_catalog() -> io::Result<&'static Value> {
     COMBINED_CATALOG
-        .get_or_init(|| combine_catalogs(CATALOG, POPULARITY_CATALOG))
+        .get_or_init(|| {
+            combine_catalogs(
+                &crate::embedded_json::decode(CATALOG_GZ)?,
+                &crate::embedded_json::decode(POPULARITY_CATALOG_GZ)?,
+            )
+        })
         .as_ref()
         .map_err(|error| io::Error::new(error.kind(), error.to_string()))
 }
@@ -282,10 +287,10 @@ fn validate_catalog(value: &Value) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CATALOG, POPULARITY_CATALOG, Status, assess, catalog, combine_catalogs, evidence_key,
-        validate_catalog,
-    };
+    use super::{Status, assess, catalog, combine_catalogs, evidence_key, validate_catalog};
+    const CATALOG: &str = include_str!("../../../compatibility/packages/catalog.json");
+    const POPULARITY_CATALOG: &str =
+        include_str!("../../../compatibility/packages/popularity-catalog.json");
 
     #[test]
     fn bundled_catalog_is_valid() -> Result<(), Box<dyn std::error::Error>> {
@@ -347,6 +352,9 @@ mod tests {
         let reviewed: serde_json::Value = serde_json::from_str(CATALOG)?;
         let automated: serde_json::Value = serde_json::from_str(POPULARITY_CATALOG)?;
         let combined = combine_catalogs(CATALOG, POPULARITY_CATALOG)?;
+        if catalog()? != combined {
+            return Err("compressed catalog differs from canonical evidence".into());
+        }
         let records = combined
             .get("records")
             .and_then(serde_json::Value::as_array)

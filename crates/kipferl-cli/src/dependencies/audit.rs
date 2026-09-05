@@ -1,13 +1,15 @@
 //! Offline presentation of the pinned package popularity audit.
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Write};
+use std::sync::OnceLock;
 
 use serde::Deserialize;
 use serde_json::Value;
 
 use super::{invalid, registry::valid_hash};
 
-const REPORT: &str = include_str!("../../../../compatibility/packages/popularity-audit.json");
+const REPORT_GZ: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/popularity-audit.json.gz"));
+static REPORT: OnceLock<io::Result<(Audit, Value)>> = OnceLock::new();
 const DEFAULT_LIMIT: usize = 20;
 const MAX_PACKAGES: usize = 1000;
 
@@ -176,13 +178,16 @@ pub(super) fn show(arguments: &[String], stdout: &mut dyn Write) -> io::Result<(
         );
     }
     let options = options(arguments)?;
-    let (audit, value) = parse(REPORT)?;
+    let (audit, value) = REPORT
+        .get_or_init(|| parse(&crate::embedded_json::decode(REPORT_GZ)?))
+        .as_ref()
+        .map_err(|error| io::Error::new(error.kind(), error.to_string()))?;
     if options.json {
         serde_json::to_writer_pretty(&mut *stdout, &value).map_err(invalid)?;
         writeln!(stdout)
     } else {
         render(
-            &audit,
+            audit,
             options.limit,
             &super::runtime_hash()?,
             crate::run_command::embedded_runtime_target(),
@@ -425,6 +430,8 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{invalid, options, parse, render};
+    const CANONICAL_REPORT: &str =
+        include_str!("../../../../compatibility/packages/popularity-audit.json");
 
     fn check(condition: bool, message: &str) -> io::Result<()> {
         if condition {
@@ -613,7 +620,7 @@ mod tests {
             &mut stdout,
             &mut stderr,
         )?;
-        let expected: Value = serde_json::from_str(super::REPORT).map_err(invalid)?;
+        let expected: Value = serde_json::from_str(CANONICAL_REPORT).map_err(invalid)?;
         let actual: Value = serde_json::from_slice(&stdout).map_err(invalid)?;
         check(
             code == 0 && stderr.is_empty() && actual == expected,
@@ -657,7 +664,7 @@ mod tests {
     }
     #[test]
     fn bundled_audit_contains_the_completed_thousand_package_snapshot() -> io::Result<()> {
-        let (audit, _) = parse(super::REPORT)?;
+        let (audit, _) = parse(CANONICAL_REPORT)?;
         check(
             audit.complete && audit.requested_count == 1000 && audit.completed_count == 1000,
             "the bundled popularity audit must contain all 1000 ranked results before release",

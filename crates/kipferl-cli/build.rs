@@ -36,6 +36,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         PathBuf::from(env::var_os("OUT_DIR").ok_or("Cargo must supply OUT_DIR")?);
     compress(&full_content, &output_directory.join("full-runtime.gz"))?;
     compress(&core_content, &output_directory.join("core-runtime.gz"))?;
+    let evidence = assets.join("../../../compatibility/packages");
+    for name in ["catalog", "popularity-catalog", "popularity-audit"] {
+        let source = evidence.join(format!("{name}.json"));
+        println!("cargo:rerun-if-changed={}", source.display());
+        let content = fs::read(&source)?;
+        if content.len() > 8 * 1024 * 1024 {
+            return Err(format!("embedded evidence {} exceeds 8 MiB", source.display()).into());
+        }
+        compress(&content, &output_directory.join(format!("{name}.json.gz")))?;
+    }
     fs::write(
         output_directory.join("embedded_runtime_keys.rs"),
         format!(
