@@ -194,7 +194,7 @@ To promote a candidate to stable, remove the `-rc.N` suffix from all version
 files and rebuild the components. Their bytes and package-lock identities can
 change even when language behavior does not. Generate fresh reviewed evidence
 for the final binaries; never relabel the candidate's hashes. A stable tag such
-as `v0.7.0` updates GitHub's latest release and the Homebrew formula. The formula
+as `v0.7.1` updates GitHub's latest release and the Homebrew formula. The formula
 updater downloads all four binaries and their checksum sidecars, verifies them,
 and replaces the formula only after every artifact matches. After publication,
 verify the public downloads, Homebrew version/checksums, and live documentation.

@@ -59,10 +59,7 @@ from the [{current_tag} GitHub release](https://github.com/{repo}/releases/tag/{
 - `kipferl-macos-aarch64` — macOS Apple Silicon
 - `kipferl-macos-x86_64` — macOS Intel
 - `kipferl-linux-aarch64` — Linux ARM64, static musl
-- `kipferl-linux-x86_64` — Linux x86_64, static musl
-
-Temporary `ucharm-*` compatibility assets remain available for existing
-automation during the v0.6 transition."""
+- `kipferl-linux-x86_64` — Linux x86_64, static musl"""
     return """### Installation
 
 ```bash

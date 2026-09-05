@@ -97,7 +97,7 @@ Cargo.toml
 rust-toolchain.toml
 crates/
 ├── pocketpy-sys/       # C compilation and raw PocketPy declarations
-├── kipferl-format/      # MCHARM01 trailer, hashes, target names
+├── kipferl-format/      # Kipferl v1 universal format trailer, hashes, target names
 ├── kipferl-runtime/     # VM ownership and native module registration
 ├── kipferl-loader/      # Standalone universal-binary loader
 └── kipferl-cli/         # new/init/run/build/test commands
@@ -157,7 +157,7 @@ Each cutover PR must preserve these contracts:
    TUI output remain compatible unless a separate product change is approved.
 3. A Rust CLI can consume the existing embedded loader/runtime assets during
    the transition.
-4. A Rust loader can execute an existing `MCHARM01` universal binary, and a
+4. A Rust loader can execute an existing Kipferl v1 universal binary, and a
    Zig loader can execute one produced by the Rust packager.
 5. All four release targets build and pass smoke tests.
 6. Median warm startup remains at or below 10 ms on the benchmark hosts.
@@ -183,7 +183,7 @@ status, stdout, and stderr.
   `pocketpy-sys`, a Rust-owned VM executes Python, and a probe native module
   crosses the C callback boundary.
 - Phase 2 is functionally complete: `kipferl-format` encodes and decodes the
-  exact `MCHARM01` wire format, and the Rust loader validates, atomically
+  exact Kipferl v1 universal wire format, and the Rust loader validates, atomically
   extracts, caches, and executes Zig-packaged payloads. Zig and Rust share
   byte-level trailer and cache-hash vectors. The measured Rust loader adds
   9.2% to a universal application while slightly improving warm startup; the
@@ -223,7 +223,7 @@ status, stdout, and stderr.
   proof module has been retired.
 - The public presentation namespace is now `tui`, with runtime registration,
   CLI transforms, stubs, templates, tests, examples, and documentation changed
-  together and no legacy module alias. `MCHARM01` remains frozen for binary
+  together and no legacy module alias. Kipferl v1 universal format remains frozen for binary
   compatibility; broader product-name clearance is a separate launch decision.
 - Phase 5 is complete: `fnmatch`, `base64`, `binascii`, `statistics`,
   `textwrap`, `heapq`, `typing`, `itertools`, `errno`, `copy`, `functools`, and
@@ -362,7 +362,7 @@ budget or have a concrete measured recovery plan.
 
 ### Phase 2 — Port the universal format and loader
 
-- Implement the 48-byte `MCHARM01` trailer in `kipferl-format` with byte-level
+- Implement the 48-byte Kipferl v1 universal format trailer in `kipferl-format` with byte-level
   golden vectors shared with the Zig tests.
 - Port loader validation, hashing, cache naming, extraction, permissions,
   cleanup, and `exec` behavior.
@@ -558,7 +558,7 @@ should be attributable to one boundary or module group.
 | A long dual implementation stalls the roadmap | Freeze Zig features, port in vertical slices, and enforce exit gates rather than an open-ended rewrite branch. |
 | Behavioral parity drifts silently | Reuse CPython fixtures and add Zig/Rust differential output tests. |
 | Intel macOS support degrades | Keep an explicit x86_64 build and smoke-test job; document its support tier honestly. |
-| Universal binaries become incompatible | Freeze `MCHARM01` as v1 and test both old/new packager-loader directions. |
+| Universal binaries become incompatible | Preserve the Kipferl v1 universal wire format and test both old/new packager-loader directions. |
 
 ## Definition of Done
 

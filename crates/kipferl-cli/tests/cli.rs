@@ -115,24 +115,6 @@ fn dev_runs_immediately_and_restarts_after_an_edit() {
 }
 
 #[test]
-fn legacy_ucharm_command_alias_warns_and_still_runs() {
-    let temporary = TestDirectory::new("legacy alias");
-    let alias = temporary.path.join("ucharm");
-    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_kipferl"), &alias)
-        .expect("create legacy command alias");
-
-    let output = Command::new(alias)
-        .arg("--version")
-        .current_dir(&temporary.path)
-        .output()
-        .expect("run legacy alias");
-
-    assert!(output.status.success());
-    assert!(text(&output.stdout).contains("Kipferl"));
-    assert!(text(&output.stderr).contains("renamed to `kipferl`"));
-}
-
-#[test]
 fn test_runs_single_files_and_propagates_failures() {
     let temporary = TestDirectory::new("test files");
     fs::write(
@@ -180,7 +162,7 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
     let temporary = TestDirectory::new("build modes");
     fs::write(
         temporary.path.join("app.py"),
-        "from ucharm import success\nsuccess('built with Rust')\n",
+        "from kipferl import success\nsuccess('built with Rust')\n",
     )
     .expect("write build fixture");
 
@@ -212,7 +194,7 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
     let single = fs::read_to_string(temporary.path.join("app.single")).expect("read single");
     assert!(single.starts_with("#!/usr/bin/env pocketpy-kipferl\n"));
     assert!(single.contains("from tui import"));
-    assert!(!single.contains("from ucharm import"));
+    assert!(!single.contains("from kipferl import"));
 
     let wrapper = fs::read_to_string(temporary.path.join("app.wrapper")).expect("read wrapper");
     assert!(wrapper.starts_with("#!/bin/bash\n"));
@@ -551,7 +533,7 @@ fn build_handles_parenthesized_legacy_imports_in_all_output_modes() {
 fn run_and_build_preserve_import_examples_inside_multiline_strings() {
     let temporary = TestDirectory::new("literal import examples");
     let literal =
-        "\nfrom kipferl import (\nexample text\nfrom ucharm import confirm\nimport kipferl\n";
+        "\nfrom kipferl import (\nexample text\nfrom kipferl import confirm\nimport kipferl\n";
     let expected = format!("{literal}hello\n");
     for quote in ["\"\"\"", "'''"] {
         let source = format!("doc = {quote}{literal}{quote}\nprint(doc, end='')\nprint('hello')\n");
@@ -645,6 +627,16 @@ fn new_creates_an_executable_project_and_refuses_duplicates() {
     let temporary = TestDirectory::new("new project");
     let created = run(&temporary, &["new", "Test App"]);
     assert!(created.status.success(), "{}", text(&created.stderr));
+
+    let help = run(&temporary, &["--help"]);
+    let banner = text(&help.stdout)
+        .lines()
+        .take(6)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(banner.contains("Kipferl"));
+    assert!(banner.contains(kipferl_cli::version()));
+    assert!(text(&created.stdout).starts_with(&banner));
 
     let app = temporary.path.join("test_app/test_app.py");
     let content = fs::read_to_string(&app).expect("read generated app");

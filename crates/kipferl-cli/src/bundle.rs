@@ -1,4 +1,4 @@
-//! Dependency discovery and portable Python payloads for the existing MCHARM01 loader.
+//! Dependency discovery and portable Python payloads for the universal loader.
 use crate::encoding::base64_encode;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;

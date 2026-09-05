@@ -4,6 +4,25 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## [0.7.1] - 2026-09-05
+
+### Fixed
+
+- Replace the old line-art project banner with the canonical Kipferl banner.
+- Complete the previously announced rename transition: use `kipferl` imports,
+  commands, download names, and `KIPFERL_*` environment variables. Retire the
+  deprecated command/download aliases and test-key variable.
+- Check branding in source, filenames, and the obsolete line-art logo in CI.
+- Refresh the website and all demo formats using the published 0.7.1 CLI.
+
+### Upgrade notes
+
+- Update old project imports and shell configuration to the canonical names
+  before upgrading. The v1 universal executable bytes remain compatible;
+  existing standalone applications continue to run.
+- Runtime-bound dependency locks need refreshing after the runtime changes.
+  Re-run `kipferl add` for declared requirements, review the lock, and test.
+
 ## [0.7.0] - 2026-09-05
 
 ### Added
@@ -147,10 +166,12 @@ All notable user-facing changes are documented here.
 
 - Passes 1,669/1,669 available compatibility checks, with 51 fully compatible
   targeted modules and one host-unavailable TOML baseline.
-- Preserves the `MCHARM01` standalone application format.
+- Preserves the Kipferl v1 standalone application format.
 - Accepts legacy `from ucharm ...` source and environment variables, publishes
   temporary `ucharm-*` assets, and installs a deprecated `ucharm` command alias
   for the 0.6 transition.
 
 [0.7.0]: https://github.com/niklas-heer/kipferl/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/niklas-heer/kipferl/compare/v0.5.0...v0.6.0
+
+[0.7.1]: https://github.com/niklas-heer/kipferl/compare/v0.7.0...v0.7.1

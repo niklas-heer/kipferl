@@ -122,9 +122,7 @@ fn initialize_test_mode(state: &mut InputState) {
     }
     state.test_initialized = true;
 
-    if let Some(keys) =
-        std::env::var_os("KIPFERL_TEST_KEYS").or_else(|| std::env::var_os("MCHARM_TEST_KEYS"))
-    {
+    if let Some(keys) = std::env::var_os("KIPFERL_TEST_KEYS") {
         let bytes = keys.as_os_str().as_bytes();
         if !bytes.is_empty() {
             state.test_keys = Some(bytes.to_vec());

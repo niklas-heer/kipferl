@@ -16,7 +16,7 @@ guidance. Mise remains authoritative. Nix/devenv is excluded by request.
 | atanh accepted -1 and rejected NaN; negative fractional timestamps truncated toward zero. | Correct endpoint/NaN behavior and floor timestamps; test gmtime(-0.25) before the epoch. |
 | VM metadata setters could panic or truncate lengths at the C ABI boundary. | Introduce structured ContextError and fallible set_argv/set_file. Update callers and boundary tests. |
 | Loader cache comparison used 128 KiB of local stack arrays. | Allocate bounded buffers on the heap; a regression validates a populated cache on a 64 KiB worker stack. |
-| Format/loader byte and size operations relied on manually proven indexing, casts, and arithmetic. | Use fixed-width chunks, checked ranges/conversions, and checked subtraction. Preserve golden MCHARM01 bytes/cache keys and all format error behavior. |
+| Format/loader byte and size operations relied on manually proven indexing, casts, and arithmetic. | Use fixed-width chunks, checked ranges/conversions, and checked subtraction. Preserve golden Kipferl v1 universal format bytes/cache keys and all format error behavior. |
 
 Additional findings from clearing the full audit:
 

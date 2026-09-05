@@ -40,19 +40,19 @@ scripts, and Kipferl ships them as single-file binaries that start quickly.
 
 ## Quickstart
 
-**[Kipferl v0.7.0](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0)**
+**[Kipferl v0.7.1](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1)**
 brings project templates, configuration defaults, completions,
 compatibility-checked PyPI dependencies, and portable packaging with local
 modules and resources. Follow the
 [stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
 for Homebrew or a platform binary with checksum verification, then try the
 workflow below. Read the [0.7 release story](https://kipferl.dev/blog/kipferl-0-7)
-for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-070)
+for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-071)
 before moving a project from v0.6 or the release candidate.
 
 Homebrew follows the stable release: use `brew install niklas-heer/tap/kipferl`
 or `brew update && brew upgrade kipferl`, then check `kipferl --version` reports
-`v0.7.0`. The project workflow below requires 0.7; v0.6 still supports explicit
+`v0.7.1`. The project workflow below requires 0.7; v0.6 still supports explicit
 script commands such as `kipferl dev app.py` and `kipferl build app.py -o app`.
 
 ```bash
@@ -120,7 +120,7 @@ run your application tests; do not edit hashes to bypass a mismatch. Dynamic
 `__import__("http.client")` now returns the root `http` module. Use
 `import http.client as client` for the child module. See the
 [package guide](https://kipferl.dev/docs/guides/packages) and
-[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-070) for details.
+[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-071) for details.
 
 Commit `kipferl.json` and `kipferl.lock`. Run, test, and build use the same
 verified installation; standalone builds carry the imported Python modules,
@@ -231,11 +231,11 @@ The pastry name is a small nod to Bun and a literal fit for the product: Kipferl
 packages, and documentation now share the same spelling, with
 [kipferl.dev](https://kipferl.dev) as the public home.
 
-Existing 0.5 users have a gentle transition. The 0.6 release accepts old
-`from ucharm ...` imports and environment variables, publishes temporary
-`ucharm-*` download aliases, and installs `ucharm` as a deprecated command alias.
-The `MCHARM01` application format is deliberately unchanged, so existing
-standalone binaries and caches remain compatible.
+The temporary `ucharm` migration aliases introduced in 0.6 end in 0.7.1.
+Use the `kipferl` command and imports, `KIPFERL_*` environment variables, and
+`kipferl-*` release downloads. See the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-071)
+for the complete migration. The Kipferl v1 universal format keeps its original
+wire bytes, so existing standalone binaries and caches remain compatible.
 
 ## Comparison
 
@@ -355,16 +355,16 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Stable v0.7.0: Homebrew (macOS/Linux)
+### Stable v0.7.1: Homebrew (macOS/Linux)
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
 For an existing installation, run `brew update && brew upgrade kipferl` and
-verify `kipferl --version` reports `v0.7.0`. If you added an RC directory to your
+verify `kipferl --version` reports `v0.7.1`. If you added an RC directory to your
 `PATH`, remove that entry so it does not shadow Homebrew. Read the
-[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-070)
+[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-071)
 for dependency-lock changes. Users with the old μcharm 0.5 formula should replace
 it once:
 
@@ -373,13 +373,14 @@ brew uninstall --force ucharm
 brew install niklas-heer/tap/kipferl
 ```
 
-Kipferl 0.6 introduced `ucharm` as a deprecated migration alias. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
+The deprecated `ucharm` command alias ended in 0.7.1. Update scripts to invoke
+`kipferl`. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
 the final artifact sizes, migration outcome, and verified release evidence.
 
-### v0.7.0: direct download
+### v0.7.1: direct download
 
 Download the stable binary explicitly from its
-[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0).
+[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1).
 Choose the release asset for the machine running Kipferl:
 
 | Platform | Asset |
@@ -394,7 +395,7 @@ matches the filename inside the `.sha256` file. For example, on Apple Silicon:
 
 ```bash
 asset=kipferl-macos-aarch64
-release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.0
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.1
 release_dir=$(mktemp -d)
 cd "$release_dir"
 curl -fLO "$release/$asset"
@@ -612,7 +613,7 @@ Read [the migration plan](RUST_MIGRATION.md), the
 [public retrospective](https://kipferl.dev/blog/rust-migration) for the why,
 the incremental process, accepted tradeoffs, and final measurements.
 
-Stable 0.7 validation on 2026-09-05 (see
+Historical v0.7.0 validation on 2026-09-05 (see
 [the generated compatibility report](tests/compat_report_pocketpy.md) and the
 [published stable evidence](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0)):
 

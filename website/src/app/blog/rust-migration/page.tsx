@@ -130,8 +130,9 @@ export default function RustMigrationPage() {
           <p>
             The rename is intentionally compatible. Version 0.6 keeps the old
             command, import forms, environment variables, and release-asset
-            aliases for a transition window. The MCHARM01 binary format stays
-            frozen, so the new identity does not invalidate existing apps.
+            aliases for a transition window. The Kipferl v1 universal format
+            preserves its wire bytes, so the new identity does not invalidate
+            existing apps. The temporary aliases ended in 0.7.1.
           </p>
         </section>
 

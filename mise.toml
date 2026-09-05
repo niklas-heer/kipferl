@@ -35,6 +35,7 @@ run = [
   { task = "doctor" },
   { task = "refresh-runtime-assets" },
   "python3 scripts/generate_stubs.py --check",
+  "python3 scripts/check_branding.py",
   "python3 -m unittest discover -s scripts -p 'test_*.py'",
   { task = "catalog-check" },
   "cargo fmt --all --check",
@@ -98,7 +99,7 @@ depends = ["build"]
 run = "target/release/kipferl run examples/simple_cli.py"
 
 [tasks.demo-gif]
-description = "Record the published v0.7.0 workflow as homepage MP4 and poster (requires VHS)"
+description = "Record the published v0.7.1 workflow as homepage MP4 and poster (requires VHS)"
 run = "bash scripts/record_demo.sh"
 
 [tasks.bindings]

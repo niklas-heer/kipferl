@@ -15,6 +15,11 @@ release, not proof for the unreleased source changes now on main.
   hashes before compiling the CLIs. Verify the documented tested package on
   each supported target; leave targets without behavior evidence unverified.
 - Verify the Homebrew token's required repository permission before promotion.
+- Check that CLI diagnostics, generated projects, release assets, and Homebrew
+  use Kipferl exclusively. The temporary migration aliases ended in 0.7.1;
+  retain historical references only where they explain migration or evidence.
+- Re-record the website demo against the actual published CLI and check every
+  visible frame for current branding.
 - Update versioned release notes and remove unreleased documentation notices
   only when the published artifacts contain the documented features and fixes.
 

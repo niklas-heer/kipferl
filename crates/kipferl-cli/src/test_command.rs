@@ -131,9 +131,7 @@ fn run_compat_tests(
 }
 
 fn find_compat_runner(current_directory: &Path) -> Option<PathBuf> {
-    if let Some(path) = env::var_os("KIPFERL_COMPAT_RUNNER")
-        .or_else(|| env::var_os("UCHARM_COMPAT_RUNNER"))
-        .map(PathBuf::from)
+    if let Some(path) = env::var_os("KIPFERL_COMPAT_RUNNER").map(PathBuf::from)
         && path.is_file()
     {
         return Some(path);
@@ -160,9 +158,7 @@ fn find_compat_runner(current_directory: &Path) -> Option<PathBuf> {
 }
 
 fn runtime_path(current_directory: &Path) -> io::Result<PathBuf> {
-    if let Some(path) = env::var_os("KIPFERL_TEST_RUNTIME")
-        .or_else(|| env::var_os("UCHARM_TEST_RUNTIME"))
-        .map(PathBuf::from)
+    if let Some(path) = env::var_os("KIPFERL_TEST_RUNTIME").map(PathBuf::from)
         && path.is_file()
     {
         return Ok(path);

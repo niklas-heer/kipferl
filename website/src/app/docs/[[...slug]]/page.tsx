@@ -24,8 +24,11 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
       <DocsDescription>{page.data.description}</DocsDescription>
       <div className="rounded-lg border border-fd-border bg-fd-muted px-4 py-3 text-sm text-fd-muted-foreground">
         The project and package workflows are available in{" "}
-        <Link className="underline" href="/blog/kipferl-0-7">
-          v0.7.0
+        <Link
+          className="underline"
+          href="/docs/getting-started/installation#stable-release"
+        >
+          v0.7.1
         </Link>{" "}
         and the current source checkout. Homebrew installs the stable release.{" "}
         <Link className="underline" href="/docs/getting-started/installation">

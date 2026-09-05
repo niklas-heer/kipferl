@@ -1,6 +1,6 @@
 # Real stable-release workflow. Run through scripts/record_demo.sh (mise run demo-gif).
 # The wrapper provides an isolated workspace and checks every command's exit status.
-Output "website/public/demos/kipferl-0.7.mp4"
+Output "website/public/demos/kipferl-0.7.1.mp4"
 Set Shell "bash"
 Set FontFamily "Menlo"
 Set FontSize 22

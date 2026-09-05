@@ -415,7 +415,7 @@ export default function HomePage() {
           aria-label="Release verification"
         >
           <div>
-            <strong>0.7.0</strong>
+            <strong>0.7.1</strong>
             <span>Stable & ready to build with</span>
           </div>
           <div>
@@ -426,7 +426,7 @@ export default function HomePage() {
             <strong>1,725 checks</strong>
             <span>Available compatibility checks passed</span>
           </div>
-          <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0">
+          <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1">
             Inspect the release evidence <ArrowUpRight size={17} />
           </Link>
         </section>

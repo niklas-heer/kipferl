@@ -55,8 +55,15 @@ export default function StableReleasePage() {
         </header>
 
         <aside className="mb-14 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6 text-gray-700 dark:text-gray-300">
-          <strong>Install stable 0.7.0 with Homebrew.</strong> Run{" "}
-          <code>brew install niklas-heer/tap/kipferl</code>, or{" "}
+          <strong>0.7.1 is the latest patch release.</strong> It completes the
+          product rename; see the{" "}
+          <Link
+            className="text-cyan-600 dark:text-cyan-400 underline"
+            href="/docs/guides/packages#upgrade-to-071"
+          >
+            migration notes
+          </Link>
+          . Run <code>brew install niklas-heer/tap/kipferl</code>, or{" "}
           <code>brew update</code> and <code>brew upgrade kipferl</code> for an
           existing installation. The{" "}
           <Link

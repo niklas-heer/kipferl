@@ -192,7 +192,7 @@ fn run_new(
     };
     options.app_name = Some(name.clone());
 
-    print_new_logo(stdout)?;
+    print_logo(stdout)?;
     writeln!(stdout, "Creating new project: {BOLD}{name}{RESET}\n")?;
 
     if minimal {
@@ -409,7 +409,7 @@ const fn logo_padding(width: usize, content_width: usize) -> (usize, usize) {
 
 fn print_logo(output: &mut dyn Write) -> io::Result<()> {
     let tagline = "Beautiful CLIs with PocketPy";
-    let title_width = 8_usize.saturating_add(version().len());
+    let title_width = 9_usize.saturating_add(version().len());
     let box_width = tagline.len().max(title_width).saturating_add(6);
     let (title_pad_left, title_pad_right) = logo_padding(box_width, title_width);
     let (tagline_pad_left, tagline_pad_right) = logo_padding(box_width, tagline.len());
@@ -431,14 +431,6 @@ fn print_logo(output: &mut dyn Write) -> io::Result<()> {
     )?;
     write!(output, "{CYAN}{BOLD}  ╰{}╯\n{RESET}", "─".repeat(box_width))?;
     writeln!(output)
-}
-
-fn print_new_logo(output: &mut dyn Write) -> io::Result<()> {
-    writeln!(
-        output,
-        "\n{CYAN}┌┬┐┌─┐┬ ┬┌─┐┬─┐┌┬┐{RESET}\n{CYAN}││││  ├─┤├─┤├┬┘│││{RESET}\n{CYAN}┴ ┴└─┘┴ ┴┴ ┴┴└─┴ ┴{RESET}"
-    )?;
-    writeln!(output, "{DIM}Beautiful CLIs with PocketPy{RESET}\n")
 }
 
 fn main_help() -> String {

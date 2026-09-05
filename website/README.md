@@ -25,7 +25,7 @@ npm, pnpm, or Yarn lockfile.
 | `src/app/llms-full.txt/route.ts` | Complete documentation text |
 | `public/` | Images and demo recording |
 
-The homepage recording is real terminal output from the published v0.7.0 CLI.
+The homepage recording is real terminal output from the published v0.7.1 CLI.
 Install VHS, ttyd, FFmpeg (including ffprobe), WebP (`cwebp`), and the browser required by VHS,
 then run from the repository root:
 
@@ -36,8 +36,8 @@ KIPFERL_DEMO_CLI=/absolute/path/to/published/kipferl mise run demo-gif
 The default binary path is `target/published-stable-verification/kipferl-macos-aarch64`.
 Use the published binary for your host: a local rebuild can have a different
 runtime hash and will not inherit the release's tested package evidence.
-The task checks version 0.7.0, runs `demo.tape` in a fresh temporary workspace,
-and writes `public/demos/kipferl-0.7.mp4` and its lossless WebP poster at 1280×800.
+The task checks version 0.7.1, runs `demo.tape` in a fresh temporary workspace,
+and writes `public/demos/kipferl-0.7.1.mp4` and its lossless WebP poster at 1280×800.
 It requires network access to PyPI for the real `tzdata==2025.2` download.
 No output is mocked; any failed command invalidates the recording.
 
@@ -50,10 +50,11 @@ caches and runs the executable from a separate directory. Only that temporary
 workspace is removed. Update the homepage's chapter seek times after re-recording
 because actual download and execution times can vary. The poster is extracted
 at second 27; override `KIPFERL_DEMO_POSTER_SECOND` if that view has shifted.
-The historical GIF files
-remain separate from this stable-release recording.
+The root `demo.gif` and `public/demo.gif` are refreshed from this same recording,
+so historical article embeds show the current branding. Their captions identify
+the newer workflow rather than implying it was available in the older release.
 
-Documentation covers stable v0.7.0 and the current `main` checkout. Clearly
+Documentation covers stable v0.7.1 and the current `main` checkout. Clearly
 label future source-only changes, and keep the shared notice and AI-readable
 export aligned with the version offered by the installation guide.
 Preserve the historical scope of release articles and performance measurements;

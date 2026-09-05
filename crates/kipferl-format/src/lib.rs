@@ -21,6 +21,7 @@
 use core::error::Error;
 use core::fmt;
 
+// Frozen wire bytes, not branding: changing these breaks existing universal apps.
 pub const TRAILER_MAGIC: [u8; 8] = *b"MCHARM01";
 pub const TRAILER_SIZE: usize = 48;
 const TRAILER_SIZE_U64: u64 = 48;

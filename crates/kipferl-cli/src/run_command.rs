@@ -134,9 +134,7 @@ pub fn prepare_transformed_script(script_path: &Path) -> io::Result<PathBuf> {
 }
 
 fn cache_directory() -> PathBuf {
-    let cache_root = env::var_os("KIPFERL_CACHE_DIR")
-        .or_else(|| env::var_os("UCHARM_CACHE_DIR"))
-        .map_or_else(env::temp_dir, PathBuf::from);
+    let cache_root = env::var_os("KIPFERL_CACHE_DIR").map_or_else(env::temp_dir, PathBuf::from);
     cache_root.join(format!("kipferl-run-{:016x}", embedded_runtime::full_key()))
 }
 
@@ -151,11 +149,11 @@ pub fn transform_source(source: &str) -> io::Result<String> {
         .into_iter()
         .rev()
     {
-        if !statement.modules.iter().any(|name| {
-            matches!(name.as_str(), "kipferl" | "ucharm")
-                || name.starts_with("kipferl.")
-                || name.starts_with("ucharm.")
-        }) {
+        if !statement
+            .modules
+            .iter()
+            .any(|name| name == "kipferl" || name.starts_with("kipferl."))
+        {
             continue;
         }
         let span = statement.start..statement.end;
@@ -200,10 +198,7 @@ fn legacy_import(code: &str) -> io::Result<String> {
     let Some((module, imports)) = rest.split_once(" import") else {
         return Err(unsupported());
     };
-    let suffix = module
-        .strip_prefix("kipferl")
-        .or_else(|| module.strip_prefix("ucharm"))
-        .ok_or_else(unsupported)?;
+    let suffix = module.strip_prefix("kipferl").ok_or_else(unsupported)?;
     let mapped = match suffix {
         "" => None,
         ".components" | ".style" | ".table" | ".tui" => Some("tui"),

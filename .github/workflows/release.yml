@@ -20,6 +20,7 @@ jobs:
           version: 2026.9.1
           install_args: "rust python node bun"
       - run: python3 scripts/check_release_version.py
+      - run: python3 scripts/check_branding.py
 
   build-components:
     name: Build runtime and loader (${{ matrix.target }})
@@ -261,20 +262,15 @@ jobs:
           mkdir -p release-assets
           cp target/${{ matrix.target }}/release/kipferl \
             release-assets/kipferl-${{ matrix.suffix }}
-          cp target/${{ matrix.target }}/release/kipferl \
-            release-assets/ucharm-${{ matrix.suffix }}
           python3 - <<'PY'
           import hashlib
           from pathlib import Path
 
-          for cli in [
-              Path("release-assets/kipferl-${{ matrix.suffix }}"),
-              Path("release-assets/ucharm-${{ matrix.suffix }}"),
-          ]:
-              digest = hashlib.sha256(cli.read_bytes()).hexdigest()
-              cli.with_name(cli.name + ".sha256").write_text(
-                  f"{digest}  {cli.name}\n"
-              )
+          cli = Path("release-assets/kipferl-${{ matrix.suffix }}")
+          digest = hashlib.sha256(cli.read_bytes()).hexdigest()
+          cli.with_name(cli.name + ".sha256").write_text(
+              f"{digest}  {cli.name}\n"
+          )
           PY
 
       - name: Upload CLI asset
@@ -345,7 +341,6 @@ jobs:
           mkdir -p release
           find artifacts -type f \( \
             -name 'kipferl-*' -o \
-            -name 'ucharm-*' -o \
             -name 'pocketpy-kipferl-*' -o \
             -name 'kipferl-loader-*' -o \
             -name 'compatibility-report.md' -o \
@@ -356,7 +351,6 @@ jobs:
           \) -exec cp {} release/ \;
           find release -type f \( \
             -name 'kipferl-*' -o \
-            -name 'ucharm-*' -o \
             -name 'pocketpy-kipferl-*' -o \
             -name 'kipferl-loader-*' \
           \) ! -name '*.sha256' -exec chmod +x {} +

@@ -117,10 +117,12 @@ export default function KipferlReleasePage() {
           </p>
           <p>
             The migration was incremental and compatibility-gated. The
-            application format remains <code>MCHARM01</code>, existing binaries
-            keep running, and the temporary <code>ucharm</code> command,
-            imports, environment variables, and download aliases make the
-            transition deliberate rather than abrupt. Read the full{" "}
+            application format remains the Kipferl v1 universal format with its
+            original wire bytes, existing binaries keep running, and the
+            temporary <code>ucharm</code> command, imports, environment
+            variables, and download aliases make the transition deliberate
+            rather than abrupt. Those temporary aliases ended in 0.7.1; new
+            installations use only Kipferl. Read the full{" "}
             <Link href="/blog/rust-migration">migration retrospective</Link> for
             the why, how, outcome, and tradeoffs.
           </p>
@@ -143,13 +145,18 @@ export default function KipferlReleasePage() {
           <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl shadow-black/20">
             <Image
               src="/demo.gif"
-              alt="Kipferl terminal demo with styled output and interactive prompts"
-              width={720}
-              height={520}
+              alt="Kipferl 0.7.1 terminal demo: create a project, install timezone data, and ship an executable"
+              width={1280}
+              height={800}
               className="w-full"
               unoptimized
             />
           </div>
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+            Recording refreshed for 0.7.1: project creation, package checks, and
+            standalone shipping. These project and package commands arrived in
+            0.7; the rest of this article records the 0.6 release.
+          </p>
         </section>
 
         <section className="prose prose-lg dark:prose-invert max-w-none mb-20">
@@ -293,9 +300,9 @@ export default function KipferlReleasePage() {
             <code>{`brew uninstall --force ucharm\nbrew install niklas-heer/tap/kipferl`}</code>
           </pre>
           <p className="text-gray-300 leading-relaxed">
-            Kipferl 0.6 still installs <code>ucharm</code> as a deprecated alias
-            for this transition release. Direct downloads and checksum commands
-            are in the installation guide.
+            Kipferl 0.6 installed <code>ucharm</code> as a deprecated migration
+            alias, which was removed in 0.7.1. Direct downloads and checksum
+            commands are in the installation guide.
           </p>
         </section>
 

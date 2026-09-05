@@ -42,16 +42,15 @@ fn selection_byte_streams_match_the_zig_runtime() {
 }
 
 #[test]
-fn accepts_the_legacy_input_test_key_variable() {
+fn accepts_the_input_test_key_variable() {
     let output = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args([
             "-c",
             "import input; print(repr(input.confirm('Continue?')))",
         ])
-        .env_remove("KIPFERL_TEST_KEYS")
-        .env("MCHARM_TEST_KEYS", "y")
+        .env("KIPFERL_TEST_KEYS", "y")
         .output()
-        .expect("run with legacy test-key variable");
+        .expect("run with test-key variable");
 
     assert!(output.status.success(), "{}", diagnostic(&output));
     assert!(output.stdout.ends_with(b"True\n"));
@@ -207,7 +206,6 @@ fn restores_real_terminal_settings_after_interaction() {
             "import input; print(repr(input.confirm('Continue?')))",
         ])
         .env_remove("KIPFERL_TEST_KEYS")
-        .env_remove("MCHARM_TEST_KEYS")
         .stdin(Stdio::from(child_stdin))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -278,7 +276,6 @@ fn run_ratatui_in_pty(source: &str, keys: &[u8]) -> String {
     let mut child = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
         .env_remove("KIPFERL_TEST_KEYS")
-        .env_remove("MCHARM_TEST_KEYS")
         .stdin(Stdio::from(child_stdin))
         .stdout(Stdio::from(child_stdout))
         .stderr(Stdio::piped())

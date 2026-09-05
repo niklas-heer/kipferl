@@ -31,9 +31,7 @@ fn main() -> ExitCode {
 
 fn run() -> Result<(), LoaderError> {
     let executable = env::current_exe()?;
-    let cache_root = env::var_os("KIPFERL_CACHE_DIR")
-        .or_else(|| env::var_os("UCHARM_CACHE_DIR"))
-        .map_or_else(env::temp_dir, Into::into);
+    let cache_root = env::var_os("KIPFERL_CACHE_DIR").map_or_else(env::temp_dir, Into::into);
     let prepared = prepare_path(&executable, &cache_root)?;
 
     let error = Command::new(&prepared.runtime_path)

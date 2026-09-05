@@ -60,7 +60,7 @@ def main() -> None:
     parser.add_argument(
         "--zig",
         type=Path,
-        default=Path("pocketpy/zig-out/bin/pocketpy-ucharm"),
+        default=Path("target/migration-baseline/pocketpy-kipferl"),
     )
     parser.add_argument(
         "--rust",

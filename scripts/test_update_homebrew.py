@@ -75,6 +75,8 @@ output.write_bytes((Path(os.environ['TEST_DOWNLOADS']) / name).read_bytes())
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         formula = self.formula.read_text()
         self.assertIn('version "0.7.0"', formula)
+        self.assertIn('bin.install binary_name => "kipferl"', formula)
+        self.assertNotIn('install_symlink', formula)
         for digest in self.hashes.values():
             self.assertIn(f'sha256 "{digest}"', formula)
         self.assertNotIn(self.original.decode(), formula)

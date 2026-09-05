@@ -554,9 +554,7 @@ fn component_for(
         return Ok(Cow::Borrowed(embedded));
     }
 
-    if let Some(directory) =
-        env::var_os("KIPFERL_RUNTIME_DIR").or_else(|| env::var_os("UCHARM_RUNTIME_DIR"))
-    {
+    if let Some(directory) = env::var_os("KIPFERL_RUNTIME_DIR") {
         let component = PathBuf::from(directory).join(filename);
         if component.is_file() {
             return fs::read(component).map(Cow::Owned);
@@ -600,9 +598,7 @@ fn component_for(
 }
 
 fn runtime_cache_directory() -> PathBuf {
-    if let Some(directory) =
-        env::var_os("KIPFERL_RUNTIME_CACHE_DIR").or_else(|| env::var_os("UCHARM_RUNTIME_CACHE_DIR"))
-    {
+    if let Some(directory) = env::var_os("KIPFERL_RUNTIME_CACHE_DIR") {
         return PathBuf::from(directory);
     }
     env::var_os("HOME").map_or_else(

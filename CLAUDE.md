@@ -16,14 +16,15 @@ PocketPy VM (vendored C, patched and compiled by Cargo)
 Rust native modules and TUI primitives
        │
        ▼
-Rust CLI + MCHARM01 universal loader
+Rust CLI + Kipferl v1 universal loader
 ```
 
 The Cargo workspace contains:
 
 - `crates/pocketpy-sys`: the narrow generated PocketPy C FFI.
 - `crates/kipferl-runtime`: the PocketPy host and native Python modules.
-- `crates/kipferl-format`: the frozen `MCHARM01` trailer format.
+- `crates/kipferl-format`: the frozen Kipferl v1 universal trailer format.
+  Preserve its original wire bytes for existing application compatibility.
 - `crates/kipferl-loader`: extraction, cache, and execution of universal apps.
 - `crates/kipferl-cli`: `new`, `init`, `run`, `dev`, `build`, `test`, and completions.
 
@@ -69,7 +70,7 @@ publishes matching embedded assets; keep user documentation explicit about this.
   feature-minimal dependencies; justify every new crate against maintenance,
   supply-chain, startup, and binary-size costs.
 - Preserve the Python API, exact output bytes, errors, target names, release
-  artifact names, and `MCHARM01` format unless a product change is approved.
+  artifact names, and Kipferl v1 universal format unless a product change is approved.
 - Keep unsafe code inside the smallest practical PocketPy FFI boundary. A
   borrowed `Value` must not survive an allocating VM call unless it is rooted
   in a VM-owned register or container.

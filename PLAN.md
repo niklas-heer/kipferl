@@ -44,7 +44,7 @@ This is the single source of truth for priorities and next steps.
   and `kipferl dev` cover the new modules and extensions.
 - The archived Zig implementation has been removed from the working tree; use
   final Zig tag `v0.5.0` for archaeology.
-- Preserve PocketPy, the Python-facing API, `MCHARM01` universal binaries, and all current compatibility tests.
+- Preserve PocketPy, the Python-facing API, Kipferl v1 universal binaries, and all current compatibility tests.
 - Establish the Rust/PocketPy FFI and four-target build proof before translating the large runtime module surface.
 - Port in releasable slices: loader, CLI using existing assets, runtime foundation, then module waves.
 - Preserve the frozen v0.5.0 golden and differential fixtures that define
@@ -136,7 +136,7 @@ checked-in runtime assets are separate from the current runtime sources.
   on the same renderer rather than introducing another terminal abstraction.
 - The public presentation module is `tui`, with no legacy module alias. Runtime
   registration, generated-project stubs, CLI transforms, tests, examples, and
-  documentation use the same name. The frozen `MCHARM01` binary format remains
+  documentation use the same name. The frozen Kipferl v1 universal format remains
   unchanged until a separately versioned format migration is justified.
 - The first allocation cleanup replaces `tui.style`'s temporary vector,
   per-code strings, join, and final format with one lazy output buffer. It keeps
@@ -204,7 +204,7 @@ checked-in runtime assets are separate from the current runtime sources.
   namespaces were available when checked, and `kipferl.dev` is now registered
   as the public home. Complete formal legal clearance before the public stable
   launch. Keep the compatibility aliases for the documented 0.6 window; the
-  frozen `MCHARM01` format remains unchanged.
+  frozen Kipferl v1 universal format remains unchanged.
 - **Complete:** the README, website, user docs, generated-project templates,
   and examples now use the Rust architecture, direct `tui`/`input` imports,
   measured performance/size claims, and real architecture-specific RC assets.

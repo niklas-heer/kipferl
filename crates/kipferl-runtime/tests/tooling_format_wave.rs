@@ -76,7 +76,7 @@ fn matches_cpython_for_deterministic_tooling_and_format_operations() {
         "url = 'https://example.com/a b?q=one#two'\n",
         "parsed = urlparse(url)\n",
         "print(parsed.scheme, parsed.netloc, parsed.path, parsed.query, parsed.fragment)\n",
-        "print(unquote(quote('μ charm')), urljoin('https://example.com/a/', 'b'))\n",
+        "print(unquote(quote('μ kipferl')), urljoin('https://example.com/a/', 'b'))\n",
         "document = tomllib.loads(\"name='kipferl'\\n[tool]\\ncount=3\\n\")\n",
         "print(document['name'], document['tool']['count'])\n",
         "root = Element('root', {'kind': 'demo'})\n",
