@@ -1,17 +1,23 @@
-use std::ffi::c_int;
+use std::ffi::{CString, c_int};
 use std::io::Write;
 
 use kipferl_pocketpy_sys as ffi;
 
 use crate::native::{
     Arguments, NativeModule, NativeModuleKind, NativeSignature, RootFrame, Value, execute_module,
-    return_value, type_error,
+    return_value, type_error, value_error,
 };
 
-const SIGNATURES: &[NativeSignature] = &[NativeSignature {
-    signature: c"_stream_write(error, text)",
-    callback: stream_write,
-}];
+const SIGNATURES: &[NativeSignature] = &[
+    NativeSignature {
+        signature: c"_stream_write(error, text)",
+        callback: stream_write,
+    },
+    NativeSignature {
+        signature: c"_kipferl_compile_module(source, filename)",
+        callback: compile_module,
+    },
+];
 
 const SOURCE: &str = r"
 version_info = (3, 11, 0)
@@ -136,4 +142,32 @@ unsafe extern "C" fn stream_write(argc: c_int, stack: ffi::py_StackRef) -> bool 
     let mut roots = RootFrame::new();
     let length = roots.integer(i64::try_from(text.len()).unwrap_or(i64::MAX));
     return_value(length)
+}
+
+/// Return non-dynamic module code for generated wrappers to execute in their
+/// current module via exec(code), without replacing the module's namespace.
+unsafe extern "C" fn compile_module(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing argc values.
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
+    let Some(source) = arguments.get(0).and_then(Value::string) else {
+        return type_error(c"module source must be str");
+    };
+    let Some(filename) = arguments.get(1).and_then(Value::string) else {
+        return type_error(c"module filename must be str");
+    };
+    let (Ok(source), Ok(filename)) = (CString::new(source), CString::new(filename)) else {
+        return value_error(c"module source or filename contains a NUL byte");
+    };
+    // SAFETY: the callback runs in the active VM and owns both terminated
+    // strings throughout compilation. Module-mode compilation stores the code
+    // in the VM's return root but never executes it. The caller may explicitly
+    // exec the returned code in its own current module without globals/locals.
+    unsafe {
+        ffi::py_compile(
+            source.as_ptr(),
+            filename.as_ptr(),
+            ffi::py_CompileMode_EXEC_MODE,
+            false,
+        )
+    }
 }

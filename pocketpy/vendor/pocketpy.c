@@ -25878,15 +25878,61 @@ static Error* pop_context(Compiler* self) {
 }
 
 /* Expression Callbacks */
+// kipferl patch: join adjacent plain string/bytes tokens once, preserving token ownership
+static Error* concatenate_string_literals(Compiler* self, Token* first) {
+    int lookahead = self->i;
+    c11_sbuf buffer;
+    c11_sbuf__ctor(&buffer);
+    bool joined = false;
+    while(true) {
+        // Physical newlines/comments are insignificant only inside brackets.
+        while(first->brackets_level > 0 && tk(lookahead)->type == TK_EOL) lookahead++;
+        Token* candidate = tk(lookahead);
+        if(candidate->type != TK_STR && candidate->type != TK_BYTES) break;
+        if(candidate->type != first->type) {
+            self->i = lookahead;
+            c11_sbuf__dtor(&buffer);
+            return SyntaxError(self, "cannot mix bytes and nonbytes literals");
+        }
+        if(!joined) {
+            c11_sbuf__write_sv(&buffer, c11_string__sv(first->value._str));
+            joined = true;
+        }
+        c11_sv part = c11_string__sv(candidate->value._str);
+        if(part.size > INT_MAX - buffer.data.length - 1) {
+            self->i = lookahead;
+            c11_sbuf__dtor(&buffer);
+            return SyntaxError(self, "concatenated literal is too large");
+        }
+        c11_sbuf__write_sv(&buffer, part);
+        self->i = ++lookahead;
+    }
+    if(joined) {
+        c11_string* combined = c11_sbuf__submit(&buffer);
+        c11_string__delete(first->value._str);
+        first->value._str = combined;
+    }
+    c11_sbuf__dtor(&buffer);
+    return NULL;
+}
+
 static Error* exprLiteral(Compiler* self) {
-    LiteralExpr* e = LiteralExpr__new(prev()->line, &prev()->value);
+    Token* first = prev();
+    if(first->type == TK_STR) {
+        Error* err = concatenate_string_literals(self, first);
+        if(err) return err;
+    }
+    LiteralExpr* e = LiteralExpr__new(first->line, &first->value);
     Ctx__s_push(ctx(), (Expr*)e);
     return NULL;
 }
 
 static Error* exprBytes(Compiler* self) {
-    c11_sv sv = c11_string__sv(prev()->value._str);
-    Ctx__s_push(ctx(), (Expr*)RawStringExpr__new(prev()->line, sv, OP_BUILD_BYTES));
+    Token* first = prev();
+    Error* err = concatenate_string_literals(self, first);
+    if(err) return err;
+    c11_sv sv = c11_string__sv(first->value._str);
+    Ctx__s_push(ctx(), (Expr*)RawStringExpr__new(first->line, sv, OP_BUILD_BYTES));
     return NULL;
 }
 
@@ -26636,27 +26682,49 @@ static Error* read_literal(Compiler* self, py_Ref out) {
             }
             return NULL;
         }
-        case TK_STR: py_newstr(out, value->_str->data); return NULL;
+        // kipferl patch: preserve adjacent literals and binary lengths in default arguments
+        case TK_STR:
+        case TK_BYTES: {
+            Token* first = prev();
+            check(concatenate_string_literals(self, first));
+            c11_sv text = c11_string__sv(first->value._str);
+            if(first->type == TK_STR) {
+                py_newstrv(out, text);
+            } else {
+                unsigned char* bytes = py_newbytes(out, text.size);
+                memcpy(bytes, text.data, text.size);
+            }
+            return NULL;
+        }
         case TK_TRUE: py_newbool(out, true); return NULL;
         case TK_FALSE: py_newbool(out, false); return NULL;
         case TK_NONE: py_newnone(out); return NULL;
         case TK_DOTDOTDOT: py_newellipsis(out); return NULL;
         case TK_LPAREN: {
+            // Parentheses group one literal; a comma (or no items) makes a tuple.
             py_TValue cpnts[4];
             int count = 0;
-            while(true) {
-                if(count == 4)
-                    return SyntaxError(self, "default argument tuple exceeds 4 elements");
-                check(read_literal(self, &cpnts[count]));
-                count += 1;
-                if(curr()->type == TK_RPAREN) break;
-                consume(TK_COMMA);
-                if(curr()->type == TK_RPAREN) break;
+            bool is_tuple = false;
+            match_newlines();
+            if(curr()->type != TK_RPAREN) {
+                while(true) {
+                    if(count == 4)
+                        return SyntaxError(self, "default argument tuple exceeds 4 elements");
+                    check(read_literal(self, &cpnts[count]));
+                    count += 1;
+                    match_newlines();
+                    if(!match(TK_COMMA)) break;
+                    is_tuple = true;
+                    match_newlines();
+                    if(curr()->type == TK_RPAREN) break;
+                }
             }
             consume(TK_RPAREN);
-            py_Ref p = py_newtuple(out, count);
-            for(int i = 0; i < count; i++) {
-                p[i] = cpnts[i];
+            if(count == 1 && !is_tuple) {
+                py_assign(out, &cpnts[0]);
+            } else {
+                py_Ref p = py_newtuple(out, count);
+                for(int i = 0; i < count; i++) p[i] = cpnts[i];
             }
             return NULL;
         }
@@ -26671,6 +26739,8 @@ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
     Error* err;
     do {
         if(!is_lambda) match_newlines();
+        // kipferl patch: accept a trailing comma before the parameter-list terminator
+        if(curr()->type == (is_lambda ? TK_COLON : TK_RPAREN)) break;
         if(state >= 3) return SyntaxError(self, "**kwargs should be the last argument");
         if(match(TK_MUL)) {
             if(state < 1)
@@ -26708,6 +26778,7 @@ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
                 state += 1;
                 break;
         }
+        if(!is_lambda) match_newlines();
     } while(match(TK_COMMA));
     if(!is_lambda) match_newlines();
     return NULL;
@@ -26923,7 +26994,14 @@ __EAT_DOTS_END:
             name = Token__sv(prev());
         }
         Ctx__emit_store_name(ctx(), name_scope(self), py_namev(name), prev()->line);
-    } while(match(TK_COMMA));
+        // kipferl patch: accept trailing commas only inside parenthesized from-imports
+        if(has_bracket) match_newlines();
+        if(!match(TK_COMMA)) break;
+        if(has_bracket) {
+            match_newlines();
+            if(curr()->type == TK_RPAREN) break;
+        }
+    } while(true);
     if(has_bracket) {
         match_newlines();
         consume(TK_RPAREN);

@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 2,
+  "patchset_version": 3,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -12,7 +12,11 @@
         "kipferl patch: bytes.decode accepts encoding/errors args for CPython compatibility",
         "kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__",
         "kipferl patch: ensure __exit__ runs on exceptions and can suppress",
-        "kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)"
+        "kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)",
+        "kipferl patch: accept a trailing comma before the parameter-list terminator",
+        "kipferl patch: accept trailing commas only inside parenthesized from-imports",
+        "kipferl patch: join adjacent plain string/bytes tokens once, preserving token ownership",
+        "kipferl patch: preserve adjacent literals and binary lengths in default arguments"
       ]
     }
   ],
@@ -32,6 +36,14 @@
     {
       "id": "0004-bytes-decode",
       "file": "pocketpy/patches/0004-bytes-decode.patch"
+    },
+    {
+      "id": "0005-trailing-commas",
+      "file": "pocketpy/patches/0005-trailing-commas.patch"
+    },
+    {
+      "id": "0006-adjacent-literals",
+      "file": "pocketpy/patches/0006-adjacent-literals.patch"
     }
   ]
 }

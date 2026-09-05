@@ -64,6 +64,15 @@ unsafe extern "C" {
     pub fn py_sys_setargv(argc: ::core::ffi::c_int, argv: *mut *mut ::core::ffi::c_char);
 }
 unsafe extern "C" {
+    #[doc = " Compile a source string into a code object.\n Use python's `exec()` or `eval()` to execute it."]
+    pub fn py_compile(
+        source: *const ::core::ffi::c_char,
+        filename: *const ::core::ffi::c_char,
+        mode: py_CompileMode,
+        is_dynamic: bool,
+    ) -> bool;
+}
+unsafe extern "C" {
     #[doc = " Run a source string.\n @param source source string.\n @param filename filename (for error messages).\n @param mode compile mode. Use `EXEC_MODE` for statements `EVAL_MODE` for expressions.\n @param module target module. Use NULL for the main module.\n @return `true` if the execution is successful or `false` if an exception is raised."]
     pub fn py_exec(
         source: *const ::core::ffi::c_char,

@@ -1,0 +1,35 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -26671,6 +26671,8 @@
+     Error* err;
+     do {
+         if(!is_lambda) match_newlines();
++        // kipferl patch: accept a trailing comma before the parameter-list terminator
++        if(curr()->type == (is_lambda ? TK_COLON : TK_RPAREN)) break;
+         if(state >= 3) return SyntaxError(self, "**kwargs should be the last argument");
+         if(match(TK_MUL)) {
+             if(state < 1)
+@@ -26708,6 +26710,7 @@
+                 state += 1;
+                 break;
+         }
++        if(!is_lambda) match_newlines();
+     } while(match(TK_COMMA));
+     if(!is_lambda) match_newlines();
+     return NULL;
+@@ -26923,7 +26926,14 @@
+             name = Token__sv(prev());
+         }
+         Ctx__emit_store_name(ctx(), name_scope(self), py_namev(name), prev()->line);
+-    } while(match(TK_COMMA));
++        // kipferl patch: accept trailing commas only inside parenthesized from-imports
++        if(has_bracket) match_newlines();
++        if(!match(TK_COMMA)) break;
++        if(has_bracket) {
++            match_newlines();
++            if(curr()->type == TK_RPAREN) break;
++        }
++    } while(true);
+     if(has_bracket) {
+         match_newlines();
+         consume(TK_RPAREN);

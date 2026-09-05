@@ -81,6 +81,39 @@ impl From<NulError> for ExecuteError {
     }
 }
 
+/// Failure to compile module source without executing it.
+#[derive(Debug)]
+pub enum CompileError {
+    InteriorNul(NulError),
+    PythonException,
+}
+
+impl fmt::Display for CompileError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InteriorNul(_) => {
+                formatter.write_str("Python source or filename contains a NUL byte")
+            }
+            Self::PythonException => formatter.write_str("PocketPy module compilation failed"),
+        }
+    }
+}
+
+impl Error for CompileError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::InteriorNul(error) => Some(error),
+            Self::PythonException => None,
+        }
+    }
+}
+
+impl From<NulError> for CompileError {
+    fn from(error: NulError) -> Self {
+        Self::InteriorNul(error)
+    }
+}
+
 /// Failure to install script metadata into the VM.
 #[derive(Debug)]
 pub enum ContextError {
@@ -137,6 +170,49 @@ impl Vm {
             Err(VM_ACTIVE) => Err(InitializeError::AlreadyActive),
             Err(_) => Err(InitializeError::AlreadyFinalized),
         }
+    }
+
+    /// Check module syntax without executing source or importing its dependencies.
+    ///
+    /// Uses the same non-dynamic statement compilation mode as module imports
+    /// and [`Self::execute`], including module-level `global` declarations.
+    /// The temporary code object is discarded; successful compilation does not
+    /// establish that imports, runtime APIs, or application behavior work.
+    ///
+    /// # Errors
+    /// Returns an error for invalid syntax; the VM retains the Python exception
+    /// for [`Self::print_exception`].
+    pub fn compile(&self, source: &CStr, filename: &CStr) -> Result<(), CompileError> {
+        // SAFETY: `self` owns the active process-wide VM; both C strings remain
+        // alive for this call. EXEC_MODE with is_dynamic=false matches py_exec
+        // and module imports. py_compile constructs code but never executes it.
+        let succeeded = unsafe {
+            ffi::py_compile(
+                source.as_ptr(),
+                filename.as_ptr(),
+                ffi::py_CompileMode_EXEC_MODE,
+                false,
+            )
+        };
+        if succeeded {
+            // SAFETY: successful py_compile stores its temporary code object in
+            // the active VM's return root. Replacing that root with None releases
+            // it for collection without invoking or importing compiled code.
+            unsafe { ffi::py_newnone(ffi::py_retval()) };
+            Ok(())
+        } else {
+            Err(CompileError::PythonException)
+        }
+    }
+
+    /// Check UTF-8 module source with its diagnostic filename, without execution.
+    ///
+    /// # Errors
+    /// Returns an error for embedded NUL bytes or invalid Python syntax.
+    pub fn compile_str(&self, source: &str, filename: &str) -> Result<(), CompileError> {
+        let source = CString::new(source)?;
+        let filename = CString::new(filename)?;
+        self.compile(&source, &filename)
     }
 
     /// Execute source in the main module.
@@ -286,6 +362,15 @@ assert ansi.strikethrough() == '\\x1b[9m'",
             "<rust-test>",
         )
         .expect("execute Python");
+
+        vm.compile_str("global syntax_only_marker\nsyntax_only_marker = 1\nraise RuntimeError('must not execute')", "module.py")
+            .expect("module syntax checks allow globals without execution");
+        assert!(vm.compile_str("x = 1\0", "nul.py").is_err());
+        vm.execute_str(
+            "assert 'syntax_only_marker' not in globals()",
+            "<after-compile>",
+        )
+        .expect("syntax checks leave main globals unchanged");
 
         drop(vm);
         assert!(matches!(
