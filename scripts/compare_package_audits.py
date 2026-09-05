@@ -81,7 +81,7 @@ def compare(before: dict, after: dict, before_hash: str, after_hash: str) -> dic
         "schema_version": 1,
         "scope": "Same popularity snapshot and target. Every previously pinned release and selected artifact must remain identical. Missing baseline metadata is disclosed separately. Compilation completion is not behavioral compatibility.",
         "baseline_dynamic_global_stops": dynamic_global_stops,
-        "baseline_caveat": f"The baseline contains {dynamic_global_stops} global-statement stops under policy v1's dynamic builtin compile(). Those require checker correction rather than new global language support.",
+        "baseline_caveat": f"The baseline contains {dynamic_global_stops} global-statement stops under policy v1's dynamic builtin compile(). Those require checker correction rather than new global language support." if dynamic_global_stops else None,
         "changed_first_blocker_count": sum(row["before"]["category"] == "syntax" and blocker_identity(row["before"]) != blocker_identity(row["after"]) for row in records),
         "still_blocked_with_changed_first_blocker_count": sum(row["before"]["category"] == "syntax" and row["after"]["category"] == "syntax" and blocker_identity(row["before"]) != blocker_identity(row["after"]) for row in records),
         "before": identity(before, before_hash), "after": identity(after, after_hash),
@@ -91,11 +91,12 @@ def compare(before: dict, after: dict, before_hash: str, after_hash: str) -> dic
     }
 
 
-def markdown(report: dict) -> str:
+def markdown(report: dict, comparison_filename: str = "language-patch-comparison.json") -> str:
     rows = report["records"]
     categories = sorted({row[side]["category"] for row in rows for side in ("before", "after")})
-    lines = ["# Package audit after the first language patches", "",
-        "The runtime adds trailing commas in parenthesized imports/function signatures and adjacent plain string/bytes literals. The audit now compiles in normal module mode without executing package source.", "",
+    title = report.get("title", "Package audit after the first language patches")
+    description = report.get("change_description", "The runtime adds trailing commas in parenthesized imports/function signatures and adjacent plain string/bytes literals. The audit now compiles in normal module mode without executing package source.")
+    lines = [f"# {title}", "", description, "",
         f"Compared {len(rows)} ranked projects on `{report['after']['target']}`. {report['same_pinned_metadata_count']} reused identical pinned metadata, releases, and selected artifacts.", "",
         "| Result | Before: top 100 | After: top 100 | Before: top 1,000 | After: top 1,000 |",
         "| --- | ---: | ---: | ---: | ---: |"]
@@ -105,13 +106,16 @@ def markdown(report: dict) -> str:
     completed = [row for row in rows if row["after"].get("compilation_completed") is True]
     source_bearing = [row for row in completed if (row["after"]["source_files_total"] or 0) > 0]
     newly_completed = [row for row in completed if row["before"]["category"] == "syntax"]
-    lines += ["", f"{len(newly_completed)} previously syntax-blocked releases now complete source compilation. The new report contains {len(completed)} compilation-complete distributions, of which {len(source_bearing)} contain Python source. These remain **unverified** until imports, dependencies, and behavior are tested.", "",
-        "The original global-statement diagnostics included a checker limitation: dynamic `compile()` rejected constructs accepted during normal module compilation. Improvements from correcting that checker must not all be attributed to parser patches.", "",
-        f"The first blocker changed in {report['changed_first_blocker_count']} packages, including {report['still_blocked_with_changed_first_blocker_count']} that remain syntax-blocked at another source location or diagnostic. This comparison uses the source file, final source line number, and SyntaxError message; it ignores the changed checker traceback wrapper.", ""]
+    lines += ["", f"{len(newly_completed)} previously syntax-blocked releases now complete source compilation. The new report contains {len(completed)} compilation-complete distributions, of which {len(source_bearing)} contain Python source. These remain **unverified** until imports, dependencies, and behavior are tested.", ""]
+    if report.get("baseline_dynamic_global_stops"):
+        lines += ["The original global-statement diagnostics included a checker limitation: dynamic `compile()` rejected constructs accepted during normal module compilation. Improvements from correcting that checker must not all be attributed to parser patches.", ""]
+    lines += [f"The first blocker changed in {report['changed_first_blocker_count']} packages, including {report['still_blocked_with_changed_first_blocker_count']} that remain syntax-blocked at another source location or diagnostic. This comparison uses the source file, final source line number, and SyntaxError message; it ignores checker traceback wrapper differences.", ""]
+    if newly_completed:
+        lines += ["Newly compilation-complete releases: " + ", ".join(f"{row['name']}=={row['version']}" for row in newly_completed) + ".", ""]
     if report["missing_baseline_metadata"]:
         lines += ["Baseline metadata was unavailable for: " + ", ".join(report["missing_baseline_metadata"]) + ". These rows cannot establish an identical-release comparison.", ""]
     lines += [f"Before runtime: `{report['before']['runtime_sha256']}`. After runtime: `{report['after']['runtime_sha256']}`.", "",
-        "See [the comparison JSON](language-patch-comparison.json) for every transition and exact report/policy hashes, and [the current audit](popularity-audit.json) for complete current evidence.", ""]
+        f"See [the comparison JSON]({comparison_filename}) for every transition and exact report/policy hashes, and [the current audit](popularity-audit.json) for complete current evidence.", ""]
     return "\n".join(lines)
 
 
@@ -120,12 +124,18 @@ def main() -> None:
     parser.add_argument("before", type=Path)
     parser.add_argument("after", type=Path)
     parser.add_argument("--output", type=Path, default=Path("compatibility/packages/language-patch-comparison.json"))
+    parser.add_argument("--title", help="Human-readable title for this comparison")
+    parser.add_argument("--description", help="Describe the specific runtime changes being compared")
     arguments = parser.parse_args()
     before = arguments.before.read_bytes()
     after = arguments.after.read_bytes()
     result = compare(json.loads(before), json.loads(after), sha256(before), sha256(after))
+    if arguments.title:
+        result["title"] = arguments.title
+    if arguments.description:
+        result["change_description"] = arguments.description
     arguments.output.write_text(json.dumps(result, indent=2) + "\n")
-    arguments.output.with_suffix(".md").write_text(markdown(result))
+    arguments.output.with_suffix(".md").write_text(markdown(result, arguments.output.name))
     print(f"Compared {len(result['records'])} projects; {result['same_pinned_metadata_count']} identical metadata pins.")
 
 

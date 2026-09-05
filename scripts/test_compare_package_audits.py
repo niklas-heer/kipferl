@@ -48,6 +48,15 @@ class AuditComparisonTests(unittest.TestCase):
         changed = {"first_blocker": {"file": "package.py", "diagnostic": 'File "<staging>/package.py", line 10\nSyntaxError: expected expression\nerror: compilation failed'}}
         self.assertEqual(comparison.blocker_identity(original), comparison.blocker_identity(changed))
 
+    def test_later_comparison_uses_its_own_scope_and_link(self):
+        report = comparison.compare(self.before, self.after, "before", "after")
+        self.assertIsNone(report["baseline_caveat"])
+        report.update(title="Dotted import comparison", change_description="Native dotted imports.", baseline_dynamic_global_stops=0)
+        rendered = comparison.markdown(report, "dotted-import-comparison.json")
+        self.assertIn("# Dotted import comparison", rendered)
+        self.assertIn("[the comparison JSON](dotted-import-comparison.json)", rendered)
+        self.assertNotIn("original global-statement diagnostics", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()
