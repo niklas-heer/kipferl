@@ -135,6 +135,9 @@ fn resolution_rejects_cycles_with_conflicting_constraints() -> io::Result<()> {
 fn requirements_fail_explicitly_for_unsupported_semantics() -> io::Result<()> {
     for text in [
         "demo[extra]",
+        "demo; extra == 'test'",
+        "demo[extra]; extra == 'test'",
+        "demo @ https://example.com/a.whl ; extra == 'test'",
         "demo; python_version>'3'",
         "demo @ https://example.com/a.whl",
         "../demo",
@@ -148,6 +151,113 @@ fn requirements_fail_explicitly_for_unsupported_semantics() -> io::Result<()> {
         resolver::requirement("Demo_Name ~= 1.2, != 1.2.3").is_ok(),
         "valid PEP508 constraint rejected",
     )
+}
+
+#[test]
+fn inactive_optional_dependencies_preserve_metadata_and_offline_graph() -> io::Result<()> {
+    let requires = [
+        "shared>=1",
+        "test-runner; extra == 'test'",
+        "documentation; extra == 'docs' and sys_platform == 'win32'",
+        "optional-tool; extra == 'test' or extra == 'docs'",
+    ];
+    let (_stage, mut registry) = fixture(vec![
+        package("app", "1.0", &requires)?,
+        package("shared", "1.0", &[])?,
+    ])?;
+    let roots = ["app==1.0".to_owned()];
+    let selected = resolver::resolve(&roots, &mut registry)?;
+    check(
+        selected.len() == 2,
+        "inactive extras entered the resolved graph",
+    )?;
+    let app = selected
+        .iter()
+        .find(|item| item.name == "app")
+        .ok_or_else(|| invalid("resolved app missing"))?;
+    check(
+        app.requires_dist.iter().map(String::as_str).eq(requires),
+        "resolution discarded original optional dependency metadata",
+    )?;
+    resolver::validate_graph(&roots, &selected)?;
+    check(
+        resolver::validate_graph(&roots, std::slice::from_ref(app)).is_err(),
+        "offline validation dropped a required ordinary dependency",
+    )?;
+    let mut extra = selected.clone();
+    extra.push(artifact("test-runner", "1.0"));
+    check(
+        resolver::validate_graph(&roots, &extra).is_err(),
+        "offline graph accepted an unreachable optional package",
+    )?;
+    check(
+        resolver::validate_graph(&["app; extra == 'test'".to_owned()], &selected).is_err(),
+        "offline graph weakened explicit root requirements",
+    )
+}
+
+#[test]
+fn potentially_active_markers_are_rejected_during_resolution_and_offline_validation()
+-> io::Result<()> {
+    for required in [
+        "other; extra == 'test' or sys_platform == 'win32'",
+        "other; extra != 'test'",
+        "other; extra != 'docs' and python_version >= '3.11'",
+        "other; sys_platform == 'linux'",
+    ] {
+        let (mut app, bytes) = package("app", "1.0", &[required])?;
+        let (_stage, mut registry) = fixture(vec![(app.clone(), bytes)])?;
+        let roots = ["app".to_owned()];
+        let error = resolver::resolve(&roots, &mut registry)
+            .err()
+            .ok_or_else(|| invalid("potentially active dependency was silently discarded"))?;
+        check(
+            error.to_string().contains("markers"),
+            "lost active-marker diagnostic",
+        )?;
+        app.requires_dist = vec![required.to_owned()];
+        let error = resolver::validate_graph(&roots, &[app])
+            .err()
+            .ok_or_else(|| invalid("offline graph silently discarded an active dependency"))?;
+        check(
+            error.to_string().contains("markers"),
+            "offline graph lost active-marker diagnostic",
+        )?;
+    }
+    Ok(())
+}
+
+#[test]
+fn optional_edges_do_not_enable_explicit_extras_or_direct_urls() -> io::Result<()> {
+    for (required, diagnostic) in [
+        ("other[extra]", "extras"),
+        ("other[extra]; extra == 'test'", "extras"),
+        ("other @ https://example.com/other.whl", "direct URLs"),
+        (
+            "other @ https://example.com/other.whl ; extra == 'test'",
+            "direct URLs",
+        ),
+    ] {
+        let (mut app, bytes) = package("app", "1.0", &[required])?;
+        let (_stage, mut registry) = fixture(vec![(app.clone(), bytes)])?;
+        let roots = ["app".to_owned()];
+        let error = resolver::resolve(&roots, &mut registry)
+            .err()
+            .ok_or_else(|| invalid("unsupported dependency form was resolved"))?;
+        check(
+            error.to_string().contains(diagnostic),
+            "resolution lost unsupported-form diagnostic",
+        )?;
+        app.requires_dist = vec![required.to_owned()];
+        let error = resolver::validate_graph(&roots, &[app])
+            .err()
+            .ok_or_else(|| invalid("offline graph accepted unsupported dependency form"))?;
+        check(
+            error.to_string().contains(diagnostic),
+            "offline graph lost unsupported-form diagnostic",
+        )?;
+    }
+    Ok(())
 }
 
 #[test]

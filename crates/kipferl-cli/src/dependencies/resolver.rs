@@ -13,7 +13,7 @@ fn conflict(message: impl std::fmt::Display) -> io::Error {
 const MAX_PACKAGES: usize = 128;
 const MAX_ATTEMPTS: usize = 512;
 
-pub(super) fn requirement(text: &str) -> io::Result<Requirement> {
+fn parse_requirement(text: &str) -> io::Result<Requirement> {
     let parsed: Requirement = text
         .parse()
         .map_err(|error| invalid(format!("invalid requirement {text:?}: {error}")))?;
@@ -22,17 +22,36 @@ pub(super) fn requirement(text: &str) -> io::Result<Requirement> {
             "{text}: extras are not supported yet; specify ordinary distribution requirements"
         )));
     }
-    if !parsed.marker.is_true() {
-        return Err(invalid(format!(
-            "{text}: environment markers are not supported yet; dependency selection would be ambiguous"
-        )));
-    }
     if matches!(parsed.version_or_url, Some(VersionOrUrl::Url(_))) {
         return Err(invalid(format!(
             "{text}: direct URLs, VCS and local dependencies are not supported; use a PyPI package name"
         )));
     }
     Ok(parsed)
+}
+
+fn require_unconditional(text: &str, parsed: Requirement) -> io::Result<Requirement> {
+    if !parsed.marker.is_true() {
+        return Err(invalid(format!(
+            "{text}: environment markers are not supported yet; dependency selection would be ambiguous"
+        )));
+    }
+    Ok(parsed)
+}
+
+pub(super) fn requirement(text: &str) -> io::Result<Requirement> {
+    require_unconditional(text, parse_requirement(text)?)
+}
+
+fn transitive_requirement(text: &str) -> io::Result<Option<Requirement>> {
+    let parsed = parse_requirement(text)?;
+    // No extras can be requested through our public requirement parser. The
+    // marker API existentially evaluates all remaining environments: false
+    // proves this edge is inactive without inventing host or target values.
+    if !parsed.marker.evaluate_extras(&[]) {
+        return Ok(None);
+    }
+    require_unconditional(text, parsed).map(Some)
 }
 
 fn matches(requirement: &Requirement, version: &Version) -> bool {
@@ -140,12 +159,14 @@ fn search(
         artifact.requires_dist = wheel.requirements;
         let mut remaining = pending.to_vec();
         for text in &artifact.requires_dist {
-            remaining.push(requirement(text).map_err(|error| {
+            if let Some(required) = transitive_requirement(text).map_err(|error| {
                 invalid(format!(
                     "{}=={} -> {error}",
                     artifact.name, artifact.version
                 ))
-            })?);
+            })? {
+                remaining.push(required);
+            }
         }
         let mut branch = selected.clone();
         branch.insert(name.clone(), artifact.clone());
@@ -174,10 +195,12 @@ pub(super) fn validate_graph(requirements: &[String], artifacts: &[Artifact]) ->
             ));
         }
     }
-    let mut pending = requirements.to_vec();
+    let mut pending = requirements
+        .iter()
+        .map(|text| requirement(text))
+        .collect::<io::Result<Vec<_>>>()?;
     let mut visited = std::collections::BTreeSet::new();
-    while let Some(text) = pending.pop() {
-        let needed = requirement(&text)?;
+    while let Some(needed) = pending.pop() {
         let artifact = packages
             .get(needed.name.as_ref())
             .ok_or_else(|| invalid(format!("lock is missing {needed}")))?;
@@ -188,7 +211,11 @@ pub(super) fn validate_graph(requirements: &[String], artifacts: &[Artifact]) ->
             )));
         }
         if visited.insert(artifact.name.clone()) {
-            pending.extend(artifact.requires_dist.clone());
+            for text in &artifact.requires_dist {
+                if let Some(required) = transitive_requirement(text)? {
+                    pending.push(required);
+                }
+            }
         }
         if visited.len() > MAX_PACKAGES {
             return Err(invalid("lock has too many packages"));
