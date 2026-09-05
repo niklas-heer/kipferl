@@ -38,8 +38,8 @@
     }
   },
   "after": {
-    "report_sha256": "c93b06f74e42886c941769a8b30ed8616237cc6e77a704a23f7854df0cf6d850",
-    "runtime_sha256": "daea3e0f569fe9c623b3452fb44aa34785d3bf17f4e62e139188bef0eeb94331",
+    "report_sha256": "b2de404bfe036bbc9c93af201a85348a59a60087d31117f484f01fb2bc8160e2",
+    "runtime_sha256": "1f54af5ee829e94d74e928c9317b12ed3be304c0aeab087dfd50283a5d3dbfbd",
     "target": "macos-aarch64",
     "audit_policy_sha256": "58a302b826a4de2dd4dcc342f44cdcec1057d35992b617cc458d71d0fcd43a0c",
     "audit_policy": {
@@ -34704,5 +34704,5 @@
     }
   ],
   "title": "Package audit refreshed for Kipferl 0.7.2",
-  "change_description": "Fresh source compilation on the 0.7.2 macOS ARM64 candidate using the same available pinned releases and artifacts as the earlier dotted-import audit. The intervening changes include the completed Kipferl rename; this comparison measures their actual effect rather than assuming new compatibility."
+  "change_description": "Fresh source compilation on the published 0.7.2 macOS ARM64 runtime using the same available pinned releases and artifacts as the earlier dotted-import audit. The intervening changes include the completed Kipferl rename; this comparison measures their actual effect rather than assuming new compatibility."
 }

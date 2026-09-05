@@ -1,6 +1,6 @@
 # Package audit refreshed for Kipferl 0.7.2
 
-Fresh source compilation on the 0.7.2 macOS ARM64 candidate using the same available pinned releases and artifacts as the earlier dotted-import audit. The intervening changes include the completed Kipferl rename; this comparison measures their actual effect rather than assuming new compatibility.
+Fresh source compilation on the published 0.7.2 macOS ARM64 runtime using the same available pinned releases and artifacts as the earlier dotted-import audit. The intervening changes include the completed Kipferl rename; this comparison measures their actual effect rather than assuming new compatibility.
 
 Compared 1000 ranked projects on `macos-aarch64`. 999 reused identical pinned metadata, releases, and selected artifacts.
 
@@ -19,6 +19,6 @@ The first blocker changed in 0 packages, including 0 that remain syntax-blocked 
 
 Baseline metadata was unavailable for: ddtrace. These rows cannot establish an identical-release comparison.
 
-Before runtime: `5797c5f7ff3779270ef3f41b05088f6f08f92817e9a2be24343b4eed7736ca76`. After runtime: `daea3e0f569fe9c623b3452fb44aa34785d3bf17f4e62e139188bef0eeb94331`.
+Before runtime: `5797c5f7ff3779270ef3f41b05088f6f08f92817e9a2be24343b4eed7736ca76`. After runtime: `1f54af5ee829e94d74e928c9317b12ed3be304c0aeab087dfd50283a5d3dbfbd`.
 
 See [the comparison JSON](release-0.7.2-comparison.json) for every transition and exact report/policy hashes, and [the current audit](popularity-audit.json) for complete current evidence.

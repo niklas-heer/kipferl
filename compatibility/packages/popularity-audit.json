@@ -35,7 +35,7 @@
     "coverage": "stop at first compiler failure; unvisited files remain unchecked"
   },
   "audit_policy_sha256": "58a302b826a4de2dd4dcc342f44cdcec1057d35992b617cc458d71d0fcd43a0c",
-  "cache_key": "f9e23407ddc4bae6ebb747dcad6cbbc46ede4d19c66ec16204ac6ee713c263e1",
+  "cache_key": "b799e9275f837fc98237d454ea55060447082637a37cf500f245f93a0ac9e0ef",
   "metadata_seed": {
     "source_cache_key": null,
     "source_runtime_sha256": null,
@@ -46,7 +46,7 @@
     ],
     "policy": "Metadata pins only; no prior compatibility results are reused. Projects without metadata pins use a fresh bounded metadata request."
   },
-  "runtime_sha256": "daea3e0f569fe9c623b3452fb44aa34785d3bf17f4e62e139188bef0eeb94331",
+  "runtime_sha256": "1f54af5ee829e94d74e928c9317b12ed3be304c0aeab087dfd50283a5d3dbfbd",
   "target": "macos-aarch64",
   "python_metadata_target": "3.11.0",
   "requirement_parser": "pip-vendored packaging 26.2",
