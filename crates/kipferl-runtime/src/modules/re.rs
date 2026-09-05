@@ -161,6 +161,64 @@ fn initialize(module: Value) {
     pattern.set_attribute(c"match", pattern_match);
 }
 
+fn compile_pattern(pattern: &str) -> Result<Regex, regex_lite::Error> {
+    Regex::new(&normalize_octal_escapes(pattern))
+}
+
+fn normalize_octal_escapes(pattern: &str) -> String {
+    let mut output = String::with_capacity(pattern.len());
+    let mut characters = pattern.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character != '\\' {
+            output.push(character);
+            continue;
+        }
+        let Some(escaped) = characters.next() else {
+            output.push('\\');
+            break;
+        };
+        // Python treats a zero-prefixed escape, or exactly three octal
+        // digits, as an octal character both inside and outside classes.
+        // Short nonzero forms stay untouched: outside classes they are
+        // numeric backreferences, which regex-lite deliberately rejects.
+        let octal = escaped == '0'
+            || (matches!(escaped, '1'..='7')
+                && characters
+                    .clone()
+                    .take(2)
+                    .filter(|digit| matches!(digit, '0'..='7'))
+                    .count()
+                    == 2);
+        if !octal {
+            output.push('\\');
+            output.push(escaped);
+            continue;
+        }
+        let mut original = String::from("\\");
+        original.push(escaped);
+        let mut value = escaped.to_digit(8).unwrap_or(0);
+        for _ in 0..2 {
+            let Some(digit) = characters.next_if(|digit| matches!(digit, '0'..='7')) else {
+                break;
+            };
+            original.push(digit);
+            value = (value << 3) | digit.to_digit(8).unwrap_or(0);
+        }
+        if value > 0o377 {
+            // Preserve invalid octal text so the engine rejects it in an
+            // expression, but still ignores it inside verbose comments.
+            output.push_str(&original);
+            continue;
+        }
+        // Hex escapes preserve regex metacharacters and verbose whitespace.
+        // Both nibbles are bounded to 0..=15 by the octal range check above.
+        output.push_str("\\x");
+        output.push(char::from_digit(value >> 4, 16).unwrap_or('0'));
+        output.push(char::from_digit(value & 15, 16).unwrap_or('0'));
+    }
+    output
+}
+
 unsafe extern "C" fn captures(argc: c_int, stack: ffi::py_StackRef) -> bool {
     // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
     let arguments = unsafe { Arguments::from_raw(argc, stack) };
@@ -171,7 +229,7 @@ unsafe extern "C" fn captures(argc: c_int, stack: ffi::py_StackRef) -> bool {
         return type_error(c"text must be a string");
     };
     let anchored = arguments.get(2).and_then(Value::boolean).unwrap_or(false);
-    let Ok(regex) = Regex::new(&pattern) else {
+    let Ok(regex) = compile_pattern(&pattern) else {
         return value_error(c"invalid regular expression");
     };
     let Some(found) = regex.captures(&text) else {
@@ -192,7 +250,7 @@ unsafe extern "C" fn all_captures(argc: c_int, stack: ffi::py_StackRef) -> bool 
     let Some(text) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"text must be a string");
     };
-    let Ok(regex) = Regex::new(&pattern) else {
+    let Ok(regex) = compile_pattern(&pattern) else {
         return value_error(c"invalid regular expression");
     };
     let mut roots = RootFrame::new();
@@ -227,7 +285,7 @@ unsafe extern "C" fn substitute(argc: c_int, stack: ffi::py_StackRef) -> bool {
     if count < 0 {
         return return_string(&text);
     }
-    let Ok(regex) = Regex::new(&pattern) else {
+    let Ok(regex) = compile_pattern(&pattern) else {
         return value_error(c"invalid regular expression");
     };
     let limit = usize::try_from(count).unwrap_or(usize::MAX);
@@ -263,7 +321,7 @@ unsafe extern "C" fn split(argc: c_int, stack: ffi::py_StackRef) -> bool {
     if maxsplit < 0 {
         return return_string_list(&[text]);
     }
-    let Ok(regex) = Regex::new(&pattern) else {
+    let Ok(regex) = compile_pattern(&pattern) else {
         return value_error(c"invalid regular expression");
     };
     let limit = usize::try_from(maxsplit).unwrap_or(usize::MAX);

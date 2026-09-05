@@ -89,6 +89,11 @@ path = "tests/process_regex_wave.rs"
 required-features = ["regex"]
 
 [[test]]
+name = "regex_octal"
+path = "tests/regex_octal.rs"
+required-features = ["regex"]
+
+[[test]]
 name = "tooling_format_wave"
 path = "tests/tooling_format_wave.rs"
 required-features = ["formats"]
