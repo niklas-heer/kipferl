@@ -199,6 +199,14 @@ updater downloads all four binaries and their checksum sidecars, verifies them,
 and replaces the formula only after every artifact matches. After publication,
 verify the public downloads, Homebrew version/checksums, and live documentation.
 
+The Homebrew tap requires pull requests. Its automation pushes a release branch,
+opens or reuses the corresponding PR, and requests a normal squash merge with
+auto-merge for pending checks. It never bypasses review or branch rules. If a
+merge cannot complete, the workflow summary links the pending PR instead of
+claiming the formula is live. `HOMEBREW_TAP_TOKEN` needs both Contents: write and
+Pull requests: write on the tap; an API `permissions.push` result alone does not
+establish permission to push a protected default branch or merge a PR.
+
 Each component job generates fresh catalog evidence from the reviewed wheel
 pins against its final full runtime. macOS keeps the behavior hook sandbox;
 Linux requires explicit disposable GitHub Actions execution. Only the pinned,

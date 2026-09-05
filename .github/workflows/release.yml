@@ -404,6 +404,10 @@ jobs:
     needs: release
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
+    env:
+      # Fine-grained tap token: Contents and Pull requests must both be writable.
+      GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      TAP_REPOSITORY: niklas-heer/homebrew-tap
 
     steps:
       - name: Checkout kipferl repository
@@ -412,12 +416,11 @@ jobs:
           path: kipferl
 
       - name: Verify Homebrew tap access
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          can_push=$(gh api repos/niklas-heer/homebrew-tap --jq '.permissions.push')
+          # This checks access, not permission to bypass the tap's PR rules.
+          can_push=$(gh api "repos/$TAP_REPOSITORY" --jq '.permissions.push')
           if [[ "$can_push" != "true" ]]; then
-            echo "HOMEBREW_TAP_TOKEN needs Contents: write access to niklas-heer/homebrew-tap" >&2
+            echo "HOMEBREW_TAP_TOKEN needs Contents: write and Pull requests: write access to niklas-heer/homebrew-tap" >&2
             exit 1
           fi
 
@@ -426,6 +429,7 @@ jobs:
         with:
           repository: niklas-heer/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          fetch-depth: 0
           path: homebrew-tap
 
       - name: Extract version from tag
@@ -435,6 +439,25 @@ jobs:
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Prepare Homebrew release branch
+        id: tap-branch
+        working-directory: homebrew-tap
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          release_branch="codex/kipferl-$RELEASE_VERSION"
+          base_branch=$(gh api "repos/$TAP_REPOSITORY" --jq '.default_branch')
+          git fetch origin "refs/heads/$base_branch:refs/remotes/origin/$base_branch"
+          remote_branch=$(git ls-remote --heads origin "refs/heads/$release_branch")
+          if [[ -n "$remote_branch" ]]; then
+            git fetch origin "refs/heads/$release_branch:refs/remotes/origin/$release_branch"
+            git switch -c "$release_branch" "origin/$release_branch"
+          else
+            git switch -c "$release_branch" "origin/$base_branch"
+          fi
+          echo "branch=$release_branch" >> "$GITHUB_OUTPUT"
+          echo "base=$base_branch" >> "$GITHUB_OUTPUT"
+
       - name: Update Homebrew formula
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -442,25 +465,55 @@ jobs:
           cd kipferl
           ./scripts/update-homebrew.sh "$VERSION"
 
-      - name: Commit and push changes
+      - name: Publish Homebrew pull request
         working-directory: homebrew-tap
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          TAP_BRANCH: ${{ steps.tap-branch.outputs.branch }}
+          TAP_BASE: ${{ steps.tap-branch.outputs.base }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add Formula/kipferl.rb
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "chore: update kipferl to v${{ steps.version.outputs.version }}"
-            git push
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update kipferl to v$RELEASE_VERSION"
           fi
+          if git diff --quiet "origin/$TAP_BASE" -- Formula/kipferl.rb; then
+            echo "Homebrew formula v$RELEASE_VERSION is already current on $TAP_BASE." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          changed_paths=$(git diff --name-only "origin/$TAP_BASE...HEAD")
+          if [[ "$changed_paths" != "Formula/kipferl.rb" ]]; then
+            echo "Release branch contains changes outside Formula/kipferl.rb; review it manually." >&2
+            exit 1
+          fi
+          git push origin "HEAD:refs/heads/$TAP_BRANCH"
+          pr_url=$(gh pr list --repo "$TAP_REPOSITORY" --head "$TAP_BRANCH" \
+            --base "$TAP_BASE" --state open --json url --jq '.[0].url // empty')
+          if [[ -z "$pr_url" ]]; then
+            body_file="$RUNNER_TEMP/kipferl-homebrew-pr.md"
+            cat > "$body_file" <<EOF_BODY
+          Update Kipferl to v$RELEASE_VERSION using all four published binaries verified against their SHA-256 sidecars.
 
-      - name: Create summary
-        run: |
-          echo "## Homebrew Tap Updated" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Formula updated to version **v${{ steps.version.outputs.version }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
-          echo "brew install niklas-heer/tap/kipferl" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          Release: https://github.com/niklas-heer/kipferl/releases/tag/v$RELEASE_VERSION
+
+          Merge through this tap's normal pull-request requirements. The formula becomes available only after this PR merges.
+          EOF_BODY
+            if ! pr_url=$(gh pr create --repo "$TAP_REPOSITORY" --head "$TAP_BRANCH" \
+              --base "$TAP_BASE" --title "chore: update kipferl to v$RELEASE_VERSION" \
+              --body-file "$body_file"); then
+              echo "HOMEBREW_TAP_TOKEN needs Contents: write and Pull requests: write access to $TAP_REPOSITORY." >&2
+              exit 1
+            fi
+          fi
+          # Never bypass required reviews, checks, or merge queues.
+          if ! gh pr merge "$pr_url" --repo "$TAP_REPOSITORY" --auto --squash \
+            --match-head-commit "$(git rev-parse HEAD)"; then
+            echo "::warning::Homebrew PR remains pending; follow repository requirements at $pr_url"
+          fi
+          pr_state=$(gh pr view "$pr_url" --repo "$TAP_REPOSITORY" --json state --jq '.state')
+          if [[ "$pr_state" == "MERGED" ]]; then
+            echo "Homebrew formula v$RELEASE_VERSION merged: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Homebrew formula v$RELEASE_VERSION is pending ($pr_state): $pr_url. It is not yet available from this PR." >> "$GITHUB_STEP_SUMMARY"
+          fi
