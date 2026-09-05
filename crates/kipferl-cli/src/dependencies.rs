@@ -90,13 +90,16 @@ fn execute_inner(
     if command == "deps" && arguments.first().is_some_and(|value| value == "audit") {
         return audit::show(arguments, stdout);
     }
+    if command == "deps" && arguments.first().is_some_and(|value| value == "verified") {
+        return show_verified(arguments, stdout);
+    }
     if arguments
         .iter()
         .any(|value| value == "--help" || value == "-h")
     {
         writeln!(
             stdout,
-            "Usage: kipferl add <requirement> [--allow-unverified]\n       kipferl sync --locked [--offline]\n       kipferl deps check|list|catalog|audit\n\nPure-Python PyPI wheels only. Extras, markers, URLs, native extensions and source builds are unsupported. Compatibility is tied to exact wheel and runtime hashes. Unverified packages require explicit opt-in; known blockers always fail."
+            "Usage: kipferl add <requirement> [--allow-unverified]\n       kipferl sync --locked [--offline]\n       kipferl deps check|list|catalog|audit|verified\n\nPure-Python PyPI wheels only. Optional extra-only transitive dependencies are ignored when no extras are selected. Requested extras, active conditional requirements, URLs, native extensions and source builds are unsupported. Compatibility is tied to exact wheel and runtime hashes. Unverified packages require explicit opt-in; known blockers always fail."
         )?;
         return Ok(());
     }
@@ -154,10 +157,83 @@ fn execute_inner(
                 }
                 Ok(())
             }
-            _ => Err(invalid("usage: kipferl deps check|list|catalog|audit")),
+            _ => Err(invalid(
+                "usage: kipferl deps check|list|catalog|audit|verified",
+            )),
         },
         _ => Err(invalid("unknown dependency command")),
     }
+}
+
+fn show_verified(arguments: &[String], stdout: &mut dyn Write) -> io::Result<()> {
+    let json = match arguments
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["verified"] => false,
+        ["verified", "--json"] => true,
+        ["verified", "--help" | "-h"] => {
+            writeln!(
+                stdout,
+                "Usage: kipferl deps verified [--json]\n\nShow verified package workflows for this embedded runtime and platform. Each approval covers only its stated scope, not every package API. --json exports the matching exact catalog records. No project or network access is required."
+            )?;
+            return Ok(());
+        }
+        _ => return Err(invalid("usage: kipferl deps verified [--json]")),
+    };
+    let runtime = runtime_hash()?;
+    let target = crate::run_command::embedded_runtime_target();
+    let mut catalog = package_compat::catalog()?;
+    let records = catalog
+        .get_mut("records")
+        .and_then(serde_json::Value::as_array_mut)
+        .ok_or_else(|| invalid("catalog records missing"))?;
+    records.retain(|record| {
+        record.get("status").and_then(serde_json::Value::as_str) == Some("tested")
+            && record
+                .get("runtime_sha256")
+                .and_then(serde_json::Value::as_str)
+                == Some(runtime.as_str())
+            && record.get("target").and_then(serde_json::Value::as_str) == Some(target)
+    });
+    if json {
+        return writeln!(
+            stdout,
+            "{}",
+            serde_json::to_string_pretty(&catalog).map_err(invalid)?
+        );
+    }
+    writeln!(
+        stdout,
+        "Verified package workflows for this runtime ({target}):"
+    )?;
+    writeln!(
+        stdout,
+        "Each approval covers only the stated workflow, not every package API."
+    )?;
+    if records.is_empty() {
+        return writeln!(stdout, "No verified workflows for this runtime.");
+    }
+    for record in records {
+        let name = record
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| invalid("verified package name missing"))?;
+        let version = record
+            .get("version")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| invalid("verified package version missing"))?;
+        let scope = record
+            .get("smoke")
+            .and_then(|smoke| smoke.get("scope"))
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| invalid("verified workflow scope missing"))?;
+        writeln!(stdout, "\n{name}=={version}\n  {scope}")?;
+        writeln!(stdout, "  Install: kipferl add {name}=={version}")?;
+    }
+    Ok(())
 }
 
 fn show_catalog(arguments: &[String], stdout: &mut dyn Write) -> io::Result<()> {

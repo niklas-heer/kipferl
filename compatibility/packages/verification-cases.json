@@ -1,0 +1,1354 @@
+{
+  "schema_version": 1,
+  "source_report_sha256": "b2de404bfe036bbc9c93af201a85348a59a60087d31117f484f01fb2bc8160e2",
+  "cases": [
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "wheel_filename": "certifi-2026.7.22-py3-none-any.whl",
+      "wheel_sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+      "kind": "source",
+      "import_names": [
+        "certifi"
+      ],
+      "hook": "smoke/verify_certifi.py",
+      "expected_stdout": "verified certifi\n",
+      "summary": "Read and locate the bundled certificate authorities",
+      "workflow": "Read and locate the bundled certificate authorities",
+      "scope": "Read the complete CA bundle through certifi.contents() and certifi.where(); compare contents and PEM boundaries.",
+      "limitations": [
+        "No TLS handshake, trust decision, certificate parsing, or OS certificate-store integration."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 5,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "certifi/__init__.py",
+          "certifi/__main__.py",
+          "certifi/core.py",
+          "certifi/tests/__init__.py",
+          "certifi/tests/test_certify.py"
+        ]
+      },
+      "display_kind": "data"
+    },
+    {
+      "name": "propcache",
+      "version": "0.5.2",
+      "wheel_filename": "propcache-0.5.2-py3-none-any.whl",
+      "wheel_sha256": "be1ddfcbb376e3de5d2e2db1d58d6d67463e6b4f9f040c000de8e300295465fe",
+      "kind": "source",
+      "import_names": [
+        "propcache"
+      ],
+      "hook": "smoke/verify_propcache.py",
+      "expected_stdout": "verified propcache\n",
+      "summary": "Cache computed object properties",
+      "workflow": "Cache computed object properties",
+      "scope": "Compute each regular/under-cache property once across repeat reads and verify its explicit cache entry.",
+      "limitations": [
+        "Pure Python wheel; no C extension, concurrency, or exhaustive descriptor edge cases."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 4,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "propcache/__init__.py",
+          "propcache/_helpers.py",
+          "propcache/_helpers_py.py",
+          "propcache/api.py"
+        ]
+      }
+    },
+    {
+      "name": "trove-classifiers",
+      "version": "2026.6.1.19",
+      "wheel_filename": "trove_classifiers-2026.6.1.19-py3-none-any.whl",
+      "wheel_sha256": "ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3",
+      "kind": "source",
+      "import_names": [
+        "trove_classifiers"
+      ],
+      "hook": "smoke/verify_trove_classifiers.py",
+      "expected_stdout": "verified trove-classifiers\n",
+      "summary": "Validate package metadata classifiers",
+      "workflow": "Validate package metadata classifiers",
+      "scope": "Validate known and unknown classifiers, classifier enumeration, and one deprecated-classifier replacement.",
+      "limitations": [
+        "No package publishing or build frontend integration."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "trove_classifiers/__init__.py",
+          "trove_classifiers/__main__.py"
+        ]
+      },
+      "display_kind": "data"
+    },
+    {
+      "name": "tzdata",
+      "version": "2026.3",
+      "wheel_filename": "tzdata-2026.3-py2.py3-none-any.whl",
+      "wheel_sha256": "dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931",
+      "kind": "source",
+      "import_names": [
+        "tzdata"
+      ],
+      "hook": "smoke/verify_tzdata.py",
+      "expected_stdout": "verified tzdata\n",
+      "summary": "Read bundled timezone resources",
+      "workflow": "Read bundled timezone resources",
+      "scope": "Verify release/IANA constants and TZif headers for four named timezone files.",
+      "limitations": [
+        "No timezone conversion, DST calculation, or zoneinfo integration."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 22,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "tzdata/__init__.py",
+          "tzdata/zoneinfo/__init__.py",
+          "tzdata/zoneinfo/Africa/__init__.py",
+          "tzdata/zoneinfo/America/__init__.py",
+          "tzdata/zoneinfo/America/Argentina/__init__.py"
+        ]
+      },
+      "display_kind": "data"
+    },
+    {
+      "name": "opentelemetry-exporter-otlp",
+      "version": "1.44.0",
+      "wheel_filename": "opentelemetry_exporter_otlp-1.44.0-py3-none-any.whl",
+      "wheel_sha256": "4a498fa8d8fd8be9e8e2d175fe5524a3fe581ccffadd8509db86526a5fb97051",
+      "kind": "source",
+      "import_names": [
+        "opentelemetry.exporter.otlp.version",
+        "opentelemetry.exporter.otlp.proto.http.trace_exporter"
+      ],
+      "hook": "smoke/verify_opentelemetry_exporter_otlp.py",
+      "expected_stdout": "verified opentelemetry-exporter-otlp\n",
+      "summary": "Serialize a trace for an in-memory OTLP transport",
+      "workflow": "Serialize a trace for an in-memory OTLP transport",
+      "scope": "Create and end one SDK span, export through a recording HTTP session, and require a nonempty serialized payload and success result.",
+      "limitations": [
+        "No real HTTP/gRPC transport, collector, TLS, retries, or backend interoperability.",
+        "This distribution is a version shim; behavior belongs to its declared exporter dependencies."
+      ],
+      "required_dependencies": [
+        "opentelemetry-exporter-otlp-proto-grpc==1.44.0",
+        "opentelemetry-exporter-otlp-proto-http==1.44.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 1,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "opentelemetry/exporter/otlp/version/__init__.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "types-requests",
+      "version": "2.33.0.20260712",
+      "wheel_filename": "types_requests-2.33.0.20260712-py3-none-any.whl",
+      "wheel_sha256": "de027e28c171d3da529689cbfa023b0b4eab188c8dfa22fd834eebd2cee6e7bb",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 17 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [
+        "urllib3>=2"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 17,
+        "native_files": 0,
+        "examples": [
+          "requests-stubs/__init__.pyi",
+          "requests-stubs/__version__.pyi",
+          "requests-stubs/adapters.pyi",
+          "requests-stubs/api.pyi",
+          "requests-stubs/auth.pyi"
+        ]
+      }
+    },
+    {
+      "name": "uc-micro-py",
+      "version": "2.0.0",
+      "wheel_filename": "uc_micro_py-2.0.0-py3-none-any.whl",
+      "wheel_sha256": "3603a3859af53e5a39bc7677713c78ea6589ff188d70f4fee165db88e22b242c",
+      "kind": "source",
+      "import_names": [
+        "uc_micro"
+      ],
+      "hook": "smoke/verify_uc_micro_py.py",
+      "expected_stdout": "verified uc-micro-py\n",
+      "summary": "Classify characters for text processing",
+      "workflow": "Classify characters for text processing",
+      "scope": "Match control, punctuation, ASCII space, and ideographic space categories and reject representative letters.",
+      "limitations": [
+        "Selected BMP categories only; surrogate-pair and complete Unicode coverage are not tested."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 13,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "uc_micro/__init__.py",
+          "uc_micro/categories/__init__.py",
+          "uc_micro/categories/Cc/__init__.py",
+          "uc_micro/categories/Cc/regex.py",
+          "uc_micro/categories/Cf/__init__.py"
+        ]
+      }
+    },
+    {
+      "name": "types-toml",
+      "version": "0.10.8.20260518",
+      "wheel_filename": "types_toml-0.10.8.20260518-py3-none-any.whl",
+      "wheel_sha256": "0e564ab05f6fde62a315b3b5a9b6624fda569399795d30a37e64705a70459303",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 5 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 5,
+        "native_files": 0,
+        "examples": [
+          "toml-stubs/__init__.pyi",
+          "toml-stubs/decoder.pyi",
+          "toml-stubs/encoder.pyi",
+          "toml-stubs/ordered.pyi",
+          "toml-stubs/tz.pyi"
+        ]
+      }
+    },
+    {
+      "name": "fastmcp",
+      "version": "4.0.3",
+      "wheel_filename": "fastmcp-4.0.3-py3-none-any.whl",
+      "wheel_sha256": "f743f43193e1daf606e6497a9dddba5bbaad7df7957a98fd093716ecf4458b99",
+      "kind": "dependency_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Dependency-only convenience distribution",
+      "workflow": "Resolve the separately distributed implementation",
+      "scope": "This wheel contains only distribution metadata; FastMCP implementation is supplied by fastmcp-slim with client/server extras.",
+      "limitations": [
+        "No implementation in this wheel to execute or behaviorally verify.",
+        "Its actual dependency closure must be evaluated separately."
+      ],
+      "required_dependencies": [
+        "fastmcp-slim[client,server]==4.0.3"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "fastmcp-4.0.3.dist-info/METADATA"
+        ]
+      }
+    },
+    {
+      "name": "text-unidecode",
+      "version": "1.3",
+      "wheel_filename": "text_unidecode-1.3-py2.py3-none-any.whl",
+      "wheel_sha256": "1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8",
+      "kind": "source",
+      "import_names": [
+        "text_unidecode"
+      ],
+      "hook": "smoke/verify_text_unidecode.py",
+      "expected_stdout": "verified text-unidecode\n",
+      "summary": "Transliterate multilingual labels into ASCII",
+      "workflow": "Transliterate multilingual labels into ASCII",
+      "scope": "Check accented Latin, Cyrillic, Chinese, ASCII, and empty-input transliteration using the bundled data table.",
+      "limitations": [
+        "Representative transliteration examples only; not exhaustive Unicode coverage."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 1,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "text_unidecode/__init__.py"
+        ]
+      }
+    },
+    {
+      "name": "types-certifi",
+      "version": "2021.10.8.3",
+      "wheel_filename": "types_certifi-2021.10.8.3-py3-none-any.whl",
+      "wheel_sha256": "b2d1e325e69f71f7c78e5943d410e650b4707bb0ef32e4ddf3da37f54176e88a",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 1 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 1,
+        "native_files": 0,
+        "examples": [
+          "certifi-stubs/__init__.pyi"
+        ]
+      }
+    },
+    {
+      "name": "types-pyyaml",
+      "version": "6.0.12.20260815",
+      "wheel_filename": "types_pyyaml-6.0.12.20260815-py3-none-any.whl",
+      "wheel_sha256": "6f332212b7e191f3afd5016a713c510b6340593b7ebec573c7d5d20aa5386d3b",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 18 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 18,
+        "native_files": 0,
+        "examples": [
+          "yaml-stubs/__init__.pyi",
+          "yaml-stubs/_yaml.pyi",
+          "yaml-stubs/composer.pyi",
+          "yaml-stubs/constructor.pyi",
+          "yaml-stubs/cyaml.pyi"
+        ]
+      }
+    },
+    {
+      "name": "rfc3339-validator",
+      "version": "0.1.4",
+      "wheel_filename": "rfc3339_validator-0.1.4-py2.py3-none-any.whl",
+      "wheel_sha256": "24f6ec1eda14ef823da9e36ec7113124b39c04d50a4d3d3a3c2859577e7791fa",
+      "kind": "source",
+      "import_names": [
+        "rfc3339_validator"
+      ],
+      "hook": "smoke/verify_rfc3339_validator.py",
+      "expected_stdout": "verified rfc3339-validator\n",
+      "summary": "Validate timestamps before processing input",
+      "workflow": "Validate timestamps before processing input",
+      "scope": "Accept leap-day and fractional-offset timestamps; reject an invalid leap-day, invalid hour, and date-only input.",
+      "limitations": [
+        "No leap-second support; finite representative RFC3339 cases."
+      ],
+      "required_dependencies": [
+        "six"
+      ],
+      "classification_evidence": {
+        "python_sources": 1,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "rfc3339_validator.py"
+        ]
+      }
+    },
+    {
+      "name": "llama-parse",
+      "version": "0.6.94",
+      "wheel_filename": "llama_parse-0.6.94-py3-none-any.whl",
+      "wheel_sha256": "48f21d909696597bf992acf5017685d88a6b25604bc1e98775021f39fe66649f",
+      "kind": "source",
+      "import_names": [
+        "llama_parse"
+      ],
+      "hook": "smoke/verify_llama_parse.py",
+      "expected_stdout": "verified llama-parse\n",
+      "summary": "Validate local document-parser configuration",
+      "workflow": "Validate local document-parser configuration",
+      "scope": "Construct an offline parser configuration with explicit dummy credentials and reject zero workers.",
+      "limitations": [
+        "No document upload, parsing job, polling, cloud service, or real credentials.",
+        "This is a deprecated forwarding package; its dependency supplies the implementation."
+      ],
+      "required_dependencies": [
+        "llama-cloud-services>=0.6.94"
+      ],
+      "classification_evidence": {
+        "python_sources": 5,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "llama_parse/__init__.py",
+          "llama_parse/base.py",
+          "llama_parse/utils.py",
+          "llama_parse/cli/__init__.py",
+          "llama_parse/cli/main.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "types-protobuf",
+      "version": "7.35.1.20260827",
+      "wheel_filename": "types_protobuf-7.35.1.20260827-py3-none-any.whl",
+      "wheel_sha256": "7cc452a012678a6a889287d4cb702ea54b9f90a6ab0f3aa4c019d21f3ae7529b",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 52 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 52,
+        "native_files": 0,
+        "examples": [
+          "google-stubs/_upb/_message.pyi",
+          "google-stubs/protobuf/__init__.pyi",
+          "google-stubs/protobuf/any.pyi",
+          "google-stubs/protobuf/any_pb2.pyi",
+          "google-stubs/protobuf/api_pb2.pyi"
+        ]
+      }
+    },
+    {
+      "name": "jupyterlab-pygments",
+      "version": "0.3.0",
+      "wheel_filename": "jupyterlab_pygments-0.3.0-py3-none-any.whl",
+      "wheel_sha256": "841a89020971da1d8693f1a99997aefc5dc424bb1b251fd6322462a1b8842780",
+      "kind": "source",
+      "import_names": [
+        "jupyterlab_pygments"
+      ],
+      "hook": "smoke/verify_jupyterlab_pygments.py",
+      "expected_stdout": "verified jupyterlab-pygments\n",
+      "summary": "Look up Jupyter syntax-highlighting styles",
+      "workflow": "Look up Jupyter syntax-highlighting styles",
+      "scope": "Resolve the Python keyword style and extension registration descriptor.",
+      "limitations": [
+        "No tokenization, complete stylesheet generation, or browser rendering.",
+        "The wheel imports Pygments but declares no runtime dependency; a missing import remains a real blocker."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 3,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "jupyterlab_pygments/__init__.py",
+          "jupyterlab_pygments/_version.py",
+          "jupyterlab_pygments/style.py"
+        ]
+      },
+      "undeclared_runtime_imports": [
+        "pygments"
+      ],
+      "display_kind": "data",
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "botocore-stubs",
+      "version": "1.43.67",
+      "wheel_filename": "botocore_stubs-1.43.67-py3-none-any.whl",
+      "wheel_sha256": "c51262bac3341c1cda71f05fa01141fffd3990d7a92c7960e3b755c1bc830373",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 69 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 69,
+        "native_files": 0,
+        "examples": [
+          "botocore-stubs/__init__.pyi",
+          "botocore-stubs/args.pyi",
+          "botocore-stubs/auth.pyi",
+          "botocore-stubs/awsrequest.pyi",
+          "botocore-stubs/client.pyi"
+        ]
+      }
+    },
+    {
+      "name": "pandas-stubs",
+      "version": "3.0.5.260730",
+      "wheel_filename": "pandas_stubs-3.0.5.260730-py3-none-any.whl",
+      "wheel_sha256": "60e90e3e1eda6937e337e243cbe6217e151c11137cd7eddf832af537c7310bfd",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 184 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [
+        "numpy (>=1.23.5)"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 184,
+        "native_files": 0,
+        "examples": [
+          "pandas-stubs/__init__.pyi",
+          "pandas-stubs/_config/__init__.pyi",
+          "pandas-stubs/_config/config.pyi",
+          "pandas-stubs/_libs/__init__.pyi",
+          "pandas-stubs/_libs/arrays.pyi"
+        ]
+      }
+    },
+    {
+      "name": "types-python-dateutil",
+      "version": "2.9.0.20260807",
+      "wheel_filename": "types_python_dateutil-2.9.0.20260807-py3-none-any.whl",
+      "wheel_sha256": "54aa3707350ed7a9cc0776fd2f6739679d6967d11b40150985e81edcb86df4db",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 17 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 17,
+        "native_files": 0,
+        "examples": [
+          "dateutil-stubs/__init__.pyi",
+          "dateutil-stubs/_common.pyi",
+          "dateutil-stubs/_version.pyi",
+          "dateutil-stubs/easter.pyi",
+          "dateutil-stubs/relativedelta.pyi"
+        ]
+      }
+    },
+    {
+      "name": "types-s3transfer",
+      "version": "0.16.0",
+      "wheel_filename": "types_s3transfer-0.16.0-py3-none-any.whl",
+      "wheel_sha256": "1c0cd111ecf6e21437cb410f5cddb631bfb2263b77ad973e79b9c6d0cb24e0ef",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 16 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 16,
+        "native_files": 0,
+        "examples": [
+          "s3transfer-stubs/__init__.pyi",
+          "s3transfer-stubs/bandwidth.pyi",
+          "s3transfer-stubs/compat.pyi",
+          "s3transfer-stubs/constants.pyi",
+          "s3transfer-stubs/copies.pyi"
+        ]
+      }
+    },
+    {
+      "name": "boto3-stubs",
+      "version": "1.43.89",
+      "wheel_filename": "boto3_stubs-1.43.89-py3-none-any.whl",
+      "wheel_sha256": "be8217bbc3b97cbf9eb8485dff85dbe86f466aa1ea71cd1ae3f18067624e37ac",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 39 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [
+        "botocore-stubs",
+        "types-s3transfer",
+        "typing-extensions>=4.1.0; python_version < \"3.12\""
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 39,
+        "native_files": 0,
+        "examples": [
+          "boto3-stubs/__init__.pyi",
+          "boto3-stubs/compat.pyi",
+          "boto3-stubs/crt.pyi",
+          "boto3-stubs/exceptions.pyi",
+          "boto3-stubs/session.pyi"
+        ]
+      }
+    },
+    {
+      "name": "types-awscrt",
+      "version": "0.36.2",
+      "wheel_filename": "types_awscrt-0.36.2-py3-none-any.whl",
+      "wheel_sha256": "7d94abfa5f839c1052fc88fdc8e9a085fcda5da739bb1da92c080c19eef1c72a",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 21 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 21,
+        "native_files": 0,
+        "examples": [
+          "awscrt-stubs/__init__.pyi",
+          "awscrt-stubs/_test.pyi",
+          "awscrt-stubs/auth.pyi",
+          "awscrt-stubs/aws_iot_metrics.pyi",
+          "awscrt-stubs/cbor.pyi"
+        ]
+      }
+    },
+    {
+      "name": "rfc3986-validator",
+      "version": "0.1.1",
+      "wheel_filename": "rfc3986_validator-0.1.1-py2.py3-none-any.whl",
+      "wheel_sha256": "2f235c432ef459970b4306369336b9d5dbdda31b510ca1e327636e01f528bfa9",
+      "kind": "source",
+      "import_names": [
+        "rfc3986_validator"
+      ],
+      "hook": "smoke/verify_rfc3986_validator.py",
+      "expected_stdout": "verified rfc3986-validator\n",
+      "summary": "Validate URLs and relative references",
+      "workflow": "Validate URLs and relative references",
+      "scope": "Accept HTTPS/mailto URIs and relative references; reject a relative URI under the absolute rule and an unescaped space.",
+      "limitations": [
+        "Validation only; no HTTP requests, DNS, or exhaustive RFC corpus."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 1,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "rfc3986_validator.py"
+        ]
+      }
+    },
+    {
+      "name": "cuda-toolkit",
+      "version": "13.3.1",
+      "wheel_filename": "cuda_toolkit-13.3.1-py2.py3-none-any.whl",
+      "wheel_sha256": "2ceda460a540323d52469bcfde48b48c1861f6482e4b5ea3cb5bdac00a1b11bd",
+      "kind": "dependency_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "CUDA dependency selector",
+      "workflow": "Resolve the separately distributed implementation",
+      "scope": "This wheel contains only distribution metadata and optional native CUDA dependencies; it has no Python implementation or CUDA payload.",
+      "limitations": [
+        "No implementation in this wheel to execute or behaviorally verify.",
+        "Its actual dependency closure must be evaluated separately."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "cuda_toolkit-13.3.1.dist-info/METADATA"
+        ]
+      }
+    },
+    {
+      "name": "widgetsnbextension",
+      "version": "4.0.16",
+      "wheel_filename": "widgetsnbextension-4.0.16-py3-none-any.whl",
+      "wheel_sha256": "a31a8774885b96fe825462f5d6496166f0c7cae111195b6465c801d230eb5a4e",
+      "kind": "source",
+      "import_names": [
+        "widgetsnbextension"
+      ],
+      "hook": "smoke/verify_widgetsnbextension.py",
+      "expected_stdout": "verified widgetsnbextension\n",
+      "summary": "Locate the classic Notebook widget frontend",
+      "workflow": "Locate the classic Notebook widget frontend",
+      "scope": "Validate the extension registration descriptor and read its bundled JavaScript entry point.",
+      "limitations": [
+        "No Jupyter server, browser, widget comms, or interactive rendering."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "widgetsnbextension/__init__.py",
+          "widgetsnbextension/_version.py"
+        ]
+      },
+      "display_kind": "data",
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "jupyterlab-widgets",
+      "version": "3.0.17",
+      "wheel_filename": "jupyterlab_widgets-3.0.17-py3-none-any.whl",
+      "wheel_sha256": "40ac1e9955acf116c4d995d9bfa082d86ad9ec6d91c4f134827cf5e0a5eb75e0",
+      "kind": "source",
+      "import_names": [
+        "jupyterlab_widgets"
+      ],
+      "hook": "smoke/verify_jupyterlab_widgets.py",
+      "expected_stdout": "verified jupyterlab-widgets\n",
+      "summary": "Locate the JupyterLab widget frontend",
+      "workflow": "Locate the JupyterLab widget frontend",
+      "scope": "Resolve the extension registration descriptor and read its package.json identity.",
+      "limitations": [
+        "No JupyterLab server, browser, widget comms, or interactive rendering.",
+        "Requires correct installation of wheel data-directory resources."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "jupyterlab_widgets/__init__.py",
+          "jupyterlab_widgets/_version.py"
+        ]
+      },
+      "display_kind": "data",
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "entrypoints",
+      "version": "0.4",
+      "wheel_filename": "entrypoints-0.4-py3-none-any.whl",
+      "wheel_sha256": "f174b5ff827504fd3cd97cc3f8649f3693f51538c7e4bdf3ef002c8429d42f9f",
+      "kind": "source",
+      "import_names": [
+        "entrypoints"
+      ],
+      "hook": "smoke/verify_entrypoints.py",
+      "expected_stdout": "verified entrypoints\n",
+      "summary": "Load a plugin function from its entry-point declaration",
+      "workflow": "Load a plugin function from its entry-point declaration",
+      "scope": "Parse json:loads, load and invoke the decoder, and reject a malformed declaration.",
+      "limitations": [
+        "No installed-distribution discovery, ZIP eggs, or arbitrary plugins."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 1,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "entrypoints.py"
+        ]
+      }
+    },
+    {
+      "name": "rfc3987-syntax",
+      "version": "1.1.0",
+      "wheel_filename": "rfc3987_syntax-1.1.0-py3-none-any.whl",
+      "wheel_sha256": "6c3d97604e4c5ce9f714898e05401a0445a641cfa276432b0a648c80856f6a3f",
+      "kind": "source",
+      "import_names": [
+        "rfc3987_syntax"
+      ],
+      "hook": "smoke/verify_rfc3987_syntax.py",
+      "expected_stdout": "verified rfc3987-syntax\n",
+      "summary": "Validate internationalized resource identifiers",
+      "workflow": "Validate internationalized resource identifiers",
+      "scope": "Parse a Unicode IRI and a relative reference; reject whitespace in a malformed IRI.",
+      "limitations": [
+        "Representative syntax cases only; no network requests or exhaustive RFC corpus."
+      ],
+      "required_dependencies": [
+        "lark>=1.2.2"
+      ],
+      "classification_evidence": {
+        "python_sources": 3,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "rfc3987_syntax/__init__.py",
+          "rfc3987_syntax/syntax_helpers.py",
+          "rfc3987_syntax/utils.py"
+        ]
+      }
+    },
+    {
+      "name": "types-pytz",
+      "version": "2026.3.1.20260727",
+      "wheel_filename": "types_pytz-2026.3.1.20260727-py3-none-any.whl",
+      "wheel_sha256": "42ac44e83645bfceb46597342c8fb8ec028a1407e2feae9c5c539986eab6b57a",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 6 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 6,
+        "native_files": 0,
+        "examples": [
+          "pytz-stubs/__init__.pyi",
+          "pytz-stubs/exceptions.pyi",
+          "pytz-stubs/lazy.pyi",
+          "pytz-stubs/reference.pyi",
+          "pytz-stubs/tzfile.pyi"
+        ]
+      }
+    },
+    {
+      "name": "pytest-metadata",
+      "version": "3.1.1",
+      "wheel_filename": "pytest_metadata-3.1.1-py3-none-any.whl",
+      "wheel_sha256": "c8e0844db684ee1c798cfa38908d20d67d0463ecb6137c72e91f418558dd5f4b",
+      "kind": "source",
+      "import_names": [
+        "pytest_metadata"
+      ],
+      "hook": "smoke/verify_pytest_metadata.py",
+      "expected_stdout": "verified pytest-metadata\n",
+      "summary": "Collect additional test-session metadata",
+      "workflow": "Collect additional test-session metadata",
+      "scope": "Run the metadata configuration hook with a local pytest configuration double; merge CLI and JSON metadata and format the report header.",
+      "limitations": [
+        "No full pytest collection, fixture execution, distributed workers, or XML generation."
+      ],
+      "required_dependencies": [
+        "pytest>=7.0.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 13,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "pytest_metadata/__init__.py",
+          "pytest_metadata/__version.py",
+          "pytest_metadata/hooks.py",
+          "pytest_metadata/plugin.py",
+          "pytest_metadata/ci/__init__.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "griffe",
+      "version": "2.3.0",
+      "wheel_filename": "griffe-2.3.0-py3-none-any.whl",
+      "wheel_sha256": "92a41ff72eb1eb316cdcb7248a608f1313f9fbc6e35d5cffa5cf7c813b7db70b",
+      "kind": "dependency_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Dependency-only Griffe entry points",
+      "workflow": "Resolve the separately distributed implementation",
+      "scope": "This wheel contains distribution metadata and entry-point declarations; implementation is supplied by griffecli and griffelib.",
+      "limitations": [
+        "No implementation in this wheel to execute or behaviorally verify.",
+        "Its actual dependency closure must be evaluated separately."
+      ],
+      "required_dependencies": [
+        "griffecli==2.3.0",
+        "griffelib==2.3.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "griffe-2.3.0.dist-info/METADATA",
+          "griffe-2.3.0.dist-info/entry_points.txt"
+        ]
+      }
+    },
+    {
+      "name": "llama-index-indices-managed-llama-cloud",
+      "version": "0.12.0",
+      "wheel_filename": "llama_index_indices_managed_llama_cloud-0.12.0-py3-none-any.whl",
+      "wheel_sha256": "d2e83a143e7f140f68893517ada12a34ce4be95584c5434dccf6e7bcce289a5a",
+      "kind": "source",
+      "import_names": [
+        "llama_index.indices.managed.llama_cloud"
+      ],
+      "hook": "smoke/verify_llama_index_indices_managed_llama_cloud.py",
+      "expected_stdout": "verified llama-index-indices-managed-llama-cloud\n",
+      "summary": "Reject ambiguous managed-index configuration locally",
+      "workflow": "Reject ambiguous managed-index configuration locally",
+      "scope": "Require an error when no index identifier is supplied and when two competing identifiers are supplied.",
+      "limitations": [
+        "Negative local configuration validation only; no index creation, cloud connection, document retrieval, or successful usable cloud workflow.",
+        "This forwarding package depends on llama-cloud<2; the broader audit selected a newer incompatible major release."
+      ],
+      "required_dependencies": [
+        "llama-cloud<2,>=1.6.0",
+        "llama-index-core<0.15,>=0.13.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 1,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "llama_index/indices/managed/llama_cloud/__init__.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "zope-event",
+      "version": "6.2",
+      "wheel_filename": "zope_event-6.2-py3-none-any.whl",
+      "wheel_sha256": "5e755153ac4faf64c10a4b6dd3307680166a3edf65b38df22df592610f8fa874",
+      "kind": "source",
+      "import_names": [
+        "zope.event"
+      ],
+      "hook": "smoke/verify_zope_event.py",
+      "expected_stdout": "verified zope-event\n",
+      "summary": "Publish application events to subscribers",
+      "workflow": "Publish application events to subscribers",
+      "scope": "Deliver ordered dictionary events, preserve event identity, then remove the subscriber and verify delivery stops.",
+      "limitations": [
+        "Basic subscriber API only; classhandler dispatch, threading, and third-party subscribers are not tested."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 3,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "zope/event/__init__.py",
+          "zope/event/classhandler.py",
+          "zope/event/tests.py"
+        ]
+      }
+    },
+    {
+      "name": "types-setuptools",
+      "version": "84.0.0.20260812",
+      "wheel_filename": "types_setuptools-84.0.0.20260812-py3-none-any.whl",
+      "wheel_sha256": "799c08e4bc6a288e8a0b538afb5f5ff320a08927ba8dbedb30c74ee3ba5d867b",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 126 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 126,
+        "native_files": 0,
+        "examples": [
+          "distutils-stubs/__init__.pyi",
+          "distutils-stubs/_modified.pyi",
+          "distutils-stubs/_msvccompiler.pyi",
+          "distutils-stubs/archive_util.pyi",
+          "distutils-stubs/ccompiler.pyi"
+        ]
+      }
+    },
+    {
+      "name": "alabaster",
+      "version": "1.0.0",
+      "wheel_filename": "alabaster-1.0.0-py3-none-any.whl",
+      "wheel_sha256": "fc6786402dc3fcb2de3cabd5fe455a2db534b371124f1f21de8731783dec828b",
+      "kind": "source",
+      "import_names": [
+        "alabaster"
+      ],
+      "hook": "smoke/verify_alabaster.py",
+      "expected_stdout": "verified alabaster\n",
+      "summary": "Register a documentation theme and configure its footer",
+      "workflow": "Register a documentation theme and configure its footer",
+      "scope": "Register the theme, locate its configuration file, and apply show_powered_by context conversion.",
+      "limitations": [
+        "No Sphinx build, Pygments highlighting, template rendering, or browser output."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "alabaster/__init__.py",
+          "alabaster/support.py"
+        ]
+      },
+      "display_kind": "data",
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "sphinxcontrib-serializinghtml",
+      "version": "2.0.0",
+      "wheel_filename": "sphinxcontrib_serializinghtml-2.0.0-py3-none-any.whl",
+      "wheel_sha256": "6e2cb0eef194e10c27ec0023bfeb25badbbb5868244cf5bc5bdc04e4464bf331",
+      "kind": "source",
+      "import_names": [
+        "sphinxcontrib.serializinghtml"
+      ],
+      "hook": "smoke/verify_sphinxcontrib_serializinghtml.py",
+      "expected_stdout": "verified sphinxcontrib-serializinghtml\n",
+      "summary": "Serialize documentation context with translated strings",
+      "workflow": "Serialize documentation context with translated strings",
+      "scope": "Round-trip a page-context dictionary through the package JSON encoder, including a UserString translation proxy.",
+      "limitations": [
+        "No Sphinx build, pickle data, generated HTML, or browser output.",
+        "Sphinx is required by imports although only declared in the standalone extra."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "sphinxcontrib/serializinghtml/__init__.py",
+          "sphinxcontrib/serializinghtml/jsonimpl.py"
+        ]
+      },
+      "undeclared_runtime_imports": [
+        "sphinx"
+      ],
+      "display_kind": "data",
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "python-http-client",
+      "version": "3.3.7",
+      "wheel_filename": "python_http_client-3.3.7-py3-none-any.whl",
+      "wheel_sha256": "ad371d2bbedc6ea15c26179c6222a78bc9308d272435ddf1d5c84f068f249a36",
+      "kind": "source",
+      "import_names": [
+        "python_http_client"
+      ],
+      "hook": "smoke/verify_python_http_client.py",
+      "expected_stdout": "verified python-http-client\n",
+      "summary": "Construct REST URLs and decode a response",
+      "workflow": "Construct REST URLs and decode a response",
+      "scope": "Build a versioned resource URL with encoded query parameters and decode a synthetic JSON response.",
+      "limitations": [
+        "No network request, TLS, authentication, HTTP retry, or server interoperability."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 3,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "python_http_client/__init__.py",
+          "python_http_client/client.py",
+          "python_http_client/exceptions.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "opentelemetry-distro",
+      "version": "0.65b0",
+      "wheel_filename": "opentelemetry_distro-0.65b0-py3-none-any.whl",
+      "wheel_sha256": "0e15bb1a54c638e6c361bc66bc43e9de9ead442e1ae06f8099a2c1d27b6ef845",
+      "kind": "source",
+      "import_names": [
+        "opentelemetry.distro"
+      ],
+      "hook": "smoke/verify_opentelemetry_distro.py",
+      "expected_stdout": "verified opentelemetry-distro\n",
+      "summary": "Configure default telemetry exporters",
+      "workflow": "Configure default telemetry exporters",
+      "scope": "Apply the distribution configuration in an isolated process; preserve explicit trace-exporter settings and supply missing metrics/log/protocol defaults.",
+      "limitations": [
+        "Configuration only; no instrumentation, span collection, exporter delivery, or backend integration."
+      ],
+      "required_dependencies": [
+        "opentelemetry-api~=1.12",
+        "opentelemetry-instrumentation==0.65b0",
+        "opentelemetry-sdk~=1.13"
+      ],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "opentelemetry/distro/__init__.py",
+          "opentelemetry/distro/version.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "types-urllib3",
+      "version": "1.26.25.14",
+      "wheel_filename": "types_urllib3-1.26.25.14-py3-none-any.whl",
+      "wheel_sha256": "9683bbb7fb72e32bfe9d2be6e04875fbe1b3eeec3cbb4ea231435aa7fd6b4f0e",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 23 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 23,
+        "native_files": 0,
+        "examples": [
+          "urllib3-stubs/__init__.pyi",
+          "urllib3-stubs/_collections.pyi",
+          "urllib3-stubs/connection.pyi",
+          "urllib3-stubs/connectionpool.pyi",
+          "urllib3-stubs/exceptions.pyi"
+        ]
+      }
+    },
+    {
+      "name": "sphinxcontrib-jsmath",
+      "version": "1.0.1",
+      "wheel_filename": "sphinxcontrib_jsmath-1.0.1-py2.py3-none-any.whl",
+      "wheel_sha256": "2ec2eaebfb78f3f2078e73666b1415417a116cc848b72e5172e596c871103178",
+      "kind": "source",
+      "import_names": [
+        "sphinxcontrib.jsmath"
+      ],
+      "hook": "smoke/verify_sphinxcontrib_jsmath.py",
+      "expected_stdout": "verified sphinxcontrib-jsmath\n",
+      "summary": "Render an inline mathematical expression into HTML",
+      "workflow": "Render an inline mathematical expression into HTML",
+      "scope": "Run the inline math visitor with a local translator double; require the expected escaped math span and SkipNode signal.",
+      "limitations": [
+        "No Sphinx build, JavaScript execution, equation numbering, or browser rendering.",
+        "Sphinx and docutils are imported but not declared as base runtime dependencies."
+      ],
+      "required_dependencies": [],
+      "classification_evidence": {
+        "python_sources": 2,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "sphinxcontrib/jsmath/__init__.py",
+          "sphinxcontrib/jsmath/version.py"
+        ]
+      },
+      "undeclared_runtime_imports": [
+        "sphinx",
+        "docutils"
+      ],
+      "display_kind": "data",
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "types-paramiko",
+      "version": "5.0.0.20260724",
+      "wheel_filename": "types_paramiko-5.0.0.20260724-py3-none-any.whl",
+      "wheel_sha256": "40c7083803a5a28ab7a8d2fe4cd9b7746d0a03538598582ce68f60967a2ad272",
+      "kind": "stub_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Type-checker support files",
+      "workflow": "Provide static type information to a Python type checker",
+      "scope": "Archive contains 41 .pyi stubs and no .py implementation or native library.",
+      "limitations": [
+        "Stub files do not implement the runtime library they describe.",
+        "Dependency installation does not establish behavior of the separately distributed runtime library."
+      ],
+      "required_dependencies": [
+        "cryptography>=37.0.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 41,
+        "native_files": 0,
+        "examples": [
+          "paramiko-stubs/__init__.pyi",
+          "paramiko-stubs/_winapi.pyi",
+          "paramiko-stubs/agent.pyi",
+          "paramiko-stubs/auth_handler.pyi",
+          "paramiko-stubs/auth_strategy.pyi"
+        ]
+      }
+    },
+    {
+      "name": "typer-slim",
+      "version": "0.24.0",
+      "wheel_filename": "typer_slim-0.24.0-py3-none-any.whl",
+      "wheel_sha256": "d5d7ee1ee2834d5020c7c616ed5e0d0f29b9a4b1dd283bdebae198ec09778d0e",
+      "kind": "dependency_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Dependency-only Typer entry point",
+      "workflow": "Resolve the separately distributed implementation",
+      "scope": "This wheel contains distribution metadata and an entry-point declaration; implementation is supplied by typer.",
+      "limitations": [
+        "No implementation in this wheel to execute or behaviorally verify.",
+        "Its actual dependency closure must be evaluated separately."
+      ],
+      "required_dependencies": [
+        "typer>=0.24.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "typer_slim-0.24.0.dist-info/METADATA",
+          "typer_slim-0.24.0.dist-info/entry_points.txt"
+        ]
+      }
+    },
+    {
+      "name": "hatch-vcs",
+      "version": "0.5.0",
+      "wheel_filename": "hatch_vcs-0.5.0-py3-none-any.whl",
+      "wheel_sha256": "b49677dbdc597460cc22d01b27ab3696f5e16a21ecf2700fb01bc28e1f2a04a7",
+      "kind": "source",
+      "import_names": [
+        "hatch_vcs"
+      ],
+      "hook": "smoke/verify_hatch_vcs.py",
+      "expected_stdout": "verified hatch-vcs\n",
+      "summary": "Prepare safe version-control configuration for a build",
+      "workflow": "Prepare safe version-control configuration for a build",
+      "scope": "Construct setuptools-scm options, preserve tag/fallback values, remove implicit file-writing options, and reject invalid tag-pattern types.",
+      "limitations": [
+        "No build backend, setup.py, Git command, version discovery, or generated-file write is executed."
+      ],
+      "required_dependencies": [
+        "hatchling>=1.1.0",
+        "setuptools-scm>=8.2.0"
+      ],
+      "classification_evidence": {
+        "python_sources": 7,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "hatch_vcs/__about__.py",
+          "hatch_vcs/__init__.py",
+          "hatch_vcs/build_hook.py",
+          "hatch_vcs/hooks.py",
+          "hatch_vcs/metadata_hook.py"
+        ]
+      },
+      "approval_ceiling": "limited"
+    },
+    {
+      "name": "bs4",
+      "version": "0.0.2",
+      "wheel_filename": "bs4-0.0.2-py2.py3-none-any.whl",
+      "wheel_sha256": "abf8742c0805ef7f662dce4b51cca104cffe52b835238afc169142ab9b3fbccc",
+      "kind": "dependency_only",
+      "import_names": [],
+      "hook": null,
+      "expected_stdout": null,
+      "summary": "Beautiful Soup installation alias",
+      "workflow": "Resolve the separately distributed implementation",
+      "scope": "This wheel contains a README and distribution metadata; implementation is supplied by beautifulsoup4.",
+      "limitations": [
+        "No implementation in this wheel to execute or behaviorally verify.",
+        "Its actual dependency closure must be evaluated separately."
+      ],
+      "required_dependencies": [
+        "beautifulsoup4"
+      ],
+      "classification_evidence": {
+        "python_sources": 0,
+        "stub_files": 0,
+        "native_files": 0,
+        "examples": [
+          "bs4-0.0.2.dist-info/METADATA"
+        ]
+      }
+    }
+  ]
+}

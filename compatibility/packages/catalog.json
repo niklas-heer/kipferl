@@ -4198,6 +4198,52 @@
         "scope": "Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
         "runner": "Explicit disposable GitHub Actions runner; sanitized environment, no OS sandbox"
       }
+    },
+    {
+      "wheel_sha256": "ab4c4ec93cc4a4e7815fa759906e05e6bb3f2fbd92ea0f897288c6a43efd15b3",
+      "wheel_filename": "trove_classifiers-2026.6.1.19-py3-none-any.whl",
+      "runtime_sha256": "1f54af5ee829e94d74e928c9317b12ed3be304c0aeab087dfd50283a5d3dbfbd",
+      "target": "macos-aarch64",
+      "name": "trove-classifiers",
+      "version": "2026.6.1.19",
+      "status": "tested",
+      "source_url": "https://files.pythonhosted.org/packages/7c/a4/81502f486f01db95bc8320646a8a12511f5e556cb63d5e224d91816605c4/trove_classifiers-2026.6.1.19-py3-none-any.whl",
+      "source_files_checked": 2,
+      "evidence": "Reviewed real-package workflow passed installation with locked dependencies, CPython control, runtime execution, offline restoration and detached standalone execution. Validate known and unknown classifiers, classifier enumeration, and one deprecated-classifier replacement.",
+      "smoke": {
+        "file": "verify_trove_classifiers.py",
+        "sha256": "6cef9b51fa64e0cd889c23c5e6f7adbe4e6c10005b7dab7dc70f8771dfe71bc3",
+        "scope": "Validate known and unknown classifiers, classifier enumeration, and one deprecated-classifier replacement.",
+        "runner": "macOS sandbox; no network or home reads; writes confined to temporary test directory"
+      },
+      "workflow_verification": {
+        "cli_sha256": "f8b5f492d01044581ca1ed51be67f67da018a51a25c3868c7a634ae648e4ec4b",
+        "lock_sha256": "350a27a13ca213dba9da2e7efc386f97b3d3469c6b3c3b910ec769e1fce16df6",
+        "standalone_sha256": "ef062dcd7aeb95f262af3bd68a67e9a5a5edfcd8f06a7820d61da8acbceb37bf"
+      }
+    },
+    {
+      "wheel_sha256": "dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931",
+      "wheel_filename": "tzdata-2026.3-py2.py3-none-any.whl",
+      "runtime_sha256": "1f54af5ee829e94d74e928c9317b12ed3be304c0aeab087dfd50283a5d3dbfbd",
+      "target": "macos-aarch64",
+      "name": "tzdata",
+      "version": "2026.3",
+      "status": "tested",
+      "source_url": "https://files.pythonhosted.org/packages/e5/6d/b53b99a9f2766d095985947a5782f1702cabb129a34f7a802d7197af832f/tzdata-2026.3-py2.py3-none-any.whl",
+      "source_files_checked": 22,
+      "evidence": "Reviewed real-package workflow passed installation with locked dependencies, CPython control, runtime execution, offline restoration and detached standalone execution. Verify release/IANA constants and TZif headers for four named timezone files.",
+      "smoke": {
+        "file": "verify_tzdata.py",
+        "sha256": "ee706bad2abb8d97bf5319c1bb368207bb4ba9242fb9a6b9de70ee44b43e4f7e",
+        "scope": "Verify release/IANA constants and TZif headers for four named timezone files.",
+        "runner": "macOS sandbox; no network or home reads; writes confined to temporary test directory"
+      },
+      "workflow_verification": {
+        "cli_sha256": "f8b5f492d01044581ca1ed51be67f67da018a51a25c3868c7a634ae648e4ec4b",
+        "lock_sha256": "294328f2a0549be651c4adca9d7d3330a27ebf7a3e401dba3d64e8c8bcca3efc",
+        "standalone_sha256": "9e14a309db44847a34d9db47e0798f1f41e61b599159a49fdf0c51602a5b853f"
+      }
     }
   ]
 }

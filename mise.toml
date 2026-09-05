@@ -116,7 +116,11 @@ run = "python3 scripts/generate_stubs.py --check"
 
 [tasks.catalog-check]
 description = "Validate exact package compatibility evidence and reviewed test hashes offline"
-run = ["python3 scripts/package_catalog.py --check", "python3 scripts/package_popularity_audit.py --check"]
+run = ["python3 scripts/package_catalog.py --check", "python3 scripts/package_popularity_audit.py --check", "python3 scripts/verify_package_workflows.py --check"]
+
+[tasks.package-verify]
+description = "Verify reviewed package workflows; pass --cli and --runtime for the exact audited binaries"
+run = "python3 scripts/verify_package_workflows.py"
 
 [tasks.package-audit]
 description = "Reaudit the pinned top 1,000 PyPI projects and embed fresh results in the CLI"
