@@ -34,7 +34,8 @@ Put a `kipferl.json` next to the entry script:
   "entry": "app.py",
   "output": "dist/my-app",
   "assets": ["assets"],
-  "tests": ["tests"]
+  "tests": ["tests"],
+  "dependencies": []
 }
 ```
 
@@ -55,6 +56,17 @@ output. Pass application arguments after `--`, for example
 an explanation so you can fix the file before running the application. Unknown
 keys, absolute paths, parent-directory escapes, non-regular files, and
 configurations larger than 64 KiB are rejected.
+
+## Add Python dependencies
+
+Use `kipferl add <requirement>` to resolve compatible PyPI wheels. The command
+updates the `dependencies` array and writes `kipferl.lock`; commit both files.
+Restore the installation with `kipferl sync --locked`, inspect it with
+`kipferl deps check`, and browse compatibility evidence with `kipferl deps catalog`.
+See [PyPI packages](/docs/guides/packages) for requirements and current limits.
+
+New editor configurations include `.kipferl/packages` in `extraPaths`. Existing
+projects can add that path to `pyrightconfig.json` to get package completions.
 
 ## Test your application
 

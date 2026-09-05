@@ -100,10 +100,18 @@ including imports inside functions and relative imports inside packages.
 Packages need `__init__.py`. The builder validates imported source and checks
 external static imports against the runtime's supported modules before success.
 
+Locked PyPI dependencies installed with `kipferl add` are available to the same
+import discovery. `run`, `test`, and `build` check the lock and installed file
+hashes first. Package resources and license metadata are bundled automatically.
+Dependencies select the full runtime used for compatibility checks. Cross-target
+builds and modes using an external runtime need tests on that destination
+runtime; the host catalog evidence does not cover them. See the
+[package guide](/docs/guides/packages) for installation and evidence limits.
+
 Dynamic names passed to `__import__` or `importlib` do not discover local files.
 Prefer a static import for local modules so the builder can include them. A full
 runtime includes optional built-in capabilities, but does not install pip
-packages or discover code hidden behind computed import names.
+packages or validate code hidden behind computed import names.
 
 Asset paths may name files or directories; directories are included recursively,
 including empty directories.

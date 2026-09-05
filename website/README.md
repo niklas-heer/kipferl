@@ -42,3 +42,18 @@ The first checks snippet drift. The second also runs the examples and packaged
 binaries with local fixtures. Keep internal links consistent with navigation;
 new guide pages are automatically included in search, page metadata, and the
 machine-readable docs.
+The package audit page reads `../compatibility/packages/popularity-audit.json`
+at build time. Keep the repository's `compatibility/` directory available when
+building the site; do not copy rows into MDX or public assets. The adapter
+validates coverage metadata and maps only display fields into the interactive
+search/filter table. Regenerate the canonical audit before rebuilding to publish
+new results. JSON, CSV, and Markdown evidence links point to the repository.
+
+Run the website checks directly from `website/` when working on its components:
+
+```bash
+mise exec -- bun run lint
+mise exec -- bun run test
+mise exec -- bun run types:check
+mise exec -- bun run build
+```

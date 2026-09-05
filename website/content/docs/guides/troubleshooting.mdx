@@ -19,18 +19,19 @@ remain relative to the caller's working directory.
 
 ## An import is unsupported
 
-Kipferl embeds PocketPy and a curated standard library. It does not install
-packages with pip or load CPython C extensions. Modules such as `requests`,
+Kipferl embeds PocketPy and a curated standard library. Use `kipferl add` for
+compatible pure-Python PyPI wheels; it does not use pip or load CPython C extensions. Modules such as `requests`,
 `httpx`, and `numpy` are not part of the runtime. Use built-in `http.client`
 for HTTP, `csv` and `json` for tabular and structured data, and the documented
 native modules for terminal output and prompts.
 
 The build checks static imports, including imports in bundled local modules,
-and reports unsupported dependencies before success. Keep compatible
-pure-Python helpers inside the project. Package availability on your own
+and reports unsupported dependencies before success. Use `kipferl deps catalog`
+for tested versions and known incompatibilities, or keep compatible pure-Python
+helpers inside the project. See [PyPI packages](/docs/guides/packages). Package availability on your own
 CPython installation does not make that package available in the standalone
 app. `--full-runtime` includes optional built-in capabilities; it does not add
-pip packages or CPython compatibility.
+dependencies or CPython compatibility.
 
 Dynamic import names cannot always be checked ahead of time. Test every
 application path that computes module names, and use the supported dependency

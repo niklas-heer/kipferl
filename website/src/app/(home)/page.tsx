@@ -260,8 +260,8 @@ export default function HomePage() {
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-5">
             The current source checkout adds CLI, API, and interactive starters,
-            project defaults, local packages, and bundled resources. Each
-            starter includes editor support, tests, and a README.
+            project defaults, PyPI compatibility checks, and bundled resources.
+            Each starter includes editor support, tests, and a README.
           </p>
           <pre className="overflow-x-auto rounded-xl bg-gray-950 p-5 text-sm text-gray-100">
             <code>{`kipferl new hello --template cli
@@ -283,6 +283,12 @@ kipferl build
               href="/docs/guides/recipes"
             >
               Explore tested recipes →
+            </Link>
+            <Link
+              className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
+              href="/docs/guides/packages"
+            >
+              Find compatible Python packages →
             </Link>
             <Link
               className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"

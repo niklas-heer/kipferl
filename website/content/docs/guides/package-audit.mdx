@@ -1,0 +1,90 @@
+---
+title: Popular package audit
+description: Explore compatibility findings for a ranked snapshot of popular PyPI packages
+full: true
+---
+
+import { PackageAudit } from '@/components/package-audit';
+
+Use this audit to find a concrete blocker or decide which package needs a
+focused test next. The ranking comes from a dated snapshot of monthly PyPI
+downloads. It measures download activity, including automation, rather than
+unique users or the suitability of a library for your application.
+
+## Explore the results
+
+<PackageAudit />
+
+## First language-patch results
+
+The rerun adds trailing commas in parenthesized imports and function parameters,
+plus adjacent plain string and bytes literals. Syntax checking now uses normal
+module compilation without executing the package. Source-bearing candidates
+that finish compilation increased from **12 to 20**; another **383 packages**
+reach a different first blocker. These candidates still need dependency,
+import, and behavior tests. Adjacent f-string combinations remain unsupported.
+
+The comparison reuses identical pinned releases and artifacts for 999 packages;
+ddtrace remained metadata-limited. Nine original `global` failures reflected the
+old checker's dynamic compilation mode, so the improvement is not entirely from
+new language constructs. Read the
+[before/after report](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/language-patch-comparison.md)
+and [next compatibility priorities](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/priorities.md).
+
+## Read the evidence correctly
+
+This broad audit inspects each package's selected latest release and wheel
+metadata, validates
+downloaded artifact hashes when available, and checks source compilation on the
+recorded PocketPy runtime. It does not run arbitrary package code or establish
+that imports, transitive dependencies, optional features, or application APIs
+work. **Sources that compile remain unverified.** A blocker in the selected
+release does not establish that older releases, other wheels, or the entire
+project are incompatible.
+
+The reason filter distinguishes source syntax failures, native or source-only
+distributions, unsupported dependency requirements, Python-version constraints,
+resource limits, and download failures. A failed download is missing evidence,
+not proof that a package is incompatible. Metadata-only findings do not claim
+that an artifact was downloaded or tested; each row makes that scope explicit.
+
+Verified source syntax failures also generate exact artifact/runtime blockers
+that the CLI merges with its [installation catalog](/docs/guides/packages).
+Metadata-only findings are not turned into verified artifact records. Passing
+compilation never becomes a catalog approval: tested entries still require
+reviewed behavior hooks. Even a tested catalog record
+only covers the behavior named in its evidence. A changed version, wheel,
+runtime build, or platform needs new evidence.
+
+## View the report from the CLI
+
+The source CLI embeds the report and can show it offline, including outside a
+project directory:
+
+```bash
+kipferl deps audit
+kipferl deps audit --limit 100
+kipferl deps audit --json
+```
+
+The default view summarizes categories and shows the first 20 ranked entries.
+`--limit` accepts 1 through 1,000. JSON always exports the complete embedded
+report, including provenance and runtime identity, and cannot be combined with
+`--limit`. The CLI reports a runtime mismatch when the recorded audit binary
+differs from its current runtime; it does not silently reuse that evidence.
+
+## Inspect and reproduce
+
+The website reads the checked-in audit JSON at build time. Summary counts,
+filters, and rows all derive from that source; no hand-maintained website list
+can silently diverge from the report.
+
+- [Complete JSON evidence](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.json)
+- [CSV results](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.csv)
+- [Markdown report](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.md)
+- [Package audit contributor reference](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/README.md)
+
+Use the recorded source location and parser diagnostic to create a minimal
+reproduction before changing the runtime. Add a focused regression for a fix,
+rerun the audit against the newly built binary, and keep its runtime hash with
+the result. See [runtime and catalog development](/docs/guides/development).

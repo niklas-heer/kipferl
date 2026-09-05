@@ -63,7 +63,8 @@ profile:
 Kipferl chooses the full profile for dynamic code or import operations such as
 `__import__`, `importlib`, `exec`, and `eval`. Relative imports within local
 packages are resolved during bundling, so they do not automatically force the
-full runtime. Unsupported static imports fail the build; a larger runtime does
+full runtime. Projects with installed PyPI dependencies select the full runtime
+used for their compatibility checks. Unsupported static imports fail the build; a larger runtime does
 not install missing dependencies. The build output shows the selected profile
 and its reasons.
 

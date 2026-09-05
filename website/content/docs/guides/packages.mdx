@@ -1,0 +1,176 @@
+---
+title: PyPI packages
+description: Install pure-Python dependencies with compatibility evidence and reproducible locks
+---
+
+Kipferl can resolve and install pure-Python wheels from PyPI without pip or a
+system Python installation. This is a feature of the current source checkout;
+the published v0.6 release predates it.
+
+## Find a package that fits
+
+```bash
+kipferl deps catalog
+# Full machine-readable evidence and artifact hashes:
+kipferl deps catalog --json
+```
+
+The built-in catalog records tested package versions and known incompatibilities.
+It is available offline. Results describe an exact wheel, runtime, and target;
+they are not permanent approvals or rejections of an entire library.
+
+| Status | What it establishes |
+| --- | --- |
+| Tested | The recorded checks passed for that artifact and runtime. Read the evidence for the functions exercised. |
+| Incompatible | A specific blocker was reproduced, such as unsupported syntax or a required native extension. |
+| Unverified | No matching test evidence is available. This includes new versions and different runtime builds. |
+
+A successful import does not establish that every function works. Add application
+tests for the package APIs you actually use, including error paths. Host test
+evidence does not establish behavior on the other build targets. To contribute
+repeatable checks, see [extending the catalog](/docs/guides/development#extend-package-compatibility-evidence).
+
+The [popular package audit](/docs/guides/package-audit) provides a broader
+ranked view of source and metadata findings. Its verified syntax failures add
+exact blockers to the catalog; its compilation-only successes never promote a
+package to tested.
+
+## Add a dependency
+
+Run `kipferl add '<requirement>'` inside a project containing `kipferl.json`.
+Quote requirements containing shell metacharacters. The command resolves the
+dependency tree, downloads wheels into `.kipferl/cache` under their SHA-256
+hashes, verifies their contents,
+and compiles Python sources with the embedded runtime. This compilation does
+not import or execute the package.
+
+By default, packages need matching catalog evidence. Use
+`kipferl add <requirement> --allow-unverified` when you intend to evaluate an
+unverified package with your own application tests. This flag does not bypass
+known incompatibilities, invalid wheels, hash mismatches, or syntax failures.
+The choice applies to the resolved dependency tree and is recorded in the lock,
+so `sync --locked` does not need the flag. Each subsequent `add` evaluates the
+whole tree again; include the flag again if it still contains unverified packages.
+Version ranges resolve to the latest stable candidates that satisfy the
+dependency constraints; pin a tested version when the newest version has no
+matching evidence.
+
+Successful installation updates the `dependencies` array in `kipferl.json`,
+writes `kipferl.lock`, and installs files under `.kipferl/packages`. A failed
+compatibility check leaves the prior configuration and installation intact;
+downloaded wheels may remain cached for another attempt.
+
+## Try a recorded positive
+
+The initial catalog includes `tzdata==2025.2` on macOS ARM64 for the recorded
+runtime hashes. Its checks cover version constants and the `TZif` headers of
+four timezone data files. This is evidence for loading package resources;
+it does not establish timezone conversion support or provide `zoneinfo`.
+
+With a matching source CLI and a project, install the exact version:
+
+```bash
+kipferl deps catalog
+kipferl add 'tzdata==2025.2'
+```
+
+For example, put this in `app.py`:
+
+```python
+import os
+import tzdata
+
+resource = os.path.join(os.path.dirname(tzdata.__file__), "zoneinfo/UTC")
+with open(resource, "rb") as source:
+    assert source.read(4) == b"TZif"
+print("Timezone data:", tzdata.__version__)
+```
+
+Run `kipferl run`, then build and test the executable. A different runtime hash
+or target correctly reports this version as unverified until matching evidence
+is recorded. Many pure-Python libraries still need syntax or CPython APIs that
+PocketPy does not implement; the catalog also records those concrete blockers.
+
+## Restore and inspect
+
+Commit `kipferl.json` and `kipferl.lock`. Keep `.kipferl` out of version control;
+new project templates already ignore it.
+
+```bash
+kipferl sync --locked
+kipferl deps list
+kipferl deps check
+kipferl test
+kipferl build
+```
+
+The lock records exact artifacts, installed file hashes, the embedded runtime
+hash, and its operating-system/CPU target. A locked
+sync restores those artifacts without selecting newer versions. Once the wheels
+have been cached in that project, restoration can work without network access:
+
+```bash
+kipferl sync --locked --offline
+```
+
+`deps list` shows the locked package versions and their current catalog statuses
+after validating the configuration,
+runtime identity, and dependency constraints. `deps check` also hashes every
+installed file and detects missing, changed, or extra files. It also rechecks
+current catalog evidence, so a newly recorded blocker is not bypassed by an
+older lock. Neither command
+runs package tests. Run, dev, test, and build validate the installation before
+preparing the application.
+
+| Failure | Recovery |
+| --- | --- |
+| Installed files changed or disappeared | Run `kipferl sync --locked` to restore the installation. |
+| A cached wheel has the wrong hash | Remove the specific cache file named in the error, then run `kipferl sync --locked` online. |
+| A wheel is missing in offline mode | Run `kipferl sync --locked` online once to populate this project's cache. |
+| Requirements, runtime hash, or target changed | Run `kipferl add '<requirement>'` again to resolve the current requirements and repeat compatibility checks. |
+
+Review and commit a changed lock after resolving. Do not edit wheel hashes or
+runtime identity in the lock to work around a mismatch.
+
+## Use and ship the package
+
+Import installed modules normally. The PyPI distribution name can differ from
+the Python import name; consult the package's documentation.
+
+New editor configurations include `.kipferl/packages` in `extraPaths`. For an
+existing project, add that entry to `pyrightconfig.json` to enable package
+completions. Package annotations do not expand Kipferl's runtime API support.
+
+The packager follows static imports through installed packages and carries
+their resources and license metadata into the executable. Packages use the
+full runtime against which compatibility is checked. Read package resources
+relative to `__file__`, and test the built executable after removing access to
+the checkout. Cross-target builds reuse the pure wheel artifacts, but host
+checks do not establish behavior on the destination runtime. Test the result
+on that target. The `single` and `executable` modes use an external runtime,
+which may differ from the embedded runtime recorded in the lock. See [portable packaging](/docs/guides/packaging).
+
+## First-version boundaries
+
+- PyPI is the supported registry; private indexes and direct URL requirements
+  are not supported.
+- Version constraints use Python packaging version semantics. Extras and
+  environment markers are rejected explicitly, including in transitive
+  requirements, rather than silently ignored.
+- Only pure-Python wheels with a supported `py3`/`none`/`any` tag are accepted.
+  Native extensions, source builds, `.pth` hooks, `.pyc` files, and wheel `.data` installation
+  schemes are unsupported.
+- Python version requirements are checked against the runtime's advertised
+  Python version, currently `3.11.0`. That metadata check is separate from PocketPy compatibility.
+- Missing APIs, computed imports, plugin discovery, and optional code paths
+  cannot all be established by compilation. An unverified package may install
+  successfully and still fail an application test or the build's import check.
+- The installed tree is limited to 1,024 files and 32 MiB in total, with at most
+  1 MiB per Python source and 4 MiB per other file. Application code and assets
+  must also fit the [combined bundle limits](/docs/guides/packaging#what-is-included).
+- Packages need a regular-package layout. Namespace packages without
+  `__init__.py` are unsupported. Python source must use UTF-8.
+
+Use the failure's package/version and dependency path to identify the blocker.
+Prefer a tested version or a built-in module where appropriate; passing
+`--full-runtime` does not install packages or provide CPython extensions.

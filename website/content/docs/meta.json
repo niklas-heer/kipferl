@@ -20,6 +20,8 @@
     "guides/index",
     "guides/recipes",
     "guides/packaging",
+    "guides/packages",
+    "guides/package-audit",
     "guides/troubleshooting",
     "guides/development"
   ]

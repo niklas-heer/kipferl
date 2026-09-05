@@ -137,6 +137,71 @@ After changing the canonical `.pyi` stubs, run `mise run stubs` and
 needed; it additionally requires bindgen and libclang. Never edit generated
 bindings or the generated stub manifest independently of their sources.
 
+## Extend package compatibility evidence
+
+The CLI combines reviewed `compatibility/packages/catalog.json` records with
+verified syntax blockers from `compatibility/packages/popularity-catalog.json`.
+Its lookup key combines
+the normalized distribution name, exact version, wheel SHA-256, runtime binary
+SHA-256, and operating-system/CPU target. A rebuilt runtime with the same
+release version still needs its own evidence. A tested package also does not
+waive the checks on its transitive dependencies.
+
+Validate the catalog and its reviewed smoke-hook hashes offline:
+
+```bash
+mise exec -- python3 scripts/package_catalog.py --check
+mise exec -- python3 -m unittest discover -s scripts -p 'test_package_catalog.py'
+```
+
+Edit `compatibility/packages/candidates.json` to propose a pinned package and
+add focused behavior checks under `compatibility/packages/smoke/` when useful.
+Record exactly which APIs and error paths the hook exercises. The initial
+`tzdata==2025.2` example verifies version constants and four `TZif` resource
+headers; it does not claim timezone conversions work.
+
+To gather compilation evidence for both a fresh macOS ARM64 runtime and the
+binary actually embedded by the CLI:
+
+```bash
+mise exec -- python3 scripts/package_catalog.py \
+  --runtime target/release/pocketpy-kipferl \
+  --runtime crates/kipferl-cli/assets/pocketpy-kipferl-macos-aarch64
+```
+
+This refresh downloads wheels, verifies their hashes, and compiles source
+without importing or executing package code. It replaces the catalog with the
+supplied runtimes' results. Keep every runtime that should retain evidence and
+review the resulting diff; compilation alone leaves a package unverified.
+
+After reviewing the exact wheel code and its checked-in hook, adding
+`--execute-reviewed` runs behavior checks. That mode currently requires macOS
+`sandbox-exec`, limits execution time, and restricts network, writes, and home
+directory reads. It is a constrained developer runner, not a complete boundary
+for arbitrary hostile code. Package installation never runs these hooks.
+Other target evidence must come from checks on that target.
+
+Read the [catalog contributor reference](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/README.md)
+for the schema, execution restrictions, and refresh procedure. Keep source
+compilation failures, behavior failures, and missing evidence distinct; never
+label a new artifact or runtime tested by copying an older record.
+
+## Investigate popular-package findings
+
+The [popular package audit](/docs/guides/package-audit) keeps its ranking snapshot
+and artifact findings separate from the reviewed installation catalog. Its
+canonical JSON, CSV, and Markdown report live under `compatibility/packages/`.
+The website reads the JSON during its static build, so changing the audit data
+requires a website rebuild. The CLI also embeds its report at compile time;
+rebuild the CLI after regenerating either audit or catalog evidence.
+
+Use the source and runtime hashes to reproduce a finding. Download counts
+include automation, and one selected release is not evidence about every
+version of a project. Compilation-only results remain unverified until focused
+behavior checks establish a narrower tested scope. Follow the
+[contributor procedure](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/README.md)
+for ranking refreshes and bounded audit runs.
+
 ## Work on the website
 
 ```bash
