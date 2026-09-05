@@ -95,7 +95,7 @@ entry. Optional VHS/libclang tools remain specific to recording/regeneration.
 | color-eyre | Evaluated for CLI diagnostics. The CLI deliberately returns/prints I/O errors and then execs a separate interpreter; installing a hook alone would not improve Python tracebacks or branches already converted to exit statuses. Fixed actual context-loss/panic paths directly. A future unified Rust error-reporting redesign can reconsider it. |
 | itertools | Existing standard iterators express the reviewed transformations. No specific awkward operation justified another dependency. |
 | rayon | Runtime VM ownership is single-threaded and FFI values cannot be shared freely. No measured CPU-bound Rust workload justified parallel scheduling; Criterion also excludes Rayon. |
-| serde + derive | serde_json already handles project config and JSON; manual bounded config validation provides current exact path/unknown-field diagnostics. No new serializable data model requires derive. |
+| serde + derive | Added for the package lock and exact wheel artifact models, with unknown fields rejected. Project configuration retains manual bounded validation for precise path and setting diagnostics. |
 | clap + derive | A serious future candidate: eight commands, help text, and three completion definitions have duplication. However, switching parsers would require a deliberate exact-help/error compatibility migration. This pass fixes input validation and invalid dispatch states without simultaneously replacing the public CLI contract. |
 | Chrono / Jiff | Keep existing Jiff with minimal std/system-timezone features. Time fixes reuse it; adding Chrono would duplicate the capability. |
 | cmd_lib | Existing std::process::Command provides exact argument boundaries, exec, capture, status, and checked errors. A shell-like wrapper offers no identified advantage at these boundaries. |
@@ -130,12 +130,14 @@ release runtime compatibility, vision, portable recipes, and website builds.
 Benchmarks produce machine-local statistical evidence, not universal timing claims.
 Linux sanitizer and other-platform link/build validation require the existing CI
 matrix, especially for the libm boundary. Checked-in embedded release runtime
-assets remain separate from runtime source changes; release CI rebuilds them.
+assets are refreshed for the current host by `mise run build` and `mise run check`;
+release CI rebuilds and validates every target.
 
-Final local verification: `mise run check` passed with 244 full-profile nextest
-tests, 96 core tests, 2 doctests, and 51 Python tooling tests. Formatting, generator
+After the package audit and first language patches, `mise run check` passed and
+the full-profile nextest run passed 296 tests. The check also passed 111 core tests,
+2 doctests, and 96 Python tooling tests. Formatting, generator
 drift, compilation, and strict full/core Clippy passed. `mise run lint-audit`
-reports **zero outstanding diagnostics**, **135 explicit exception declarations**,
+reports **zero outstanding diagnostics**, **146 explicit exception declarations**,
 and **zero exception-policy violations**. Its report distinguishes allow from
 expect and records each declaration's location, individual lints, and reason.
 
@@ -145,7 +147,8 @@ is permitted. The audit parser has regression coverage for hidden attributes in
 strings/comments, inline attributes, nested cfg_attr reasons, Rust string escapes,
 and broad warning-group suppression.
 
-A fresh release workspace build passed, followed by 1,725 available compatibility
+The preceding runtime review passed a fresh release workspace build, followed
+by 1,725 available compatibility
 checks against mise-pinned CPython 3.12.14, 20 vision tests, and all four recipes (runtime/CLI/source-deleted binary).
 The compatibility runner explicitly reports 22 dependency-related skips. Its 52
 test groups include the external `toml` package: 51 groups intersect the

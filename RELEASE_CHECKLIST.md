@@ -11,6 +11,9 @@ release, not proof for the unreleased source changes now on main.
 - Rebuild full/core runtimes and loaders, inject matching assets into each CLI,
   and verify downloaded checksums, static Linux linkage, project templates,
   package/assets builds, and standalone execution away from the source tree.
+- Refresh package compatibility evidence against the final embedded runtime
+  hashes before compiling the CLIs. Verify the documented tested package on
+  each supported target; leave targets without behavior evidence unverified.
 - Verify the Homebrew token's required repository permission before promotion.
 - Update versioned release notes and remove unreleased documentation notices
   only when the published artifacts contain the documented features and fixes.

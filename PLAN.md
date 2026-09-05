@@ -81,12 +81,16 @@ The detailed inventory, architecture, acceptance gates, PR sequence, and risks a
   source-aware diagnostics, project tests, and Bash/Zsh/Fish completions.
 - Portable packaging: local modules/packages, explicit assets, static-import
   diagnostics, atomic output replacement, and validation of cached payloads.
+- PyPI pure-wheel resolution, exact artifact/runtime locks, offline restoration,
+  and installed-file verification. A versioned compatibility catalog records
+  ten distribution versions on two macOS ARM64 runtime builds; broader target
+  coverage and requirement extras/markers remain future work.
 - Four documented recipes verified against local fixtures and standalone apps
   with their build sources removed.
 - Mise pins the toolchain and developer tools. Bacon, nextest, watchexec, and
   optional cargo-seek provide feedback; Criterion measures the loader/cache.
 - Every requested Rust restriction plus pedantic/nursery is enforced across the
-  workspace. The audit has zero findings and inventories 135 explicit exceptions.
+  workspace. The audit inventories every explicit exception and requires zero findings.
 - Runtime regression fixes cover Unicode escapes, oversized allocations,
   numeric boundaries, and callbacks that mutate collections. See
   [the review record](docs/rust-review.md) for the exact findings and validation.

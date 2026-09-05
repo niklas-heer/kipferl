@@ -6,6 +6,19 @@ All notable user-facing changes are documented here.
 
 ### Added
 
+- Trailing commas in parenthesized imports and function/lambda parameters,
+  and adjacent plain strings/bytes, including default values.
+- A reproducible top-1,000 package audit, ranked CLI/website views, and a
+  before/after comparison. The first language patches increase source-bearing
+  compilation-complete candidates from 12 to 20; these remain unverified.
+
+- PyPI pure-Python wheel dependencies with `kipferl add`, exact artifact/runtime
+  locks, offline `sync --locked`, compatibility catalog and installed-file checks.
+  The initial catalog contains ten distribution versions with scoped test or
+  blocker evidence. Unknown artifacts require explicit acceptance; native
+  extensions, source builds, extras, and environment markers are unsupported.
+- Installed package imports, resources, and license metadata flow through run,
+  test, and standalone builds; new editor configurations include package paths.
 - Portable builds include local Python modules and packages, follow their
   dependencies when selecting a runtime, and support explicit `--asset` files
   and directories. Build-time checks catch unsupported imports and syntax.
@@ -18,6 +31,9 @@ All notable user-facing changes are documented here.
   summaries, and report generation, checked against their documentation in CI.
 
 ### Fixed
+
+- Package and bundle syntax checks use nonexecuting module compilation.
+  Generated wrappers preserve module globals and original traceback filenames.
 
 - Prevent callback-driven heap and iterator mutations from using invalid values;
   preserve comparator exceptions and snapshot containers before deepcopy hooks.

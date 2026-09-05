@@ -44,8 +44,8 @@ Install the published v0.6.0 release with `brew install niklas-heer/tap/kipferl`
 It supports explicit-script workflows such as `kipferl dev app.py` and
 `kipferl build app.py -o app`.
 
-The project templates, configuration defaults, completions, and local-module/asset
-packaging below are **unreleased changes on main**. To try them, follow the
+The project templates, configuration defaults, completions, PyPI dependencies,
+and local-module/asset packaging below are **unreleased changes on main**. To try them, follow the
 [development setup](#development), then add the freshly built CLI to your PATH
 from the repository root:
 
@@ -80,6 +80,72 @@ Follow the [complete first-app tutorial](https://kipferl.dev/docs/getting-starte
 [project and completion reference](https://kipferl.dev/docs/commands/projects),
 [portable packaging guide](https://kipferl.dev/docs/guides/packaging), or
 [development reference](https://kipferl.dev/docs/commands/dev).
+
+### PyPI packages with compatibility checks
+
+Use `kipferl deps catalog` to see tested package versions and known blockers.
+`kipferl add <requirement>` resolves pure-Python wheels and their dependencies,
+checks their source with the embedded runtime, and installs accepted artifacts
+inside the project. It records exact versions, wheel and installed-file hashes,
+and the embedded runtime/target identity in `kipferl.lock`.
+An unknown package stays **unverified**; `--allow-unverified` makes that choice
+explicit without bypassing known incompatibilities. This choice is stored in
+the lock for reproducible syncs; compilation alone is not a behavioral test.
+
+```bash
+kipferl deps catalog
+# Recorded positive on macOS ARM64 with a matching runtime hash:
+kipferl add 'tzdata==2025.2'
+kipferl deps list
+kipferl deps check
+kipferl sync --locked
+# After the wheels have been cached locally:
+kipferl sync --locked --offline
+```
+
+The initial `tzdata` checks cover version constants and four timezone data
+headers, not timezone conversion or `zoneinfo`. Catalog evidence is specific
+to the recorded artifact/runtime/target; test your own package usage.
+
+Commit `kipferl.json` and `kipferl.lock`. Run, test, and build use the same
+verified installation; standalone builds carry the imported Python modules,
+package data, and license metadata. Neither pip nor a system Python is needed
+to install supported wheels. Native extensions and source builds are unsupported.
+See the [package guide](https://kipferl.dev/docs/guides/packages) for the supported
+requirement syntax, catalog evidence, and recovery commands. Contributors can
+validate or extend the [checked-in catalog](compatibility/packages/README.md)
+with exact wheel/runtime hashes and focused behavior hooks.
+
+### Explore the popular-package audit
+
+The completed source audit covers the top **1,000 PyPI projects** in the August
+2026 monthly download snapshot, inspecting each selected latest release against
+the recorded macOS ARM64 runtime. Browse the
+[searchable audit](https://kipferl.dev/docs/guides/package-audit) for top-100 and
+top-1,000 summaries, package/error search, reason filters, and exact evidence.
+Download counts include automation and do not measure unique users.
+
+```bash
+kipferl deps audit
+kipferl deps audit --limit 100
+kipferl deps audit --json
+```
+
+This audit compiles sources without importing or executing package code.
+Compilation-only results remain **unverified**, and a blocker in one release is
+not a verdict on every version of that project. The generated
+[Markdown report](compatibility/packages/popularity-audit.md),
+[JSON evidence](compatibility/packages/popularity-audit.json), and
+[CSV export](compatibility/packages/popularity-audit.csv) contain the current
+counts and distinguish verified artifact findings from metadata-only checks.
+Verified syntax failures supply exact blockers to the installation catalog;
+compilation-only successes do not create tested approvals.
+
+See [the compatibility priorities](compatibility/packages/priorities.md) for the
+most common first parser failures and candidates for focused behavior tests.
+The [first language-patch rerun](compatibility/packages/language-patch-comparison.md)
+increased source-bearing compilation-complete candidates from **12 to 20**;
+these remain unverified until dependency and behavior tests pass.
 
 ### Useful, tested recipes
 
@@ -494,8 +560,10 @@ kipferl/
 ## Compatibility and Limitations
 
 - Kipferl is not a drop-in replacement for CPython.
-- No pip or C-extension support.
-- Pure-Python packages may work if compatible with PocketPy.
+- Pure-Python PyPI wheels can be installed with `kipferl add`; pip environments,
+  CPython extensions, and source builds are unsupported.
+- Package compatibility is recorded per artifact and runtime. Passing selected
+  tests does not guarantee every API or execution path.
 - See `tests/compat_report_pocketpy.md` for current parity.
 
 ## Rust architecture and status
@@ -521,7 +589,7 @@ Current source validation on 2026-09-05 (see
   the third-party `toml` baseline is unavailable on the pinned host
 - 51 of the 160 modules in the standard-library inventory are targeted;
   22 dependency-related checks are explicitly skipped
-- 244 full-profile and 96 core Rust tests, 2 doctests, and a clean strict audit
+- 296 full-profile and 111 core Rust tests, 2 doctests, and a clean strict audit
 
 Historical performance measurements from the migration and v0.6.0 release:
 

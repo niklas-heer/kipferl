@@ -1,6 +1,6 @@
 # Kipferl Compatibility Report
 
-Generated: 2026-09-05 01:51:50
+Generated: 2026-09-05 04:15:13
 
 Host baseline: CPython 3.12.14 (darwin, arm64).
 

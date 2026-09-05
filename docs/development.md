@@ -34,6 +34,9 @@ explicit commands.
 | `mise run watch` | Queues a debounced check, full Rust test run, and debug build after source changes |
 | `mise run check` | Tool pins, generated stubs, Python helper tests, Rust formatting, all-target compilation, strict full/core Clippy, full/core nextest suites, and doctests |
 | `mise run lint-audit` | Every review lint in full/core profiles, plus the source locations and reasons for explicit exceptions |
+| `mise run catalog-check` | Offline catalog identities, reviewed smoke-hook hashes, popularity provenance, and generated report consistency |
+| `mise run package-audit` | Resume top-1,000 screening against the pinned ranking and freshly embedded host runtime |
+| `mise run refresh-runtime-assets` | Build and verify this host's full/core runtimes and loader before embedding them in the CLI |
 | `mise run test` | `check`, release build, CPython compatibility, vision scenarios, recipes, and website checks |
 | `mise run bench` | Statistical loader benchmarks; run separately from correctness checks |
 | `mise run website-dev` | Website development server |
@@ -122,3 +125,32 @@ PocketPy's embedded Python definitions. Do not copy a complete CPython API into 
 stub when the runtime implements only a subset. `mise run stubs-check` validates
 syntax, registration, and the generated manifest; CLI tests verify exported bytes.
 These checks do not establish compatibility with every external type checker.
+
+## Maintain PyPI package support
+
+The CLI owns dependency resolution and installation; the embedded interpreter
+and standalone loader do not fetch packages. `pep508_rs` supplies requirement
+and version semantics, `ureq` performs bounded HTTPS requests with Rustls, `zip`
+reads stored or Deflate-compressed wheel entries, and Serde models the strict lock
+schema. These dependencies belong to the development CLI, not a packaged app's
+runtime. New package artifacts are checked in staging before publication.
+
+`mise run catalog-check` validates the checked-in compatibility evidence offline.
+The normal Python test task also checks the catalog and smoke-hook hashes.
+See [the package catalog guide](../compatibility/packages/README.md) for reviewed
+candidate selection, evidence refresh, and the limits of each tested result.
+After refreshing the catalog, rebuild the CLI to embed the new records.
+
+`mise run build` and `mise run check` refresh this host's embedded runtime assets
+from source first. The core runtime uses a separate build directory, preserving
+the full runtime used by the audit. The refresh verifies nonexecuting module
+compilation before replacing an asset and skips identical files. When using
+Cargo directly after interpreter changes, run `mise run refresh-runtime-assets`
+before CLI tests or builds. Other target assets are built and verified by their
+native CI matrix jobs; a host refresh does not claim cross-platform validation.
+
+Keep package manager tests deterministic: Rust fixtures create wheels and seed
+an offline cache, then exercise transitive resolution, extraction checks,
+lock restoration, and standalone execution after source removal. Fetching real
+PyPI artifacts is an explicit catalog-maintenance or smoke-testing action, not
+part of every local test run.
