@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   },
   description:
     "Build beautiful command-line applications with Python syntax and ship them as fast, standalone binaries.",
+  icons: {
+    icon: { url: "/favicon.svg", type: "image/svg+xml", sizes: "any" },
+  },
 };
 
 const inter = Inter({

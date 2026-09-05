@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Kipferl</title>
+  <defs>
+    <linearGradient id="pastry" x1="18" y1="10" x2="42" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffd45c"/>
+      <stop offset="1" stop-color="#ffaf32"/>
+    </linearGradient>
+    <linearGradient id="crumb" x1="12" y1="42" x2="48" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e8b3ff"/>
+      <stop offset="1" stop-color="#bc71e6"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#8615b6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="url(#pastry)" d="M12 53C3 44 6 29 17 17C26 7 41 5 50 15C59 24 61 36 54 44L45 43C39 34 27 40 25 52Z"/>
+    <path fill="none" d="M13 23C27 18 35 30 33 40M50 15C42 20 40 29 43 40M8 39C17 32 27 37 28 45"/>
+    <path fill="url(#crumb)" d="M12 53C7 46 9 42 15 43C22 44 28 51 25 55C22 59 16 57 12 53ZM45 43C41 40 44 33 50 31C57 28 60 32 56 39C52 46 49 47 45 43Z"/>
+    <path fill="#a6eaf5" stroke-width="2" d="M56 3L58 8L63 10L58 12L56 17L54 12L49 10L54 8Z"/>
+  </g>
+  <path d="M29 13C36 11 41 12 45 15M18 25C23 25 26 27 28 30" fill="none" stroke="#fff8e9" stroke-width="2.5" stroke-linecap="round"/>
+</svg>
