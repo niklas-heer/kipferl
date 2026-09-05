@@ -119,9 +119,12 @@ description = "Validate exact package compatibility evidence and reviewed test h
 run = ["python3 scripts/package_catalog.py --check", "python3 scripts/package_popularity_audit.py --check"]
 
 [tasks.package-audit]
-description = "Screen the pinned top 1,000 PyPI packages with resumable artifact and metadata caches"
-depends = ["build"]
-run = "python3 scripts/package_popularity_audit.py --embedded-runtime"
+description = "Reaudit the pinned top 1,000 PyPI projects and embed fresh results in the CLI"
+depends = ["refresh-runtime-assets"]
+run = [
+  "python3 scripts/release_popularity_audit.py --embedded-runtime --output target/release-popularity-audit --canonical-output compatibility/packages/popularity-audit.json --cache target/package-audit/wheels",
+  "cargo build --locked --release -p kipferl-cli",
+]
 
 [tasks.check-pocketpy]
 description = "Verify vendored PocketPy patches against upstream"

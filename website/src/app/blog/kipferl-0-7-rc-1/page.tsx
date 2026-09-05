@@ -56,7 +56,7 @@ export default function ReleaseCandidatePage() {
         </header>
 
         <aside className="mb-14 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6 text-gray-700 dark:text-gray-300">
-          <strong>This is the historical RC1 announcement.</strong> Stable 0.7.1
+          <strong>This is the historical RC1 announcement.</strong> Stable 0.7.2
           is now available. Follow the{" "}
           <Link
             className="text-cyan-600 dark:text-cyan-400 underline"

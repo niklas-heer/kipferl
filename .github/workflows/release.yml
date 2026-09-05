@@ -123,6 +123,14 @@ jobs:
           --output release-assets/package-catalog-${{ matrix.suffix }}.json
           --disposable-ci
 
+      - name: Audit 1,000 pinned projects against the exact release runtime
+        timeout-minutes: 90
+        run: >-
+          python3 scripts/release_popularity_audit.py
+          --runtime release-assets/pocketpy-kipferl-${{ matrix.suffix }}
+          --target ${{ matrix.suffix }}
+          --output release-assets
+
       - name: Checksum component assets
         shell: bash
         run: |
@@ -193,6 +201,9 @@ jobs:
           --destination crates/kipferl-cli/assets
           --target ${{ matrix.suffix }}
           --catalog-output compatibility/packages/catalog.json
+          --audit-output compatibility/packages/popularity-audit.json
+          --syntax-catalog-output compatibility/packages/popularity-catalog.json
+          --audit-csv-output compatibility/packages/popularity-audit.csv
 
       - name: Install Rust target
         run: rustup target add ${{ matrix.target }}
@@ -346,6 +357,8 @@ jobs:
             -name 'compatibility-report.md' -o \
             -name 'vision-report.md' -o \
             -name 'package-catalog-*' -o \
+            -name 'popularity-audit-*' -o \
+            -name 'popularity-catalog-*' -o \
             -name 'package-smoke-*.json' -o \
             -name 'pocketpy-patch-verification.json' \
           \) -exec cp {} release/ \;
@@ -354,6 +367,19 @@ jobs:
             -name 'pocketpy-kipferl-*' -o \
             -name 'kipferl-loader-*' \
           \) ! -name '*.sha256' -exec chmod +x {} +
+          python3 - <<'PY_PINS'
+          import hashlib
+          from pathlib import Path
+
+          for source, name in [
+              ("popularity-metadata.json", "popularity-metadata.json"),
+              ("popularity.json", "popularity-snapshot.json"),
+          ]:
+              artifact = Path("release") / name
+              artifact.write_bytes((Path("compatibility/packages") / source).read_bytes())
+              digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+              artifact.with_name(name + ".sha256").write_text(f"{digest}  {name}\n")
+          PY_PINS
           ls -la release
 
       - name: Install release-note dependencies

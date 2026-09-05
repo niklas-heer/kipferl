@@ -1,6 +1,8 @@
-# Compatibility priorities after dotted imports
+# Compatibility priorities after the 0.7.2 re-audit
 
-The September 5, 2026 rerun uses the same [August popularity ranking](popularity.json), the same 999 available release metadata pins, and the macOS ARM64 runtime `5797c5f7ff3779270ef3f41b05088f6f08f92817e9a2be24343b4eed7736ca76`. ddtrace remains metadata-limited. The [first language-patch comparison](language-patch-comparison.md) and [dotted-import comparison](dotted-import-comparison.md) preserve each step; [current evidence](popularity-audit.json) records the latest screen.
+The 0.7.2 rerun covers the same [August popularity ranking](popularity.json) and the same 999 available release metadata pins; ddtrace remains metadata-limited. It confirms the previous results: 770 syntax blockers and 44 compilation-complete distributions, including 24 with Python source and 20 without. No category or first compiler blocker changed. These remain unverified candidates, not approved working libraries. See the [0.7.2 comparison](release-0.7.2-comparison.md) and [current evidence](popularity-audit.json) for exact runtime identities.
+
+The historical September 5, 2026 [first language-patch comparison](language-patch-comparison.md) and [dotted-import comparison](dotted-import-comparison.md) preserve the earlier improvements below. The refreshed report keeps those priorities relevant; it does not resolve or test the dependency closure or application behavior of the 1,000 projects.
 
 ## Completed work and measured effect
 

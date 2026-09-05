@@ -4,7 +4,7 @@ description: Install pure-Python dependencies with compatibility evidence and re
 ---
 
 Kipferl can resolve and install pure-Python wheels from PyPI without pip or a
-system Python installation in **Kipferl 0.7.1**.
+system Python installation in **Kipferl 0.7.2**.
 [Install the stable release](/docs/getting-started/installation#stable-release)
 to use these commands; v0.6.0 predates the package manager.
 
@@ -71,7 +71,7 @@ checks cover version constants and the `TZif` headers of four timezone data
 files. This is evidence for loading package resources;
 it does not establish timezone conversion support or provide `zoneinfo`.
 
-With the v0.7.1 CLI and a project, install the exact version:
+With the v0.7.2 CLI and a project, install the exact version:
 
 ```bash
 kipferl deps catalog
@@ -136,6 +136,23 @@ preparing the application.
 Review and commit a changed lock after resolving. Do not edit wheel hashes or
 runtime identity in the lock to work around a mismatch.
 
+## Upgrade to 0.7.2
+
+Version 0.7.2 refreshes the 1,000-package source audit. Each release CLI embeds
+its platform's report for the exact runtime it ships and exposes it offline
+with `kipferl deps audit`. Verified compiler failures join the installation
+catalog only for their recorded artifact, runtime, and target. Packages whose
+sources compile remain unverified: the audit does not test their imports,
+dependency closure, or application behavior.
+
+Install the [current stable release](/docs/getting-started/installation#stable-release),
+then check `kipferl --version` and `kipferl deps audit`. Refresh your dependency
+lock using the commands below if the runtime hash has changed; never edit the
+hash by hand. Run your application's tests after resolving.
+
+The homepage video was recorded with 0.7.1 and still demonstrates the same
+project, package, and bundling workflow.
+
 ## Upgrade to 0.7.1
 
 Version 0.7.1 completes the product rename. The temporary aliases from 0.6
@@ -153,7 +170,7 @@ Update shell scripts, CI configuration, Python imports, and environment settings
 before upgrading. Native imports such as `import tui` remain available. Remove
 an old command symlink or a stale binary directory from `PATH` if it still
 selects the previous executable, and verify `kipferl --version` reports
-`v0.7.1`. Homebrew users can run `brew update` and `brew upgrade kipferl`;
+`v0.7.2`. Homebrew users can run `brew update` and `brew upgrade kipferl`;
 users of the old formula should follow the
 [replacement instructions](/docs/getting-started/installation#stable-homebrew).
 
@@ -165,7 +182,7 @@ so project dependency locks still need the refresh described below.
 ## Upgrade to 0.7.0
 
 The import changes below arrived in 0.7.0. Refresh dependency locks when
-upgrading from 0.6 or any earlier 0.7 build, including 0.7.0 to 0.7.1.
+upgrading from 0.6 or any earlier 0.7 build, including 0.7.1 to 0.7.2.
 
 An existing `kipferl.lock` identifies the exact runtime binary and platform.
 Switching from a release candidate, development build, or another target can

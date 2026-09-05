@@ -4,6 +4,26 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## [0.7.2] - 2026-09-05
+
+### Fixed
+
+- Reaudit all 1,000 pinned popular projects on the current runtime and update
+  the CLI's embedded full report and exact syntax-blocker catalog.
+- Bind each release CLI to a fresh audit of its own native runtime and target.
+  Validate complete coverage, metadata pins, hashes, and derived exports before
+  packaging, and verify the embedded report in published-binary smoke tests.
+- Publish per-platform audit JSON, CSV, and syntax catalogs with checksums.
+- Refresh the documentation and website with the rerun and comparison: the
+  candidate retains 44 compilation-complete distributions, 24 with Python
+  source, and no changed first blockers. These remain behaviorally unverified.
+
+### Development
+
+- Check in the original 999 available package metadata pins and explicitly
+  record the missing ddtrace pin. Reuse verified downloads, never old compiler
+  results, when producing release audits.
+
 ## [0.7.1] - 2026-09-05
 
 ### Fixed
@@ -175,3 +195,5 @@ All notable user-facing changes are documented here.
 [0.6.0]: https://github.com/niklas-heer/kipferl/compare/v0.5.0...v0.6.0
 
 [0.7.1]: https://github.com/niklas-heer/kipferl/compare/v0.7.0...v0.7.1
+
+[0.7.2]: https://github.com/niklas-heer/kipferl/compare/v0.7.1...v0.7.2

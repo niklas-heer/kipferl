@@ -4,29 +4,29 @@ description: Install kipferl on macOS or Linux
 ---
 
 
-Kipferl 0.7.1 supports macOS and Linux, with project templates, local-module
+Kipferl 0.7.2 supports macOS and Linux, with project templates, local-module
 bundling, and compatibility-checked PyPI packages. Choose a direct download for
 an exact version or use Homebrew for the stable release channel.
 
 ## Stable release
 
-Download [v0.7.1](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1)
+Download [v0.7.2](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2)
 for your operating system and CPU:
 
 | Platform | Stable binary | Checksum |
 | --- | --- | --- |
-| macOS Apple Silicon | [kipferl-macos-aarch64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-macos-aarch64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-macos-aarch64.sha256) |
-| macOS Intel | [kipferl-macos-x86_64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-macos-x86_64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-macos-x86_64.sha256) |
-| Linux x86_64 | [kipferl-linux-x86_64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-linux-x86_64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-linux-x86_64.sha256) |
-| Linux ARM64 | [kipferl-linux-aarch64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-linux-aarch64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.1/kipferl-linux-aarch64.sha256) |
+| macOS Apple Silicon | [kipferl-macos-aarch64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-macos-aarch64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-macos-aarch64.sha256) |
+| macOS Intel | [kipferl-macos-x86_64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-macos-x86_64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-macos-x86_64.sha256) |
+| Linux x86_64 | [kipferl-linux-x86_64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-linux-x86_64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-linux-x86_64.sha256) |
+| Linux ARM64 | [kipferl-linux-aarch64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-linux-aarch64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.2/kipferl-linux-aarch64.sha256) |
 
 Choose `asset` from the table before running these commands. This installs into
 a new directory and leaves your previous executable available for rollback:
 
 ```bash
 asset=kipferl-macos-aarch64
-release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.1
-release_dir=$(mktemp -d "$HOME/kipferl-0.7.1.XXXXXX")
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.2
+release_dir=$(mktemp -d "$HOME/kipferl-0.7.2.XXXXXX")
 cd "$release_dir"
 curl -fLO "$release/$asset"
 curl -fLO "$release/$asset.sha256"
@@ -52,9 +52,9 @@ export PATH="$release_dir:$PATH"
 kipferl new --help
 ```
 
-The version should be `Kipferl v0.7.1`. The `PATH` change applies to this
+The version should be `Kipferl v0.7.2`. The `PATH` change applies to this
 shell; opening a fresh shell restores your previous selection. Before upgrading
-a project, read the [import and dependency-lock changes](/docs/guides/packages#upgrade-to-071).
+a project, read the [import and dependency-lock changes](/docs/guides/packages#upgrade-to-072).
 
 ## Stable Homebrew
 
@@ -66,7 +66,7 @@ brew install niklas-heer/tap/kipferl
 
 Existing Kipferl users can run `brew update` and `brew upgrade kipferl`. The
 stable release workflow updates the formula on publication. If your tap still
-reports an older version, use the exact v0.7.1 download above.
+reports an older version, use the exact v0.7.2 download above.
 
 If the old μcharm 0.5 Homebrew formula is installed, replace it once.
 The deprecated `ucharm` command, imports, environment variables, and release
@@ -108,7 +108,7 @@ for tool pins, tests, website tasks, and the distinction between newly compiled
 runtime code and the CLI's embedded prebuilt components.
 
 If `--template` is absent from `kipferl new --help`, your shell is still finding
-an older CLI. Check `command -v kipferl` and select v0.7.1 or put
+an older CLI. Check `command -v kipferl` and select v0.7.2 or put
 the development symlink first on `PATH`. Source builds can share a version label
 while embedding different runtime bytes; package locks also check that identity.
 
@@ -121,12 +121,12 @@ kipferl --version
 Stable installations show:
 
 ```
-Kipferl v0.7.1
+Kipferl v0.7.2
 ```
 
 ## Editor setup
 
-With v0.7.1, new projects include autocomplete stubs and Pyright configuration:
+With v0.7.2, new projects include autocomplete stubs and Pyright configuration:
 
 ```bash
 kipferl new my-cli --template cli

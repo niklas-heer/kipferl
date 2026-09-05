@@ -6,12 +6,12 @@ The catalog speeds up dependency checks with reusable evidence. It is an **allow
 
 ## Stable 0.7 release
 
-[v0.7.0](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0)
+[v0.7.2](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2)
 provides the package manager and compatibility catalog on macOS/Linux ARM64 and
 x86_64. Use the [stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
 for Homebrew or a platform download with checksum verification. Read the
 [release story](https://kipferl.dev/blog/kipferl-0-7) and
-[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-070)
+[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-072)
 before migrating from v0.6 or a release candidate.
 
 Each platform's release runtime gets fresh reviewed evidence on its native
@@ -33,10 +33,13 @@ after deleting the project and caches. macOS offline steps deny network access
 with `sandbox-exec`; Linux steps test the explicit CLI offline mode on disposable
 runners and make no claim of OS network isolation.
 
-These fresh per-platform records are separate from the dated, macOS ARM64
-[top-1,000 source audit](#top-1000-package-screening). That broad screen was not
-rerun for every release binary. Compilation success still remains unverified,
-and even its known blockers apply only to their recorded runtime hash.
+Starting with 0.7.2, each platform also gets a fresh
+[top-1,000 source audit](#top-1000-package-screening) against its exact final
+runtime. Release assets include `popularity-audit-<target>.json`, its CSV export,
+and `popularity-catalog-<target>.json`, all with checksums. Each CLI embeds its
+own platform's report and verified syntax blockers. Compilation success still
+remains unverified; known blockers apply only to the recorded artifact, runtime
+hash, and target.
 
 ## Checked-in development evidence
 
@@ -120,7 +123,7 @@ Version 0.7 changes dynamic dotted imports: `__import__("http.client")` returns
 `import http.client as client` for the child module, or a nonempty positional
 fromlist with `__import__`. Relative from-import statements work; nonzero dynamic
 import levels, namespace packages, and custom finders remain unsupported. See
-the [0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-070) before migrating
+the [0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-072) before migrating
 code that relied on the earlier leaf-return behavior.
 
 ## Schema
@@ -133,7 +136,9 @@ The [compatibility priorities](priorities.md) summarize the most common first pa
 
 `popularity.json` pins the 1,000 projects with the most downloads in the upstream ranking's August 2026 window. Its recorded source uses ClickHouse; preserve the source URL, query, reporting window, retrieval time, and source hash when refreshing it. Downloads indicate popularity, not package quality or runtime compatibility.
 
-`popularity-audit.json` records one selected **latest PyPI release per ranked project**, pinned at its recorded metadata-fetch time. The completed development rerun from 2026-09-05 covers all 1,000 projects on the recorded patched macOS ARM64 runtime (`5797c5f7…`). This is historical source evidence, not a per-platform 0.7 compatibility guarantee. It found 770 exact verified wheel syntax blockers, 178 releases without a usable generic Python 3 pure wheel (including one purportedly pure wheel containing native libraries), five declared Python-version conflicts, one release without a usable wheel, 44 compilation-complete but behaviorally unverified distributions, and two audit limits. There were no network failures. Twenty-four of those 44 distributions contain Python source. Older releases and alternative wheels were not explored.
+`popularity-audit.json` records one selected **latest PyPI release per ranked project**, pinned at its recorded metadata-fetch time. The completed 0.7.2 rerun covers all 1,000 projects on macOS ARM64; its exact runtime identity is recorded in the JSON and displayed on the website. It found 770 exact verified wheel syntax blockers, 178 releases without a usable generic Python 3 pure wheel (including one purportedly pure wheel containing native libraries), five declared Python-version conflicts, one release without a usable wheel, 44 compilation-complete but behaviorally unverified distributions, and two audit limits. There were no network failures. Twenty-four of those 44 distributions contain Python source; the other 20 contain none. Older releases and alternative wheels were not explored.
+
+The [0.7.2 comparison](release-0.7.2-comparison.md) reuses 999 identical release metadata pins; ddtrace remains metadata-limited. Categories, compilation-complete candidates, and first compiler blockers are unchanged. This refresh makes the evidence current for the recorded binary; it does not establish new behavioral compatibility. The checked-in `popularity-metadata.json` preserves the metadata pins and identifies the missing project explicitly. Release jobs validate that manifest and the ranking identity, then compile each selected wheel against their own native runtime; they do not retag old results.
 
 The [language-patch comparison](language-patch-comparison.md) preserves per-project before/after evidence. Trailing commas and adjacent plain strings/bytes were implemented, and the checker was corrected to compile in normal module mode. Compilation-complete source-bearing candidates increased from 12 to 20; 383 other packages now hit a different first blocker. Nine original `global` diagnostics came from dynamic compilation rather than missing module-level language support.
 
@@ -141,7 +146,7 @@ The next [dotted-import comparison](dotted-import-comparison.md) reuses the same
 
 The two limits are explicit: awscli's wheel exceeded the extraction bound, and ddtrace's release-history JSON exceeded the metadata download bound. A package that contains no `.py` files, such as a stub or dependency-only distribution, remains unverified; it does not acquire a compatibility guarantee from an empty compilation pass. The audit preserves declared dependencies but does not resolve or test the entire dependency closure for each of the 1,000 projects.
 
-Read the [summary](popularity-audit.md), [complete JSON](popularity-audit.json), or [CSV](popularity-audit.csv). The website and `kipferl deps audit` display the same canonical report; the CLI identifies when its runtime differs from the one screened. `popularity-catalog.json` contains only the exact, hash-verified syntax failures, and the CLI combines these with the original reviewed catalog while deduplicating identical evidence keys. Metadata-only observations and compilation passes never become a behavioral allowlist entry. All diagnostic and distribution-version claims remain limited to the recorded artifact/runtime/target.
+Read the [summary](popularity-audit.md), [complete JSON](popularity-audit.json), or [CSV](popularity-audit.csv). The website displays the canonical macOS ARM64 report. Release CLIs embed the independently generated report for their own exact runtime and target; development builds identify when their runtime differs from the one screened. `popularity-catalog.json` contains only the exact, hash-verified syntax failures, and the CLI combines these with the original reviewed catalog while deduplicating identical evidence keys. Metadata-only observations and compilation passes never become a behavioral allowlist entry. All diagnostic and distribution-version claims remain limited to the recorded artifact/runtime/target.
 
 Run the audit or resume the same snapshot and policy:
 
@@ -176,3 +181,7 @@ mise exec -- python3 -m unittest discover -s scripts -p 'test_package_popularity
 ```
 
 The check validates report semantics, policy/cache digests, snapshot hash and ranking provenance, every rank/name/download count, source coverage, complete-result counts, and exact agreement of the generated CSV and syntax catalog with the canonical JSON. It checks consistency and provenance; it does not redownload wheels or rerun the compiler.
+
+The release also attaches `popularity-snapshot.json` and
+`popularity-metadata.json`, each with a SHA-256 sidecar, so the ranking and
+shared metadata pins can be verified without a source checkout.

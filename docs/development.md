@@ -194,7 +194,7 @@ To promote a candidate to stable, remove the `-rc.N` suffix from all version
 files and rebuild the components. Their bytes and package-lock identities can
 change even when language behavior does not. Generate fresh reviewed evidence
 for the final binaries; never relabel the candidate's hashes. A stable tag such
-as `v0.7.1` updates GitHub's latest release and the Homebrew formula. The formula
+as `v0.7.2` updates GitHub's latest release and the Homebrew formula. The formula
 updater downloads all four binaries and their checksum sidecars, verifies them,
 and replaces the formula only after every artifact matches. After publication,
 verify the public downloads, Homebrew version/checksums, and live documentation.
@@ -210,12 +210,23 @@ establish permission to push a protected default branch or merge a PR.
 Each component job generates fresh catalog evidence from the reviewed wheel
 pins against its final full runtime. macOS keeps the behavior hook sandbox;
 Linux requires explicit disposable GitHub Actions execution. Only the pinned,
-reviewed tzdata hook executes. Historical catalog records remain, and the broad
-popularity audit retains its original runtime identity.
+reviewed tzdata hook executes. Each native job also reruns the pinned 1,000-package
+source audit against that final runtime. Metadata pins are reused to hold the
+selected releases and artifacts constant; old compilation results are never
+copied to a new runtime hash. These broad checks compile source without running
+package imports or behavior.
+
+Release assets include `popularity-audit-<target>.json`, its CSV export, and
+`popularity-catalog-<target>.json`, with checksums. The syntax catalog contains
+only exact verified compiler failures. Compilation-complete packages remain
+unverified and do not gain behavioral approval.
 
 Before building a CLI, `prepare_release_assets.py` checks the complete set of
-12 components and four catalog checksums, verifies matching tested evidence,
-and restores executable permissions. Missing files cannot silently fall back
+12 components, four reviewed catalogs, and four complete broad audits with their
+syntax catalogs and CSV exports. It verifies checksums, matching runtime hashes,
+targets, ranking and release pins, tested evidence, and generated export
+consistency, then restores executable permissions. Each CLI embeds the report
+and syntax catalog for its own target. Missing files cannot silently fall back
 to tracked assets. `check_release_packages.py` then uses isolated project and
 cache directories to test installation, missing-cache failure, locked offline
 restoration, and a standalone app after deleting the project and caches. Reports

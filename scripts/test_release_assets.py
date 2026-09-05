@@ -20,6 +20,10 @@ class ReleaseAssetsTests(unittest.TestCase):
         self.dest = self.root / 'assets'
         self.dest.mkdir()
         (self.dest / 'sentinel').write_text('unchanged')
+        self.snapshot = self.root / 'snapshot.json'
+        self.pins = self.root / 'pins.json'
+        self.snapshot.write_text('{}')
+        self.pins.write_text('{}')
         for target in assets.TARGETS:
             hashes = {}
             for kind in assets.COMPONENTS:
@@ -28,6 +32,9 @@ class ReleaseAssetsTests(unittest.TestCase):
             record = {'name': 'tzdata', 'version': '2025.2', 'target': target,
                       'status': 'tested', 'runtime_sha256': hashes['pocketpy-kipferl']}
             self.write(f'package-catalog-{target}.json', json.dumps({'records': [record]}).encode())
+            self.write(f'popularity-audit-{target}.json', json.dumps({'target': target}).encode())
+            self.write(f'popularity-catalog-{target}.json', b'{}')
+            self.write(f'popularity-audit-{target}.csv', b'csv')
 
     def write(self, name, data):
         digest = hashlib.sha256(data).hexdigest()
@@ -37,8 +44,11 @@ class ReleaseAssetsTests(unittest.TestCase):
 
     def prepare(self):
         # Catalog schema/hook validation has its own tests; isolate artifact wiring here.
-        with patch.object(assets, 'validate'):
-            assets.prepare(self.source, self.dest, 'macos-aarch64', self.root / 'catalog.json')
+        with patch.object(assets, 'validate'), patch.object(assets, 'validate_release_report'), \
+                patch.object(assets.audit, 'catalog_export', return_value={}), \
+                patch.object(assets.audit, 'csv_export', return_value='csv'):
+            assets.prepare(self.source, self.dest, 'macos-aarch64', self.root / 'catalog.json',
+                           self.root / 'audit.json', self.root / 'syntax.json', self.root / 'audit.csv', self.snapshot, self.pins)
 
     def test_all_inputs_verified_before_any_fallback_asset_is_replaced(self):
         (self.source / 'kipferl-loader-linux-x86_64').unlink()
@@ -59,6 +69,14 @@ class ReleaseAssetsTests(unittest.TestCase):
         self.assertEqual(len(list(self.dest.iterdir())), 13)
         self.assertTrue((self.dest / 'pocketpy-kipferl-macos-aarch64').stat().st_mode & 0o111)
         self.assertTrue((self.root / 'catalog.json').is_file())
+        self.assertEqual(json.loads((self.root / 'audit.json').read_text()), {'target': 'macos-aarch64'})
+        self.assertEqual(json.loads((self.root / 'syntax.json').read_text()), {})
+
+    def test_missing_or_altered_popularity_evidence_leaves_assets_untouched(self):
+        self.write('popularity-catalog-linux-aarch64.json', b'{"unexpected":true}')
+        with self.assertRaisesRegex(ValueError, 'syntax catalog differs'):
+            self.prepare()
+        self.assertEqual([p.name for p in self.dest.iterdir()], ['sentinel'])
 
     def test_size_boundary_and_empty_artifact_are_rejected(self):
         path = self.root / 'binary'

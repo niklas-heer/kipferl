@@ -28,7 +28,7 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
           className="underline"
           href="/docs/getting-started/installation#stable-release"
         >
-          v0.7.1
+          v0.7.2
         </Link>{" "}
         and the current source checkout. Homebrew installs the stable release.{" "}
         <Link className="underline" href="/docs/getting-started/installation">

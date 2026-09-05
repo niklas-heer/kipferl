@@ -415,7 +415,7 @@ export default function HomePage() {
           aria-label="Release verification"
         >
           <div>
-            <strong>0.7.1</strong>
+            <strong>0.7.2</strong>
             <span>Stable & ready to build with</span>
           </div>
           <div>
@@ -426,7 +426,7 @@ export default function HomePage() {
             <strong>1,725 checks</strong>
             <span>Available compatibility checks passed</span>
           </div>
-          <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1">
+          <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2">
             Inspect the release evidence <ArrowUpRight size={17} />
           </Link>
         </section>
@@ -625,9 +625,9 @@ export default function HomePage() {
               <div>
                 <h3>Popular packages. An open audit.</h3>
                 <p>
-                  Search the dated source-screening results, inspect blockers,
-                  and see what still needs work. Compilation success is not a
-                  guarantee that a library works.
+                  Search the refreshed source-screening results, inspect
+                  blockers, and see what still needs work. Compilation success
+                  is not a guarantee that a library works.
                 </p>
               </div>
               <ArrowUpRight size={20} />

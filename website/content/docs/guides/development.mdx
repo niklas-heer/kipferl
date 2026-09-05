@@ -7,7 +7,7 @@ description: Reproduce the Rust and website setup, investigate failures, and val
 This guide is for changing Kipferl itself. To develop a Python application,
 start with [project commands](/docs/commands/projects) and `kipferl dev`.
 The workflow below changes the source checkout. Application developers can
-[install v0.7.1](/docs/getting-started/installation#stable-release) to use
+[install v0.7.2](/docs/getting-started/installation#stable-release) to use
 the new project and package commands without installing the contributor tools.
 Homebrew tracks stable releases; contributor tooling remains in the repository.
 
@@ -231,7 +231,16 @@ hooks require an explicit disposable-CI opt-in and `GITHUB_ACTIONS=true`, which
 is a runner trust decision rather than an OS sandbox. Only the pinned reviewed
 `tzdata` hook runs. Local Linux execution has no silent fallback.
 
-The broad popularity audit remains a dated screen against its recorded runtime; it is not relabeled as evidence for a new binary.
+Starting with 0.7.2, each native release job reruns the pinned 1,000-package
+source audit against its final runtime. The pipeline reuses release metadata
+pins, never old compilation results. It publishes
+`popularity-audit-<target>.json`, its CSV, and
+`popularity-catalog-<target>.json` with checksums. Before building a CLI,
+verification requires complete coverage, matching runtime and target identities,
+matching ranking and artifact pins, and consistent generated exports. The CLI
+embeds its own platform's report and exact compiler blockers. Compilation
+success never becomes a behavioral approval; dependency closures remain
+unverified.
 
 Contributors can dispatch the Release workflow on a branch to run these gates
 without publishing. Only a matching version tag publishes a release, and release

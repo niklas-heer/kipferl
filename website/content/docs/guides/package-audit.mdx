@@ -11,35 +11,63 @@ focused test next. The ranking comes from a dated snapshot of monthly PyPI
 downloads. It measures download activity, including automation, rather than
 unique users or the suitability of a library for your application.
 
-The 1,000-package screen below is **historical evidence for its recorded runtime**,
-not a new run against each release binary. The release pipeline generates
-reviewed catalog evidence for each exact runtime and platform separately;
-candidate results are not copied to stable runtime hashes. The broad report
-retains its original hashes and displays a runtime mismatch where applicable.
+The screen below was refreshed for **0.7.2** on macOS ARM64. Each release CLI
+also gets a fresh 1,000-package report for its own exact runtime and platform.
+Compilation results are never copied to a different binary hash. The website
+shows the canonical macOS ARM64 report; use `kipferl deps audit` or the release
+assets to inspect your platform's evidence.
+
+## 0.7.2 results
+
+The rerun preserves the previous ranking and 999 available release metadata
+pins; ddtrace remains metadata-limited. Every selected release retains its
+previous category and first compiler blocker. The update supplies fresh evidence
+for current binaries rather than claiming additional working packages.
+
+| Result | Top 100 | Top 1,000 |
+| --- | ---: | ---: |
+| Compilation-complete, behavior unverified | 4 | 44 |
+| Exact verified wheel syntax blockers | 81 | 770 |
+| No usable generic Python 3 pure wheel | 15 | 178 |
+| Declared Python-version conflict | 0 | 5 |
+| No usable wheel | 0 | 1 |
+| Audit resource limits | 0 | 2 |
+
+Of the **44 compilation-complete distributions**, **24 contain Python source**
+and **20 contain no Python source**. Neither group is a behavioral allowlist.
+The two limits are awscli's wheel extraction bound and ddtrace's metadata size
+bound; there were no network failures. No full dependency closure was resolved
+or tested by this screen.
+
+Read the [0.7.2 comparison](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/release-0.7.2-comparison.md)
+for the controlled rerun and the earlier comparisons below for the language
+changes that produced the existing gains.
 
 ## Explore the results
 
 <PackageAudit />
 
-## Dotted-import results
+## Earlier dotted-import comparison
 
-Native dotted imports now initialize parents, bind roots and aliases, and handle
-circular imports and failed-import retries. All **170 releases** whose first
-blocker was a dotted import progress. Four now finish compilation:
+The September 5, 2026 development comparison measured native dotted imports,
+which initialize parents, bind roots and aliases, and handle circular imports
+and failed-import retries. All **170 releases** whose first blocker was a
+dotted import progressed. Four finished compilation:
 `entrypoints==0.4`, `pytest-metadata==3.1.1`, `zope-event==6.2`, and
-`python-http-client==3.3.7`. The other **166** reach later syntax blockers.
+`python-http-client==3.3.7`. The other **166** reached later syntax blockers.
 
-The audit now has **44 compilation-complete distributions**, including **24 with
-Python source**, up from 40 and 20 respectively. These are candidates for
+That comparison reached **44 compilation-complete distributions**, including
+**24 with Python source**, up from 40 and 20 respectively. These are candidates for
 focused dependency and behavior tests, not new compatibility approvals. Both
 screens use the same module compiler mode and the same 999 available metadata
 pins; ddtrace remains metadata-limited. Read the
 [dotted-import comparison](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/dotted-import-comparison.md).
 
-## First language-patch results
+## Earlier language-patch comparison
 
-The rerun adds trailing commas in parenthesized imports and function parameters,
-plus adjacent plain string and bytes literals. Syntax checking now uses normal
+The earlier September 5, 2026 comparison measured trailing commas in
+parenthesized imports and function parameters,
+plus adjacent plain string and bytes literals. Its syntax checks use normal
 module compilation without executing the package. Source-bearing candidates
 that finish compilation increased from **12 to 20**; another **383 packages**
 reach a different first blocker. These candidates still need dependency,
@@ -79,8 +107,8 @@ runtime build, or platform needs new evidence.
 
 ## View the report from the CLI
 
-The v0.7 CLI embeds the report and can show it offline, including outside a
-project directory:
+The v0.7.2 CLI embeds its platform's report and can show it offline, including
+outside a project directory:
 
 ```bash
 kipferl deps audit
@@ -91,21 +119,28 @@ kipferl deps audit --json
 The default view summarizes categories and shows the first 20 ranked entries.
 `--limit` accepts 1 through 1,000. JSON always exports the complete embedded
 report, including provenance and runtime identity, and cannot be combined with
-`--limit`. The CLI reports a runtime mismatch when the recorded audit binary
-differs from its current runtime; it does not silently reuse that evidence.
+`--limit`. Release preparation verifies that the report matches the exact
+embedded runtime and target. A development build can still report a mismatch
+when its runtime has been rebuilt without refreshing evidence; the CLI does not
+silently reuse that evidence.
 
 ## Inspect and reproduce
 
-The website reads the checked-in audit JSON at build time. Summary counts,
-filters, and rows all derive from that source; no hand-maintained website list
-can silently diverge from the report.
+The interactive explorer reads the checked-in macOS ARM64 audit JSON at build
+time. Its summaries, filters, and rows all derive from that source. The release
+summary above describes the 0.7.2 rerun.
 
 - [Complete JSON evidence](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.json)
 - [CSV results](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.csv)
 - [Markdown report](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.md)
+- [Per-platform release reports and checksums](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2)
 - [Package audit contributor reference](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/README.md)
 
 Use the recorded source location and parser diagnostic to create a minimal
 reproduction before changing the runtime. Add a focused regression for a fix,
 rerun the audit against the newly built binary, and keep its runtime hash with
 the result. See [runtime and catalog development](/docs/guides/development).
+
+The release also attaches `popularity-snapshot.json` and
+`popularity-metadata.json`, each with a SHA-256 sidecar, so the ranking and
+shared metadata pins can be verified without a source checkout.

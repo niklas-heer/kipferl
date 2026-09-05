@@ -128,6 +128,8 @@ class WorkflowTests(unittest.TestCase):
                 if arguments[-1] == "--version":
                     version = (smoke.ROOT / "VERSION").read_text().strip()
                     output = f"Kipferl v{version}" if arguments[0] == str(cli) else f"Kipferl runtime {version}"
+                elif "audit" in arguments:
+                    output = json.dumps({"complete": True, "completed_count": 1000})
                 elif "catalog" in arguments:
                     output = json.dumps({"records": [record]})
                 elif "add" in arguments:
@@ -162,8 +164,12 @@ class WorkflowTests(unittest.TestCase):
                 return {"stdout": output, "stderr": "", "returncode": code, "seconds": 0}
 
             with patch.object(smoke, "command", side_effect=fake_command), \
-                    patch.object(smoke, "host_target", return_value="macos-aarch64"):
+                    patch.object(smoke, "host_target", return_value="macos-aarch64"), \
+                    patch.object(smoke, "validate_release_report") as validate_audit:
                 result = smoke.run_smoke(cli, runtime, "macos-aarch64", "cli")
+            validate_audit.assert_called_once()
+            self.assertEqual(validate_audit.call_args.args[1:3], (smoke.digest(runtime), "macos-aarch64"))
+            self.assertEqual(result["popularity_audit"]["completed_count"], 1000)
             self.assertEqual(result["status"], "passed")
             self.assertEqual(result["offline_isolation"], "cli-offline-flag-only")
             self.assertEqual(result["runtime_sha256"], smoke.digest(runtime))

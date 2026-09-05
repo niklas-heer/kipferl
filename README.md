@@ -40,19 +40,19 @@ scripts, and Kipferl ships them as single-file binaries that start quickly.
 
 ## Quickstart
 
-**[Kipferl v0.7.1](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1)**
+**[Kipferl v0.7.2](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2)**
 brings project templates, configuration defaults, completions,
 compatibility-checked PyPI dependencies, and portable packaging with local
 modules and resources. Follow the
 [stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
 for Homebrew or a platform binary with checksum verification, then try the
 workflow below. Read the [0.7 release story](https://kipferl.dev/blog/kipferl-0-7)
-for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-071)
+for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-072)
 before moving a project from v0.6 or the release candidate.
 
 Homebrew follows the stable release: use `brew install niklas-heer/tap/kipferl`
 or `brew update && brew upgrade kipferl`, then check `kipferl --version` reports
-`v0.7.1`. The project workflow below requires 0.7; v0.6 still supports explicit
+`v0.7.2`. The project workflow below requires 0.7; v0.6 still supports explicit
 script commands such as `kipferl dev app.py` and `kipferl build app.py -o app`.
 
 ```bash
@@ -120,7 +120,7 @@ run your application tests; do not edit hashes to bypass a mismatch. Dynamic
 `__import__("http.client")` now returns the root `http` module. Use
 `import http.client as client` for the child module. See the
 [package guide](https://kipferl.dev/docs/guides/packages) and
-[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-071) for details.
+[0.7 upgrade notes](https://kipferl.dev/docs/guides/packages#upgrade-to-072) for details.
 
 Commit `kipferl.json` and `kipferl.lock`. Run, test, and build use the same
 verified installation; standalone builds carry the imported Python modules,
@@ -133,11 +133,18 @@ with exact wheel/runtime hashes and focused behavior hooks.
 
 ### Explore the popular-package audit
 
-The completed source audit covers the top **1,000 PyPI projects** in the August
-2026 monthly download snapshot, inspecting each selected latest release against
-the recorded macOS ARM64 runtime. This dated source screen is separate from
-the fresh per-platform release catalog: it was not rerun against every release
-binary. `deps audit` identifies a differing runtime hash. Browse the
+The refreshed 0.7.2 source audit covers the top **1,000 PyPI projects** in the
+August 2026 monthly download snapshot. It reuses the selected release and
+artifact pins so the comparison measures runtime changes. **44 distributions
+finish compilation, including 24 with Python source; none become behaviorally
+approved by this screen.** The 770 syntax blockers, 178 native-wheel constraints,
+and remaining metadata/resource findings are unchanged from the previous screen.
+Imports, package APIs, and dependency closures still need focused tests.
+
+The website shows the canonical macOS ARM64 report. Each 0.7.2 release CLI embeds
+a fresh report for its own exact runtime and target; `deps audit` exposes that
+evidence offline and identifies a differing runtime hash in development builds.
+Browse the
 [searchable audit](https://kipferl.dev/docs/guides/package-audit) for top-100 and
 top-1,000 summaries, package/error search, reason filters, and exact evidence.
 Download counts include automation and do not measure unique users.
@@ -355,16 +362,16 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Stable v0.7.1: Homebrew (macOS/Linux)
+### Stable v0.7.2: Homebrew (macOS/Linux)
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
 For an existing installation, run `brew update && brew upgrade kipferl` and
-verify `kipferl --version` reports `v0.7.1`. If you added an RC directory to your
+verify `kipferl --version` reports `v0.7.2`. If you added an RC directory to your
 `PATH`, remove that entry so it does not shadow Homebrew. Read the
-[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-071)
+[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-072)
 for dependency-lock changes. Users with the old μcharm 0.5 formula should replace
 it once:
 
@@ -377,10 +384,10 @@ The deprecated `ucharm` command alias ended in 0.7.1. Update scripts to invoke
 `kipferl`. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
 the final artifact sizes, migration outcome, and verified release evidence.
 
-### v0.7.1: direct download
+### v0.7.2: direct download
 
 Download the stable binary explicitly from its
-[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.1).
+[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2).
 Choose the release asset for the machine running Kipferl:
 
 | Platform | Asset |
@@ -395,7 +402,7 @@ matches the filename inside the `.sha256` file. For example, on Apple Silicon:
 
 ```bash
 asset=kipferl-macos-aarch64
-release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.1
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.2
 release_dir=$(mktemp -d)
 cd "$release_dir"
 curl -fLO "$release/$asset"

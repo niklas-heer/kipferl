@@ -13,6 +13,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+
+from release_popularity_audit import validate_release_report
 import platform
 import re
 import shutil
@@ -201,6 +203,17 @@ def run_smoke(cli: Path, runtime: Path, target: str, mode: str) -> dict:
         catalog = json.loads(run("embedded-catalog", [str(cli), "deps", "catalog", "--json"],
                                  limit=CATALOG_LIMIT)["stdout"])
         record = tested_record(catalog, runtime_hash, target)
+        audit_text = run("embedded-popularity-audit", [str(cli), "deps", "audit", "--json"],
+                         limit=CATALOG_LIMIT)["stdout"]
+        try:
+            validate_release_report(json.loads(audit_text), runtime_hash, target,
+                                    (ROOT / "compatibility/packages/popularity.json").read_bytes(),
+                                    json.loads((ROOT / "compatibility/packages/popularity-metadata.json").read_text()))
+        except (ValueError, KeyError, TypeError) as error:
+            raise SmokeFailure(f"embedded release popularity audit failed validation: {error}") from error
+        evidence["popularity_audit"] = {"completed_count": 1000, "target": target,
+                                        "runtime_sha256": runtime_hash,
+                                        "export_sha256": hashlib.sha256(audit_text.encode()).hexdigest()}
         evidence["wheel_sha256"] = record["wheel_sha256"]
         evidence["reviewed_smoke_sha256"] = record["smoke"]["sha256"]
         (project / "kipferl.json").write_text(json.dumps({"entry": "app.py"}) + "\n")

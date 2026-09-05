@@ -54,7 +54,7 @@ The root `demo.gif` and `public/demo.gif` are refreshed from this same recording
 so historical article embeds show the current branding. Their captions identify
 the newer workflow rather than implying it was available in the older release.
 
-Documentation covers stable v0.7.1 and the current `main` checkout. Clearly
+Documentation covers stable v0.7.2 and the current `main` checkout. Clearly
 label future source-only changes, and keep the shared notice and AI-readable
 export aligned with the version offered by the installation guide.
 Preserve the historical scope of release articles and performance measurements;
@@ -79,6 +79,10 @@ building the site; do not copy rows into MDX or public assets. The adapter
 validates coverage metadata and maps only display fields into the interactive
 search/filter table. Regenerate the canonical audit before rebuilding to publish
 new results. JSON, CSV, and Markdown evidence links point to the repository.
+The site displays the canonical macOS ARM64 screen. Release CLIs embed the
+independently generated report for their own platform; the release attaches
+those reports and their checksums. Keep that distinction explicit rather than
+presenting one platform's result as evidence for all targets.
 
 Run the website checks directly from `website/` when working on its components:
 
