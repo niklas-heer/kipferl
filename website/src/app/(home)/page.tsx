@@ -149,14 +149,14 @@ export default function HomePage() {
 
           {/* Badge */}
           <Link
-            href="/blog/kipferl-0-6"
+            href="/blog/kipferl-0-7-rc-1"
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-sm font-medium mb-8 hover:border-cyan-500/50 transition-colors"
           >
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
             </span>
-            Kipferl v0.6.0 — stable Rust release
+            Kipferl v0.7.0-rc.1 is available · prerelease
           </Link>
 
           <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-[1.1]">
@@ -211,6 +211,16 @@ export default function HomePage() {
             </code>
             <CopyButton text="brew install niklas-heer/tap/kipferl" />
           </div>
+          <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+            Homebrew installs stable v0.6.0. To try the new package workflow,{" "}
+            <Link
+              href="/docs/getting-started/installation#release-candidate"
+              className="text-cyan-600 dark:text-cyan-400 underline"
+            >
+              download v0.7.0-rc.1
+            </Link>
+            .
+          </p>
         </div>
       </section>
 
@@ -244,7 +254,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
             <StatCard value="7.679" suffix="ms" label="v0.6 core median" />
             <StatCard value="1.451" suffix="MB" label="v0.6 minimal app" />
-            <StatCard value="1,725" label="Current source checks" />
+            <StatCard value="1,725" label="RC compatibility checks" />
             <StatCard value="4" label="Release targets" />
           </div>
         </div>
@@ -253,15 +263,16 @@ export default function HomePage() {
       <section className="px-6 pb-20">
         <div className="max-w-4xl mx-auto rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-8">
           <p className="text-sm font-mono text-cyan-600 dark:text-cyan-400 mb-3">
-            IN DEVELOPMENT ON MAIN
+            AVAILABLE IN v0.7.0-rc.1
           </p>
           <h2 className="text-3xl font-bold mb-4">
             Create, test, and ship a complete project
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-5">
-            The current source checkout adds CLI, API, and interactive starters,
-            project defaults, PyPI compatibility checks, and bundled resources.
-            Each starter includes editor support, tests, and a README.
+            The 0.7 release candidate includes CLI, API, and interactive
+            starters, project defaults, PyPI compatibility checks, and bundled
+            resources. Each starter includes editor support, tests, and a
+            README.
           </p>
           <pre className="overflow-x-auto rounded-xl bg-gray-950 p-5 text-sm text-gray-100">
             <code>{`kipferl new hello --template cli
@@ -274,9 +285,9 @@ kipferl build
           <div className="mt-5 flex flex-wrap gap-5">
             <Link
               className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
-              href="/docs/getting-started/installation#development-checkout"
+              href="/docs/getting-started/installation#release-candidate"
             >
-              Set up the current checkout →
+              Install the release candidate →
             </Link>
             <Link
               className="font-semibold text-cyan-600 dark:text-cyan-400 hover:underline"
@@ -299,8 +310,9 @@ kipferl build
           </div>
           <p className="mt-5 text-sm text-gray-500 dark:text-gray-400">
             Size and startup figures above are dated v0.6 measurements. The
-            current source check count uses the pinned CPython 3.12.14 baseline;
-            it measures the tested subset, not complete Python compatibility.
+            release-candidate check count uses the pinned CPython 3.12.14
+            baseline; it measures the tested subset, not complete Python
+            compatibility.
           </p>
         </div>
       </section>

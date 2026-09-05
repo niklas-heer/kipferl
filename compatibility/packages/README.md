@@ -4,11 +4,48 @@ The catalog speeds up dependency checks with reusable evidence. It is an **allow
 
 `tested` means all Python sources compiled and the checked-in behavior hook passed within its stated scope. `incompatible` means this exact artifact has a demonstrated syntax, API, behavior, or native-wheel blocker. `unverified` means evidence is missing or incomplete. Source compilation and successful imports cannot establish compatibility for unexercised paths, dynamic imports, optional extras, or every use of a library. Each dependency is assessed separately before installation; a tested parent never waives a dependency's failures.
 
-## Initial evidence
+## Published release candidate
 
-The pinned candidates include attrs, colorama, idna, inflection, more-itertools, NumPy, packaging, six, toml, and tzdata. Read `catalog.json` for the precise versions, wheel filenames/hashes, runtime hashes, compiler locations, and tested scopes. The initial results cover macOS ARM64 and both the checked-in embedded runtime and the freshly built runtime. Other targets remain unverified.
+[v0.7.0-rc.1](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0-rc.1)
+ships the package manager and compatibility catalog on macOS/Linux ARM64 and
+x86_64. Use the [installation guide](https://kipferl.dev/docs/getting-started/installation)
+for the explicit RC download and checksum verification, and the
+[release story](https://kipferl.dev/blog/kipferl-0-7-rc-1) for changes and upgrade
+notes. Homebrew and GitHub's latest stable release remain v0.6.0; they do not
+provide this RC package workflow.
 
-`tzdata==2025.2` is a positive resource-package example: version constants and the TZif headers of four representative timezone files pass. This does **not** add Python's `zoneinfo` API or establish timezone-conversion behavior. The other initial artifacts have concrete compiler or native-wheel blockers. Their distribution names are not permanently blocked: a future compatible artifact/runtime can have different evidence.
+Each platform's release runtime gets fresh reviewed evidence on its native
+runner before the CLI is built. The release attaches
+`package-catalog-<target>.json` and its checksum, plus
+`package-smoke-<target>.json` recording the CLI, runtime, wheel, lock, and
+standalone hashes actually tested. `kipferl deps catalog --json` shows the
+catalog embedded in your CLI; only records matching its exact runtime and target
+apply to installation. Copying a release version string or rebuilding the same
+source does not transfer the evidence to a different binary.
+
+The positive `tzdata==2025.2` record is verified for each of the four official RC
+platforms. Release smoke checks install it without `--allow-unverified`, verify
+resources, reject an offline restore with a missing cached wheel, restore from
+the exact cache with `sync --locked --offline`, and execute a standalone app
+after deleting the project and caches. macOS offline steps deny network access
+with `sandbox-exec`; Linux steps test the explicit CLI offline mode on disposable
+runners and make no claim of OS network isolation.
+
+These fresh per-platform records are separate from the dated, macOS ARM64
+[top-1,000 source audit](#top-1000-package-screening). That broad screen was not
+rerun for every RC release binary. Compilation success still remains unverified,
+and even its known blockers apply only to their recorded runtime hash.
+
+## Checked-in development evidence
+
+The pinned candidates include attrs, colorama, idna, inflection, more-itertools,
+NumPy, packaging, six, toml, and tzdata. Read `catalog.json` for the precise
+versions, wheel filenames/hashes, runtime hashes, compiler locations, and tested
+scopes. The checked-in development snapshots cover macOS ARM64 runtime builds.
+The release pipeline adds fresh native-platform records; it does not relabel
+these historical records for a different target.
+
+`tzdata==2025.2` is a positive resource-package example: version constants and the TZif headers of four representative timezone files pass. This does **not** add Python's `zoneinfo` API or establish timezone-conversion behavior. The other pinned development artifacts have concrete compiler or native-wheel blockers. Their distribution names are not permanently blocked: a future compatible artifact/runtime can have different evidence.
 
 ## Validate without downloading or executing packages
 
@@ -44,6 +81,46 @@ Behavior execution currently requires macOS `sandbox-exec`; the updater refuses 
 
 All results are tied to the binary actually invoked, including the embedded runtime when that path is supplied. To extend platform coverage, regenerate with the relevant native runtime on that target and review/merge the resulting exact records. Do not copy a tested result onto an untested platform.
 
+## Release verification and upgrades
+
+The release pipeline uses `scripts/release_package_catalog.py` to regenerate
+existing reviewed pins against each supplied native runtime. Its only behavior
+hook is the reviewed tzdata smoke. Linux execution requires explicit
+`--disposable-ci` on a GitHub Actions runner; the ordinary developer updater
+above retains its macOS sandbox requirement. Neither command executes arbitrary
+new package hooks just because a candidate compiles.
+
+To verify actual release artifacts on macOS, use the isolated release smoke:
+
+```sh
+mise exec -- python3 scripts/check_release_packages.py \
+  --cli /path/to/kipferl-macos-aarch64 \
+  --runtime /path/to/pocketpy-kipferl-macos-aarch64 \
+  --target macos-aarch64 --offline-isolation required \
+  --output /path/to/package-smoke-macos-aarch64.json
+```
+
+The CLI and runtime must report the version in `VERSION`, and the embedded
+catalog must identify the supplied runtime hash. The script creates its own
+HOME, project, and caches; it never uses or clears the caller's package cache.
+On Linux, use the matching target and `--offline-isolation cli`; the JSON labels
+that narrower guarantee explicitly.
+
+A CLI upgrade may invalidate `kipferl.lock` because its embedded runtime changed.
+Re-run `kipferl add` for your declared requirements, review the resulting lock,
+and run application tests. Repeat `--allow-unverified` only for dependencies you
+intentionally accept; it cannot bypass known blockers. Do not change lock hashes
+manually or reuse another target's tested record. See the
+[package guide](https://kipferl.dev/docs/guides/packages) for recovery commands.
+
+The RC also changes dynamic dotted imports: `__import__("http.client")` returns
+`http`, following Python's root-binding behavior. Use
+`import http.client as client` for the child module, or a nonempty positional
+fromlist with `__import__`. Relative from-import statements work; nonzero dynamic
+import levels, namespace packages, and custom finders remain unsupported. See
+the [RC upgrade notes](https://kipferl.dev/blog/kipferl-0-7-rc-1) before migrating
+code that relied on the earlier leaf-return behavior.
+
 ## Schema
 
 `catalog.json` has `schema_version: 1` and a `records` array. Every record requires `name`, `version`, `wheel_filename`, `wheel_sha256`, `runtime_sha256`, `target`, `status`, and human-readable `evidence`. Additional fields include the official `source_url`, `source_files_checked`, source-specific `compile_failures`, and a `smoke` object. Tested records require a checked-in hook filename, its SHA-256, and a concrete behavior scope. The Rust lookup fails closed if required fields, statuses, hashes, or evidence keys are malformed.
@@ -54,7 +131,7 @@ The [compatibility priorities](priorities.md) summarize the most common first pa
 
 `popularity.json` pins the 1,000 projects with the most downloads in the upstream ranking's August 2026 window. Its recorded source uses ClickHouse; preserve the source URL, query, reporting window, retrieval time, and source hash when refreshing it. Downloads indicate popularity, not package quality or runtime compatibility.
 
-`popularity-audit.json` records one selected **latest PyPI release per ranked project**, pinned at its recorded metadata-fetch time. The completed rerun covers all 1,000 projects on the patched embedded macOS ARM64 runtime. It found 770 exact verified wheel syntax blockers, 178 releases without a usable generic Python 3 pure wheel (including one purportedly pure wheel containing native libraries), five declared Python-version conflicts, one release without a usable wheel, 44 compilation-complete but behaviorally unverified distributions, and two audit limits. There were no network failures. Twenty-four of those 44 distributions contain Python source. Older releases and alternative wheels were not explored.
+`popularity-audit.json` records one selected **latest PyPI release per ranked project**, pinned at its recorded metadata-fetch time. The completed development rerun from 2026-09-05 covers all 1,000 projects on the recorded patched macOS ARM64 runtime (`5797c5f7…`). This is historical source evidence, not a per-platform RC compatibility guarantee. It found 770 exact verified wheel syntax blockers, 178 releases without a usable generic Python 3 pure wheel (including one purportedly pure wheel containing native libraries), five declared Python-version conflicts, one release without a usable wheel, 44 compilation-complete but behaviorally unverified distributions, and two audit limits. There were no network failures. Twenty-four of those 44 distributions contain Python source. Older releases and alternative wheels were not explored.
 
 The [language-patch comparison](language-patch-comparison.md) preserves per-project before/after evidence. Trailing commas and adjacent plain strings/bytes were implemented, and the checker was corrected to compile in normal module mode. Compilation-complete source-bearing candidates increased from 12 to 20; 383 other packages now hit a different first blocker. Nine original `global` diagnostics came from dynamic compilation rather than missing module-level language support.
 
@@ -62,7 +139,7 @@ The next [dotted-import comparison](dotted-import-comparison.md) reuses the same
 
 The two limits are explicit: awscli's wheel exceeded the extraction bound, and ddtrace's release-history JSON exceeded the metadata download bound. A package that contains no `.py` files, such as a stub or dependency-only distribution, remains unverified; it does not acquire a compatibility guarantee from an empty compilation pass. The audit preserves declared dependencies but does not resolve or test the entire dependency closure for each of the 1,000 projects.
 
-Read the [summary](popularity-audit.md), [complete JSON](popularity-audit.json), or [CSV](popularity-audit.csv). The website and `kipferl deps audit` display the same canonical report. `popularity-catalog.json` contains only the exact, hash-verified syntax failures, and the CLI combines these with the original reviewed catalog while deduplicating identical evidence keys. Metadata-only observations and compilation passes never become a behavioral allowlist entry. All diagnostic and distribution-version claims remain limited to the recorded artifact/runtime/target.
+Read the [summary](popularity-audit.md), [complete JSON](popularity-audit.json), or [CSV](popularity-audit.csv). The website and `kipferl deps audit` display the same canonical report; the CLI identifies when its runtime differs from the one screened. `popularity-catalog.json` contains only the exact, hash-verified syntax failures, and the CLI combines these with the original reviewed catalog while deduplicating identical evidence keys. Metadata-only observations and compilation passes never become a behavioral allowlist entry. All diagnostic and distribution-version claims remain limited to the recorded artifact/runtime/target.
 
 Run the audit or resume the same snapshot and policy:
 

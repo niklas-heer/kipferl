@@ -23,19 +23,15 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <div className="rounded-lg border border-fd-border bg-fd-muted px-4 py-3 text-sm text-fd-muted-foreground">
-        These docs track the current main checkout, including unreleased
-        changes. Use the{" "}
-        <Link
-          className="underline"
-          href="/docs/getting-started/installation#development-checkout"
-        >
-          source setup
+        The project and package workflows are available in{" "}
+        <Link className="underline" href="/blog/kipferl-0-7-rc-1">
+          v0.7.0-rc.1
         </Link>{" "}
-        for the features described here; see the{" "}
-        <Link className="underline" href="/blog/kipferl-0-6">
-          v0.6 release notes
-        </Link>{" "}
-        for published binaries.
+        and the current source checkout. Homebrew still installs stable v0.6.0.{" "}
+        <Link className="underline" href="/docs/getting-started/installation">
+          Choose a version and follow the installation guide
+        </Link>
+        .
       </div>
       <DocsBody>
         <MDX

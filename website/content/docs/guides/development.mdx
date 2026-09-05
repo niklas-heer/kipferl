@@ -6,8 +6,10 @@ description: Reproduce the Rust and website setup, investigate failures, and val
 
 This guide is for changing Kipferl itself. To develop a Python application,
 start with [project commands](/docs/commands/projects) and `kipferl dev`.
-The workflow below describes the current source checkout; developer tools and
-unreleased fixes are not installed by the published v0.6 CLI.
+The workflow below changes the source checkout. Application developers can
+[install v0.7.0-rc.1](/docs/getting-started/installation#release-candidate) to use
+the new project and package commands without installing the contributor tools.
+Stable v0.6.0 remains the Homebrew release.
 
 ## Reproduce the setup
 
@@ -218,13 +220,17 @@ checked against `examples/recipes/`; edit both together when changing a recipe.
 
 ## Release artifact verification
 
-Release candidates build all four native targets and generate reviewed package
-catalog evidence against each final runtime binary. The release pipeline checks
+The published v0.7.0-rc.1 artifacts were built for all four native targets with
+reviewed package catalog evidence against each final runtime binary. The release pipeline checks
 component checksums and exact versions before embedding them, then tests package
 installation, locked offline restoration, and standalone execution after removing
 the project and caches. Published package reports state the scope and isolation
-used for each target. The broad popularity audit remains a dated screen against
-its recorded runtime; it is not relabeled as evidence for a new binary.
+used for each target. macOS reviewed hooks use `sandbox-exec`; Linux release
+hooks require an explicit disposable-CI opt-in and `GITHUB_ACTIONS=true`, which
+is a runner trust decision rather than an OS sandbox. Only the pinned reviewed
+`tzdata` hook runs. Local Linux execution has no silent fallback.
+
+The broad popularity audit remains a dated screen against its recorded runtime; it is not relabeled as evidence for a new binary.
 
 Contributors can dispatch the Release workflow on a branch to run these gates
 without publishing. Only a matching version tag publishes a release, and release

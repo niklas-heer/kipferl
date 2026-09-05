@@ -4,8 +4,9 @@ description: Install pure-Python dependencies with compatibility evidence and re
 ---
 
 Kipferl can resolve and install pure-Python wheels from PyPI without pip or a
-system Python installation. This is a feature of the current source checkout;
-the published v0.6 release predates it.
+system Python installation in the published **v0.7.0-rc.1 release candidate**.
+[Install the candidate](/docs/getting-started/installation#release-candidate)
+to use these commands; stable v0.6.0 predates the package manager.
 
 ## Find a package that fits
 
@@ -62,12 +63,13 @@ downloaded wheels may remain cached for another attempt.
 
 ## Try a recorded positive
 
-The initial catalog includes `tzdata==2025.2` on macOS ARM64 for the recorded
-runtime hashes. Its checks cover version constants and the `TZif` headers of
+Each v0.7.0-rc.1 release CLI includes fresh `tzdata==2025.2` evidence for its
+exact runtime on macOS Apple Silicon, macOS Intel, Linux x86_64, or Linux ARM64.
+Its checks cover version constants and the `TZif` headers of
 four timezone data files. This is evidence for loading package resources;
 it does not establish timezone conversion support or provide `zoneinfo`.
 
-With a matching source CLI and a project, install the exact version:
+With the release-candidate CLI and a project, install the exact version:
 
 ```bash
 kipferl deps catalog
@@ -132,12 +134,40 @@ preparing the application.
 Review and commit a changed lock after resolving. Do not edit wheel hashes or
 runtime identity in the lock to work around a mismatch.
 
+## Upgrade to 0.7.0-rc.1
+
+An existing `kipferl.lock` identifies the exact runtime binary and platform.
+Switching from a development build or another target can invalidate it even
+when the visible version matches. Run `kipferl add` again for your declared
+requirements, review the resolved versions and new lock, then run your tests:
+
+```bash
+kipferl add 'tzdata==2025.2'
+kipferl deps check
+kipferl test
+kipferl build
+```
+
+Use your own declared requirement in place of the example. Repeat
+`--allow-unverified` only when you intentionally accept and test the whole
+unverified dependency tree; it does not override concrete incompatibilities.
+Commit the resulting configuration and lock together. Do not change hashes
+manually to bypass a mismatch. Keep your prior project revision and stable
+executable available for rollback.
+
+Dynamic imports also change: `__import__("http.client")` now returns the root
+`http`, following Python's behavior. If your code previously used that result
+as the child module, replace it with `import http.client as http`, then call
+`http.HTTPConnection(...)`. A nonempty positional fromlist also returns the
+requested child. Relative from-import statements work; nonzero dynamic import
+levels, namespace packages, and custom import finders remain unsupported.
+
 ## Use and ship the package
 
 Import installed modules normally. The PyPI distribution name can differ from
 the Python import name; consult the package's documentation.
 
-Current source builds support ordinary dotted imports:
+v0.7.0-rc.1 supports ordinary dotted imports:
 
 ```python
 import http.client

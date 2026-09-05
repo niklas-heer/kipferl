@@ -81,7 +81,7 @@ export default function KipferlReleasePage() {
         </header>
         <p className="mb-10 rounded-xl border border-gray-200 dark:border-gray-800 px-5 py-4 text-sm text-gray-600 dark:text-gray-400">
           This article records the August 2026 release and its measurements. For
-          the current source workflow and unreleased changes, see the{" "}
+          the 0.7 release candidate and current project workflow, see the{" "}
           <Link
             className="text-cyan-600 dark:text-cyan-400 underline"
             href="/docs/getting-started/quick-start"

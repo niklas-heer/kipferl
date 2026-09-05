@@ -23,7 +23,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
 
   return `# ${page.data.title}
 
-Documentation scope: current main checkout, including unreleased changes. Published v0.6 binaries may differ; see /docs/getting-started/installation#development-checkout.
+Documentation scope: the published v0.7.0-rc.1 release candidate and current source checkout. Homebrew remains on stable v0.6.0, which predates the project and package workflows. See /docs/getting-started/installation#release-candidate for RC downloads and /docs/guides/packages#upgrade-to-070-rc1 for upgrade notes.
 
 ${processed}`;
 }

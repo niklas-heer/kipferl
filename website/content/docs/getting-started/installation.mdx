@@ -4,14 +4,62 @@ description: Install kipferl on macOS or Linux
 ---
 
 
-Kipferl is available for macOS and Linux. Choose the published stable binary
-or build the current source checkout. The project templates, local-module
-bundling, and contributor workflow in these docs include unreleased changes;
-use the development checkout to follow those examples.
+Kipferl is available for macOS and Linux. **v0.7.0-rc.1 is a published release
+candidate** with project templates, local-module bundling, and compatibility-checked
+PyPI packages. Use it to follow the current application tutorials and test your
+apps before stable 0.7. **v0.6.0 remains the stable and Homebrew release.**
 
-## Homebrew
+## Release candidate
 
-Install the stable release on macOS or Linux:
+Download [v0.7.0-rc.1](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.0-rc.1)
+for your operating system and CPU:
+
+| Platform | Release-candidate binary | Checksum |
+| --- | --- | --- |
+| macOS Apple Silicon | [kipferl-macos-aarch64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-macos-aarch64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-macos-aarch64.sha256) |
+| macOS Intel | [kipferl-macos-x86_64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-macos-x86_64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-macos-x86_64.sha256) |
+| Linux x86_64 | [kipferl-linux-x86_64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-linux-x86_64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-linux-x86_64.sha256) |
+| Linux ARM64 | [kipferl-linux-aarch64](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-linux-aarch64) | [SHA-256](https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1/kipferl-linux-aarch64.sha256) |
+
+Choose `asset` from the table before running these commands. This installs into
+a new directory and leaves your stable executable available for rollback:
+
+```bash
+asset=kipferl-macos-aarch64
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.0-rc.1
+rc_dir=$(mktemp -d "$HOME/kipferl-0.7.0-rc.1.XXXXXX")
+cd "$rc_dir"
+curl -fLO "$release/$asset"
+curl -fLO "$release/$asset.sha256"
+```
+
+Verify the checksum with the command for your operating system:
+
+```bash
+# macOS:
+shasum -a 256 -c "$asset.sha256"
+# Linux:
+sha256sum -c "$asset.sha256"
+```
+
+Continue only when verification reports `OK`. Keep the downloaded files under
+their original names until verification succeeds. Then:
+
+```bash
+chmod +x "$asset"
+mv "$asset" kipferl
+./kipferl --version
+export PATH="$rc_dir:$PATH"
+kipferl new --help
+```
+
+The version should be `Kipferl v0.7.0-rc.1`. The `PATH` change applies to this
+shell; opening a fresh shell restores your previous selection. Before upgrading
+a project, read the [import and dependency-lock changes](/docs/guides/packages#upgrade-to-070-rc1).
+
+## Stable Homebrew
+
+Install stable v0.6.0 on macOS or Linux. Homebrew does not select the release candidate:
 
 ```bash
 brew install niklas-heer/tap/kipferl
@@ -28,7 +76,7 @@ brew uninstall --force ucharm
 brew install niklas-heer/tap/kipferl
 ```
 
-## Direct download
+## Stable direct download
 
 Choose the release asset for the machine running Kipferl:
 
@@ -62,9 +110,9 @@ successfully before installing the binary. Add `~/.local/bin` to your shell's
 
 ## Development checkout
 
-To use the current project workflow, install the source checkout with the
-repository's pinned mise setup. This requires Git, mise 2026.9.1 or newer, and a
-native C compiler/linker. On macOS, use the Xcode Command Line Tools.
+To change Kipferl itself or try changes after the release candidate, install the
+source checkout with the repository's pinned mise setup. This requires Git,
+mise 2026.9.1 or newer, and a native C compiler/linker. On macOS, use the Xcode Command Line Tools.
 
 ```bash
 git clone https://github.com/niklas-heer/kipferl.git
@@ -83,9 +131,9 @@ for tool pins, tests, website tasks, and the distinction between newly compiled
 runtime code and the CLI's embedded prebuilt components.
 
 If `--template` is absent from `kipferl new --help`, your shell is still finding
-an older CLI. Check `command -v kipferl` and put the development symlink first
-on `PATH`. The checkout can retain the same version label as the published
-release, so `--version` alone does not identify the new command surface.
+an older CLI. Check `command -v kipferl` and select the release candidate or put
+the development symlink first on `PATH`. Source builds can share a version label
+while embedding different runtime bytes; package locks also check that identity.
 
 ## Verify Installation
 
@@ -93,7 +141,7 @@ release, so `--version` alone does not identify the new command surface.
 kipferl --version
 ```
 
-You should see output like:
+Stable installations show:
 
 ```
 Kipferl v0.6.0
@@ -101,7 +149,7 @@ Kipferl v0.6.0
 
 ## Editor setup
 
-New projects include autocomplete stubs and Pyright configuration:
+With v0.7.0-rc.1, new projects include autocomplete stubs and Pyright configuration:
 
 ```bash
 kipferl new my-cli --template cli
@@ -116,6 +164,7 @@ See [project commands](/docs/commands/projects) to enable shell completion.
 
 <Cards>
   <Card title="Quick Start" href="/docs/getting-started/quick-start" />
-  <Card title="What's new in Kipferl 0.6" href="/blog/kipferl-0-6" />
+  <Card title="What's new in 0.7.0-rc.1" href="/blog/kipferl-0-7-rc-1" />
+  <Card title="Stable Kipferl 0.6" href="/blog/kipferl-0-6" />
   <Card title="Why we moved to Rust" href="/blog/rust-migration" />
 </Cards>

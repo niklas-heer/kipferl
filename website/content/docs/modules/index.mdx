@@ -113,9 +113,11 @@ implementations. The checked-in [compatibility report](https://github.com/niklas
 records the tested APIs and baseline skips. Passing that suite does not imply
 support for every standard-library module or third-party package.
 
-The following behavior describes the current source implementation. Published
-v0.6 binaries and the CLI's checked-in runtime assets may predate these changes;
-see [runtime development and embedded assets](/docs/guides/development#change-runtime-code-and-embedded-assets-deliberately).
+The following behavior is included in the published v0.7.0-rc.1 runtime. Stable
+v0.6.0 predates these changes. The candidate also changes dynamic dotted imports
+to return their root by default; see the [upgrade notes](/docs/guides/packages#upgrade-to-070-rc1).
+For source changes after a release, see
+[runtime development and embedded assets](/docs/guides/development#change-runtime-code-and-embedded-assets-deliberately).
 
 | Area | Behavior to account for |
 | --- | --- |
