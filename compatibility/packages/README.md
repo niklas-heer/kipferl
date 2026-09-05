@@ -1,5 +1,72 @@
 # Package compatibility catalog
 
+## Find something you can use
+
+Start with the [package compatibility guide](https://kipferl.dev/docs/guides/package-audit).
+It leads with built-in application capabilities and package workflows that have
+actually passed tests. **Verified** means the stated scenario passed installation,
+a CPython control, runtime execution, locked offline restoration, and standalone
+execution after deleting the project and caches. **Limited** means a useful
+portion passed with named limitations. **Unsupported** means the tested workflow
+has a concrete blocker. **Untested** means there is not enough execution evidence.
+Every badge names its package version and tested platform; other platforms do
+not inherit it. A badge covers its listed scenario, not every possible API.
+
+All 44 compilation-complete candidates from the 0.7.2 screen were assessed using
+the real released macOS ARM64 CLI. Two data workflows passed: reading the pinned
+`tzdata==2026.3` database resources and querying `trove-classifiers==2026.6.1.19`.
+The other 22 source-bearing candidates encountered installation or runtime
+blockers. The remaining 20 distributions are 15 typing packages and five
+dependency bundles; these are not marketed as working runtime libraries.
+Read [the workflow evidence](verified-packages.json) for every outcome, exact
+dependency lock, reviewed scenario, execution stage, and failure.
+
+The website can publish newly reviewed evidence without replacing a released
+binary. Version 0.7.2 still needs the displayed `--allow-unverified` command for
+these two newly checked artifacts. The source CLI catalog includes their tested
+records; `kipferl deps verified` in development lists only workflows matching its
+embedded runtime. These CLI improvements are pending the next release.
+
+The [100-package support roadmap](support-priorities.md) ranks useful application
+capabilities, demand, dependency reach, and estimated effort. It is a work queue,
+not an additional supported-package list. Each entry has a concrete acceptance
+test to complete before receiving a usable badge.
+
+### Reproduce workflow verification
+
+Review `verification-cases.json` and its exact wheel identities and scenario
+files under `smoke/`. Then use the matching released binaries:
+
+```sh
+mise run package-verify -- --cli /path/to/kipferl-macos-aarch64 \
+  --runtime /path/to/pocketpy-kipferl-macos-aarch64
+mise run catalog-check
+```
+
+The runner installs each exact root artifact with explicit unverified opt-in,
+checks all locked wheel hashes, and never runs setup/build hooks. Reviewed
+scenarios execute with network access and home-directory reads denied, and writes
+confined to a fresh temporary test directory. The CPython control can additionally
+read its pinned interpreter installation. This constrained macOS developer
+runner does not claim Linux coverage or a universal hostile-code sandbox.
+Failed installation is already a user-facing blocker; it does not count as an
+executed behavior test. Operational failures remain Untested.
+
+Use `--development --output /path/to/development-results.json` for an unreleased
+CLI. Keep those results separate from the released-binary guide. `--check`
+validates exact source/case hashes, scopes, platforms, successful stages and
+reviewed hook identities offline. After review, `--promote` adds only fully
+verified, dependency-free artifacts to the source installation catalog. A
+dependency-bearing badge cannot become a catalog approval until the catalog can
+enforce the tested dependency lock. Rebuild the CLI after changing its catalog.
+
+The development installer now ignores transitive test/docs requirements only
+when they cannot activate in any environment without extras. It keeps the
+original dependency declarations in the lock, applies the same rule during
+offline validation, and still rejects active or ambiguous markers and explicit
+extras. This fixes optional development dependencies blocking ordinary installs;
+it does not claim full marker or extras support.
+
 The catalog speeds up dependency checks with reusable evidence. It is an **allowlist/blocklist of exact artifacts on exact runtimes**, not a blanket judgment about a project. The lookup key contains the normalized distribution name, version, wheel SHA-256, runtime binary SHA-256, and operating-system/architecture target. A new version, wheel, runtime build, or target starts unverified. This deliberately includes runtime rebuilds that happen to share a release version.
 
 `tested` means all Python sources compiled and the checked-in behavior hook passed within its stated scope. `incompatible` means this exact artifact has a demonstrated syntax, API, behavior, or native-wheel blocker. `unverified` means evidence is missing or incomplete. Source compilation and successful imports cannot establish compatibility for unexercised paths, dynamic imports, optional extras, or every use of a library. Each dependency is assessed separately before installation; a tested parent never waives a dependency's failures.

@@ -4,6 +4,32 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+### Added
+
+- A workflow compatibility guide with Verified, Limited, Unsupported, and
+  Untested ratings, tested scopes, and explicit platform coverage. Assess all
+  44 compilation-complete candidates through real installation; separate the
+  15 typing distributions and five dependency bundles from runtime libraries.
+- Reviewed package scenarios with CPython controls, locked dependency evidence,
+  offline restoration, and detached standalone execution. The released 0.7.2
+  macOS ARM64 binary passes the scoped tzdata and trove-classifiers data workflows.
+  Add their exact tested artifacts to the source CLI catalog.
+- A ranked support roadmap for 100 application-oriented packages, with useful
+  workflows, concrete acceptance tests, current blockers, and explainable scores.
+- `kipferl deps verified` lists the tested package versions and behavior scopes
+  matching the CLI's embedded runtime and platform; `--json` exports their evidence.
+
+### Fixed
+
+- Skip transitive test/docs requirements that cannot activate without extras,
+  consistently during dependency resolution and offline lock validation. Keep
+  active or ambiguous conditions rejected; preserve original wheel metadata.
+- Accept Python null-prefixed and three-digit octal escapes in native regular
+  expressions across search, findall, substitution, and splitting. Numeric
+  backreferences, short nonzero class escapes, and surrogate patterns remain
+  unsupported. This clears a real character-class blocker without promoting
+  packages whose remaining patterns still fail.
+
 ## [0.7.2] - 2026-09-05
 
 ### Fixed

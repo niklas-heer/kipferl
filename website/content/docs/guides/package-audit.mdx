@@ -1,51 +1,67 @@
 ---
-title: Popular package audit
-description: Explore compatibility findings for a ranked snapshot of popular PyPI packages
+title: Compatibility guide
+description: See what you can build, which package workflows are verified, and what support should come next
 full: true
 ---
 
 import { PackageAudit } from '@/components/package-audit';
+import { CompatibilityGuide, SupportPrioritiesGuide } from '@/components/package-audit/guide';
 
-Use this audit to find a concrete blocker or decide which package needs a
-focused test next. The ranking comes from a dated snapshot of monthly PyPI
-downloads. It measures download activity, including automation, rather than
-unique users or the suitability of a library for your application.
+## What can I use today?
 
-The screen below was refreshed for **0.7.2** on macOS ARM64. Each release CLI
-also gets a fresh 1,000-package report for its own exact runtime and platform.
-Compilation results are never copied to a different binary hash. The website
-shows the canonical macOS ARM64 report; use `kipferl deps audit` or the release
-assets to inspect your platform's evidence.
+Build your CLI with the native modules first, then choose a PyPI package when
+you need something more. This guide separates useful behavior that has actually
+been exercised from a package that merely passes the compiler.
 
-## 0.7.2 results
+<CompatibilityGuide />
 
-The rerun preserves the previous ranking and 999 available release metadata
-pins; ddtrace remains metadata-limited. Every selected release retains its
-previous category and first compiler blocker. The update supplies fresh evidence
-for current binaries rather than claiming additional working packages.
+## Inspect verified scopes from a source build
 
-| Result | Top 100 | Top 1,000 |
-| --- | ---: | ---: |
-| Compilation-complete, behavior unverified | 4 | 44 |
-| Exact verified wheel syntax blockers | 81 | 770 |
-| No usable generic Python 3 pure wheel | 15 | 178 |
-| Declared Python-version conflict | 0 | 5 |
-| No usable wheel | 0 | 1 |
-| Audit resource limits | 0 | 2 |
+The current development CLI adds an offline view of tested catalog records that
+match its exact embedded runtime and platform:
 
-Of the **44 compilation-complete distributions**, **24 contain Python source**
-and **20 contain no Python source**. Neither group is a behavioral allowlist.
-The two limits are awscli's wheel extraction bound and ddtrace's metadata size
-bound; there were no network failures. No full dependency closure was resolved
-or tested by this screen.
+```bash
+kipferl deps verified
+kipferl deps verified --json
+```
 
-Read the [0.7.2 comparison](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/release-0.7.2-comparison.md)
-for the controlled rerun and the earlier comparisons below for the language
-changes that produced the existing gains.
+This command is **not included in released 0.7.2**. It lists only the behavior
+scopes present in that binary's catalog; it does not copy website ratings into
+an existing installation. With stable 0.7.2, use the exact package-card commands
+above, including `--allow-unverified` when shown.
 
-## Explore the results
+The development installer also skips optional transitive dependencies when
+their extra markers prove they are inactive. That fix is unreleased; it does
+not add general extras or environment-marker support to stable 0.7.2.
+
+## What should work next?
+
+<SupportPrioritiesGuide />
+
+## Explore all 1,000 screened packages
+
+The broad screen helps explain why a popular package is blocked. It checks
+compilation, not behavior, and does not resolve every dependency tree. Its
+44 compilation-complete distributions include 24 with Python source and 20
+without; they are **not 44 verified working libraries**. The behavior cards
+above answer a different, more useful question: what can I actually do with it?
+
+<details>
+<summary>Open the full source audit, filters, and technical evidence</summary>
+
+The screen below was refreshed for 0.7.2 on macOS ARM64. The ranking uses the
+August 2026 monthly PyPI download snapshot, including automated downloads.
+Each release CLI embeds a fresh audit for its own runtime and platform. The
+0.7.2 rerun kept the same 999 available metadata pins, with ddtrace still
+metadata-limited. It found 770 source compiler blockers, 178 native-wheel
+constraints, five Python-version conflicts, one release without a usable wheel,
+and two resource limits. No category or first compiler blocker changed.
 
 <PackageAudit />
+
+Read the [0.7.2 comparison](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/release-0.7.2-comparison.md)
+for the controlled rerun. The comparisons below preserve the earlier language
+changes that produced the existing compilation gains.
 
 ## Earlier dotted-import comparison
 
@@ -144,3 +160,5 @@ the result. See [runtime and catalog development](/docs/guides/development).
 The release also attaches `popularity-snapshot.json` and
 `popularity-metadata.json`, each with a SHA-256 sidecar, so the ranking and
 shared metadata pins can be verified without a source checkout.
+
+</details>

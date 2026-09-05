@@ -621,13 +621,13 @@ export default function HomePage() {
           </div>
           <div className={styles.evidenceCards}>
             <Link href="/docs/guides/package-audit">
-              <span className={styles.evidenceNumber}>1,000</span>
+              <span className={styles.evidenceNumber}>4 ratings</span>
               <div>
-                <h3>Popular packages. An open audit.</h3>
+                <h3>Know what works. See what’s next.</h3>
                 <p>
-                  Search the refreshed source-screening results, inspect
-                  blockers, and see what still needs work. Compilation success
-                  is not a guarantee that a library works.
+                  Find verified workflows, read the limits, and explore 100
+                  support priorities. Every rating states its evidence and
+                  limits.
                 </p>
               </div>
               <ArrowUpRight size={20} />

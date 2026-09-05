@@ -150,6 +150,24 @@ See [the package catalog guide](../compatibility/packages/README.md) for reviewe
 candidate selection, evidence refresh, and the limits of each tested result.
 After refreshing the catalog, rebuild the CLI to embed the new records.
 
+The user-facing [compatibility guide](https://kipferl.dev/docs/guides/package-audit)
+reads `verified-packages.json`, separately from the compile-only report. Run
+`mise run package-verify -- --cli /path/to/kipferl --runtime /path/to/runtime`
+with the exact audited binaries after reviewing the 44 scenarios. A positive
+workflow needs a passing CPython control, real installation, offline restoration,
+and detached standalone execution. Keep development results in a separate file
+with `--development --output ...`; do not give old binaries new release labels.
+`catalog-check` rejects changed claims, hooks, source hashes, and missing execution
+stages. `kipferl deps verified` in the development CLI lists only tested scopes
+matching its actual embedded runtime. A rebuild can therefore have no matching
+approvals until its own evidence is refreshed.
+
+Use [the 100-package support roadmap](../compatibility/packages/support-priorities.md)
+to choose a useful application goal and its acceptance test. Passing a parser
+check is an intermediate step. Optional test/docs dependency markers and native
+regex octal escapes are the first fixes prompted by the behavior scenarios;
+remaining API, namespace-package, and Unicode-pattern failures stay visible.
+
 `mise run build` and `mise run check` refresh this host's embedded runtime assets
 from source first. The core runtime uses a separate build directory, preserving
 the full runtime used by the audit. The refresh verifies nonexecuting module

@@ -31,10 +31,17 @@ tests for the package APIs you actually use, including error paths. Host test
 evidence does not establish behavior on the other build targets. To contribute
 repeatable checks, see [extending the catalog](/docs/guides/development#extend-package-compatibility-evidence).
 
-The [popular package audit](/docs/guides/package-audit) provides a broader
-ranked view of source and metadata findings. Its verified syntax failures add
+The [compatibility guide](/docs/guides/package-audit) starts with verified
+workflows, explicit limits, and a ranked list of future support priorities.
+The broader audit supplies source and metadata findings. Verified syntax failures add
 exact blockers to the catalog; its compilation-only successes never promote a
 package to tested.
+
+A current source build also provides `kipferl deps verified` (or `--json`) to
+show only tested workflow scopes matching its exact runtime and platform.
+This command and the fix for provably inactive optional transitive dependencies
+are **unreleased**; they are not part of the 0.7.2 download. The package cards
+include exact commands for the released CLI.
 
 ## Add a dependency
 

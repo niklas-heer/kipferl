@@ -131,23 +131,26 @@ requirement syntax, catalog evidence, and recovery commands. Contributors can
 validate or extend the [checked-in catalog](compatibility/packages/README.md)
 with exact wheel/runtime hashes and focused behavior hooks.
 
-### Explore the popular-package audit
+### Find out what works
 
-The refreshed 0.7.2 source audit covers the top **1,000 PyPI projects** in the
-August 2026 monthly download snapshot. It reuses the selected release and
-artifact pins so the comparison measures runtime changes. **44 distributions
-finish compilation, including 24 with Python source; none become behaviorally
-approved by this screen.** The 770 syntax blockers, 178 native-wheel constraints,
-and remaining metadata/resource findings are unchanged from the previous screen.
-Imports, package APIs, and dependency closures still need focused tests.
+The [compatibility guide](https://kipferl.dev/docs/guides/package-audit) starts
+with useful workflows: native CLI tools, HTTP clients, and local data tools.
+Package cards distinguish **Verified**, **Limited**, **Unsupported**, and
+**Untested**, with the exact tested scope, version, platform, and install command.
+Typing and dependency-only distributions are separate from runnable libraries.
+New website evidence can be newer than the catalog embedded in a released CLI;
+follow the exact install command and test your own usage. Current source builds
+add `kipferl deps verified` for matching tested scopes offline; this command
+and the optional transitive-dependency fix are not in the 0.7.2 download.
 
-The website shows the canonical macOS ARM64 report. Each 0.7.2 release CLI embeds
-a fresh report for its own exact runtime and target; `deps audit` exposes that
-evidence offline and identifies a differing runtime hash in development builds.
-Browse the
-[searchable audit](https://kipferl.dev/docs/guides/package-audit) for top-100 and
-top-1,000 summaries, package/error search, reason filters, and exact evidence.
-Download counts include automation and do not measure unique users.
+The guide also ranks **100 future support priorities**, with concrete use cases,
+blockers, and proposed acceptance tests. This is a development shortlist, not
+100 supported packages.
+
+The underlying screen still covers the top **1,000 PyPI projects** in the pinned
+August 2026 snapshot. Its 44 compilation-complete distributions (24 with Python
+source, 20 without) are not a behavioral allowlist. Expand the full audit for
+searchable compiler findings, or inspect your CLI's exact runtime evidence:
 
 ```bash
 kipferl deps audit
