@@ -4,13 +4,21 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## [0.7.0] - 2026-09-05
+
 ### Added
 
+- Native dotted imports with parent initialization, root/alias binding, circular
+  imports, failure retries, and preserved globals from failed attempts.
+- Exact per-platform release catalogs and package smoke reports verify online
+  installation, locked offline restoration, and detached standalone execution.
 - Trailing commas in parenthesized imports and function/lambda parameters,
   and adjacent plain strings/bytes, including default values.
 - A reproducible top-1,000 package audit, ranked CLI/website views, and a
   before/after comparison. The first language patches increase source-bearing
-  compilation-complete candidates from 12 to 20; these remain unverified.
+  compilation-complete candidates from 12 to 20; dotted imports raise this to
+  24 (44 total including zero-source distributions). These remain unverified
+  and tied to the historical audit runtime, separately from release evidence.
 
 - PyPI pure-Python wheel dependencies with `kipferl add`, exact artifact/runtime
   locks, offline `sync --locked`, compatibility catalog and installed-file checks.
@@ -29,6 +37,13 @@ All notable user-facing changes are documented here.
 - Ordinary `test_*.py` project tests and Bash, Zsh, and Fish completions.
 - Four executable recipes for CSV summaries, HTTP API clients, repository
   summaries, and report generation, checked against their documentation in CI.
+
+### Changed
+
+- Dynamic `__import__("http.client")` returns root `http`, following Python.
+  Use a child-module alias or a nonempty positional fromlist when needed.
+- Dependency locks identify exact runtime bytes and target. After an upgrade,
+  rerun `kipferl add` for declared requirements, review the lock, and test the app.
 
 ### Fixed
 
@@ -137,4 +152,5 @@ All notable user-facing changes are documented here.
   temporary `ucharm-*` assets, and installs a deprecated `ucharm` command alias
   for the 0.6 transition.
 
+[0.7.0]: https://github.com/niklas-heer/kipferl/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/niklas-heer/kipferl/compare/v0.5.0...v0.6.0
