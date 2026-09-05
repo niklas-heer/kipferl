@@ -30,11 +30,13 @@ run = [
 ]
 
 [tasks.check]
-description = "Check tooling, stubs, Rust formatting, lint, and full/core tests"
+description = "Refresh host runtime assets and check tooling, stubs, formatting, lint, and full/core tests"
 run = [
   { task = "doctor" },
+  { task = "refresh-runtime-assets" },
   "python3 scripts/generate_stubs.py --check",
   "python3 -m unittest discover -s scripts -p 'test_*.py'",
+  { task = "catalog-check" },
   "cargo fmt --all --check",
   "cargo check --locked --workspace --all-targets --all-features",
   "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
@@ -46,7 +48,12 @@ run = [
 
 [tasks.build]
 description = "Build the release CLI, runtime, and loader"
+depends = ["refresh-runtime-assets"]
 run = "cargo build --locked --release --workspace"
+
+[tasks.refresh-runtime-assets]
+description = "Build, verify, and refresh the full/core runtime and loader embedded for this host"
+run = "python3 scripts/refresh_runtime_assets.py"
 
 [tasks.build-debug]
 description = "Build the debug workspace"
@@ -106,6 +113,15 @@ run = "python3 scripts/generate_stubs.py"
 [tasks.stubs-check]
 description = "Check stub syntax and generated manifest drift"
 run = "python3 scripts/generate_stubs.py --check"
+
+[tasks.catalog-check]
+description = "Validate exact package compatibility evidence and reviewed test hashes offline"
+run = ["python3 scripts/package_catalog.py --check", "python3 scripts/package_popularity_audit.py --check"]
+
+[tasks.package-audit]
+description = "Screen the pinned top 1,000 PyPI packages with resumable artifact and metadata caches"
+depends = ["build"]
+run = "python3 scripts/package_popularity_audit.py --embedded-runtime"
 
 [tasks.check-pocketpy]
 description = "Verify vendored PocketPy patches against upstream"
@@ -168,10 +184,10 @@ dir = "website"
 run = "bun run build"
 
 [tasks.website-check]
-description = "Type-check and build the website"
+description = "Test, type-check, and build the website"
 depends = ["website-install"]
 dir = "website"
-run = ["bun run types:check", "bun run build"]
+run = ["bun run test", "bun run types:check", "bun run build"]
 
 [tasks.build-app]
 description = "Build a standalone executable"

@@ -5,7 +5,7 @@ This project uses kipferl (PocketPy + native Rust modules).
 ## Key Facts
 
 - PocketPy runtime, not CPython
-- Use native modules or compatible local Python files; there is no pip environment
+- Use native modules, compatible local Python files, or `kipferl add` for supported PyPI wheels. Check `kipferl deps catalog`, commit the config and lock, and restore with `kipferl sync --locked`; there is no pip environment
 - 50+ native modules: tui, input, term, ansi, http.client, sqlite3, json, yaml, toml, kdl, re, etc.
 
 ## Preferred Patterns

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "packages": [
+    {"name": "attrs", "version": "25.3.0"},
+    {"name": "colorama", "version": "0.4.6"},
+    {"name": "idna", "version": "3.10"},
+    {"name": "inflection", "version": "0.5.1"},
+    {"name": "more-itertools", "version": "10.8.0"},
+    {"name": "numpy", "version": "2.3.2", "native_example": true},
+    {"name": "packaging", "version": "25.0"},
+    {"name": "six", "version": "1.17.0"},
+    {"name": "toml", "version": "0.10.2"},
+    {"name": "tzdata", "version": "2025.2", "smoke": "tzdata.py", "scope": "Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs."}
+  ]
+}

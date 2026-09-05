@@ -123,6 +123,9 @@ fn config_errors_are_actionable_and_help_does_not_require_valid_config() {
     for bad in [
         r#"{"entyr":"app.py"}"#,
         r#"{"entry":"../app.py"}"#,
+        r#"{"dependencies":"example"}"#,
+        r#"{"dependencies":[42]}"#,
+        r#"{"dependencies":[""]}"#,
         r#"{"assets":"data"}"#,
         r"[]",
         r#"{"entry":""}"#,
@@ -175,6 +178,9 @@ fn completions_generate_sourceable_shell_scripts() {
     for shell in ["bash", "zsh", "fish"] {
         let output = success(run(&temporary.0, &["completions", shell]));
         assert!(output.contains("cli api interactive"));
+        assert!(output.contains("allow-unverified"));
+        assert!(output.contains("offline"));
+        assert!(output.contains("catalog"));
         let script = temporary.0.join(format!("completion.{shell}"));
         fs::write(&script, output).unwrap();
         if let Ok(output) = Command::new(shell).arg("-n").arg(script).output() {

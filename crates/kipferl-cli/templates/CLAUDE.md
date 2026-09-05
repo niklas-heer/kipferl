@@ -6,7 +6,7 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 
 - **PocketPy, not CPython**: This runs on PocketPy with native Rust modules, not standard Python
 - **Native modules**: 50+ high-performance modules implemented in Rust (see list below)
-- **Dependencies**: Use native modules or compatible local Python files; pip packages and CPython extensions are not installed into the runtime
+- **Dependencies**: Use native modules, compatible local Python files, or pure-Python wheels installed with `kipferl add`. Check `kipferl deps catalog` for tested versions and blockers. Commit `kipferl.json` and `kipferl.lock`; restore with `kipferl sync --locked`. CPython extensions and source builds are unsupported
 - **Single binary output**: Apps build into target-specific standalone executables; size depends on runtime profile and bundled assets
 
 ## Available Modules

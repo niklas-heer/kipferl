@@ -1,0 +1,914 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "name": "attrs",
+      "version": "25.3.0",
+      "wheel_filename": "attrs-25.3.0-py3-none-any.whl",
+      "wheel_sha256": "427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3",
+      "source_url": "https://files.pythonhosted.org/packages/77/06/bb80f5f86020c4551da315d78b3ab75e8228f89f0162f2c3a819e407941a/attrs-25.3.0-py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "11 of 19 Python sources failed runtime compilation. First finding: attr/__init__.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/__init__.py', 'r').read(), 'attr/__init__.py', 'exec')\n  File \"attr/__init__.py\", line 27\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed",
+      "source_files_checked": 19,
+      "compile_failures": [
+        {
+          "file": "attr/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/__init__.py', 'r').read(), 'attr/__init__.py', 'exec')\n  File \"attr/__init__.py\", line 27\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_cmp.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_cmp.py', 'r').read(), 'attr/_cmp.py', 'exec')\n  File \"attr/_cmp.py\", line 21\n    ):\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_compat.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_compat.py', 'r').read(), 'attr/_compat.py', 'exec')\n  File \"attr/_compat.py\", line 68\n    and self.sig.return_annotation is not inspect.Signature.empty\nSyntaxError: expected ')', got 'and'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_config.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_config.py', 'r').read(), 'attr/_config.py', 'exec')\n  File \"attr/_config.py\", line 20\n    _run_validators = run\nSyntaxError: cannot use global keyword here\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_funcs.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_funcs.py', 'r').read(), 'attr/_funcs.py', 'exec')\n  File \"attr/_funcs.py\", line 15\n    dict_factory=dict,\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_make.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_make.py', 'r').read(), 'attr/_make.py', 'exec')\n  File \"attr/_make.py\", line 30\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_next_gen.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_next_gen.py', 'r').read(), 'attr/_next_gen.py', 'exec')\n  File \"attr/_next_gen.py\", line 19\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/converters.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/converters.py', 'r').read(), 'attr/converters.py', 'exec')\n  File \"attr/converters.py\", line 66\n    def default_if_none(default=NOTHING, factory=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/filters.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/filters.py', 'r').read(), 'attr/filters.py', 'exec')\n  File \"attr/filters.py\", line 15\n    frozenset(cls for cls in what if isinstance(cls, type)),\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/validators.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/validators.py', 'r').read(), 'attr/validators.py', 'exec')\n  File \"attr/validators.py\", line 86\n    finally:\nSyntaxError: finally clause is not supported yet\nerror: Python execution failed"
+        },
+        {
+          "file": "attrs/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attrs/__init__.py', 'r').read(), 'attrs/__init__.py', 'exec')\n  File \"attrs/__init__.py\", line 24\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "attrs",
+      "version": "25.3.0",
+      "wheel_filename": "attrs-25.3.0-py3-none-any.whl",
+      "wheel_sha256": "427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3",
+      "source_url": "https://files.pythonhosted.org/packages/77/06/bb80f5f86020c4551da315d78b3ab75e8228f89f0162f2c3a819e407941a/attrs-25.3.0-py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "11 of 19 Python sources failed runtime compilation. First finding: attr/__init__.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/__init__.py', 'r').read(), 'attr/__init__.py', 'exec')\n  File \"attr/__init__.py\", line 27\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed",
+      "source_files_checked": 19,
+      "compile_failures": [
+        {
+          "file": "attr/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/__init__.py', 'r').read(), 'attr/__init__.py', 'exec')\n  File \"attr/__init__.py\", line 27\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_cmp.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_cmp.py', 'r').read(), 'attr/_cmp.py', 'exec')\n  File \"attr/_cmp.py\", line 21\n    ):\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_compat.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_compat.py', 'r').read(), 'attr/_compat.py', 'exec')\n  File \"attr/_compat.py\", line 68\n    and self.sig.return_annotation is not inspect.Signature.empty\nSyntaxError: expected ')', got 'and'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_config.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_config.py', 'r').read(), 'attr/_config.py', 'exec')\n  File \"attr/_config.py\", line 20\n    _run_validators = run\nSyntaxError: cannot use global keyword here\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_funcs.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_funcs.py', 'r').read(), 'attr/_funcs.py', 'exec')\n  File \"attr/_funcs.py\", line 15\n    dict_factory=dict,\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_make.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_make.py', 'r').read(), 'attr/_make.py', 'exec')\n  File \"attr/_make.py\", line 30\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/_next_gen.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/_next_gen.py', 'r').read(), 'attr/_next_gen.py', 'exec')\n  File \"attr/_next_gen.py\", line 19\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/converters.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/converters.py', 'r').read(), 'attr/converters.py', 'exec')\n  File \"attr/converters.py\", line 66\n    def default_if_none(default=NOTHING, factory=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/filters.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/filters.py', 'r').read(), 'attr/filters.py', 'exec')\n  File \"attr/filters.py\", line 15\n    frozenset(cls for cls in what if isinstance(cls, type)),\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        },
+        {
+          "file": "attr/validators.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attr/validators.py', 'r').read(), 'attr/validators.py', 'exec')\n  File \"attr/validators.py\", line 86\n    finally:\nSyntaxError: finally clause is not supported yet\nerror: Python execution failed"
+        },
+        {
+          "file": "attrs/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('attrs/__init__.py', 'r').read(), 'attrs/__init__.py', 'exec')\n  File \"attrs/__init__.py\", line 24\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "wheel_filename": "colorama-0.4.6-py2.py3-none-any.whl",
+      "wheel_sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+      "source_url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "6 of 13 Python sources failed runtime compilation. First finding: colorama/ansitowin32.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/ansitowin32.py', 'r').read(), 'colorama/ansitowin32.py', 'exec')\n  File \"colorama/ansitowin32.py\", line 58\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed",
+      "source_files_checked": 13,
+      "compile_failures": [
+        {
+          "file": "colorama/ansitowin32.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/ansitowin32.py', 'r').read(), 'colorama/ansitowin32.py', 'exec')\n  File \"colorama/ansitowin32.py\", line 58\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/initialise.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/initialise.py', 'r').read(), 'colorama/initialise.py', 'exec')\n  File \"colorama/initialise.py\", line 11\n    orig_stdout = None\nSyntaxError: cannot use global keyword here\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/tests/ansitowin32_test.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/tests/ansitowin32_test.py', 'r').read(), 'colorama/tests/ansitowin32_test.py', 'exec')\n  File \"colorama/tests/ansitowin32_test.py\", line 38\n    fp.write(u'hello')\nSyntaxError: expected ')', got '@str'\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/tests/isatty_test.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/tests/isatty_test.py', 'r').read(), 'colorama/tests/isatty_test.py', 'exec')\n  File \"colorama/tests/isatty_test.py\", line 33\n    with pycharm(), replace_by(tty):\nSyntaxError: expected ':', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/tests/utils.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/tests/utils.py', 'r').read(), 'colorama/tests/utils.py', 'exec')\n  File \"colorama/tests/utils.py\", line 47\n    with replace_by(non_tty), replace_original_by(non_tty):\nSyntaxError: expected ':', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/win32.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/win32.py', 'r').read(), 'colorama/win32.py', 'exec')\n  File \"colorama/win32.py\", line 18\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "wheel_filename": "colorama-0.4.6-py2.py3-none-any.whl",
+      "wheel_sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+      "source_url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "6 of 13 Python sources failed runtime compilation. First finding: colorama/ansitowin32.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/ansitowin32.py', 'r').read(), 'colorama/ansitowin32.py', 'exec')\n  File \"colorama/ansitowin32.py\", line 58\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed",
+      "source_files_checked": 13,
+      "compile_failures": [
+        {
+          "file": "colorama/ansitowin32.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/ansitowin32.py', 'r').read(), 'colorama/ansitowin32.py', 'exec')\n  File \"colorama/ansitowin32.py\", line 58\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/initialise.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/initialise.py', 'r').read(), 'colorama/initialise.py', 'exec')\n  File \"colorama/initialise.py\", line 11\n    orig_stdout = None\nSyntaxError: cannot use global keyword here\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/tests/ansitowin32_test.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/tests/ansitowin32_test.py', 'r').read(), 'colorama/tests/ansitowin32_test.py', 'exec')\n  File \"colorama/tests/ansitowin32_test.py\", line 38\n    fp.write(u'hello')\nSyntaxError: expected ')', got '@str'\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/tests/isatty_test.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/tests/isatty_test.py', 'r').read(), 'colorama/tests/isatty_test.py', 'exec')\n  File \"colorama/tests/isatty_test.py\", line 33\n    with pycharm(), replace_by(tty):\nSyntaxError: expected ':', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/tests/utils.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/tests/utils.py', 'r').read(), 'colorama/tests/utils.py', 'exec')\n  File \"colorama/tests/utils.py\", line 47\n    with replace_by(non_tty), replace_original_by(non_tty):\nSyntaxError: expected ':', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "colorama/win32.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('colorama/win32.py', 'r').read(), 'colorama/win32.py', 'exec')\n  File \"colorama/win32.py\", line 18\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.10",
+      "wheel_filename": "idna-3.10-py3-none-any.whl",
+      "wheel_sha256": "946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3",
+      "source_url": "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "4 of 8 Python sources failed runtime compilation. First finding: idna/__init__.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/__init__.py', 'r').read(), 'idna/__init__.py', 'exec')\n  File \"idna/__init__.py\", line 20\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed",
+      "source_files_checked": 8,
+      "compile_failures": [
+        {
+          "file": "idna/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/__init__.py', 'r').read(), 'idna/__init__.py', 'exec')\n  File \"idna/__init__.py\", line 20\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "idna/codec.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/codec.py', 'r').read(), 'idna/codec.py', 'exec')\n  File \"idna/codec.py\", line 7\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python execution failed"
+        },
+        {
+          "file": "idna/core.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/core.py', 'r').read(), 'idna/core.py', 'exec')\n  File \"idna/core.py\", line 11\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python execution failed"
+        },
+        {
+          "file": "idna/uts46data.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/uts46data.py', 'r').read(), 'idna/uts46data.py', 'exec')\n  File \"idna/uts46data.py\", line 8600\n    + _seg_1()\nSyntaxError: expected ')', got '+'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.10",
+      "wheel_filename": "idna-3.10-py3-none-any.whl",
+      "wheel_sha256": "946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3",
+      "source_url": "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "4 of 8 Python sources failed runtime compilation. First finding: idna/__init__.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/__init__.py', 'r').read(), 'idna/__init__.py', 'exec')\n  File \"idna/__init__.py\", line 20\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed",
+      "source_files_checked": 8,
+      "compile_failures": [
+        {
+          "file": "idna/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/__init__.py', 'r').read(), 'idna/__init__.py', 'exec')\n  File \"idna/__init__.py\", line 20\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "idna/codec.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/codec.py', 'r').read(), 'idna/codec.py', 'exec')\n  File \"idna/codec.py\", line 7\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python execution failed"
+        },
+        {
+          "file": "idna/core.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/core.py', 'r').read(), 'idna/core.py', 'exec')\n  File \"idna/core.py\", line 11\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python execution failed"
+        },
+        {
+          "file": "idna/uts46data.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('idna/uts46data.py', 'r').read(), 'idna/uts46data.py', 'exec')\n  File \"idna/uts46data.py\", line 8600\n    + _seg_1()\nSyntaxError: expected ')', got '+'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "inflection",
+      "version": "0.5.1",
+      "wheel_filename": "inflection-0.5.1-py2.py3-none-any.whl",
+      "wheel_sha256": "f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2",
+      "source_url": "https://files.pythonhosted.org/packages/59/91/aa6bde563e0085a02a435aa99b49ef75b0a4b062635e606dab23ce18d720/inflection-0.5.1-py2.py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "2 of 2 Python sources failed runtime compilation. First finding: inflection/__init__.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('inflection/__init__.py', 'r').read(), 'inflection/__init__.py', 'exec')\n  File \"inflection/__init__.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed",
+      "source_files_checked": 2,
+      "compile_failures": [
+        {
+          "file": "inflection/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('inflection/__init__.py', 'r').read(), 'inflection/__init__.py', 'exec')\n  File \"inflection/__init__.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        },
+        {
+          "file": "inflection.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('inflection.py', 'r').read(), 'inflection.py', 'exec')\n  File \"inflection.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "inflection",
+      "version": "0.5.1",
+      "wheel_filename": "inflection-0.5.1-py2.py3-none-any.whl",
+      "wheel_sha256": "f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2",
+      "source_url": "https://files.pythonhosted.org/packages/59/91/aa6bde563e0085a02a435aa99b49ef75b0a4b062635e606dab23ce18d720/inflection-0.5.1-py2.py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "2 of 2 Python sources failed runtime compilation. First finding: inflection/__init__.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('inflection/__init__.py', 'r').read(), 'inflection/__init__.py', 'exec')\n  File \"inflection/__init__.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed",
+      "source_files_checked": 2,
+      "compile_failures": [
+        {
+          "file": "inflection/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('inflection/__init__.py', 'r').read(), 'inflection/__init__.py', 'exec')\n  File \"inflection/__init__.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        },
+        {
+          "file": "inflection.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('inflection.py', 'r').read(), 'inflection.py', 'exec')\n  File \"inflection.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "more-itertools",
+      "version": "10.8.0",
+      "wheel_filename": "more_itertools-10.8.0-py3-none-any.whl",
+      "wheel_sha256": "52d4362373dcf7c52546bc4af9a86ee7c4579df9a8dc268be0a2f949d376cc9b",
+      "source_url": "https://files.pythonhosted.org/packages/a4/8e/469e5a4a2f5855992e425f3cb33804cc07bf18d48f2db061aec61ce50270/more_itertools-10.8.0-py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "2 of 3 Python sources failed runtime compilation. First finding: more_itertools/more.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('more_itertools/more.py', 'r').read(), 'more_itertools/more.py', 'exec')\n  File \"more_itertools/more.py\", line 25\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed",
+      "source_files_checked": 3,
+      "compile_failures": [
+        {
+          "file": "more_itertools/more.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('more_itertools/more.py', 'r').read(), 'more_itertools/more.py', 'exec')\n  File \"more_itertools/more.py\", line 25\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "more_itertools/recipes.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('more_itertools/recipes.py', 'r').read(), 'more_itertools/recipes.py', 'exec')\n  File \"more_itertools/recipes.py\", line 1240\n    (18446744073709551616, (2, 325, 9375, 28178, 450775, 9780504, 1795265022)),\nSyntaxError: int literal is too large\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "more-itertools",
+      "version": "10.8.0",
+      "wheel_filename": "more_itertools-10.8.0-py3-none-any.whl",
+      "wheel_sha256": "52d4362373dcf7c52546bc4af9a86ee7c4579df9a8dc268be0a2f949d376cc9b",
+      "source_url": "https://files.pythonhosted.org/packages/a4/8e/469e5a4a2f5855992e425f3cb33804cc07bf18d48f2db061aec61ce50270/more_itertools-10.8.0-py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "2 of 3 Python sources failed runtime compilation. First finding: more_itertools/more.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('more_itertools/more.py', 'r').read(), 'more_itertools/more.py', 'exec')\n  File \"more_itertools/more.py\", line 25\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed",
+      "source_files_checked": 3,
+      "compile_failures": [
+        {
+          "file": "more_itertools/more.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('more_itertools/more.py', 'r').read(), 'more_itertools/more.py', 'exec')\n  File \"more_itertools/more.py\", line 25\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "more_itertools/recipes.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('more_itertools/recipes.py', 'r').read(), 'more_itertools/recipes.py', 'exec')\n  File \"more_itertools/recipes.py\", line 1240\n    (18446744073709551616, (2, 325, 9375, 28178, 450775, 9780504, 1795265022)),\nSyntaxError: int literal is too large\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.3.2",
+      "wheel_filename": "numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl",
+      "wheel_sha256": "852ae5bed3478b92f093e30f785c98e0cb62fa0a939ed057c31716e18a7a22b9",
+      "source_url": "https://files.pythonhosted.org/packages/96/26/1320083986108998bd487e2931eed2aeedf914b6e8905431487543ec911d/numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "The exact wheel numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl requires a CPython ABI/native platform; Kipferl accepts only pure Python wheels. This is an artifact constraint, not a claim about every release or implementation of this package."
+    },
+    {
+      "name": "numpy",
+      "version": "2.3.2",
+      "wheel_filename": "numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl",
+      "wheel_sha256": "852ae5bed3478b92f093e30f785c98e0cb62fa0a939ed057c31716e18a7a22b9",
+      "source_url": "https://files.pythonhosted.org/packages/96/26/1320083986108998bd487e2931eed2aeedf914b6e8905431487543ec911d/numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "The exact wheel numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl requires a CPython ABI/native platform; Kipferl accepts only pure Python wheels. This is an artifact constraint, not a claim about every release or implementation of this package."
+    },
+    {
+      "name": "packaging",
+      "version": "25.0",
+      "wheel_filename": "packaging-25.0-py3-none-any.whl",
+      "wheel_sha256": "29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
+      "source_url": "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "13 of 16 Python sources failed runtime compilation. First finding: packaging/_elffile.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_elffile.py', 'r').read(), 'packaging/_elffile.py', 'exec')\n  File \"packaging/_elffile.py\", line 52\n    raise ELFInvalid(\"unable to parse identification\") from e\nSyntaxError: expected statement end\nerror: Python execution failed",
+      "source_files_checked": 16,
+      "compile_failures": [
+        {
+          "file": "packaging/_elffile.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_elffile.py', 'r').read(), 'packaging/_elffile.py', 'exec')\n  File \"packaging/_elffile.py\", line 52\n    raise ELFInvalid(\"unable to parse identification\") from e\nSyntaxError: expected statement end\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_manylinux.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_manylinux.py', 'r').read(), 'packaging/_manylinux.py', 'exec')\n  File \"packaging/_manylinux.py\", line 37\n    and f.capacity == EIClass.C32\nSyntaxError: expected ')', got 'and'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_musllinux.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_musllinux.py', 'r').read(), 'packaging/_musllinux.py', 'exec')\n  File \"packaging/_musllinux.py\", line 24\n    lines = [n for n in (n.strip() for n in output.splitlines()) if n]\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_parser.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_parser.py', 'r').read(), 'packaging/_parser.py', 'exec')\n  File \"packaging/_parser.py\", line 88\n    ) -> tuple[str, str, MarkerList | None]:\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_tokenizer.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_tokenizer.py', 'r').read(), 'packaging/_tokenizer.py', 'exec')\n  File \"packaging/_tokenizer.py\", line 24\n    *,\nSyntaxError: expected '@id', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/licenses/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/licenses/__init__.py', 'r').read(), 'packaging/licenses/__init__.py', 'exec')\n  File \"packaging/licenses/__init__.py\", line 62\n    ) -> NormalizedLicenseExpression:\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/markers.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/markers.py', 'r').read(), 'packaging/markers.py', 'exec')\n  File \"packaging/markers.py\", line 151\n    and len(marker) == 1\nSyntaxError: expected ')', got 'and'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/metadata.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/metadata.py', 'r').read(), 'packaging/metadata.py', 'exec')\n  File \"packaging/metadata.py\", line 3\n    import email.feedparser\nSyntaxError: expected statement end\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/requirements.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/requirements.py', 'r').read(), 'packaging/requirements.py', 'exec')\n  File \"packaging/requirements.py\", line 38\n    raise InvalidRequirement(str(e)) from e\nSyntaxError: expected statement end\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/specifiers.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/specifiers.py', 'r').read(), 'packaging/specifiers.py', 'exec')\n  File \"packaging/specifiers.py\", line 44\n    class BaseSpecifier(metaclass=abc.ABCMeta):\nSyntaxError: expected ')', got '='\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/tags.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/tags.py', 'r').read(), 'packaging/tags.py', 'exec')\n  File \"packaging/tags.py\", line 21\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/utils.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/utils.py', 'r').read(), 'packaging/utils.py', 'exec')\n  File \"packaging/utils.py\", line 46\n    def canonicalize_name(name: str, *, validate: bool = False) -> NormalizedName:\nSyntaxError: expected '@id', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/version.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/version.py', 'r').read(), 'packaging/version.py', 'exec')\n  File \"packaging/version.py\", line 200\n    match = self._regex.search(version)\nSyntaxError: expected an expression, got =\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "25.0",
+      "wheel_filename": "packaging-25.0-py3-none-any.whl",
+      "wheel_sha256": "29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
+      "source_url": "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "13 of 16 Python sources failed runtime compilation. First finding: packaging/_elffile.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_elffile.py', 'r').read(), 'packaging/_elffile.py', 'exec')\n  File \"packaging/_elffile.py\", line 52\n    raise ELFInvalid(\"unable to parse identification\") from e\nSyntaxError: expected statement end\nerror: Python execution failed",
+      "source_files_checked": 16,
+      "compile_failures": [
+        {
+          "file": "packaging/_elffile.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_elffile.py', 'r').read(), 'packaging/_elffile.py', 'exec')\n  File \"packaging/_elffile.py\", line 52\n    raise ELFInvalid(\"unable to parse identification\") from e\nSyntaxError: expected statement end\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_manylinux.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_manylinux.py', 'r').read(), 'packaging/_manylinux.py', 'exec')\n  File \"packaging/_manylinux.py\", line 37\n    and f.capacity == EIClass.C32\nSyntaxError: expected ')', got 'and'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_musllinux.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_musllinux.py', 'r').read(), 'packaging/_musllinux.py', 'exec')\n  File \"packaging/_musllinux.py\", line 24\n    lines = [n for n in (n.strip() for n in output.splitlines()) if n]\nSyntaxError: expected ')', got 'for'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_parser.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_parser.py', 'r').read(), 'packaging/_parser.py', 'exec')\n  File \"packaging/_parser.py\", line 88\n    ) -> tuple[str, str, MarkerList | None]:\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/_tokenizer.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/_tokenizer.py', 'r').read(), 'packaging/_tokenizer.py', 'exec')\n  File \"packaging/_tokenizer.py\", line 24\n    *,\nSyntaxError: expected '@id', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/licenses/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/licenses/__init__.py', 'r').read(), 'packaging/licenses/__init__.py', 'exec')\n  File \"packaging/licenses/__init__.py\", line 62\n    ) -> NormalizedLicenseExpression:\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/markers.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/markers.py', 'r').read(), 'packaging/markers.py', 'exec')\n  File \"packaging/markers.py\", line 151\n    and len(marker) == 1\nSyntaxError: expected ')', got 'and'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/metadata.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/metadata.py', 'r').read(), 'packaging/metadata.py', 'exec')\n  File \"packaging/metadata.py\", line 3\n    import email.feedparser\nSyntaxError: expected statement end\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/requirements.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/requirements.py', 'r').read(), 'packaging/requirements.py', 'exec')\n  File \"packaging/requirements.py\", line 38\n    raise InvalidRequirement(str(e)) from e\nSyntaxError: expected statement end\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/specifiers.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/specifiers.py', 'r').read(), 'packaging/specifiers.py', 'exec')\n  File \"packaging/specifiers.py\", line 44\n    class BaseSpecifier(metaclass=abc.ABCMeta):\nSyntaxError: expected ')', got '='\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/tags.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/tags.py', 'r').read(), 'packaging/tags.py', 'exec')\n  File \"packaging/tags.py\", line 21\n    )\nSyntaxError: expected '@id', got ')'\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/utils.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/utils.py', 'r').read(), 'packaging/utils.py', 'exec')\n  File \"packaging/utils.py\", line 46\n    def canonicalize_name(name: str, *, validate: bool = False) -> NormalizedName:\nSyntaxError: expected '@id', got ','\nerror: Python execution failed"
+        },
+        {
+          "file": "packaging/version.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('packaging/version.py', 'r').read(), 'packaging/version.py', 'exec')\n  File \"packaging/version.py\", line 200\n    match = self._regex.search(version)\nSyntaxError: expected an expression, got =\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "wheel_filename": "six-1.17.0-py2.py3-none-any.whl",
+      "wheel_sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+      "source_url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "1 of 1 Python sources failed runtime compilation. First finding: six.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('six.py', 'r').read(), 'six.py', 'exec')\n  File \"six.py\", line 69\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed",
+      "source_files_checked": 1,
+      "compile_failures": [
+        {
+          "file": "six.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('six.py', 'r').read(), 'six.py', 'exec')\n  File \"six.py\", line 69\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "wheel_filename": "six-1.17.0-py2.py3-none-any.whl",
+      "wheel_sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+      "source_url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "1 of 1 Python sources failed runtime compilation. First finding: six.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('six.py', 'r').read(), 'six.py', 'exec')\n  File \"six.py\", line 69\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed",
+      "source_files_checked": 1,
+      "compile_failures": [
+        {
+          "file": "six.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('six.py', 'r').read(), 'six.py', 'exec')\n  File \"six.py\", line 69\n    else:\nSyntaxError: expected an expression, got else\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "toml",
+      "version": "0.10.2",
+      "wheel_filename": "toml-0.10.2-py2.py3-none-any.whl",
+      "wheel_sha256": "806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
+      "source_url": "https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "2 of 5 Python sources failed runtime compilation. First finding: toml/decoder.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('toml/decoder.py', 'r').read(), 'toml/decoder.py', 'exec')\n  File \"toml/decoder.py\", line 113\n    def load(f, _dict=dict, decoder=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed",
+      "source_files_checked": 5,
+      "compile_failures": [
+        {
+          "file": "toml/decoder.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('toml/decoder.py', 'r').read(), 'toml/decoder.py', 'exec')\n  File \"toml/decoder.py\", line 113\n    def load(f, _dict=dict, decoder=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        },
+        {
+          "file": "toml/encoder.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('toml/encoder.py', 'r').read(), 'toml/encoder.py', 'exec')\n  File \"toml/encoder.py\", line 131\n    def __init__(self, _dict=dict, preserve=False):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "toml",
+      "version": "0.10.2",
+      "wheel_filename": "toml-0.10.2-py2.py3-none-any.whl",
+      "wheel_sha256": "806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
+      "source_url": "https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "incompatible",
+      "evidence": "2 of 5 Python sources failed runtime compilation. First finding: toml/decoder.py\nTraceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('toml/decoder.py', 'r').read(), 'toml/decoder.py', 'exec')\n  File \"toml/decoder.py\", line 113\n    def load(f, _dict=dict, decoder=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed",
+      "source_files_checked": 5,
+      "compile_failures": [
+        {
+          "file": "toml/decoder.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('toml/decoder.py', 'r').read(), 'toml/decoder.py', 'exec')\n  File \"toml/decoder.py\", line 113\n    def load(f, _dict=dict, decoder=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        },
+        {
+          "file": "toml/encoder.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<string>\", line 1\n    compile(open('toml/encoder.py', 'r').read(), 'toml/encoder.py', 'exec')\n  File \"toml/encoder.py\", line 131\n    def __init__(self, _dict=dict, preserve=False):\nSyntaxError: expected a literal, got '@id'\nerror: Python execution failed"
+        }
+      ]
+    },
+    {
+      "name": "tzdata",
+      "version": "2025.2",
+      "wheel_filename": "tzdata-2025.2-py2.py3-none-any.whl",
+      "wheel_sha256": "1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8",
+      "source_url": "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl",
+      "runtime_sha256": "51f2c53b9e7fa55497496bca053abd22f5b261ff0d4cf49ad4c7c0b6d4654d31",
+      "target": "macos-aarch64",
+      "status": "tested",
+      "evidence": "All Python sources compile; reviewed sandboxed smoke passed. Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
+      "source_files_checked": 22,
+      "smoke": {
+        "file": "tzdata.py",
+        "sha256": "0b7cbdbc4fc2d0b1ebcd24db137cf25655261b8ad61b9b736ee5facdfd9f89c6",
+        "scope": "Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
+        "runner": "macOS sandbox-exec; no network/writes/home reads"
+      }
+    },
+    {
+      "name": "tzdata",
+      "version": "2025.2",
+      "wheel_filename": "tzdata-2025.2-py2.py3-none-any.whl",
+      "wheel_sha256": "1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8",
+      "source_url": "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl",
+      "runtime_sha256": "a5a8337e08f25d85719fda9ab717ccad2f383c1ba51e0d55bfbb5c3403f9f56a",
+      "target": "macos-aarch64",
+      "status": "tested",
+      "evidence": "All Python sources compile; reviewed sandboxed smoke passed. Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
+      "source_files_checked": 22,
+      "smoke": {
+        "file": "tzdata.py",
+        "sha256": "0b7cbdbc4fc2d0b1ebcd24db137cf25655261b8ad61b9b736ee5facdfd9f89c6",
+        "scope": "Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
+        "runner": "macOS sandbox-exec; no network/writes/home reads"
+      }
+    },
+    {
+      "name": "attrs",
+      "version": "25.3.0",
+      "wheel_filename": "attrs-25.3.0-py3-none-any.whl",
+      "wheel_sha256": "427318ce031701fea540783410126f03899a97ffc6f61596ad581ac2e40e3bc3",
+      "source_url": "https://files.pythonhosted.org/packages/77/06/bb80f5f86020c4551da315d78b3ab75e8228f89f0162f2c3a819e407941a/attrs-25.3.0-py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "8 of 19 Python sources failed runtime compilation. First finding: attr/_cmp.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/attr/_cmp.py\", line 153\n    return all(func(self, other) for func in self._requirements)\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/attr/_cmp.py' (no source was executed)",
+      "source_files_checked": 19,
+      "compile_failures": [
+        {
+          "file": "attr/_cmp.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/_cmp.py\", line 153\n    return all(func(self, other) for func in self._requirements)\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/attr/_cmp.py' (no source was executed)"
+        },
+        {
+          "file": "attr/_compat.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/_compat.py\", line 68\n    and self.sig.return_annotation is not inspect.Signature.empty\nSyntaxError: expected ')', got 'and'\nerror: Python syntax check failed for '<staging>/wheel/attr/_compat.py' (no source was executed)"
+        },
+        {
+          "file": "attr/_funcs.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/_funcs.py\", line 15\n    dict_factory=dict,\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/attr/_funcs.py' (no source was executed)"
+        },
+        {
+          "file": "attr/_make.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/_make.py\", line 101\n    def __reduce__(self, _none_constructor=type(None), _args=()):  # noqa: B008\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/attr/_make.py' (no source was executed)"
+        },
+        {
+          "file": "attr/_next_gen.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/_next_gen.py\", line 25\n    *,\nSyntaxError: *args should be placed before **kwargs\nerror: Python syntax check failed for '<staging>/wheel/attr/_next_gen.py' (no source was executed)"
+        },
+        {
+          "file": "attr/converters.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/converters.py\", line 66\n    def default_if_none(default=NOTHING, factory=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/attr/converters.py' (no source was executed)"
+        },
+        {
+          "file": "attr/filters.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/filters.py\", line 15\n    frozenset(cls for cls in what if isinstance(cls, type)),\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/attr/filters.py' (no source was executed)"
+        },
+        {
+          "file": "attr/validators.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/attr/validators.py\", line 86\n    finally:\nSyntaxError: finally clause is not supported yet\nerror: Python syntax check failed for '<staging>/wheel/attr/validators.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "wheel_filename": "colorama-0.4.6-py2.py3-none-any.whl",
+      "wheel_sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+      "source_url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "6 of 13 Python sources failed runtime compilation. First finding: colorama/ansitowin32.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/colorama/ansitowin32.py\", line 58\n    else:\nSyntaxError: expected an expression, got else\nerror: Python syntax check failed for '<staging>/wheel/colorama/ansitowin32.py' (no source was executed)",
+      "source_files_checked": 13,
+      "compile_failures": [
+        {
+          "file": "colorama/ansitowin32.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/colorama/ansitowin32.py\", line 58\n    else:\nSyntaxError: expected an expression, got else\nerror: Python syntax check failed for '<staging>/wheel/colorama/ansitowin32.py' (no source was executed)"
+        },
+        {
+          "file": "colorama/initialise.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/colorama/initialise.py\", line 100\n    finally:\nSyntaxError: finally clause is not supported yet\nerror: Python syntax check failed for '<staging>/wheel/colorama/initialise.py' (no source was executed)"
+        },
+        {
+          "file": "colorama/tests/ansitowin32_test.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/colorama/tests/ansitowin32_test.py\", line 38\n    fp.write(u'hello')\nSyntaxError: expected ')', got '@str'\nerror: Python syntax check failed for '<staging>/wheel/colorama/tests/ansitowin32_test.py' (no source was executed)"
+        },
+        {
+          "file": "colorama/tests/isatty_test.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/colorama/tests/isatty_test.py\", line 33\n    with pycharm(), replace_by(tty):\nSyntaxError: expected ':', got ','\nerror: Python syntax check failed for '<staging>/wheel/colorama/tests/isatty_test.py' (no source was executed)"
+        },
+        {
+          "file": "colorama/tests/utils.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/colorama/tests/utils.py\", line 47\n    with replace_by(non_tty), replace_original_by(non_tty):\nSyntaxError: expected ':', got ','\nerror: Python syntax check failed for '<staging>/wheel/colorama/tests/utils.py' (no source was executed)"
+        },
+        {
+          "file": "colorama/win32.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/colorama/win32.py\", line 18\n    else:\nSyntaxError: expected an expression, got else\nerror: Python syntax check failed for '<staging>/wheel/colorama/win32.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.10",
+      "wheel_filename": "idna-3.10-py3-none-any.whl",
+      "wheel_sha256": "946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3",
+      "source_url": "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "3 of 8 Python sources failed runtime compilation. First finding: idna/codec.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/idna/codec.py\", line 7\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python syntax check failed for '<staging>/wheel/idna/codec.py' (no source was executed)",
+      "source_files_checked": 8,
+      "compile_failures": [
+        {
+          "file": "idna/codec.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/idna/codec.py\", line 7\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python syntax check failed for '<staging>/wheel/idna/codec.py' (no source was executed)"
+        },
+        {
+          "file": "idna/core.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/idna/core.py\", line 11\n    _unicode_dots_re = re.compile(\"[\\u002e\\u3002\\uff0e\\uff61]\")\nSyntaxError: invalid escape char\nerror: Python syntax check failed for '<staging>/wheel/idna/core.py' (no source was executed)"
+        },
+        {
+          "file": "idna/uts46data.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/idna/uts46data.py\", line 8600\n    + _seg_1()\nSyntaxError: expected ')', got '+'\nerror: Python syntax check failed for '<staging>/wheel/idna/uts46data.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "inflection",
+      "version": "0.5.1",
+      "wheel_filename": "inflection-0.5.1-py2.py3-none-any.whl",
+      "wheel_sha256": "f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2",
+      "source_url": "https://files.pythonhosted.org/packages/59/91/aa6bde563e0085a02a435aa99b49ef75b0a4b062635e606dab23ce18d720/inflection-0.5.1-py2.py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "2 of 2 Python sources failed runtime compilation. First finding: inflection/__init__.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/inflection/__init__.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/inflection/__init__.py' (no source was executed)",
+      "source_files_checked": 2,
+      "compile_failures": [
+        {
+          "file": "inflection/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/inflection/__init__.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/inflection/__init__.py' (no source was executed)"
+        },
+        {
+          "file": "inflection.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/inflection.py\", line 100\n    return ''.join('[' + char + char.upper() + ']' for char in string)\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/inflection.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "more-itertools",
+      "version": "10.8.0",
+      "wheel_filename": "more_itertools-10.8.0-py3-none-any.whl",
+      "wheel_sha256": "52d4362373dcf7c52546bc4af9a86ee7c4579df9a8dc268be0a2f949d376cc9b",
+      "source_url": "https://files.pythonhosted.org/packages/a4/8e/469e5a4a2f5855992e425f3cb33804cc07bf18d48f2db061aec61ce50270/more_itertools-10.8.0-py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "2 of 3 Python sources failed runtime compilation. First finding: more_itertools/more.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/more_itertools/more.py\", line 245\n    def first(iterable, default=_marker):\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/more_itertools/more.py' (no source was executed)",
+      "source_files_checked": 3,
+      "compile_failures": [
+        {
+          "file": "more_itertools/more.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/more_itertools/more.py\", line 245\n    def first(iterable, default=_marker):\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/more_itertools/more.py' (no source was executed)"
+        },
+        {
+          "file": "more_itertools/recipes.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/more_itertools/recipes.py\", line 1240\n    (18446744073709551616, (2, 325, 9375, 28178, 450775, 9780504, 1795265022)),\nSyntaxError: int literal is too large\nerror: Python syntax check failed for '<staging>/wheel/more_itertools/recipes.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.3.2",
+      "wheel_filename": "numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl",
+      "wheel_sha256": "852ae5bed3478b92f093e30f785c98e0cb62fa0a939ed057c31716e18a7a22b9",
+      "source_url": "https://files.pythonhosted.org/packages/96/26/1320083986108998bd487e2931eed2aeedf914b6e8905431487543ec911d/numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "The exact wheel numpy-2.3.2-cp311-cp311-macosx_10_9_x86_64.whl requires a CPython ABI/native platform; Kipferl accepts only pure Python wheels. This is an artifact constraint, not a claim about every release or implementation of this package."
+    },
+    {
+      "name": "packaging",
+      "version": "25.0",
+      "wheel_filename": "packaging-25.0-py3-none-any.whl",
+      "wheel_sha256": "29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
+      "source_url": "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "13 of 16 Python sources failed runtime compilation. First finding: packaging/_elffile.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/packaging/_elffile.py\", line 52\n    raise ELFInvalid(\"unable to parse identification\") from e\nSyntaxError: expected statement end\nerror: Python syntax check failed for '<staging>/wheel/packaging/_elffile.py' (no source was executed)",
+      "source_files_checked": 16,
+      "compile_failures": [
+        {
+          "file": "packaging/_elffile.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/_elffile.py\", line 52\n    raise ELFInvalid(\"unable to parse identification\") from e\nSyntaxError: expected statement end\nerror: Python syntax check failed for '<staging>/wheel/packaging/_elffile.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/_manylinux.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/_manylinux.py\", line 37\n    and f.capacity == EIClass.C32\nSyntaxError: expected ')', got 'and'\nerror: Python syntax check failed for '<staging>/wheel/packaging/_manylinux.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/_musllinux.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/_musllinux.py\", line 24\n    lines = [n for n in (n.strip() for n in output.splitlines()) if n]\nSyntaxError: expected ')', got 'for'\nerror: Python syntax check failed for '<staging>/wheel/packaging/_musllinux.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/_parser.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/_parser.py\", line 129\n    if specifier\nSyntaxError: expected ')', got 'if'\nerror: Python syntax check failed for '<staging>/wheel/packaging/_parser.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/_tokenizer.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/_tokenizer.py\", line 24\n    *,\nSyntaxError: expected '@id', got ','\nerror: Python syntax check failed for '<staging>/wheel/packaging/_tokenizer.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/licenses/__init__.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/licenses/__init__.py\", line 106\n    raise InvalidLicenseExpression(message) from None\nSyntaxError: expected statement end\nerror: Python syntax check failed for '<staging>/wheel/packaging/licenses/__init__.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/markers.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/markers.py\", line 151\n    and len(marker) == 1\nSyntaxError: expected ')', got 'and'\nerror: Python syntax check failed for '<staging>/wheel/packaging/markers.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/metadata.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/metadata.py\", line 3\n    import email.feedparser\nSyntaxError: expected statement end\nerror: Python syntax check failed for '<staging>/wheel/packaging/metadata.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/requirements.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/requirements.py\", line 38\n    raise InvalidRequirement(str(e)) from e\nSyntaxError: expected statement end\nerror: Python syntax check failed for '<staging>/wheel/packaging/requirements.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/specifiers.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/specifiers.py\", line 44\n    class BaseSpecifier(metaclass=abc.ABCMeta):\nSyntaxError: expected ')', got '='\nerror: Python syntax check failed for '<staging>/wheel/packaging/specifiers.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/tags.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/tags.py\", line 81\n    and (self._platform == other._platform)\nSyntaxError: expected ')', got 'and'\nerror: Python syntax check failed for '<staging>/wheel/packaging/tags.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/utils.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/utils.py\", line 46\n    def canonicalize_name(name: str, *, validate: bool = False) -> NormalizedName:\nSyntaxError: expected '@id', got ','\nerror: Python syntax check failed for '<staging>/wheel/packaging/utils.py' (no source was executed)"
+        },
+        {
+          "file": "packaging/version.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/packaging/version.py\", line 200\n    match = self._regex.search(version)\nSyntaxError: expected an expression, got =\nerror: Python syntax check failed for '<staging>/wheel/packaging/version.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "wheel_filename": "six-1.17.0-py2.py3-none-any.whl",
+      "wheel_sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+      "source_url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "1 of 1 Python sources failed runtime compilation. First finding: six.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/six.py\", line 69\n    else:\nSyntaxError: expected an expression, got else\nerror: Python syntax check failed for '<staging>/wheel/six.py' (no source was executed)",
+      "source_files_checked": 1,
+      "compile_failures": [
+        {
+          "file": "six.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/six.py\", line 69\n    else:\nSyntaxError: expected an expression, got else\nerror: Python syntax check failed for '<staging>/wheel/six.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "toml",
+      "version": "0.10.2",
+      "wheel_filename": "toml-0.10.2-py2.py3-none-any.whl",
+      "wheel_sha256": "806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b",
+      "source_url": "https://files.pythonhosted.org/packages/44/6f/7120676b6d73228c96e17f1f794d8ab046fc910d781c8d151120c3f1569e/toml-0.10.2-py2.py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "incompatible",
+      "evidence": "2 of 5 Python sources failed runtime compilation. First finding: toml/decoder.py\nTraceback (most recent call last):\n  File \"<staging>/wheel/toml/decoder.py\", line 113\n    def load(f, _dict=dict, decoder=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/toml/decoder.py' (no source was executed)",
+      "source_files_checked": 5,
+      "compile_failures": [
+        {
+          "file": "toml/decoder.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/toml/decoder.py\", line 113\n    def load(f, _dict=dict, decoder=None):\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/toml/decoder.py' (no source was executed)"
+        },
+        {
+          "file": "toml/encoder.py",
+          "diagnostic": "Traceback (most recent call last):\n  File \"<staging>/wheel/toml/encoder.py\", line 131\n    def __init__(self, _dict=dict, preserve=False):\nSyntaxError: expected a literal, got '@id'\nerror: Python syntax check failed for '<staging>/wheel/toml/encoder.py' (no source was executed)"
+        }
+      ]
+    },
+    {
+      "name": "tzdata",
+      "version": "2025.2",
+      "wheel_filename": "tzdata-2025.2-py2.py3-none-any.whl",
+      "wheel_sha256": "1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8",
+      "source_url": "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl",
+      "runtime_sha256": "1750884ef55d811fa1c548518301adc9a7ad04d334891ab665ec532f660cc676",
+      "target": "macos-aarch64",
+      "syntax_checker": "--check-syntax (module mode, no execution)",
+      "status": "tested",
+      "evidence": "All Python sources compile; reviewed sandboxed smoke passed. Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
+      "source_files_checked": 22,
+      "smoke": {
+        "file": "tzdata.py",
+        "sha256": "0b7cbdbc4fc2d0b1ebcd24db137cf25655261b8ad61b9b736ee5facdfd9f89c6",
+        "scope": "Version constants and TZif file headers for UTC, Europe/Berlin, America/New_York, and Asia/Tokyo. Does not test timezone conversion or zoneinfo APIs.",
+        "runner": "macOS sandbox-exec; no network/writes/home reads"
+      }
+    }
+  ]
+}

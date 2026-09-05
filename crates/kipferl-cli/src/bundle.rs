@@ -7,7 +7,7 @@ use std::io::{self, Read};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Component, Path, PathBuf};
 
-use crate::{project_config, run_command, tree_shake};
+use crate::{dependencies, project_config, run_command, tree_shake};
 
 const MAX_FILES: usize = 1024;
 const MAX_FILE_BYTES: usize = 8 * 1024 * 1024;
@@ -19,6 +19,7 @@ pub struct Bundle {
     pub(crate) analysis: tree_shake::Analysis,
     pub(crate) module_count: usize,
     pub(crate) asset_count: usize,
+    pub(crate) has_dependencies: bool,
 }
 
 struct Module {
@@ -81,9 +82,21 @@ fn collect(script: &Path, explicit_assets: &[PathBuf], development: bool) -> io:
     if parent != collector.root {
         collector.import_roots.push(collector.root.clone());
     }
+    let installed = dependencies::validate_installation(&collector.root)?;
+    if let Some(packages) = &installed {
+        collector.import_roots.push(packages.clone());
+    }
     let entry_path = collector.entry.clone();
     let entry_source = collector.read_source(&entry_path)?;
     let entry_source = collector.prepare_source(&entry_path, None, &entry_source)?;
+    if let Some(packages) = &installed {
+        // Keep package resources available in both development and standalone
+        // execution. Imported Python sources are replaced by prepared wrappers.
+        let relative = packages
+            .strip_prefix(&collector.root)
+            .map_err(|_| invalid("installed packages must be inside the project"))?;
+        collector.add_asset(relative, 0)?;
+    }
     // prepare_source discovers imports recursively, including imports inside functions.
     if !development {
         let configured = config
@@ -101,6 +114,13 @@ fn collect(script: &Path, explicit_assets: &[PathBuf], development: bool) -> io:
     if analysis.reasons.is_empty() {
         analysis.profile = tree_shake::RuntimeProfile::Core;
     }
+    if installed.is_some() {
+        analysis.profile = tree_shake::RuntimeProfile::Full;
+        analysis.reasons.push(
+            "PyPI dependencies use the full runtime against which compatibility is checked"
+                .to_owned(),
+        );
+    }
     let python = collector.bootstrap(&entry_source)?;
     if !development {
         collector.preflight(&entry_source, &python)?;
@@ -109,6 +129,7 @@ fn collect(script: &Path, explicit_assets: &[PathBuf], development: bool) -> io:
         python: python.into_bytes(),
         analysis,
         module_count: collector.modules.len(),
+        has_dependencies: installed.is_some(),
         asset_count: collector
             .assets
             .len()
@@ -435,51 +456,18 @@ impl Collector {
     }
 
     fn preflight(&self, entry_source: &str, bootstrap: &str) -> io::Result<()> {
-        use std::io::Write;
-        use std::process::{Command, Stdio};
-        let mut check = String::from("sources = [\n");
-        for (path, source) in std::iter::once((&self.entry, entry_source)).chain(
-            self.modules
-                .values()
-                .map(|module| (&module.path, module.source.as_str())),
-        ) {
-            writeln!(
-                check,
-                "({}, {}),",
-                run_command::python_string(source),
-                run_command::python_string(&path_text(path)?)
-            )
-            .map_err(io::Error::other)?;
-        }
-        writeln!(
-            check,
-            "({}, '<kipferl bootstrap>'),",
-            run_command::python_string(bootstrap)
+        crate::syntax_check::check_sources(
+            std::iter::once((self.entry.as_path(), entry_source))
+                .chain(
+                    self.modules
+                        .values()
+                        .map(|module| (module.path.as_path(), module.source.as_str())),
+                )
+                .chain(std::iter::once((
+                    Path::new("<kipferl bootstrap>"),
+                    bootstrap,
+                ))),
         )
-        .map_err(io::Error::other)?;
-        check.push_str(
-            "]\nfor source, filename in sources:\n    compile(source, filename, 'exec')\n",
-        );
-        let mut child = Command::new(run_command::prepare_runtime()?)
-            .arg("/dev/stdin")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-        child
-            .stdin
-            .take()
-            .ok_or_else(|| io::Error::other("syntax checker stdin pipe is unavailable"))?
-            .write_all(check.as_bytes())?;
-        let output = child.wait_with_output()?;
-        if !output.status.success() {
-            return Err(invalid(&format!(
-                "Python syntax check failed (no application code was executed):\n{}{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            )));
-        }
-        Ok(())
     }
 
     fn bootstrap(&self, entry_source: &str) -> io::Result<String> {
@@ -501,7 +489,7 @@ impl Collector {
                 String::new()
             };
             return Ok(format!(
-                "#!/usr/bin/env pocketpy-kipferl\n{argv}__file__ = {}\n__kipferl_source = {}\n__kipferl_code = compile(__kipferl_source, {}, 'exec')\ndel __kipferl_source\ntry:\n    exec(__kipferl_code, globals())\n{}",
+                "#!/usr/bin/env pocketpy-kipferl\n{argv}__file__ = {}\n__kipferl_source = {}\n__kipferl_code = __import__('sys')._kipferl_compile_module(__kipferl_source, {})\ndel __kipferl_source\ntry:\n    exec(__kipferl_code)\n{}",
                 run_command::python_string(&original),
                 run_command::python_string(entry_source),
                 run_command::python_string(&original),
@@ -522,7 +510,7 @@ impl Collector {
                 )
             };
             let wrapper = format!(
-                "import os as __kipferl_os\n__kipferl_os.chdir(__import__('{HELPER}').caller_directory)\n__file__ = {file_expr}\n__kipferl_source = {}\n__kipferl_code = compile(__kipferl_source, {}, 'exec')\ndel __kipferl_source\nexec(__kipferl_code, globals())\n",
+                "import os as __kipferl_os\n__kipferl_os.chdir(__import__('{HELPER}').caller_directory)\n__file__ = {file_expr}\n__kipferl_source = {}\n__kipferl_code = __import__('sys')._kipferl_compile_module(__kipferl_source, {})\ndel __kipferl_source\nexec(__kipferl_code)\n",
                 run_command::python_string(&module.source),
                 run_command::python_string(&original)
             );
@@ -573,7 +561,7 @@ impl Collector {
             )
         };
         Ok(format!(
-            "#!/usr/bin/env pocketpy-kipferl\n# Built with Kipferl: bundled local modules and application assets.\nimport os as __kipferl_os, tempfile as __kipferl_tempfile, shutil as __kipferl_shutil, base64 as __kipferl_base64, sys as __kipferl_sys\n__kipferl_cwd = __kipferl_os.getcwd()\n__kipferl_root = __kipferl_tempfile.mkdtemp()\nclass __KipferlResources:\n    def __enter__(self):\n        pass\n    def __exit__(self, *args):\n        __kipferl_os.chdir(__kipferl_cwd)\n        __kipferl_shutil.rmtree(__kipferl_root)\n        return False\ntry:\n    with __KipferlResources():\n        for __kipferl_directory in [{directories}]:\n            __kipferl_os.makedirs(__kipferl_root + '/' + __kipferl_directory, exist_ok=True)\n        for __kipferl_name, __kipferl_data in {data}:\n            __kipferl_destination = __kipferl_root + '/' + __kipferl_name\n            __kipferl_parent = __kipferl_os.path.dirname(__kipferl_destination)\n            __kipferl_os.makedirs(__kipferl_parent, exist_ok=True)\n            with open(__kipferl_destination, 'wb') as __kipferl_file:\n                __kipferl_file.write(__kipferl_base64.b64decode(__kipferl_data))\n        __kipferl_os.chdir(__kipferl_root)\n        import {HELPER}\n        __kipferl_os.chdir(__kipferl_cwd)\n        __file__ = {file_expr}\n{argv}\n        __kipferl_source = {}\n        __kipferl_code = compile(__kipferl_source, {}, 'exec')\n        del __kipferl_source\n        exec(__kipferl_code, globals())\n{exit}",
+            "#!/usr/bin/env pocketpy-kipferl\n# Built with Kipferl: bundled local modules and application assets.\nimport os as __kipferl_os, tempfile as __kipferl_tempfile, shutil as __kipferl_shutil, base64 as __kipferl_base64, sys as __kipferl_sys\n__kipferl_cwd = __kipferl_os.getcwd()\n__kipferl_root = __kipferl_tempfile.mkdtemp()\nclass __KipferlResources:\n    def __enter__(self):\n        pass\n    def __exit__(self, *args):\n        __kipferl_os.chdir(__kipferl_cwd)\n        __kipferl_shutil.rmtree(__kipferl_root)\n        return False\ntry:\n    with __KipferlResources():\n        for __kipferl_directory in [{directories}]:\n            __kipferl_os.makedirs(__kipferl_root + '/' + __kipferl_directory, exist_ok=True)\n        for __kipferl_name, __kipferl_data in {data}:\n            __kipferl_destination = __kipferl_root + '/' + __kipferl_name\n            __kipferl_parent = __kipferl_os.path.dirname(__kipferl_destination)\n            __kipferl_os.makedirs(__kipferl_parent, exist_ok=True)\n            with open(__kipferl_destination, 'wb') as __kipferl_file:\n                __kipferl_file.write(__kipferl_base64.b64decode(__kipferl_data))\n        __kipferl_os.chdir(__kipferl_root)\n        import {HELPER}\n        __kipferl_os.chdir(__kipferl_cwd)\n        __file__ = {file_expr}\n{argv}\n        __kipferl_source = {}\n        __kipferl_code = __import__('sys')._kipferl_compile_module(__kipferl_source, {})\n        del __kipferl_source\n        exec(__kipferl_code)\n{exit}",
             run_command::python_string(entry_source),
             run_command::python_string(&original)
         ))
@@ -616,7 +604,7 @@ fn unsupported_import(path: &Path, source_prefix: &str, name: &str) -> io::Error
         .count()
         .saturating_add(1);
     invalid(&format!(
-        "{}:{line}: unsupported import '{name}'. Add a local {}/__init__.py or {}.py, or use a supported Kipferl module. pip packages are not bundled; --full-runtime does not install them.",
+        "{}:{line}: unsupported import '{name}'. Add a local {}/__init__.py or {}.py, use 'kipferl add <distribution>' for a compatible PyPI package, or use a supported Kipferl module. --full-runtime does not install dependencies.",
         path.display(),
         name.replace('.', "/"),
         name.replace('.', "/")

@@ -13,12 +13,15 @@
 mod build_command;
 mod bundle;
 mod completions;
+mod dependencies;
 mod dev_command;
 mod embedded_runtime;
 mod encoding;
+mod package_compat;
 mod project;
 mod project_config;
 mod run_command;
+mod syntax_check;
 mod test_command;
 mod tree_shake;
 
@@ -95,6 +98,13 @@ pub fn run(
         ),
         "completions" => completions::execute(command_arguments, stdout, stderr),
         "test" => test_command::execute(command_arguments, current_directory, stdout, stderr),
+        "add" | "sync" | "deps" => dependencies::execute(
+            command,
+            command_arguments,
+            current_directory,
+            stdout,
+            stderr,
+        ),
         unknown => {
             writeln!(
                 stderr,
@@ -432,7 +442,7 @@ fn print_new_logo(output: &mut dyn Write) -> io::Result<()> {
 
 fn main_help() -> String {
     format!(
-        "{BOLD}USAGE{RESET}\n    kipferl {CYAN}<command>{RESET} [options]\n\n{BOLD}COMMANDS{RESET}\n    {CYAN}new{RESET} {DIM}<name>{RESET}        Create a new project\n    {CYAN}run{RESET} {DIM}[file]{RESET}        Run a script with pocketpy\n    {CYAN}dev{RESET} {DIM}[file]{RESET}        Run and restart when files change\n    {CYAN}build{RESET} {DIM}[file]{RESET}      Build a standalone binary\n    {CYAN}init{RESET}              Initialize kipferl in current directory\n    {CYAN}test{RESET}              Run project tests (or --compat)\n    {CYAN}completions{RESET} <shell> Generate bash, zsh, or fish completions\n\n{BOLD}OPTIONS{RESET}\n    {CYAN}-h{RESET}, {CYAN}--help{RESET}        Show this help\n    {CYAN}-v{RESET}, {CYAN}--version{RESET}     Show version\n\n    With kipferl.json, run/dev/build use the configured entry and output.\n    Pass project arguments with: kipferl run -- [arguments]\n\n{BOLD}EXAMPLES{RESET}\n    {DIM}${RESET} kipferl new myapp                  {DIM}# Create new project{RESET}\n    {DIM}${RESET} kipferl dev app.py                 {DIM}# Develop with live restart{RESET}\n    {DIM}${RESET} kipferl build app.py -o app        {DIM}# Build universal binary{RESET}\n    {DIM}${RESET} kipferl init --stubs --ai claude   {DIM}# Add IDE support{RESET}\n\n{DIM}    Docs: https://kipferl.dev{RESET}\n"
+        "{BOLD}USAGE{RESET}\n    kipferl {CYAN}<command>{RESET} [options]\n\n{BOLD}COMMANDS{RESET}\n    {CYAN}new{RESET} {DIM}<name>{RESET}        Create a new project\n    {CYAN}run{RESET} {DIM}[file]{RESET}        Run a script with pocketpy\n    {CYAN}dev{RESET} {DIM}[file]{RESET}        Run and restart when files change\n    {CYAN}build{RESET} {DIM}[file]{RESET}      Build a standalone binary\n    {CYAN}init{RESET}              Initialize kipferl in current directory\n    {CYAN}test{RESET}              Run project tests (or --compat)\n    {CYAN}add{RESET} <requirement> Add a compatible PyPI dependency\n    {CYAN}sync{RESET} --locked     Restore locked dependencies\n    {CYAN}deps{RESET}              Check installed packages or view the catalog\n    {CYAN}completions{RESET} <shell> Generate bash, zsh, or fish completions\n\n{BOLD}OPTIONS{RESET}\n    {CYAN}-h{RESET}, {CYAN}--help{RESET}        Show this help\n    {CYAN}-v{RESET}, {CYAN}--version{RESET}     Show version\n\n    With kipferl.json, run/dev/build use the configured entry and output.\n    Pass project arguments with: kipferl run -- [arguments]\n\n{BOLD}EXAMPLES{RESET}\n    {DIM}${RESET} kipferl new myapp                  {DIM}# Create new project{RESET}\n    {DIM}${RESET} kipferl dev app.py                 {DIM}# Develop with live restart{RESET}\n    {DIM}${RESET} kipferl build app.py -o app        {DIM}# Build universal binary{RESET}\n    {DIM}${RESET} kipferl init --stubs --ai claude   {DIM}# Add IDE support{RESET}\n\n{DIM}    Docs: https://kipferl.dev{RESET}\n"
     )
 }
 

@@ -371,3 +371,16 @@ fn dotted_imports_keep_semicolon_statements_and_support_native_aliases() {
     success(&run);
     assert_eq!(String::from_utf8_lossy(&run.stdout), "42\nTrue\n42\n");
 }
+
+#[test]
+fn standalone_entry_globals_execute_with_module_semantics() {
+    let fixture = Fixture::new();
+    fixture.write("app.py", "global counter\ncounter = 10\ndef bump():\n    global counter\n    counter += 1\nbump()\nprint(counter)\n");
+    let run = fixture.cli(&["run", "app.py"]);
+    success(&run);
+    assert_eq!(String::from_utf8_lossy(&run.stdout), "11\n");
+    success(&fixture.cli(&["build", "app.py", "-o", "global-app"]));
+    let packaged = fixture.run("global-app", &[]);
+    success(&packaged);
+    assert_eq!(String::from_utf8_lossy(&packaged.stdout), "11\n");
+}

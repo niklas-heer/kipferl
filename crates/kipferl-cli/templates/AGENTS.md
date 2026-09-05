@@ -5,7 +5,7 @@ This project uses **kipferl** - a CLI toolkit for building beautiful command-lin
 ## Critical Context
 
 - **Runtime**: PocketPy with native Rust modules (NOT CPython)
-- **Dependencies**: Use native modules or compatible local Python files; pip packages and CPython extensions are not installed into the runtime
+- **Dependencies**: Use native modules, compatible local Python files, or pure-Python wheels installed with `kipferl add`. Check `kipferl deps catalog` for tested versions and blockers. Commit `kipferl.json` and `kipferl.lock`; restore with `kipferl sync --locked`. CPython extensions and source builds are unsupported
 - **Output**: Target-specific standalone binaries; size depends on runtime profile and bundled assets
 - **50+ runtime modules** including: ansi, args, argparse, base64, tui, collections, configparser, copy, csv, dataclasses, datetime, fnmatch, functools, glob, gzip, hashlib, heapq, hmac, http.client, input, itertools, json, kdl, logging, math, operator, os, pathlib, random, re, secrets, shutil, signal, sqlite3, statistics, struct, subprocess, tarfile, tempfile, term, textwrap, time, toml, tomllib, typing, unittest, urllib.parse, uuid, xml.etree.ElementTree, yaml, zipfile
 

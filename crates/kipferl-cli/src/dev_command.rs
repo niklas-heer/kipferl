@@ -33,7 +33,7 @@ const IGNORED_COMPONENTS: &[&str] = &[
 ];
 const PROJECT_EXTENSIONS: &[&str] = &[
     "py", "pyi", "toml", "json", "yaml", "yml", "xml", "csv", "kdl", "ini", "cfg", "conf", "html",
-    "htm", "css", "jinja", "jinja2", "j2",
+    "htm", "css", "jinja", "jinja2", "j2", "lock",
 ];
 
 #[derive(Debug, Eq, PartialEq)]

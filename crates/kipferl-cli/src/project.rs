@@ -13,6 +13,7 @@ const PYRIGHT_CONFIG: &str = r#"{
   "include": ["."],
   "exclude": [".kipferl"],
   "stubPath": ".kipferl/stubs",
+  "extraPaths": [".kipferl/packages"],
   "reportMissingImports": false,
   "reportMissingModuleSource": false,
   "pythonVersion": "3.11",
@@ -324,7 +325,7 @@ fn create_project_files(
         Template::Interactive => "kipferl run",
     };
     let readme = format!(
-        "# {name}\n\nBuilt with Kipferl. Edit `{filename}` to make this tool your own.\n\n```sh\nkipferl run -- --help\n{example}\nkipferl dev\nkipferl test\nkipferl build\n./dist/{sanitized} --help\n```\n\n`kipferl.json` selects the entry script, output path, bundled assets, and test directories. Paths are relative to this project. Add application data files or directories to `assets` to ship them alongside your code.\n\nTests are ordinary Python scripts named `test_*.py`, with top-level assertions. Each runs in its own interpreter; a failed assertion makes `kipferl test` fail.\n\nIDE autocomplete is configured through `pyrightconfig.json` and `.kipferl/stubs`. The runtime supports a Python subset; see https://kipferl.dev/docs/modules for supported modules.\n"
+        "# {name}\n\nBuilt with Kipferl. Edit `{filename}` to make this tool your own.\n\n```sh\nkipferl run -- --help\n{example}\nkipferl dev\nkipferl test\nkipferl build\n./dist/{sanitized} --help\n```\n\n`kipferl.json` selects the entry script, output path, bundled assets, and test directories. Paths are relative to this project. Add application data files or directories to `assets` to ship them alongside your code.\n\nUse `kipferl deps catalog` to inspect package compatibility and `kipferl add <requirement>` to add a PyPI dependency. Commit `kipferl.json` and `kipferl.lock`; restore with `kipferl sync --locked`. Installed packages live in `.kipferl/packages`, which is ignored by Git and included in editor import paths. See https://kipferl.dev/docs/guides/packages for current limits.\n\nTests are ordinary Python scripts named `test_*.py`, with top-level assertions. Each runs in its own interpreter; a failed assertion makes `kipferl test` fail.\n\nIDE autocomplete is configured through `pyrightconfig.json` and `.kipferl/stubs`. The runtime supports a Python subset; see https://kipferl.dev/docs/modules for supported modules.\n"
     );
     let filename_literal = serde_json::to_string(&filename)?;
     let assertion = match template {

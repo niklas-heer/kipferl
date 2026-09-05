@@ -63,10 +63,25 @@ pub fn discover(start: &Path) -> io::Result<Option<ProjectConfig>> {
                 .as_object()
                 .ok_or_else(|| invalid("expected a JSON object"))?;
             for key in object.keys() {
-                if !["entry", "output", "assets", "tests"].contains(&key.as_str()) {
+                if !["entry", "output", "assets", "tests", "dependencies"].contains(&key.as_str()) {
                     return Err(invalid(&format!(
-                        "unknown setting '{key}'; use entry, output, assets, or tests"
+                        "unknown setting '{key}'; use entry, output, assets, tests, or dependencies"
                     )));
+                }
+            }
+            if let Some(dependencies) = object.get("dependencies") {
+                let valid = dependencies.as_array().is_some_and(|values| {
+                    values.iter().all(|value| {
+                        value.as_str().is_some_and(|requirement| {
+                            !requirement.trim().is_empty()
+                                && !requirement.chars().any(char::is_control)
+                        })
+                    })
+                });
+                if !valid {
+                    return Err(invalid(
+                        "'dependencies' must be an array of nonempty requirement strings; use kipferl add <package>",
+                    ));
                 }
             }
             Ok(ProjectConfig {

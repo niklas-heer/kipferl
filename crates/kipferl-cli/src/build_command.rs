@@ -286,9 +286,16 @@ fn finish_build(
     };
     writeln!(
         stdout,
-        "{GREEN}✓{RESET} Bundled {} local modules and {} assets",
+        "{GREEN}✓{RESET} Bundled {} Python modules and {} assets",
         bundle.module_count, bundle.asset_count
     )?;
+    if bundle.has_dependencies && (mode != Mode::Universal || build_target != Target::host()?) {
+        writeln!(
+            stdout,
+            "Dependency compatibility was checked with the embedded {} runtime. Test this artifact on its destination runtime before distributing it.",
+            run_command::embedded_runtime_target()
+        )?;
+    }
     let result = match mode {
         Mode::Single => build_single(&bundle.python, &output_path, stdout),
         Mode::Executable => build_executable(&bundle.python, &output_path, &output, stdout),
