@@ -387,6 +387,16 @@ The deprecated `ucharm` command alias ended in 0.7.1. Update scripts to invoke
 `kipferl`. See the [0.6 release story](https://kipferl.dev/blog/kipferl-0-6) for
 the final artifact sizes, migration outcome, and verified release evidence.
 
+### Nix flake (Linux/Apple Silicon macOS)
+
+```bash
+nix profile add github:niklas-heer/kipferl
+```
+
+The flake builds the latest `main` from source, which may be ahead of the
+stable release. Run `nix run github:niklas-heer/kipferl -- --version` to try it
+without installing.
+
 ### v0.7.2: direct download
 
 Download the stable binary explicitly from its

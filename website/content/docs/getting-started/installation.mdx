@@ -78,6 +78,17 @@ brew uninstall --force ucharm
 brew install niklas-heer/tap/kipferl
 ```
 
+## Nix flake
+
+With [Nix](https://nixos.org) flakes on Linux or Apple Silicon macOS, build and
+install the latest `main` from source:
+
+```bash
+nix profile add github:niklas-heer/kipferl
+```
+
+`main` may be ahead of the stable release; check `kipferl --version`.
+
 ## Older releases
 
 Keep a previous executable and project revision if you need rollback. Historical

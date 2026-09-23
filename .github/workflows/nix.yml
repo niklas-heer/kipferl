@@ -1,0 +1,41 @@
+name: Nix
+
+# Builds the flake when its inputs change, so a rust-version newer than the
+# locked nixpkgs fails here instead of for Nix users.
+on:
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "**/build.rs"
+      - ".github/workflows/nix.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "**/build.rs"
+      - ".github/workflows/nix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build flake
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - name: Build and version-check the package
+        run: nix build --print-build-logs .#default

@@ -57,3 +57,4 @@ tests/vision/vision_report.md
 # Personal mise overrides
 mise.local.toml
 mise.local.lock
+/result
