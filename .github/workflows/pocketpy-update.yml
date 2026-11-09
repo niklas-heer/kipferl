@@ -6,10 +6,15 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch:  # Allow manual trigger
 
+permissions: {}
+
 jobs:
   check-update:
     name: Check for PocketPy Updates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # open the "Update PocketPy" issue
 
     steps:
       - uses: actions/checkout@v4
@@ -32,10 +37,13 @@ jobs:
       - name: Create issue for update
         if: steps.check.outputs.update_available == 'true'
         uses: actions/github-script@v7
+        env:
+          # Upstream-controlled; read from the environment, never from script text.
+          LATEST_VERSION: ${{ steps.check.outputs.latest }}
         with:
           script: |
             const current = '${{ steps.check.outputs.current }}';
-            const latest = '${{ steps.check.outputs.latest }}';
+            const latest = process.env.LATEST_VERSION;
 
             // Check if issue already exists
             const issues = await github.rest.issues.listForRepo({
@@ -84,11 +92,13 @@ jobs:
             });
 
       - name: Summary
+        env:
+          LATEST_VERSION: ${{ steps.check.outputs.latest }}
         run: |
           echo "## PocketPy Version Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Current:** v${{ steps.check.outputs.current }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Latest:** v${{ steps.check.outputs.latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latest:** v$LATEST_VERSION" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.check.outputs.update_available }}" = "true" ]; then
             echo "- **Status:** ⚠️ Update available" >> $GITHUB_STEP_SUMMARY
           else
