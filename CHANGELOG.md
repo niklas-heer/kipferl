@@ -4,6 +4,8 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+## [0.7.3] - 2026-11-10
+
 ### Added
 
 - A workflow compatibility guide with Verified, Limited, Unsupported, and
@@ -18,6 +20,8 @@ All notable user-facing changes are documented here.
   workflows, concrete acceptance tests, current blockers, and explainable scores.
 - `kipferl deps verified` lists the tested package versions and behavior scopes
   matching the CLI's embedded runtime and platform; `--json` exports their evidence.
+- A source-built Nix flake: `nix profile add github:niklas-heer/kipferl`. It
+  follows `main`, so it can be ahead of the latest release.
 
 ### Fixed
 
