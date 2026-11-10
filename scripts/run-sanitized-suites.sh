@@ -54,7 +54,18 @@ EOF
 chmod +x "$wrapper"
 
 status=0
-python3 tests/compat_runner.py --runtime "$wrapper" || status=1
+if ! python3 tests/compat_runner.py --runtime "$wrapper"; then
+  status=1
+  # The runner reports counts only; show how each failing test file ended.
+  for test_file in tests/cpython/test_*.py; do
+    code=0
+    output="$(cd tests/cpython && timeout 120 "$wrapper" "$(basename "$test_file")" 2>&1)" || code=$?
+    if [ "$code" -ne 0 ]; then
+      echo "== $test_file exited with $code" >&2
+      printf '%s\n' "$output" | tail -n 40 >&2
+    fi
+  done
+fi
 python3 tests/vision/run_vision.py --runtime "$wrapper" || status=1
 python3 scripts/check_recipes.py --runtime "$wrapper" || status=1
 # Examples run without a terminal; interactive ones cancel at end of input.
