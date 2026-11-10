@@ -50,6 +50,10 @@ unsafe extern "C" {
     pub fn py_sys_setargv(argc: ::core::ffi::c_int, argv: *mut *mut ::core::ffi::c_char);
 }
 unsafe extern "C" {
+    #[doc = " Wrapper for `PK_FREE(ptr)`."]
+    pub fn py_free(ptr: *mut ::core::ffi::c_void);
+}
+unsafe extern "C" {
     #[doc = " Compile a source string into a code object.\n Use python's `exec()` or `eval()` to execute it."]
     pub fn py_compile(
         source: *const ::core::ffi::c_char,
@@ -260,6 +264,10 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Print the unhandled exception."]
     pub fn py_printexc();
+}
+unsafe extern "C" {
+    #[doc = " Format the unhandled exception and return a null-terminated string.\n The returned string should be freed by the caller."]
+    pub fn py_formatexc() -> *mut ::core::ffi::c_char;
 }
 unsafe extern "C" {
     #[doc = " Raise an exception by type and message. Always return false."]

@@ -6,10 +6,12 @@ pub mod args_core;
 pub mod input_core;
 mod modules;
 mod native;
+mod traceback;
 
 use std::error::Error;
 use std::ffi::{CStr, CString, NulError, c_char};
 use std::fmt;
+use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::ptr;
 use std::rc::Rc;
@@ -304,10 +306,39 @@ impl Vm {
         Ok(())
     }
 
+    /// Report the pending Python exception on stderr, as `CPython` reports an
+    /// uncaught exception, so stdout keeps only what the program printed.
+    ///
+    /// Frames of Kipferl's generated bootstraps are omitted; the user's own
+    /// frames keep their original file names and line numbers. Program output
+    /// already written is flushed first, keeping the order intact when both
+    /// streams reach the same terminal.
     pub fn print_exception(&self) {
-        // SAFETY: `self` proves the VM is active. Call this only after an API
-        // reports a pending Python exception.
-        unsafe { ffi::py_printexc() };
+        // SAFETY: `self` proves the VM is active. py_formatexc returns null
+        // when no exception is pending, or a NUL-terminated string allocated
+        // with PocketPy's allocator that the caller owns.
+        let message = unsafe { ffi::py_formatexc() };
+        if message.is_null() {
+            return;
+        }
+        // SAFETY: `message` is non-null and NUL-terminated (see above); the
+        // bytes are copied before the allocation is released.
+        let traceback = unsafe { CStr::from_ptr(message) }.to_bytes();
+        let traceback = std::str::from_utf8(traceback).map_or_else(
+            |_| traceback.to_vec(),
+            |text| traceback::hide_bootstrap_frames(text).into_bytes(),
+        );
+        // SAFETY: `message` came from PocketPy's allocator and is freed once.
+        unsafe { ffi::py_free(message.cast()) };
+
+        let _ = io::stdout().flush();
+        // SAFETY: fflush(NULL) flushes every open C output stream; PocketPy
+        // writes program output through C stdio.
+        unsafe { libc::fflush(ptr::null_mut()) };
+        let mut stderr = io::stderr().lock();
+        let _ = stderr.write_all(&traceback);
+        let _ = stderr.write_all(b"\n");
+        let _ = stderr.flush();
     }
 }
 
