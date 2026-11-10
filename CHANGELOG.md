@@ -31,6 +31,13 @@ All notable user-facing changes are documented here.
 - A garbage collection while caught exceptions were still referenced could
   read uninitialized memory and crash, seen on Linux. The cause is in
   PocketPy's traceback recording and also affects 0.7.x.
+- `input.prompt`, `password`, `select`, `multiselect` and `confirm` finish when
+  their input ends instead of polling a closed stdin at full CPU forever. This
+  affects scripts run without a terminal (CI, cron, `ssh` without `-t`) and
+  injected test keys that run out. Selections and confirmation cancel, as
+  Escape does. `prompt` and `password` accept text typed before the end as the
+  final line, as with `printf 'alice' | app`, and cancel when nothing was
+  typed; Ctrl-D in a terminal now does the same.
 
 ## [0.7.4] - 2026-11-10
 

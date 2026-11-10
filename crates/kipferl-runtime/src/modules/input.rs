@@ -193,8 +193,9 @@ fn read_test_token(state: &mut InputState, raw: bool) -> u8 {
         .test_keys
         .as_ref()
         .and_then(|keys| keys.get(state.test_position..))
+        .filter(|remaining| !remaining.is_empty())
     else {
-        return 0;
+        return end_of_input_key(raw);
     };
     let remaining = buffer;
     let skipped = remaining
@@ -225,6 +226,36 @@ fn read_test_token(state: &mut InputState, raw: bool) -> u8 {
     }
 }
 
+/// Raw reads return ASCII end of transmission once input has ended, which is
+/// also the byte Ctrl-D sends to a terminal in raw mode. Text prompts accept a
+/// final line that lacks its newline and otherwise cancel, as Escape does.
+const END_OF_INPUT: u8 = 0x04;
+
+/// The key returned once input has ended, so that interactions finish instead
+/// of polling a closed stream forever. Selections and confirmation cancel.
+const fn end_of_input_key(raw: bool) -> u8 {
+    if raw { END_OF_INPUT } else { b'q' }
+}
+
+/// Distinguishes a raw-mode read timeout from the end of input. A terminal in
+/// raw mode returns no bytes every 100 ms while no key is pressed; a pipe or
+/// file returns none only at its end, and a failed read other than an
+/// interruption cannot produce more keys.
+fn input_ended(fd: c_int, count: isize) -> bool {
+    if count > 0 {
+        return false;
+    }
+    if count < 0 {
+        return !matches!(
+            io::Error::last_os_error().kind(),
+            io::ErrorKind::Interrupted | io::ErrorKind::WouldBlock
+        );
+    }
+    // SAFETY: isatty only inspects the descriptor and accepts any value.
+    let terminal = unsafe { libc::isatty(fd) };
+    terminal != 1
+}
+
 #[expect(
     clippy::significant_drop_tightening,
     reason = "The mutex keeps the terminal descriptor open throughout the blocking read; shutdown closes it under the same lock."
@@ -240,7 +271,13 @@ fn read_raw_character() -> u8 {
     // SAFETY: `byte` is writable for one byte and `fd` is either /dev/tty or
     // stdin. Raw mode bounds the wait when the descriptor is a terminal.
     let count = unsafe { libc::read(fd, (&raw mut byte).cast(), 1) };
-    if count == 1 { byte } else { 0 }
+    if count == 1 {
+        byte
+    } else if input_ended(fd, count) {
+        end_of_input_key(true)
+    } else {
+        0
+    }
 }
 
 fn read_key() -> u8 {
@@ -264,6 +301,9 @@ fn read_key() -> u8 {
             buffer.len().saturating_sub(1),
         )
     };
+    if input_ended(fd, count) {
+        return end_of_input_key(false);
+    }
     let Ok(count) = usize::try_from(count) else {
         return 0;
     };
@@ -859,7 +899,8 @@ unsafe extern "C" fn prompt(argc: c_int, stack: ffi::py_StackRef) -> bool {
     while input.len() < 1023 {
         match read_raw_character() {
             b'\r' | b'\n' => break,
-            0x1b | 0x03 => {
+            END_OF_INPUT if !input.is_empty() => break,
+            0x1b | 0x03 | END_OF_INPUT => {
                 drop(raw);
                 write_newline();
                 return return_string(default.as_deref().unwrap_or(""));
@@ -905,7 +946,8 @@ unsafe extern "C" fn password(argc: c_int, stack: ffi::py_StackRef) -> bool {
     while input.len() < 1023 {
         match read_raw_character() {
             b'\r' | b'\n' => break,
-            0x1b | 0x03 => {
+            END_OF_INPUT if !input.is_empty() => break,
+            0x1b | 0x03 | END_OF_INPUT => {
                 drop(raw);
                 write_newline();
                 return return_string("");
@@ -960,9 +1002,11 @@ mod tests {
         assert_eq!(super::read_test_token(&mut state, false), b'u');
         assert_eq!(super::read_test_token(&mut state, true), b'\r');
         assert_eq!(super::read_test_token(&mut state, true), 0x7f);
-        assert_eq!(super::read_test_token(&mut state, false), 0);
+        // Exhausted keys end the input: selections cancel, text prompts end.
+        assert_eq!(super::read_test_token(&mut state, false), b'q');
+        assert_eq!(super::read_test_token(&mut state, true), 0x04);
         state.test_position = usize::MAX;
-        assert_eq!(super::read_test_token(&mut state, false), 0);
+        assert_eq!(super::read_test_token(&mut state, false), b'q');
     }
 
     #[test]

@@ -56,6 +56,143 @@ fn accepts_the_input_test_key_variable() {
     assert!(output.stdout.ends_with(b"True\n"));
 }
 
+// Each interaction receives input that ends before it completes, with nothing
+// typed into a text prompt.
+const ENDED_INPUT_CASES: [(&str, &str, &str); 5] = [
+    (
+        "import input; print(repr(input.prompt('Name:', 'anon')))",
+        "backspace",
+        "'anon'\n",
+    ),
+    (
+        "import input; print(repr(input.password('Secret:')))",
+        "backspace",
+        "''\n",
+    ),
+    (
+        "import input; print(repr(input.select('Pick:', ['A', 'B'])))",
+        "down",
+        "None\n",
+    ),
+    (
+        "import input; print(repr(input.multiselect('Pick:', ['A', 'B'])))",
+        "space",
+        "[]\n",
+    ),
+    (
+        "import input; print(repr(input.confirm('Continue?')))",
+        "x",
+        "False\n",
+    ),
+];
+
+// A text prompt whose input ends after some characters accepts them as its
+// final line, as a missing trailing newline would suggest.
+const FINAL_LINE_CASES: [(&str, &str, &str); 2] = [
+    (
+        "import input; print(repr(input.prompt('Name:', 'anon')))",
+        "alice",
+        "'alice'\n",
+    ),
+    (
+        "import input; print(repr(input.password('Secret:')))",
+        "s3cret",
+        "'s3cret'\n",
+    ),
+];
+
+fn injected_keys(text: &str) -> String {
+    text.chars().map(String::from).collect::<Vec<_>>().join(",")
+}
+
+// Interactions end once their input ends instead of polling it forever.
+#[test]
+fn interactions_end_when_injected_keys_run_out() {
+    let final_lines = FINAL_LINE_CASES
+        .iter()
+        .map(|(source, text, expected)| (*source, injected_keys(text), *expected));
+    let cases = ENDED_INPUT_CASES
+        .iter()
+        .map(|(source, keys, expected)| (*source, (*keys).to_owned(), *expected))
+        .chain(final_lines);
+    for (source, keys, expected) in cases {
+        let output = run(source, &keys);
+        assert!(output.status.success(), "{}", diagnostic(&output));
+        assert!(
+            output.stdout.ends_with(expected.as_bytes()),
+            "{}",
+            diagnostic(&output)
+        );
+    }
+}
+
+// Without a controlling terminal (CI, cron, `ssh` without `-t`), the runtime
+// reads stdin; at end of file it must finish rather than spin at full CPU.
+#[test]
+fn interactions_end_at_end_of_stdin_without_a_terminal() {
+    let ended = ENDED_INPUT_CASES
+        .iter()
+        .map(|(source, _, expected)| (*source, "", *expected));
+    let final_lines = FINAL_LINE_CASES.iter().copied();
+    for (source, stdin, expected) in ended.chain(final_lines) {
+        let (finished, output) = run_without_terminal(source, stdin.as_bytes());
+        assert!(finished, "{source} kept waiting at end of input");
+        assert!(output.status.success(), "{}", diagnostic(&output));
+        assert!(
+            output.stdout.ends_with(expected.as_bytes()),
+            "{}",
+            diagnostic(&output)
+        );
+    }
+}
+
+/// Run detached from the controlling terminal with `stdin` as the whole input,
+/// killing the runtime if it is still waiting after ten seconds.
+#[expect(
+    clippy::expect_used,
+    reason = "This test-only helper fails the test immediately when the detached runtime cannot be started, fed or collected."
+)]
+fn run_without_terminal(source: &str, stdin: &[u8]) -> (bool, Output) {
+    use std::io::Write;
+    use std::os::unix::process::CommandExt;
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"));
+    command
+        .args(["-c", source])
+        .env_remove("KIPFERL_TEST_KEYS")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    // SAFETY: setsid is async-signal-safe; it detaches the child from the
+    // controlling terminal so /dev/tty cannot be opened.
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().expect("start detached input runtime");
+    // The input fits the pipe buffer; closing it marks the end of input.
+    let mut input = child.stdin.take().expect("detached child stdin");
+    input.write_all(stdin).expect("write detached child stdin");
+    drop(input);
+    let mut finished = false;
+    for _ in 0..1_000 {
+        if child.try_wait().expect("poll detached child").is_some() {
+            finished = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    if !finished {
+        let _ = child.kill();
+    }
+    let output = child.wait_with_output().expect("collect detached child");
+    (finished, output)
+}
+
 #[test]
 fn multiselect_byte_stream_and_defaults_match_the_zig_runtime() {
     let output = run(
