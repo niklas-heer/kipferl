@@ -2,7 +2,7 @@
 
 All notable user-facing changes are documented here.
 
-## Unreleased
+## [0.7.4] - 2026-11-10
 
 ### Security
 
@@ -235,3 +235,7 @@ All notable user-facing changes are documented here.
 [0.7.1]: https://github.com/niklas-heer/kipferl/compare/v0.7.0...v0.7.1
 
 [0.7.2]: https://github.com/niklas-heer/kipferl/compare/v0.7.1...v0.7.2
+
+[0.7.3]: https://github.com/niklas-heer/kipferl/compare/v0.7.2...v0.7.3
+
+[0.7.4]: https://github.com/niklas-heer/kipferl/compare/v0.7.3...v0.7.4

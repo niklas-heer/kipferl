@@ -40,19 +40,19 @@ scripts, and Kipferl ships them as single-file binaries that start quickly.
 
 ## Quickstart
 
-**[Kipferl v0.7.3](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.3)**
+**[Kipferl v0.7.4](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.4)**
 brings project templates, configuration defaults, completions,
 compatibility-checked PyPI dependencies, and portable packaging with local
 modules and resources. Follow the
 [stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
 for Homebrew or a platform binary with checksum verification, then try the
 workflow below. Read the [0.7 release story](https://kipferl.dev/blog/kipferl-0-7)
-for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-073)
+for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-074)
 before moving a project from v0.6 or the release candidate.
 
 Homebrew follows the stable release: use `brew install niklas-heer/tap/kipferl`
 or `brew update && brew upgrade kipferl`, then check `kipferl --version` reports
-`v0.7.3`. The project workflow below requires 0.7; v0.6 still supports explicit
+`v0.7.4`. The project workflow below requires 0.7; v0.6 still supports explicit
 script commands such as `kipferl dev app.py` and `kipferl build app.py -o app`.
 
 ```bash
@@ -364,16 +364,16 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Stable v0.7.3: Homebrew (macOS/Linux)
+### Stable v0.7.4: Homebrew (macOS/Linux)
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
 For an existing installation, run `brew update && brew upgrade kipferl` and
-verify `kipferl --version` reports `v0.7.3`. If you added an RC directory to your
+verify `kipferl --version` reports `v0.7.4`. If you added an RC directory to your
 `PATH`, remove that entry so it does not shadow Homebrew. Read the
-[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-073)
+[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-074)
 for dependency-lock changes. Users with the old μcharm 0.5 formula should replace
 it once:
 
@@ -396,10 +396,10 @@ The flake builds the latest `main` from source, which may be ahead of the
 stable release. Run `nix run github:niklas-heer/kipferl -- --version` to try it
 without installing.
 
-### v0.7.3: direct download
+### v0.7.4: direct download
 
 Download the stable binary explicitly from its
-[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.3).
+[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.4).
 Choose the release asset for the machine running Kipferl:
 
 | Platform | Asset |
@@ -414,7 +414,7 @@ matches the filename inside the `.sha256` file. For example, on Apple Silicon:
 
 ```bash
 asset=kipferl-macos-aarch64
-release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.3
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.7.4
 release_dir=$(mktemp -d)
 cd "$release_dir"
 curl -fLO "$release/$asset"

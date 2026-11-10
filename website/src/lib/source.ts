@@ -24,7 +24,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
 
   return `# ${page.data.title}
 
-Documentation scope: the stable v${stableVersion} release and current source checkout. Homebrew installs v${stableVersion}; older v0.6.0 installations predate the project and package workflows. See /docs/getting-started/installation#stable-release for downloads and /docs/guides/packages#upgrade-to-073 for upgrade notes.
+Documentation scope: the stable v${stableVersion} release and current source checkout. Homebrew installs v${stableVersion}; older v0.6.0 installations predate the project and package workflows. See /docs/getting-started/installation#stable-release for downloads and /docs/guides/packages#upgrade-to-074 for upgrade notes.
 
 ${processed}`;
 }
