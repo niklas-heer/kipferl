@@ -25,7 +25,8 @@
         "kipferl patch: integral math results never use an undefined float conversion",
         "kipferl patch: log(x, base) rounds like CPython's log(x) / log(base)",
         "kipferl patch: keep stdc's predefined types but leave raw memory access unimportable",
-        "kipferl patch: gc.untrack skips marking children, so scripts could free live objects"
+        "kipferl patch: gc.untrack skips marking children, so scripts could free live objects",
+        "kipferl patch: the collector marks these fields, so never leave them uninitialized"
       ]
     }
   ],
@@ -65,6 +66,10 @@
     {
       "id": "0009-unsafe-script-apis",
       "file": "pocketpy/patches/0009-unsafe-script-apis.patch"
+    },
+    {
+      "id": "0010-exception-frame-gc",
+      "file": "pocketpy/patches/0010-exception-frame-gc.patch"
     }
   ]
 }

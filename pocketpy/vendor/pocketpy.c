@@ -33316,6 +33316,10 @@ void py_BaseException__stpush(py_Frame* frame,
             py_newdict(&frame_dump->locals);
             py_newdict(&frame_dump->globals);
         }
+    } else {
+        // kipferl patch: the collector marks these fields, so never leave them uninitialized
+        py_newnil(&frame_dump->locals);
+        py_newnil(&frame_dump->globals);
     }
 }
 

@@ -126,3 +126,15 @@ behind Kipferl's Rust FFI boundary:
   are not marked, so the next collection frees objects it still references and
   later reads see reused memory. CPython has neither function; `gc.is_tracked`
   remains.
+
+### Traceback frames and the collector
+
+Each caught exception records up to seven traceback frames. PocketPy fills
+their `locals` and `globals` only while its debugger runs, yet the collector
+marks both fields for every exception, so a collection read uninitialized
+memory. This crashed Linux builds (SIGSEGV) and fails UBSan's bool check; it is
+present in 2.1.3 as well. `0010-exception-frame-gc.patch` sets both to nil when
+the debugger is off. `crates/kipferl-runtime/tests/ffi_stress.rs`, which the
+sanitizer CI job runs, keeps hundreds of caught exceptions alive across
+collections.
+

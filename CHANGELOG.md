@@ -26,6 +26,12 @@ All notable user-facing changes are documented here.
 - Startup and the bundled benchmarks are unchanged or slightly faster; the full
   runtime grows by about 66 KB and the core runtime by about 83 KB.
 
+### Fixed
+
+- A garbage collection while caught exceptions were still referenced could
+  read uninitialized memory and crash, seen on Linux. The cause is in
+  PocketPy's traceback recording and also affects 0.7.x.
+
 ## [0.7.4] - 2026-11-10
 
 ### Security
