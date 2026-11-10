@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { stableVersion } from "@/lib/release";
 
 const title = "Kipferl 0.7 RC1: packages with evidence";
 const description =
@@ -56,7 +57,8 @@ export default function ReleaseCandidatePage() {
         </header>
 
         <aside className="mb-14 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6 text-gray-700 dark:text-gray-300">
-          <strong>This is the historical RC1 announcement.</strong> Stable 0.7.2
+          <strong>This is the historical RC1 announcement.</strong> Stable{" "}
+          {stableVersion}
           is now available. Follow the{" "}
           <Link
             className="text-cyan-600 dark:text-cyan-400 underline"

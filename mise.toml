@@ -36,6 +36,7 @@ run = [
   { task = "refresh-runtime-assets" },
   "python3 scripts/generate_stubs.py --check",
   "python3 scripts/check_branding.py",
+  "python3 scripts/check_docs_version.py",
   "python3 -m unittest discover -s scripts -p 'test_*.py'",
   { task = "catalog-check" },
   "cargo fmt --all --check",

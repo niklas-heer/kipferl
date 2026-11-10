@@ -22,6 +22,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { stableReleaseUrl, stableVersion } from "@/lib/release";
 import styles from "./home.module.css";
 
 const installCommand = "brew install niklas-heer/tap/kipferl";
@@ -415,7 +416,7 @@ export default function HomePage() {
           aria-label="Release verification"
         >
           <div>
-            <strong>0.7.2</strong>
+            <strong>{stableVersion}</strong>
             <span>Stable & ready to build with</span>
           </div>
           <div>
@@ -426,7 +427,7 @@ export default function HomePage() {
             <strong>1,725 checks</strong>
             <span>Available compatibility checks passed</span>
           </div>
-          <Link href="https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2">
+          <Link href={stableReleaseUrl}>
             Inspect the release evidence <ArrowUpRight size={17} />
           </Link>
         </section>

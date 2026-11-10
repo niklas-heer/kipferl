@@ -55,11 +55,12 @@ export default function StableReleasePage() {
         </header>
 
         <aside className="mb-14 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6 text-gray-700 dark:text-gray-300">
-          <strong>0.7.2 is the latest patch release.</strong> It refreshes the
-          popular-package audit for each release runtime; see the{" "}
+          <strong>0.7.3 is the latest patch release.</strong> It adds{" "}
+          <code>kipferl deps verified</code> and fixes optional dependency and
+          regular-expression gaps; see the{" "}
           <Link
             className="text-cyan-600 dark:text-cyan-400 underline"
-            href="/docs/guides/packages#upgrade-to-072"
+            href="/docs/guides/packages#upgrade-to-073"
           >
             migration notes
           </Link>

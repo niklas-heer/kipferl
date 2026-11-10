@@ -54,9 +54,11 @@ The root `demo.gif` and `public/demo.gif` are refreshed from this same recording
 so historical article embeds show the current branding. Their captions identify
 the newer workflow rather than implying it was available in the older release.
 
-Documentation covers stable v0.7.2 and the current `main` checkout. Clearly
-label future source-only changes, and keep the shared notice and AI-readable
-export aligned with the version offered by the installation guide.
+Documentation covers stable v0.7.3 and the current `main` checkout. Clearly
+label future source-only changes. The homepage, shared docs notice, and
+AI-readable export read the stable version from `src/lib/release.ts`;
+`scripts/check_docs_version.py` keeps it, the installation guide, and the
+README aligned with the repository's `VERSION`.
 Preserve the historical scope of release articles and performance measurements;
 do not imply that rebuilding source updates the CLI's embedded release assets.
 The public contributor guide lives in `content/docs/guides/development.mdx`.
