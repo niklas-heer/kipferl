@@ -20740,6 +20740,8 @@ void VM__ctor(VM* self) {
     py_newnotimplemented(py_emplacedict(self->builtins, py_name("NotImplemented")));
 
     pk__add_module_stdc();
+    // kipferl patch: keep stdc's predefined types but leave raw memory access unimportable
+    py_newnil(BinTree__try_get(&self->modules, (void*)"stdc"));
     pk__add_module_vmath();
     pk__add_module_array2d();
     // pk__add_module_colorcvt();
@@ -24883,8 +24885,9 @@ void pk__add_module_gc() {
     py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
 
     py_bindfunc(mod, "is_tracked", gc_is_tracked);
-    py_bindfunc(mod, "track", gc_track);
-    py_bindfunc(mod, "untrack", gc_untrack);
+    // kipferl patch: gc.untrack skips marking children, so scripts could free live objects
+    (void)gc_track;
+    (void)gc_untrack;
 }
 
 // src/modules\importlib.c

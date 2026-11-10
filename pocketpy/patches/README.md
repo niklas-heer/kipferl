@@ -112,3 +112,17 @@ It also computes `math.log(x, base)` as `log(x) / log(base)` like CPython, and
 performing an undefined conversion (PocketPy has no `OverflowError`).
 `crates/kipferl-runtime/tests/float_math.rs` compares results bit for bit with
 CPython.
+
+### Memory-unsafe script APIs
+
+PocketPy 2.2 adds two ways for a script to corrupt memory, and
+`0009-unsafe-script-apis.patch` removes both so memory-unsafe operations stay
+behind Kipferl's Rust FFI boundary:
+
+- A `stdc` module with `malloc`, `free`, `memcpy` and raw reads and writes by
+  integer address. Its types are predefined, so the VM still creates them, but
+  the module is removed from the import cache. A local `stdc.py` still imports.
+- `gc.track` and `gc.untrack`. An untracked container is kept but its children
+  are not marked, so the next collection frees objects it still references and
+  later reads see reused memory. CPython has neither function; `gc.is_tracked`
+  remains.
