@@ -4,6 +4,12 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+### Security
+
+- Update the `zip` crate to 9.x, which fixes archive parsing advisories in the
+  `zipfile` module and wheel extraction, and `rustls` to 0.23.46 for HTTPS.
+  An archive whose member names cannot be decoded is now rejected as invalid.
+
 ## [0.7.3] - 2026-11-10
 
 ### Added
