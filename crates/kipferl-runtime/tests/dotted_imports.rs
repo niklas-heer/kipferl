@@ -156,10 +156,7 @@ fn relative_parent_imports_metadata_and_attribute_boundaries_match_python() -> i
     matches_cpython(
         &[
             ("plain.py", "value = 1\n"),
-            (
-                "plain_relative.py",
-                "from . import plain\n",
-            ),
+            ("plain_relative.py", "from . import plain\n"),
             ("orchard/__init__.py", "pass\n"),
             ("orchard/stone.py", "kind = 'pit'\n"),
             ("orchard/fruit/__init__.py", "pass\n"),
@@ -167,10 +164,7 @@ fn relative_parent_imports_metadata_and_attribute_boundaries_match_python() -> i
                 "orchard/fruit/apple.py",
                 "from ..stone import kind\nfrom .. import stone as again\nfrom .. import fruit as here\n",
             ),
-            (
-                "orchard/fruit/deep.py",
-                "from .... import anything\n",
-            ),
+            ("orchard/fruit/deep.py", "from .... import anything\n"),
         ],
         r"
 import plain, orchard

@@ -4,6 +4,28 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+### Changed
+
+- Update the embedded PocketPy interpreter from 2.1.3 to 2.2.0, with Kipferl's
+  patches ported to its new module system. Visible differences:
+  - Floats print with full round-trip precision, as in CPython:
+    `0.1 + 0.2` prints `0.30000000000000004` instead of `0.3`, and
+    `json.dumps` and f-strings follow. Subnormals such as `5e-324` print with
+    15 significant digits.
+  - `math.floor`, `math.ceil` and `math.trunc` return `int` instead of `float`;
+    NaN, infinities and values beyond 64-bit integers raise `ValueError`.
+    `math.isinf`, `math.isnan` and `math.isfinite` return `bool`.
+  - `abs(-0.0)` is `0.0`; `math.log(x, base)` rounds like CPython.
+  - New: `%`-formatting of tuples (`"%s %r" % (a, b)`), `bool` arithmetic,
+    `str.splitlines`, iteration over `bytes`, `bin()`, `dict.popitem()`,
+    signed `str.zfill`, `inspect.signature`, `typing.override`,
+    `typing.TypeGuard` and `typing.TypeIs`. Modules print as `<module 'name'>`.
+  - PocketPy's undocumented `linalg` and `colorcvt` modules are gone upstream;
+    its new `stdc` raw-memory module and `gc.track`/`gc.untrack` are not
+    exposed, because they let scripts corrupt memory.
+- Startup and the bundled benchmarks are unchanged or slightly faster; the full
+  runtime grows by about 66 KB and the core runtime by about 83 KB.
+
 ### Security
 
 - Update the `zip` crate to 9.x, which fixes archive parsing advisories in the
