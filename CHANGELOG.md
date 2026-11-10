@@ -26,13 +26,16 @@ All notable user-facing changes are documented here.
 - Startup and the bundled benchmarks are unchanged or slightly faster; the full
   runtime grows by about 66 KB and the core runtime by about 83 KB.
 
+## [0.7.4] - 2026-11-10
+
 ### Security
 
 - Update the `zip` crate to 9.x, which fixes archive parsing advisories in the
   `zipfile` module and wheel extraction, and `rustls` to 0.23.46 for HTTPS.
   `zipfile` member names are now decoded as UTF-8 whenever they are valid
   UTF-8 and as CP437 otherwise, whatever the entry's UTF-8 flag says. Before,
-  the flag decided, as in CPython; only archives with mislabelled names differ.
+  the flag decided, as in CPython. Non-ASCII names stored without the flag
+  differ when their bytes also form valid UTF-8, mislabelled or genuine CP437.
 
 ## [0.7.3] - 2026-11-10
 
@@ -257,3 +260,7 @@ All notable user-facing changes are documented here.
 [0.7.1]: https://github.com/niklas-heer/kipferl/compare/v0.7.0...v0.7.1
 
 [0.7.2]: https://github.com/niklas-heer/kipferl/compare/v0.7.1...v0.7.2
+
+[0.7.3]: https://github.com/niklas-heer/kipferl/compare/v0.7.2...v0.7.3
+
+[0.7.4]: https://github.com/niklas-heer/kipferl/compare/v0.7.3...v0.7.4
