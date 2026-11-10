@@ -15,24 +15,24 @@ been exercised from a package that merely passes the compiler.
 
 <CompatibilityGuide />
 
-## Inspect verified scopes from a source build
+## Inspect verified scopes from the CLI
 
-The current development CLI adds an offline view of tested catalog records that
-match its exact embedded runtime and platform:
+Since 0.7.3, the CLI has an offline view of tested catalog records that match
+its exact embedded runtime and platform:
 
 ```bash
 kipferl deps verified
 kipferl deps verified --json
 ```
 
-This command is **not included in released 0.7.2**. It lists only the behavior
-scopes present in that binary's catalog; it does not copy website ratings into
-an existing installation. With stable 0.7.2, use the exact package-card commands
-above, including `--allow-unverified` when shown.
+It lists only the behavior scopes present in that binary's catalog; it does
+not copy website ratings into an existing installation. Website evidence can be
+newer than a released catalog, so use the exact package-card commands above,
+including `--allow-unverified` when shown.
 
-The development installer also skips optional transitive dependencies when
-their extra markers prove they are inactive. That fix is unreleased; it does
-not add general extras or environment-marker support to stable 0.7.2.
+Since 0.7.3, the installer also skips optional transitive dependencies when
+their extra markers prove they are inactive. This does not add general extras
+or environment-marker support.
 
 ## What should work next?
 
@@ -123,7 +123,7 @@ runtime build, or platform needs new evidence.
 
 ## View the report from the CLI
 
-The v0.7.2 CLI embeds its platform's report and can show it offline, including
+Release CLIs since 0.7.2 embed their platform's report and can show it offline, including
 outside a project directory:
 
 ```bash
@@ -149,7 +149,7 @@ summary above describes the 0.7.2 rerun.
 - [Complete JSON evidence](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.json)
 - [CSV results](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.csv)
 - [Markdown report](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/popularity-audit.md)
-- [Per-platform release reports and checksums](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2)
+- [Per-platform release reports and checksums](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.3)
 - [Package audit contributor reference](https://github.com/niklas-heer/kipferl/blob/main/compatibility/packages/README.md)
 
 Use the recorded source location and parser diagnostic to create a minimal

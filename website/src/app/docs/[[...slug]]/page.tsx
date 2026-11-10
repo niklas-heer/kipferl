@@ -8,6 +8,7 @@ import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { stableVersion } from "@/lib/release";
 import { getPageImage, source } from "@/lib/source";
 import { getMDXComponents } from "@/mdx-components";
 
@@ -28,7 +29,7 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
           className="underline"
           href="/docs/getting-started/installation#stable-release"
         >
-          v0.7.2
+          v{stableVersion}
         </Link>{" "}
         and the current source checkout. Homebrew installs the stable release.{" "}
         <Link className="underline" href="/docs/getting-started/installation">
