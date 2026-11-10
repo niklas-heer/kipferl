@@ -2,6 +2,15 @@
 
 All notable user-facing changes are documented here.
 
+## Unreleased
+
+### Fixed
+
+- `input.prompt`, `password`, `select`, `multiselect` and `confirm` cancel when
+  their input ends, as Escape does, instead of polling a closed stdin at full
+  CPU forever. This affects scripts run without a terminal (CI, cron, `ssh`
+  without `-t`) and injected test keys that run out.
+
 ## [0.7.4] - 2026-11-10
 
 ### Security

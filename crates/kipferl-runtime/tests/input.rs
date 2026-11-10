@@ -56,6 +56,95 @@ fn accepts_the_input_test_key_variable() {
     assert!(output.stdout.ends_with(b"True\n"));
 }
 
+const ENDED_INPUT_CASES: [(&str, &str, &str); 5] = [
+    (
+        "import input; print(repr(input.prompt('Name:', 'anon')))",
+        "a",
+        "'anon'\n",
+    ),
+    (
+        "import input; print(repr(input.password('Secret:')))",
+        "a",
+        "''\n",
+    ),
+    (
+        "import input; print(repr(input.select('Pick:', ['A', 'B'])))",
+        "down",
+        "None\n",
+    ),
+    (
+        "import input; print(repr(input.multiselect('Pick:', ['A', 'B'])))",
+        "space",
+        "[]\n",
+    ),
+    (
+        "import input; print(repr(input.confirm('Continue?')))",
+        "x",
+        "False\n",
+    ),
+];
+
+// Interactions cancel once their input ends instead of polling it forever.
+#[test]
+fn interactions_cancel_when_injected_keys_run_out() {
+    for (source, keys, expected) in ENDED_INPUT_CASES {
+        let output = run(source, keys);
+        assert!(output.status.success(), "{}", diagnostic(&output));
+        assert!(
+            output.stdout.ends_with(expected.as_bytes()),
+            "{}",
+            diagnostic(&output)
+        );
+    }
+}
+
+// Without a controlling terminal (CI, cron, `ssh` without `-t`), the runtime
+// reads stdin; at end of file it must cancel rather than spin at full CPU.
+#[test]
+fn interactions_cancel_at_end_of_stdin_without_a_terminal() {
+    use std::os::unix::process::CommandExt;
+
+    for (source, _, expected) in ENDED_INPUT_CASES {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"));
+        command
+            .args(["-c", source])
+            .env_remove("KIPFERL_TEST_KEYS")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        // SAFETY: setsid is async-signal-safe; it detaches the child from the
+        // controlling terminal so /dev/tty cannot be opened.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = command.spawn().expect("start detached input runtime");
+        let mut finished = false;
+        for _ in 0..1_000 {
+            if child.try_wait().expect("poll detached child").is_some() {
+                finished = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        if !finished {
+            let _ = child.kill();
+        }
+        let output = child.wait_with_output().expect("collect detached child");
+        assert!(finished, "{source} kept waiting at end of input");
+        assert!(output.status.success(), "{}", diagnostic(&output));
+        assert!(
+            output.stdout.ends_with(expected.as_bytes()),
+            "{}",
+            diagnostic(&output)
+        );
+    }
+}
+
 #[test]
 fn multiselect_byte_stream_and_defaults_match_the_zig_runtime() {
     let output = run(
