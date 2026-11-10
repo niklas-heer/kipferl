@@ -22,10 +22,10 @@ Read [the workflow evidence](verified-packages.json) for every outcome, exact
 dependency lock, reviewed scenario, execution stage, and failure.
 
 The website can publish newly reviewed evidence without replacing a released
-binary. Version 0.7.2 still needs the displayed `--allow-unverified` command for
-these two newly checked artifacts. The source CLI catalog includes their tested
-records; `kipferl deps verified` in development lists only workflows matching its
-embedded runtime. These CLI improvements are pending the next release.
+binary. Released CLIs through 0.7.3 still need the displayed
+`--allow-unverified` command for these two newly checked artifacts:
+`kipferl deps verified` lists only workflows recorded for the CLI's own
+embedded runtime, and these were recorded against the 0.7.2 runtime.
 
 The [100-package support roadmap](support-priorities.md) ranks useful application
 capabilities, demand, dependency reach, and estimated effort. It is a work queue,
@@ -73,7 +73,7 @@ The catalog speeds up dependency checks with reusable evidence. It is an **allow
 
 ## Stable 0.7 release
 
-[v0.7.2](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.2)
+[v0.7.3](https://github.com/niklas-heer/kipferl/releases/tag/v0.7.3)
 provides the package manager and compatibility catalog on macOS/Linux ARM64 and
 x86_64. Use the [stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
 for Homebrew or a platform download with checksum verification. Read the

@@ -21,6 +21,7 @@ jobs:
           install_args: "rust python node bun"
       - run: python3 scripts/check_release_version.py
       - run: python3 scripts/check_branding.py
+      - run: python3 scripts/check_docs_version.py
 
   build-components:
     name: Build runtime and loader (${{ matrix.target }})

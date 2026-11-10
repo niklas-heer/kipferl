@@ -1,6 +1,7 @@
 import { docs } from "fumadocs-mdx:collections/server";
 import { type InferPageType, loader } from "fumadocs-core/source";
 import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
+import { stableVersion } from "@/lib/release";
 
 // See https://fumadocs.dev/docs/headless/source-api for more info
 export const source = loader({
@@ -23,7 +24,7 @@ export async function getLLMText(page: InferPageType<typeof source>) {
 
   return `# ${page.data.title}
 
-Documentation scope: the stable v0.7.2 release and current source checkout. Homebrew installs v0.7.2; older v0.6.0 installations predate the project and package workflows. See /docs/getting-started/installation#stable-release for downloads and /docs/guides/packages#upgrade-to-072 for upgrade notes.
+Documentation scope: the stable v${stableVersion} release and current source checkout. Homebrew installs v${stableVersion}; older v0.6.0 installations predate the project and package workflows. See /docs/getting-started/installation#stable-release for downloads and /docs/guides/packages#upgrade-to-073 for upgrade notes.
 
 ${processed}`;
 }

@@ -22,6 +22,10 @@ release, not proof for the unreleased source changes now on main.
   visible frame for current branding.
 - Update versioned release notes and remove unreleased documentation notices
   only when the published artifacts contain the documented features and fixes.
+- Point the README, compatibility README, installation guide, and
+  `website/src/lib/release.ts` at the new stable version in the release PR.
+  `scripts/check_docs_version.py` (part of `mise run check`) fails until they
+  match a stable `VERSION`.
 
 Pushing a source/documentation commit does not create a release tag. The
 remaining sections preserve the v0.6.0 preparation and publication evidence.
