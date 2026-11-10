@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 5,
+  "patchset_version": 6,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -24,9 +24,15 @@
         "kipferl patch: use the platform libm unless deterministic math is requested",
         "kipferl patch: integral math results never use an undefined float conversion",
         "kipferl patch: log(x, base) rounds like CPython's log(x) / log(base)",
+        "kipferl patch: int() and round() never use an undefined float conversion",
+        "kipferl patch: round(x, n) keeps x when no digit at that scale fits an int64",
         "kipferl patch: keep stdc's predefined types but leave raw memory access unimportable",
         "kipferl patch: gc.untrack skips marking children, so scripts could free live objects",
-        "kipferl patch: the collector marks these fields, so never leave them uninitialized"
+        "kipferl patch: pkpy.TValue forged values of any type from raw integers",
+        "kipferl patch: the collector marks these fields, so never leave them uninitialized",
+        "kipferl patch: shift counts outside 0..63 are undefined in C",
+        "kipferl patch: the repeated length must fit the int that sizes the new string",
+        "kipferl patch: dimensions and their product must fit the int element count"
       ]
     }
   ],
@@ -70,6 +76,10 @@
     {
       "id": "0010-exception-frame-gc",
       "file": "pocketpy/patches/0010-exception-frame-gc.patch"
+    },
+    {
+      "id": "0011-integer-bounds",
+      "file": "pocketpy/patches/0011-integer-bounds.patch"
     }
   ]
 }

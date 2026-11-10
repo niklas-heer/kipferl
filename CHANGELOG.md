@@ -49,8 +49,22 @@ All notable user-facing changes are documented here.
   on stderr instead of stdout and still exit with status 2 (1 for request
   failures). Existing projects keep their generated code.
 
+### Security
+
+- Scripts could corrupt memory through PocketPy: `'a' * (2**32 + 1)` and
+  `array2d.array2d(65536, 65537, f)` wrote past their allocations, and
+  `pkpy.TValue` built objects from raw addresses. Oversized repetitions and
+  grids now raise `ValueError`, and `pkpy.TValue` is no longer available.
+  These also affect 0.7.x.
+
 ### Fixed
 
+- `int(x)` and `round(x)` raise `ValueError` for NaN, infinities and floats
+  beyond 64-bit integers, like `math.floor`, instead of returning an arbitrary
+  value. `round(x, n)` returns `x` when `n` exceeds its precision instead of
+  looping `n` times. `x << n` and `x >> n` raise `ValueError` for negative `n`
+  and are 0 or -1 for `n` of 64 or more; 64-bit integer overflow keeps
+  wrapping, now by definition rather than by accident of the C compiler.
 - A garbage collection while caught exceptions were still referenced could
   read uninitialized memory and crash, seen on Linux. The cause is in
   PocketPy's traceback recording and also affects 0.7.x.

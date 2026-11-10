@@ -205,3 +205,72 @@ print('raw memory access stays unavailable')
     );
     assert!(output.stderr.is_empty(), "{output:?}");
 }
+
+// `pkpy.TValue[int].__new__(list, address)` built a list whose object pointer
+// was the given integer, so any list operation read or wrote that address.
+#[test]
+fn forged_values_are_not_scriptable() {
+    let output = run(r"
+import pkpy
+assert not hasattr(pkpy, 'TValue')
+print('value forging stays unavailable')
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"value forging stays unavailable\n");
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+// PocketPy sizes strings and array2d storage with C ints: a repetition count or
+// dimensions whose product overflows allocated too little and wrote past it.
+#[test]
+fn oversized_repetitions_and_grids_raise_instead_of_overflowing() {
+    let output = run(r"
+import array2d
+for build in [lambda: 'a' * (2**32 + 1), lambda: 'ab' * (2**31 + 1), lambda: 'xyz' * 2**62,
+              lambda: array2d.array2d(65536, 65537, lambda pos: 0),
+              lambda: array2d.array2d(65536, 32768), lambda: array2d.array2d(2**32 + 1, 1)]:
+    try:
+        build()
+        raise AssertionError('oversized result was accepted')
+    except ValueError as error:
+        print(error)
+assert '' * 2**62 == '' and 'ab' * 3 == 'ababab' and 'a' * -1 == ''
+assert array2d.array2d(3, 2, 7).numel == 6
+print('sizes checked')
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        output.stdout,
+        b"repeated string is too long\nrepeated string is too long\nrepeated string is too long\n\
+array2d() dimensions are too large\narray2d() dimensions are too large\n\
+array2d() dimensions are too large\nsizes checked\n"
+    );
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+// Integers are 64-bit: arithmetic wraps (the C core is built with -fwrapv),
+// and shifts follow Python for every count instead of C's undefined ones.
+#[test]
+fn integer_overflow_wraps_and_shifts_are_defined() {
+    let output = run(r"
+big = 2**62
+print(big * 4, big + big, -big - big - 1, 2**63, -(-2**63), abs(-2**63))
+print((-2**63) // -1, (-2**63) % -1, divmod(-2**63, -1))
+print(1 << 63, 1 << 64, 3 << 100, -1 >> 100, 5 >> 64, -8 >> 1, 1 << 0)
+for expression in ['1 << -1', '1 >> -1']:
+    try:
+        eval(expression)
+    except ValueError as error:
+        print(error)
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "0 -9223372036854775808 9223372036854775807 -9223372036854775808 \
+-9223372036854775808 -9223372036854775808\n\
+-9223372036854775808 0 (-9223372036854775808, 0)\n\
+-9223372036854775808 0 0 -1 0 -4 1\n\
+negative shift count\nnegative shift count\n"
+    );
+    assert!(output.stderr.is_empty(), "{output:?}");
+}

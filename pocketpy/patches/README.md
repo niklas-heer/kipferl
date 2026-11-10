@@ -110,6 +110,10 @@ It also computes `math.log(x, base)` as `log(x) / log(base)` like CPython, and
 `math.floor`, `math.ceil` and `math.trunc`, which now return `int`, raise
 `ValueError` for NaN, infinities and values outside 64-bit integers instead of
 performing an undefined conversion (PocketPy has no `OverflowError`).
+`int(x)` and `round(x)` reject the same values with the same messages; they
+cast to `int64_t` directly in upstream, also in 2.1.3. `round(x, n)` returns
+`x` unchanged when `x * 10**n` does not fit an `int64`, which covers NaN,
+infinities, huge `x` and huge `n`; it previously looped `n` times.
 `crates/kipferl-runtime/tests/float_math.rs` compares results bit for bit with
 CPython.
 
@@ -127,6 +131,11 @@ behind Kipferl's Rust FFI boundary:
   later reads see reused memory. CPython has neither function; `gc.is_tracked`
   remains.
 
+The same patch stops publishing `pkpy.TValue`, present since 2.1. Its
+constructors built a value of any type from a raw integer, so
+`pkpy.TValue[int].__new__(list, address)` gave a list whose object pointer
+was that address. The rest of `pkpy` stays.
+
 ### Traceback frames and the collector
 
 Each caught exception records up to seven traceback frames. PocketPy fills
@@ -137,4 +146,28 @@ present in 2.1.3 as well. `0010-exception-frame-gc.patch` sets both to nil when
 the debugger is off. `crates/kipferl-runtime/tests/ffi_stress.rs`, which the
 sanitizer CI job runs, keeps hundreds of caught exceptions alive across
 collections.
+
+### Integer bounds
+
+PocketPy's integers are C `int64_t`, and several operations reached
+undefined behaviour from a script. These are present in 2.1.3 as well.
+`0011-integer-bounds.patch` fixes the ones that corrupt memory or whose
+result depends on the compiler:
+
+- `str * n` sized the result with a C `int`, so `'a' * (2**32 + 1)` allocated
+  one byte and kept writing past it. A result longer than
+  `INT32_MAX` bytes raises `ValueError("repeated string is too long")`.
+- `array2d(cols, rows)` multiplied its dimensions as `int`, so
+  `array2d(65536, 65537, f)` allocated 65,536 cells and wrote past them. Dimensions
+  whose product exceeds `INT32_MAX` raise `ValueError`.
+- `<<` and `>>` used the count directly: negative counts raise
+  `ValueError("negative shift count")` as in CPython, and counts of 64 or more
+  give `0` (or `-1` for a negative operand shifted right).
+
+Overflowing `+`, `-`, `*`, `**`, negation, `abs`, integer parsing and slice
+arithmetic wraps in two's complement, which every build already did in
+practice. `crates/pocketpy-sys/build.rs` compiles PocketPy with `-fwrapv` so
+that this is defined rather than an accident of the optimizer, and the
+sanitizers stop reporting it. Python code that needs integers beyond 64 bits
+does not get them; that is unchanged.
 

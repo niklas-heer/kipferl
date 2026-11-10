@@ -7479,8 +7479,32 @@ static bool int_bit_length(int argc, py_Ref argv) {
 DEF_INT_BITWISE_OP(__and__, &)
 DEF_INT_BITWISE_OP(__or__, |)
 DEF_INT_BITWISE_OP(__xor__, ^)
-DEF_INT_BITWISE_OP(__lshift__, <<)
-DEF_INT_BITWISE_OP(__rshift__, >>)
+// kipferl patch: shift counts outside 0..63 are undefined in C
+static bool int__lshift__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    py_i64 lhs = py_toint(&argv[0]);
+    if(!py_isint(&argv[1])) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    py_i64 rhs = py_toint(&argv[1]);
+    if(rhs < 0) return ValueError("negative shift count");
+    py_newint(py_retval(), rhs >= 64 ? 0 : (py_i64)((uint64_t)lhs << rhs));
+    return true;
+}
+
+static bool int__rshift__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    py_i64 lhs = py_toint(&argv[0]);
+    if(!py_isint(&argv[1])) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    py_i64 rhs = py_toint(&argv[1]);
+    if(rhs < 0) return ValueError("negative shift count");
+    py_newint(py_retval(), rhs >= 64 ? (lhs < 0 ? -1 : 0) : lhs >> rhs);
+    return true;
+}
 
 static bool int__repr__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
@@ -7530,6 +7554,16 @@ static bool float__abs__(int argc, py_Ref argv) {
     return true;
 }
 
+// kipferl patch: int() and round() never use an undefined float conversion
+static bool pk_float_to_i64(py_f64 x, py_i64* out) {
+    if(dmath_isnan(x)) return ValueError("cannot convert float NaN to integer");
+    if(dmath_isinf(x)) return ValueError("cannot convert float infinity to integer");
+    if(x < -9223372036854775808.0 || x >= 9223372036854775808.0)
+        return ValueError("float too large to convert to int64");
+    *out = (py_i64)x;
+    return true;
+}
+
 static bool int__new__(int argc, py_Ref argv) {
     if(argc == 1 + 0) {
         // int() == 0
@@ -7541,7 +7575,9 @@ static bool int__new__(int argc, py_Ref argv) {
         switch(argv[1].type) {
             case tp_float: {
                 // int(1.1) == 1
-                py_newint(py_retval(), (py_i64)py_tofloat(&argv[1]));
+                py_i64 value;
+                if(!pk_float_to_i64(py_tofloat(&argv[1]), &value)) return false;
+                py_newint(py_retval(), value);
                 return true;
             }
             case tp_int: {
@@ -8322,8 +8358,11 @@ static bool str__mul__(int argc, py_Ref argv) {
         py_newnotimplemented(py_retval());
     } else {
         py_i64 n = py_toint(py_arg(1));
-        if(n <= 0) {
+        // kipferl patch: the repeated length must fit the int that sizes the new string
+        if(n <= 0 || self->size == 0) {
             py_newstr(py_retval(), "");
+        } else if(n > INT32_MAX / self->size) {
+            return ValueError("repeated string is too long");
         } else {
             char* p = py_newstrn(py_retval(), self->size * n);
             for(int i = 0; i < n; i++) {
@@ -22344,9 +22383,13 @@ static bool array2d__new__(int argc, py_Ref argv) {
     PY_CHECK_ARG_TYPE(0, tp_type);
     PY_CHECK_ARG_TYPE(1, tp_int);
     PY_CHECK_ARG_TYPE(2, tp_int);
-    int n_cols = argv[1]._i64;
-    int n_rows = argv[2]._i64;
-    if(n_cols <= 0 || n_rows <= 0) return ValueError("array2d() expected positive dimensions");
+    // kipferl patch: dimensions and their product must fit the int element count
+    py_i64 cols = argv[1]._i64;
+    py_i64 rows = argv[2]._i64;
+    if(cols <= 0 || rows <= 0) return ValueError("array2d() expected positive dimensions");
+    if(cols > INT32_MAX / rows) return ValueError("array2d() dimensions are too large");
+    int n_cols = (int)cols;
+    int n_rows = (int)rows;
     c11_array2d* ud = c11_newarray2d(py_pushtmp(), n_cols, n_rows);
     // setup initial values
     if(py_callable(default_)) {
@@ -23360,13 +23403,21 @@ static bool builtins_round(int argc, py_Ref argv) {
         py_f64 x = py_tofloat(py_arg(0));
         py_f64 offset = x >= 0 ? 0.5 : -0.5;
         if(ndigits == -1) {
-            py_newint(py_retval(), (py_i64)(x + offset));
+            py_i64 value;
+            if(!pk_float_to_i64(x + offset, &value)) return false;
+            py_newint(py_retval(), value);
             return true;
         }
         // py_f64 factor = dmath_exp10(ndigits);
+        // kipferl patch: round(x, n) keeps x when no digit at that scale fits an int64
         py_f64 factor = 1.0;
-        for(int i = 0; i < ndigits; i++) factor *= 10.0;
-        py_newfloat(py_retval(), (py_i64)(x * factor + offset) / factor);
+        for(int i = 0; i < ndigits && i < 400; i++) factor *= 10.0;
+        py_f64 scaled = x * factor + offset;
+        if(!(scaled > -9223372036854775808.0 && scaled < 9223372036854775808.0)) {
+            py_newfloat(py_retval(), x);
+            return true;
+        }
+        py_newfloat(py_retval(), (py_i64)scaled / factor);
         return true;
     }
 
@@ -27274,7 +27325,7 @@ void pk__add_module_pkpy() {
     py_bindproperty(ttype, "value", TValue_vec2i_value, NULL);
     py_dict_setitem(TValue_dict, py_tpobject(tp_vec2i), py_tpobject(ttype));
 
-    py_setdict(mod, py_name("TValue"), TValue_dict);
+    // kipferl patch: pkpy.TValue forged values of any type from raw integers
     py_pop();
 
     py_bindfunc(mod, "memory_usage", pkpy_memory_usage);

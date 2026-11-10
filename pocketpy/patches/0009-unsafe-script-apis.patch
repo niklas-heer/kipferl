@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -20740,6 +20740,8 @@
+@@ -20752,6 +20752,8 @@
      py_newnotimplemented(py_emplacedict(self->builtins, py_name("NotImplemented")));
  
      pk__add_module_stdc();
@@ -9,7 +9,7 @@
      pk__add_module_vmath();
      pk__add_module_array2d();
      // pk__add_module_colorcvt();
-@@ -24883,8 +24885,9 @@
+@@ -24903,8 +24905,9 @@
      py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
  
      py_bindfunc(mod, "is_tracked", gc_is_tracked);
@@ -21,3 +21,12 @@
  }
  
  // src/modules\importlib.c
+@@ -27291,7 +27294,7 @@
+     py_bindproperty(ttype, "value", TValue_vec2i_value, NULL);
+     py_dict_setitem(TValue_dict, py_tpobject(tp_vec2i), py_tpobject(ttype));
+ 
+-    py_setdict(mod, py_name("TValue"), TValue_dict);
++    // kipferl patch: pkpy.TValue forged values of any type from raw integers
+     py_pop();
+ 
+     py_bindfunc(mod, "memory_usage", pkpy_memory_usage);

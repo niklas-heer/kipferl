@@ -14,6 +14,9 @@ fn main() {
         .define("NDEBUG", None)
         .flag_if_supported("-std=c11")
         .flag_if_supported("-fno-strict-aliasing")
+        // Python ints are 64-bit in PocketPy and its arithmetic, parsing and
+        // slicing rely on two's-complement wrapping, which C leaves undefined.
+        .flag_if_supported("-fwrapv")
         .warnings(false)
         .compile("pocketpy");
 
