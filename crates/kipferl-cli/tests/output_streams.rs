@@ -64,6 +64,18 @@ impl Fixture {
         clippy::unwrap_used,
         reason = "Failure to execute the child process must fail the test immediately"
     )]
+    fn cli_with(&self, args: &[&str], variables: &[(&str, &str)]) -> Output {
+        let mut command = self.command(env!("CARGO_BIN_EXE_kipferl"));
+        for (name, value) in variables {
+            command.env(name, value);
+        }
+        command.args(args).output().unwrap()
+    }
+
+    #[expect(
+        clippy::unwrap_used,
+        reason = "Failure to execute the child process must fail the test immediately"
+    )]
     fn binary(&self, name: &str) -> Output {
         self.command(self.0.join(name)).output().unwrap()
     }
@@ -219,4 +231,155 @@ fn starter_argument_errors_go_to_stderr_with_a_failure_status() {
         );
         let _ = fs::remove_dir_all(project);
     }
+}
+
+fn has_escape(bytes: &[u8]) -> bool {
+    bytes.contains(&0x1b)
+}
+
+#[test]
+fn cli_output_is_plain_when_piped_or_when_no_color_is_set() {
+    let fixture = Fixture::new();
+    let piped = fixture.cli(&["--version"]);
+    assert_eq!(
+        String::from_utf8_lossy(&piped.stdout),
+        format!("Kipferl v{}\n", env!("CARGO_PKG_VERSION"))
+    );
+
+    let missing = fixture.cli(&["run", "missing.py"]);
+    assert_eq!(
+        String::from_utf8_lossy(&missing.stderr),
+        "Error: Script not found: missing.py\n"
+    );
+
+    for variables in [
+        &[("CLICOLOR_FORCE", "1")][..],
+        &[("FORCE_COLOR", "1")][..],
+        &[("FORCE_COLOR", "true"), ("NO_COLOR", "")][..],
+    ] {
+        let forced = fixture.cli_with(&["--version"], variables);
+        assert!(has_escape(&forced.stdout), "{variables:?}");
+        let forced = fixture.cli_with(&["run", "missing.py"], variables);
+        assert!(has_escape(&forced.stderr), "{variables:?}");
+    }
+    for variables in [
+        &[("NO_COLOR", "1"), ("CLICOLOR_FORCE", "1")][..],
+        &[("NO_COLOR", "1"), ("FORCE_COLOR", "1")][..],
+        &[("CLICOLOR_FORCE", "0")][..],
+        &[("FORCE_COLOR", "0")][..],
+        &[("FORCE_COLOR", "")][..],
+    ] {
+        let plain = fixture.cli_with(&["--help"], variables);
+        assert!(!has_escape(&plain.stdout), "{variables:?}");
+    }
+}
+
+#[cfg(unix)]
+mod terminal {
+    use std::ffi::CStr;
+    use std::fs::File;
+    use std::io::Read;
+    use std::os::fd::{FromRawFd, OwnedFd};
+    use std::process::Stdio;
+
+    use super::{Fixture, has_escape};
+
+    /// Run the CLI with stdout attached to a fresh pseudo-terminal and return its bytes.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "Failure to allocate the pseudo-terminal or run the child must fail the test"
+    )]
+    fn run_on_terminal(fixture: &Fixture, args: &[&str], variables: &[(&str, &str)]) -> Vec<u8> {
+        // SAFETY: posix_openpt returns a new descriptor or -1; ownership moves
+        // into OwnedFd immediately after the check.
+        let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY) };
+        assert!(master >= 0, "posix_openpt failed");
+        // SAFETY: `master` is a valid descriptor owned only by this function.
+        let master = unsafe { OwnedFd::from_raw_fd(master) };
+        let raw = std::os::fd::AsRawFd::as_raw_fd(&master);
+        // SAFETY: `raw` is an open pseudo-terminal master descriptor.
+        assert_eq!(unsafe { libc::grantpt(raw) }, 0);
+        // SAFETY: as above.
+        assert_eq!(unsafe { libc::unlockpt(raw) }, 0);
+        // SAFETY: nextest runs each test in its own process, so no other thread
+        // calls ptsname concurrently; the name is copied before the next call.
+        let name = unsafe { CStr::from_ptr(libc::ptsname(raw)) }
+            .to_string_lossy()
+            .into_owned();
+        let terminal = File::options().read(true).write(true).open(name).unwrap();
+
+        let mut command = fixture.command(env!("CARGO_BIN_EXE_kipferl"));
+        for (name, value) in variables {
+            command.env(name, value);
+        }
+        let status = command
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(terminal.try_clone().unwrap())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success());
+        // The child has exited, so its output is already buffered. Drain it
+        // without blocking: an idle pseudo-terminal never reports end of file
+        // on macOS, and reports EIO on Linux once the last handle closes.
+        // SAFETY: `raw` stays open while `master` is alive; F_SETFL only
+        // changes this descriptor's status flags.
+        let nonblocking = unsafe { libc::fcntl(raw, libc::F_SETFL, libc::O_NONBLOCK) };
+        assert_eq!(nonblocking, 0);
+        let mut output = Vec::new();
+        let mut master = File::from(master);
+        let mut buffer = [0_u8; 4096];
+        while let Ok(read) = master.read(&mut buffer) {
+            if read == 0 {
+                break;
+            }
+            output.extend_from_slice(buffer.get(..read).unwrap());
+        }
+        drop(terminal);
+        output
+    }
+
+    #[test]
+    fn cli_output_is_styled_on_a_terminal_unless_no_color_or_dumb() {
+        let fixture = Fixture::new();
+        assert!(has_escape(&run_on_terminal(&fixture, &["--version"], &[])));
+        assert!(has_escape(&run_on_terminal(
+            &fixture,
+            &["--version"],
+            &[("NO_COLOR", "")]
+        )));
+        assert!(!has_escape(&run_on_terminal(
+            &fixture,
+            &["--version"],
+            &[("NO_COLOR", "1")]
+        )));
+        assert!(!has_escape(&run_on_terminal(
+            &fixture,
+            &["--version"],
+            &[("TERM", "dumb")]
+        )));
+    }
+}
+
+#[test]
+fn script_styling_follows_no_color_while_raw_ansi_requests_still_work() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "styled.py",
+        "import ansi, tui\ntui.success('done')\nprint(repr(tui.style('x', fg='red', bold=True)))\nprint(repr(ansi.fg('red')))\n",
+    );
+    let default = fixture.cli(&["run", "styled.py"]);
+    assert_eq!(
+        String::from_utf8_lossy(&default.stdout),
+        "\u{1b}[1;32m✓ \u{1b}[0mdone\n'\\x1b[1;31mx\\x1b[0m'\n'\\x1b[31m'\n",
+        "piped script output keeps its styling: scripts decide for themselves"
+    );
+    let plain = fixture.cli_with(&["run", "styled.py"], &[("NO_COLOR", "1")]);
+    assert_eq!(
+        String::from_utf8_lossy(&plain.stdout),
+        "✓ done\n'x'\n'\\x1b[31m'\n"
+    );
+    let empty = fixture.cli_with(&["run", "styled.py"], &[("NO_COLOR", "")]);
+    assert_eq!(empty.stdout, default.stdout, "an empty NO_COLOR is unset");
 }

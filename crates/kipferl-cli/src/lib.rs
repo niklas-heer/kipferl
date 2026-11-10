@@ -12,6 +12,7 @@
 
 mod build_command;
 mod bundle;
+pub mod color;
 mod completions;
 mod dependencies;
 mod dev_command;

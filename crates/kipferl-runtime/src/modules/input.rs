@@ -10,6 +10,7 @@ use kipferl_pocketpy_sys as ffi;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
 use super::selection_tui::{self, SelectionView};
+use super::tui_core;
 use crate::input_core::{clamp, wrap_index};
 use crate::native::{
     Arguments, NativeFunction, NativeModule, NativeSignature, RootFrame, Value, return_string,
@@ -92,6 +93,13 @@ fn write_output(bytes: &[u8]) {
     let mut output = io::stdout().lock();
     let _ = output.write_all(bytes);
     let _ = output.flush();
+}
+
+/// Write a style sequence this module adds itself, unless `NO_COLOR` is set.
+fn write_style(bytes: &[u8]) {
+    if !tui_core::no_color() {
+        write_output(bytes);
+    }
 }
 
 fn write_text(text: &str) {
@@ -531,7 +539,7 @@ fn run_ratatui_select(
     terminal.hide_cursor()?;
     let _raw = RawModeGuard::enable();
     let mut cursor = initial;
-    let no_color = std::env::var_os("NO_COLOR").is_some();
+    let no_color = tui_core::no_color();
     loop {
         selection_tui::draw_selection(
             &mut terminal,
@@ -571,7 +579,7 @@ fn run_ratatui_multiselect(
     terminal.hide_cursor()?;
     let _raw = RawModeGuard::enable();
     let mut cursor = 0;
-    let no_color = std::env::var_os("NO_COLOR").is_some();
+    let no_color = tui_core::no_color();
     loop {
         selection_tui::draw_selection(
             &mut terminal,
@@ -616,11 +624,11 @@ fn render_select(choices: Value, length: usize, selected: i32, clear: bool) {
             continue;
         };
         if i32::try_from(index) == Ok(selected) {
-            write_output(CYAN);
+            write_style(CYAN);
             write_output(b"  ");
             write_output(SELECT);
             write_text(&choice);
-            write_output(RESET);
+            write_style(RESET);
         } else {
             write_output(b"    ");
             write_text(&choice);
@@ -670,10 +678,10 @@ unsafe extern "C" fn select(argc: c_int, stack: ffi::py_StackRef) -> bool {
         }
     }
 
-    write_output(CYAN);
-    write_output(BOLD);
+    write_style(CYAN);
+    write_style(BOLD);
     write_output(b"? ");
-    write_output(RESET);
+    write_style(RESET);
     write_text(&prompt);
     write_newline();
 
@@ -714,7 +722,7 @@ fn render_multiselect(
             continue;
         };
         if i32::try_from(index) == Ok(cursor) {
-            write_output(CYAN);
+            write_style(CYAN);
         }
         write_output(b"  ");
         write_output(if *is_selected {
@@ -724,7 +732,7 @@ fn render_multiselect(
         });
         write_text(&choice);
         if i32::try_from(index) == Ok(cursor) {
-            write_output(RESET);
+            write_style(RESET);
         }
         write_newline();
     }
@@ -778,14 +786,14 @@ unsafe extern "C" fn multiselect(argc: c_int, stack: ffi::py_StackRef) -> bool {
         }
     }
 
-    write_output(CYAN);
-    write_output(BOLD);
+    write_style(CYAN);
+    write_style(BOLD);
     write_output(b"? ");
-    write_output(RESET);
+    write_style(RESET);
     write_text(&prompt);
-    write_output(DIM);
+    write_style(DIM);
     write_output(b" (space to toggle, enter to confirm)");
-    write_output(RESET);
+    write_style(RESET);
     write_newline();
 
     let cursor_guard = CursorGuard::hide();
@@ -834,15 +842,15 @@ unsafe extern "C" fn confirm(argc: c_int, stack: ffi::py_StackRef) -> bool {
     };
     let default = arguments.get(1).and_then(Value::boolean).unwrap_or(true);
 
-    write_output(CYAN);
-    write_output(BOLD);
+    write_style(CYAN);
+    write_style(BOLD);
     write_output(b"? ");
-    write_output(RESET);
+    write_style(RESET);
     write_text(&prompt);
     write_output(b" ");
-    write_output(DIM);
+    write_style(DIM);
     write_output(if default { b"(Y/n)" } else { b"(y/N)" });
-    write_output(RESET);
+    write_style(RESET);
     write_output(b" ");
 
     let raw = RawModeGuard::enable();
@@ -856,9 +864,9 @@ unsafe extern "C" fn confirm(argc: c_int, stack: ffi::py_StackRef) -> bool {
     };
     drop(raw);
 
-    write_output(CYAN);
+    write_style(CYAN);
     write_output(if result { b"Yes" } else { b"No" });
-    write_output(RESET);
+    write_style(RESET);
     write_newline();
 
     let mut roots = RootFrame::new();
@@ -880,17 +888,17 @@ unsafe extern "C" fn prompt(argc: c_int, stack: ffi::py_StackRef) -> bool {
         }
     });
 
-    write_output(CYAN);
-    write_output(BOLD);
+    write_style(CYAN);
+    write_style(BOLD);
     write_output(b"? ");
-    write_output(RESET);
+    write_style(RESET);
     write_text(&message);
     if let Some(default) = default.as_deref() {
-        write_output(DIM);
+        write_style(DIM);
         write_output(b" (");
         write_text(default);
         write_output(b")");
-        write_output(RESET);
+        write_style(RESET);
     }
     write_output(b" ");
 
@@ -934,10 +942,10 @@ unsafe extern "C" fn password(argc: c_int, stack: ffi::py_StackRef) -> bool {
         return type_error(c"message must be a string");
     };
 
-    write_output(CYAN);
-    write_output(BOLD);
+    write_style(CYAN);
+    write_style(BOLD);
     write_output(b"? ");
-    write_output(RESET);
+    write_style(RESET);
     write_text(&message);
     write_output(b" ");
 

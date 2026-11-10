@@ -11,8 +11,10 @@
 )]
 
 use std::env;
-use std::io;
+use std::io::{self, IsTerminal};
 use std::process::ExitCode;
+
+use kipferl_cli::color;
 
 fn main() -> ExitCode {
     let arguments = match env::args_os()
@@ -40,11 +42,13 @@ fn main() -> ExitCode {
 
     let stdout = io::stdout();
     let stderr = io::stderr();
+    let mut styled_stdout = color::Output::new(stdout.lock(), color::enabled(stdout.is_terminal()));
+    let mut styled_stderr = color::Output::new(stderr.lock(), color::enabled(stderr.is_terminal()));
     match kipferl_cli::run(
         &arguments,
         &current_directory,
-        &mut stdout.lock(),
-        &mut stderr.lock(),
+        &mut styled_stdout,
+        &mut styled_stderr,
     ) {
         Ok(0) => ExitCode::SUCCESS,
         Ok(code) => ExitCode::from(code),
