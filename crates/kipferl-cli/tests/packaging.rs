@@ -36,6 +36,10 @@ impl Fixture {
         Command::new(env!("CARGO_BIN_EXE_kipferl"))
             .current_dir(&self.0)
             .env("KIPFERL_CACHE_DIR", self.0.join("cache"))
+            // Assertions expect the default, uncoloured output of a pipe.
+            .env_remove("NO_COLOR")
+            .env_remove("CLICOLOR_FORCE")
+            .env_remove("FORCE_COLOR")
             .args(args)
             .output()
             .unwrap()

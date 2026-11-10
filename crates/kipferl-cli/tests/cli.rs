@@ -739,6 +739,10 @@ fn run(temporary: &TestDirectory, arguments: &[&str]) -> Output {
         .args(arguments)
         .current_dir(&temporary.path)
         .env("KIPFERL_CACHE_DIR", temporary.path.join(".cache"))
+        // Assertions expect the default, uncoloured output of a pipe.
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR_FORCE")
+        .env_remove("FORCE_COLOR")
         .output()
         .expect("run Rust CLI")
 }
