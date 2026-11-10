@@ -67,6 +67,8 @@ All notable user-facing changes are documented here.
   looping `n` times. `x << n` and `x >> n` raise `ValueError` for negative `n`
   and are 0 or -1 for `n` of 64 or more; 64-bit integer overflow keeps
   wrapping, now by definition rather than by accident of the C compiler.
+- Assigning a function's `__doc__`, as `functools.wraps` does, leaked the
+  previous docstring.
 - A garbage collection while caught exceptions were still referenced could
   read uninitialized memory and crash, seen on Linux. The cause is in
   PocketPy's traceback recording and also affects 0.7.x.

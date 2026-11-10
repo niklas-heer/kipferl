@@ -8,6 +8,7 @@
         "kipferl patch: allow 'match' soft keyword as attribute name",
         "kipferl patch: allow function attributes (__dict__) for CPython compatibility",
         "kipferl patch: allow setting function.__doc__ for CPython compatibility",
+        "kipferl patch: the declaration owns its docstring; free the replaced one",
         "kipferl patch: allow setting function.__name__ for CPython compatibility",
         "kipferl patch: bytes.decode accepts encoding/errors args for CPython compatibility",
         "kipferl patch: WITH_EXIT_EXC opcode for exception-aware __exit__",

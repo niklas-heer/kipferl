@@ -116,7 +116,7 @@
          return true;
      }
  
-@@ -25201,7 +25256,13 @@
+@@ -25203,7 +25258,13 @@
          PY_CHECK_ARGC(1);                                                                          \
          double x;                                                                                  \
          if(!py_castfloat(py_arg(0), &x)) return false;                                             \
@@ -131,7 +131,7 @@
          return true;                                                                               \
      }
  
-@@ -25292,7 +25353,8 @@
+@@ -25294,7 +25355,8 @@
      } else if(argc == 2) {
          double base;
          if(!py_castfloat(py_arg(1), &base)) return false;

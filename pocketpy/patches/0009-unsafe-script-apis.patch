@@ -9,7 +9,7 @@
      pk__add_module_vmath();
      pk__add_module_array2d();
      // pk__add_module_colorcvt();
-@@ -24900,11 +24902,13 @@
+@@ -24902,11 +24904,13 @@
  
      py_bindfunc(mod, "collect", gc_collect);
      py_bindfunc(mod, "collect_hint", gc_collect_hint);
@@ -26,7 +26,7 @@
  }
  
  // src/modules\importlib.c
-@@ -27291,7 +27295,7 @@
+@@ -27293,7 +27297,7 @@
      py_bindproperty(ttype, "value", TValue_vec2i_value, NULL);
      py_dict_setitem(TValue_dict, py_tpobject(tp_vec2i), py_tpobject(ttype));
  

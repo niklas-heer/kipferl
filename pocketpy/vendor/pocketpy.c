@@ -23881,12 +23881,14 @@ static bool function__doc__set(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     Function* func = py_touserdata(py_arg(0));
     py_Ref val = py_arg(1);
+    // kipferl patch: the declaration owns its docstring; free the replaced one
+    if(!py_isnone(val)) PY_CHECK_ARG_TYPE(1, tp_str);
+    if(func->decl->docstring) py_free(func->decl->docstring);
     if(py_isnone(val)) {
         func->decl->docstring = NULL;
         py_newnone(py_retval());
         return true;
     }
-    PY_CHECK_ARG_TYPE(1, tp_str);
     func->decl->docstring = c11_strdup(py_tostr(val));
     py_newnone(py_retval());
     return true;
