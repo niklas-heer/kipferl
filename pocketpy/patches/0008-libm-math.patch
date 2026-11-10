@@ -1,0 +1,90 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -9206,6 +9206,8 @@
+     struct {int32_t  i0,i1;} s;
+ }  udi_t;
+ 
++// kipferl patch: use the platform libm unless deterministic math is requested
++#if PK_ENABLE_DETERMINISM
+ // https://github.com/akohlmey/fastermath/blob/master/src/exp.c#L63
+ double dmath_exp2(double x) {
+     if (x > 1000) return DMATH_INFINITY;
+@@ -9792,6 +9794,32 @@
+ 		return (z-pi_lo) - pi; /* atan(-,-) */
+ 	}
+ }
++
++#else
++#include <math.h>
++
++double dmath_exp2(double x) { return exp2(x); }
++double dmath_log2(double x) { return log2(x); }
++double dmath_exp(double x) { return exp(x); }
++double dmath_exp10(double x) { return pow(10.0, x); }
++double dmath_log(double x) { return log(x); }
++double dmath_log10(double x) { return log10(x); }
++double dmath_pow(double base, double exp) { return pow(base, exp); }
++double dmath_sqrt(double x) { return sqrt(x); }
++double dmath_cbrt(double x) { return cbrt(x); }
++
++void dmath_sincos(double x, double* s, double* c) {
++    *s = sin(x);
++    *c = cos(x);
++}
++double dmath_sin(double x) { return sin(x); }
++double dmath_cos(double x) { return cos(x); }
++double dmath_tan(double x) { return tan(x); }
++double dmath_asin(double x) { return asin(x); }
++double dmath_acos(double x) { return acos(x); }
++double dmath_atan(double x) { return atan(x); }
++double dmath_atan2(double y, double x) { return atan2(y, x); }
++#endif
+ 
+ ////////////////////////////////////////////////////////////////////
+ 
+@@ -9898,6 +9926,7 @@
+ 	return u.f;
+ }
+ 
++#if PK_ENABLE_DETERMINISM
+ double dmath_ceil(double x) {
+ 	if(!dmath_isfinite(x)) return x;
+     int64_t int_part = (int64_t)x;
+@@ -9919,6 +9948,12 @@
+ double dmath_trunc(double x) {
+     return (double)((int64_t)x);
+ }
++#else
++// The int64 casts above are undefined beyond 2**63 and break float floordiv.
++double dmath_ceil(double x) { return ceil(x); }
++double dmath_floor(double x) { return floor(x); }
++double dmath_trunc(double x) { return trunc(x); }
++#endif
+ 
+ // https://github.com/kraj/musl/blob/kraj/master/src/math/modf.c
+ double dmath_modf(double x, double* iptr) {
+@@ -25201,7 +25236,13 @@
+         PY_CHECK_ARGC(1);                                                                          \
+         double x;                                                                                  \
+         if(!py_castfloat(py_arg(0), &x)) return false;                                             \
+-        py_newint(py_retval(), (py_i64)func(x));                                                   \
++        /* kipferl patch: integral math results never use an undefined float conversion */       \
++        double r = func(x);                                                                        \
++        if(dmath_isnan(r)) return ValueError("cannot convert float NaN to integer");              \
++        if(dmath_isinf(r)) return ValueError("cannot convert float infinity to integer");        \
++        if(r < -9223372036854775808.0 || r >= 9223372036854775808.0)                               \
++            return ValueError("float too large to convert to int64");                             \
++        py_newint(py_retval(), (py_i64)r);                                                         \
+         return true;                                                                               \
+     }
+ 
+@@ -25292,7 +25333,8 @@
+     } else if(argc == 2) {
+         double base;
+         if(!py_castfloat(py_arg(1), &base)) return false;
+-        py_newfloat(py_retval(), dmath_log2(x) / dmath_log2(base));
++        // kipferl patch: log(x, base) rounds like CPython's log(x) / log(base)
++        py_newfloat(py_retval(), dmath_log(x) / dmath_log(base));
+     } else {
+         return TypeError("log() takes 1 or 2 arguments");
+     }

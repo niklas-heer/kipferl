@@ -149,6 +149,54 @@ print('relative imports and reexports')
     )
 }
 
+// PocketPy 2.2 gives a top-level module its own name as `__package__` and
+// imports `module.name` on any missing attribute; neither may leak through.
+#[test]
+fn relative_parent_imports_metadata_and_attribute_boundaries_match_python() -> io::Result<()> {
+    matches_cpython(
+        &[
+            ("plain.py", "value = 1\n"),
+            (
+                "plain_relative.py",
+                "from . import plain\n",
+            ),
+            ("orchard/__init__.py", "pass\n"),
+            ("orchard/stone.py", "kind = 'pit'\n"),
+            ("orchard/fruit/__init__.py", "pass\n"),
+            (
+                "orchard/fruit/apple.py",
+                "from ..stone import kind\nfrom .. import stone as again\nfrom .. import fruit as here\n",
+            ),
+            (
+                "orchard/fruit/deep.py",
+                "from .... import anything\n",
+            ),
+        ],
+        r"
+import plain, orchard
+assert plain.__package__ == '' and plain.__name__ == 'plain'
+assert not hasattr(plain, '__path__')
+assert orchard.__package__ == 'orchard'
+assert plain.__file__.endswith('plain.py')
+assert orchard.__file__.endswith('__init__.py')
+assert not hasattr(orchard, 'stone') and not hasattr(orchard, 'fruit')
+for name in ['plain_relative', 'orchard.fruit.deep']:
+    rejected = False
+    try:
+        __import__(name)
+    except ImportError:
+        rejected = True
+    assert rejected, name
+assert orchard.fruit.__package__ == 'orchard.fruit' and not hasattr(orchard.fruit, 'deep')
+from orchard.fruit import apple
+assert apple.kind == 'pit' and apple.again is orchard.stone
+assert apple.here is orchard.fruit and orchard.fruit.apple is apple
+assert apple.__package__ == 'orchard.fruit' and apple.__name__ == 'orchard.fruit.apple'
+print('relative parents, metadata and attribute boundaries')
+",
+    )
+}
+
 #[test]
 fn circular_imports_expose_cached_modules_before_parent_attributes() -> io::Result<()> {
     matches_cpython(

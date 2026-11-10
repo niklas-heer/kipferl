@@ -6270,6 +6270,7 @@ OPCODE(GET_ITER)
 OPCODE(FOR_ITER)
 /**************************/
 OPCODE(IMPORT_PATH)
+OPCODE(IMPORT_FROM)
 OPCODE(POP_IMPORT_STAR)
 /**************************/
 OPCODE(UNPACK_SEQUENCE)
@@ -6540,8 +6541,14 @@ typedef struct TypePointer {
 typedef struct py_ModuleInfo {
     c11_string* package;
     c11_string* path;
-    py_GlobalRef self;  // weakref to the original module object
+    // kipferl patch: module identity survives removal and retry of its cache entry
+    py_TValue value;
+    py_GlobalRef self;
+    bool is_package;
 } py_ModuleInfo;
+
+static bool pk_import_from(py_Ref module, py_Name name);
+static bool pk_import_fromlist(py_Ref module, py_Ref fromlist, bool recursive);
 
 typedef struct VM {
     py_Frame* top_frame;
@@ -9199,6 +9206,8 @@ typedef union
     struct {int32_t  i0,i1;} s;
 }  udi_t;
 
+// kipferl patch: use the platform libm unless deterministic math is requested
+#if PK_ENABLE_DETERMINISM
 // https://github.com/akohlmey/fastermath/blob/master/src/exp.c#L63
 double dmath_exp2(double x) {
     if (x > 1000) return DMATH_INFINITY;
@@ -9786,6 +9795,32 @@ double dmath_atan2(double y, double x)
 	}
 }
 
+#else
+#include <math.h>
+
+double dmath_exp2(double x) { return exp2(x); }
+double dmath_log2(double x) { return log2(x); }
+double dmath_exp(double x) { return exp(x); }
+double dmath_exp10(double x) { return pow(10.0, x); }
+double dmath_log(double x) { return log(x); }
+double dmath_log10(double x) { return log10(x); }
+double dmath_pow(double base, double exp) { return pow(base, exp); }
+double dmath_sqrt(double x) { return sqrt(x); }
+double dmath_cbrt(double x) { return cbrt(x); }
+
+void dmath_sincos(double x, double* s, double* c) {
+    *s = sin(x);
+    *c = cos(x);
+}
+double dmath_sin(double x) { return sin(x); }
+double dmath_cos(double x) { return cos(x); }
+double dmath_tan(double x) { return tan(x); }
+double dmath_asin(double x) { return asin(x); }
+double dmath_acos(double x) { return acos(x); }
+double dmath_atan(double x) { return atan(x); }
+double dmath_atan2(double y, double x) { return atan2(y, x); }
+#endif
+
 ////////////////////////////////////////////////////////////////////
 
 int dmath_isinf(double x) {
@@ -9891,6 +9926,7 @@ double dmath_fabs(double x) {
 	return u.f;
 }
 
+#if PK_ENABLE_DETERMINISM
 double dmath_ceil(double x) {
 	if(!dmath_isfinite(x)) return x;
     int64_t int_part = (int64_t)x;
@@ -9912,6 +9948,12 @@ double dmath_floor(double x) {
 double dmath_trunc(double x) {
     return (double)((int64_t)x);
 }
+#else
+// The int64 casts above are undefined beyond 2**63 and break float floordiv.
+double dmath_ceil(double x) { return ceil(x); }
+double dmath_floor(double x) { return floor(x); }
+double dmath_trunc(double x) { return trunc(x); }
+#endif
 
 // https://github.com/kraj/musl/blob/kraj/master/src/math/modf.c
 double dmath_modf(double x, double* iptr) {
@@ -15406,6 +15448,7 @@ static Error* compile_normal_import(Compiler* self, c11_sbuf* buf) {
     do {
         consume(TK_ID);
         c11_sv name = Token__sv(prev());
+        int first_index = self->i - 1;
         c11_sbuf__write_sv(buf, name);
         bool has_sub_cpnt = false;
 
@@ -15436,8 +15479,17 @@ static Error* compile_normal_import(Compiler* self, c11_sbuf* buf) {
                 // import a
             }
         } else {
+            int end_index = self->i;
             if(match(TK_AS)) {
                 // import a.b as x
+                // kipferl patch: dotted imports bind the root unless an alias is requested
+                Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
+                Ctx__emit_(ctx(), OP_IMPORT_PATH, Ctx__add_const_string(ctx(), name), BC_KEEPLINE);
+                for(int i = first_index + 2; i < end_index; i += 2) {
+                    Token* token = &self->tokens[i];
+                    Ctx__emit_(ctx(), OP_IMPORT_FROM,
+                               Ctx__add_name(ctx(), py_namev(Token__sv(token))), token->line);
+                }
                 consume(TK_ID);
                 name = Token__sv(prev());
             } else {
@@ -15520,7 +15572,7 @@ __EAT_DOTS_END:
         Ctx__emit_(ctx(), OP_DUP_TOP, BC_NOARG, BC_KEEPLINE);
         consume(TK_ID);
         c11_sv name = Token__sv(prev());
-        Ctx__emit_(ctx(), OP_LOAD_ATTR, Ctx__add_name(ctx(), py_namev(name)), prev()->line);
+        Ctx__emit_(ctx(), OP_IMPORT_FROM, Ctx__add_name(ctx(), py_namev(name)), prev()->line);
         if(match(TK_AS)) {
             consume(TK_ID);
             name = Token__sv(prev());
@@ -18145,9 +18197,12 @@ __NEXT_STEP:
             NameError(name);
             goto __ERROR;
         }
+        case OP_IMPORT_FROM:
         case OP_LOAD_ATTR: {
             py_Name name = co_names[byte.arg];
-            if(py_getattr(TOP(), name)) {
+            bool ok = byte.op == OP_IMPORT_FROM ? pk_import_from(TOP(), name)
+                                                : py_getattr(TOP(), name);
+            if(ok) {
                 py_assign(TOP(), py_retval());
             } else {
                 goto __ERROR;
@@ -18777,6 +18832,11 @@ __NEXT_STEP:
             DISPATCH();
         }
         case OP_POP_IMPORT_STAR: {
+            py_Ref star = py_newtuple(py_pushtmp(), 1);
+            py_newstr(star, "*");
+            bool imported = pk_import_fromlist(SECOND(), TOP(), false);
+            POP();
+            if(!imported) goto __ERROR;
             // [module]
             NameDict* dict = PyObject__dict(TOP()->_obj);
             py_ItemRef all = NameDict__try_get(dict, __all__);
@@ -19537,6 +19597,7 @@ FrameExcInfo* Frame__top_exc_info(py_Frame* self) {
 }
 
 void Frame__gc_mark(py_Frame* self, c11_vector* p_stack) {
+    pk__mark_value(self->module);
     pk__mark_value(self->globals);
     if(self->is_locals_special) pk__mark_value(self->locals);
     CodeObject__gc_mark(self->co, p_stack);
@@ -21117,6 +21178,7 @@ void ManagedHeap__mark(ManagedHeap* self) {
     for(py_Type i = 1; i < types_length; i++) {
         py_TypeInfo* ti = c11__getitem(TypePointer, &vm->types, i).ti;
         pk__mark_value(&ti->self);
+        if(ti->module) pk__mark_value(ti->module);
         pk__mark_value(&ti->annotations);
     }
     // mark frame
@@ -23590,15 +23652,86 @@ static bool builtins_compile(int argc, py_Ref argv) {
     return py_compile(source, filename, compile_mode, true);
 }
 
+// Re-read each fromlist item: imported code may resize the original list.
+static bool pk_import_fromlist(py_Ref module, py_Ref fromlist, bool recursive) {
+    py_TValue* names;
+    int count = pk_arrayview(fromlist, &names);
+    if(count == -1) return TypeError("__import__ fromlist must be a list or tuple");
+    py_push(fromlist);
+    for(int i = 0; ; i++) {
+        count = pk_arrayview(py_peek(-1), &names);
+        if(i >= count) break;
+        if(!py_isstr(&names[i])) {
+            py_pop();
+            return TypeError("__import__ fromlist items must be str");
+        }
+        c11_sv name = py_tosv(&names[i]);
+        if(memchr(name.data, 0, name.size)) {
+            py_pop();
+            return ImportError("fromlist name contains a NUL byte");
+        }
+        if(name.size == 1 && name.data[0] == '*') {
+            py_Ref all = py_getdict(module, __all__);
+            if(!recursive && all && !pk_import_fromlist(module, all, true)) {
+                py_pop();
+                return false;
+            }
+            continue;
+        }
+        py_ModuleInfo* mi = py_touserdata(module);
+        if(mi->is_package && !py_getdict(module, py_namev(name))) {
+            c11_string* child = c11_string__new3("%s.%v", mi->path->data, name);
+            int res = py_import(child->data);
+            c11_string__delete(child);
+            if(res == -1) {
+                py_pop();
+                return false;
+            }
+        }
+    }
+    py_pop();
+    return true;
+}
+
 static bool builtins__import__(int argc, py_Ref argv) {
-    PY_CHECK_ARGC(1);
+    if(argc < 1 || argc > 5) return TypeError("__import__() takes 1 to 5 arguments");
     PY_CHECK_ARG_TYPE(0, tp_str);
-    const char* path = py_tostr(py_arg(0));
-    if(path[0] == '.') return ValueError("relative import not allowed here");
-    int res = py_import(path);
+    if(argc >= 5) {
+        PY_CHECK_ARG_TYPE(4, tp_int);
+        if(py_toint(py_arg(4)) != 0)
+            return ImportError("nonzero __import__ level is unsupported; use a relative from-import statement");
+    }
+    c11_sv path = py_tosv(argv);
+    if(memchr(path.data, 0, path.size)) return ImportError("module name contains a NUL byte");
+    if(path.size && path.data[0] == '.')
+        return ImportError("relative __import__ names are unsupported; use a relative from-import statement");
+    int res = py_import(py_tostr(argv));
     if(res == -1) return false;
-    if(res) return true;
-    return ImportError("module '%s' not found", path);
+    if(res == 0) return ImportError("module '%s' not found", py_tostr(argv));
+    py_push(py_retval());
+    bool fromlist = argc >= 4 && !py_isnone(py_arg(3));
+    if(fromlist) {
+        py_TValue* names;
+        int count = pk_arrayview(py_arg(3), &names);
+        if(count == -1) {
+            py_pop();
+            return TypeError("__import__ fromlist must be a list or tuple");
+        }
+        fromlist = count != 0;
+        if(!pk_import_fromlist(py_peek(-1), py_arg(3), false)) {
+            py_pop();
+            return false;
+        }
+    }
+    if(fromlist) {
+        py_assign(py_retval(), py_peek(-1));
+    } else {
+        int dot = c11_sv__index(path, '.');
+        c11_sv root = {path.data, dot == -1 ? path.size : dot};
+        py_assign(py_retval(), py_getmodule(py_name2str(py_namev(root))));
+    }
+    py_pop();
+    return true;
 }
 
 static bool NoneType__repr__(int argc, py_Ref argv) {
@@ -23666,6 +23799,7 @@ py_GlobalRef pk_builtins__register() {
 
 void function__gc_mark(void* ud, c11_vector* p_stack) {
     Function* func = ud;
+    if(func->module) pk__mark_value(func->module);
     pk__mark_value(&func->globals);
     if(func->closure) {
         NameDict* dict = func->closure;
@@ -24241,6 +24375,7 @@ static bool disassemble(CodeObject* co) {
                 case OP_LOAD_NONLOCAL:
                 case OP_STORE_GLOBAL:
                 case OP_LOAD_ATTR:
+                case OP_IMPORT_FROM:
                 case OP_LOAD_SELF_ATTR:
                 case OP_LOAD_METHOD:
                 case OP_STORE_ATTR:
@@ -25101,7 +25236,13 @@ void pk__add_module_lz4() {}
         PY_CHECK_ARGC(1);                                                                          \
         double x;                                                                                  \
         if(!py_castfloat(py_arg(0), &x)) return false;                                             \
-        py_newint(py_retval(), (py_i64)func(x));                                                   \
+        /* kipferl patch: integral math results never use an undefined float conversion */       \
+        double r = func(x);                                                                        \
+        if(dmath_isnan(r)) return ValueError("cannot convert float NaN to integer");              \
+        if(dmath_isinf(r)) return ValueError("cannot convert float infinity to integer");        \
+        if(r < -9223372036854775808.0 || r >= 9223372036854775808.0)                               \
+            return ValueError("float too large to convert to int64");                             \
+        py_newint(py_retval(), (py_i64)r);                                                         \
         return true;                                                                               \
     }
 
@@ -25192,7 +25333,8 @@ static bool math_log(int argc, py_Ref argv) {
     } else if(argc == 2) {
         double base;
         if(!py_castfloat(py_arg(1), &base)) return false;
-        py_newfloat(py_retval(), dmath_log2(x) / dmath_log2(base));
+        // kipferl patch: log(x, base) rounds like CPython's log(x) / log(base)
+        py_newfloat(py_retval(), dmath_log(x) / dmath_log(base));
     } else {
         return TypeError("log() takes 1 or 2 arguments");
     }
@@ -32065,6 +32207,7 @@ OPCODE(GET_ITER)
 OPCODE(FOR_ITER)
 /**************************/
 OPCODE(IMPORT_PATH)
+OPCODE(IMPORT_FROM)
 OPCODE(POP_IMPORT_STAR)
 /**************************/
 OPCODE(UNPACK_SEQUENCE)
@@ -32125,47 +32268,70 @@ void py_newlocals(py_OutRef out) {
 
 // src/public\ModuleSystem.c
 py_Ref py_getmodule(const char* path) {
-    VM* vm = pk_current_vm;
-    return BinTree__try_get(&vm->modules, (void*)path);
+    py_Ref cached = BinTree__try_get(&pk_current_vm->modules, (void*)path);
+    if(!cached || cached->type != tp_module) return NULL;
+    py_ModuleInfo* mi = py_touserdata(cached);
+    return mi->self;
 }
 
-static py_Ref pk_newmodule(const char* path, bool is_init) {
-    c11_sv pathv = {path, strlen(path)};
-    if(pathv.size > PK_MAX_MODULE_PATH_LEN) c11__abort("module path too long: %s", path);
-    if(pathv.size == 0) c11__abort("module path cannot be empty");
+static py_Ref pk_sys_modules() {
+    py_Ref sys = py_getmodule("sys");
+    if(!sys) return NULL;
+    py_Ref modules = py_getdict(sys, py_name("modules"));
+    return modules && py_isdict(modules) ? modules : NULL;
+}
 
-    py_ModuleInfo* mi = py_newobject(py_retval(), tp_module, -1, sizeof(py_ModuleInfo));
-    
-    int last_dot = c11_sv__rindex(pathv, '.');
-    if(last_dot == -1 || is_init) {
-        mi->package = c11_string__new(path);
-    } else {
-        // a.b.c -> a.b
-        mi->package = c11_string__new2(path, last_dot);
+static void pk_publish_module(const char* path, py_Ref module) {
+    py_Ref modules = pk_sys_modules();
+    if(modules) py_dict_setitem_by_str(modules, path, module);
+}
+
+static void pk_publish_module_tree(BinTree* tree) {
+    if(tree->value.type == tp_module) pk_publish_module((const char*)tree->key, &tree->value);
+    if(tree->left) pk_publish_module_tree(tree->left);
+    if(tree->right) pk_publish_module_tree(tree->right);
+}
+
+// __package__ is the package itself for packages and the parent otherwise.
+static py_Ref pk_newmodule(const char* path, bool native_registration, bool is_package) {
+    int path_len = strlen(path);
+    if(path_len > PK_MAX_MODULE_PATH_LEN) c11__abort("module path too long: %s", path);
+    if(path_len == 0) c11__abort("module path cannot be empty");
+    if(py_getmodule(path)) c11__abort("module '%s' already exists", path);
+
+    int last_dot = c11_sv__rindex((c11_sv){path, path_len}, '.');
+    py_Ref parent = NULL;
+    if(native_registration && last_dot != -1) {
+        const char* parent_path = py_name2str(py_namev((c11_sv){path, last_dot}));
+        parent = py_getmodule(parent_path);
+        if(!parent) parent = pk_newmodule(parent_path, true, true);
     }
 
+    py_ModuleInfo* mi = py_newobject(py_retval(), tp_module, -1, sizeof(py_ModuleInfo));
+    if(is_package) {
+        mi->package = c11_string__new(path);
+    } else {
+        mi->package = c11_string__new2(path, last_dot == -1 ? 0 : last_dot);
+    }
     mi->path = c11_string__new(path);
-    path = mi->path->data;
+    mi->value = *py_retval();
+    mi->self = &mi->value;
+    mi->is_package = is_package;
 
-    // we do not allow override in order to avoid memory leak
-    // it is because Module objects are not garbage collected
-    bool exists = BinTree__contains(&pk_current_vm->modules, (void*)path);
-    if(exists) c11__abort("module '%s' already exists", path);
-
-    BinTree__set(&pk_current_vm->modules, (void*)path, py_retval());
-    py_GlobalRef retval = py_getmodule(path);
-    mi->self = retval;
-
-    // setup __name__
-    py_newstrv(py_emplacedict(retval, __name__), c11_string__sv(mi->path));
-    // setup __package__
-    py_newstrv(py_emplacedict(retval, __package__), c11_string__sv(mi->package));
-    return retval;
+    // Interned keys outlive failed modules; per-attempt self refs never point
+    // into a cache slot that a retry could overwrite.
+    const char* key = py_name2str(py_name(path));
+    BinTree__set(&pk_current_vm->modules, (void*)key, mi->self);
+    py_newstrv(py_emplacedict(mi->self, __name__), c11_string__sv(mi->path));
+    py_newstrv(py_emplacedict(mi->self, __package__), c11_string__sv(mi->package));
+    if(is_package) py_newlist(py_emplacedict(mi->self, py_name("__path__")));
+    pk_publish_module(path, mi->self);
+    if(parent) py_setdict(parent, py_name(path + last_dot + 1), mi->self);
+    py_assign(py_retval(), mi->self);
+    return mi->self;
 }
 
-py_Ref py_newmodule(const char* path) {
-    return pk_newmodule(path, false);
-}
+py_Ref py_newmodule(const char* path) { return pk_newmodule(path, true, false); }
 
 static void py_ModuleInfo__dtor(py_ModuleInfo* mi) {
     c11_string__delete(mi->package);
@@ -32190,161 +32356,147 @@ py_Type pk_module__register() {
 
 int load_module_from_dll_desktop_only(const char* path) PY_RAISE PY_RETURN;
 
+// kipferl patch: initialize dotted parents and publish children only after success
 int py_import(const char* path_cstr) {
     VM* vm = pk_current_vm;
     c11_sv path = {path_cstr, strlen(path_cstr)};
-    if(path.size == 0) {
-        ValueError("empty module name");
-        return -1;
-    }
-    if(path.size > PK_MAX_MODULE_PATH_LEN) {
-        ValueError("module name too long: %v", path);
-        return -1;
-    }
+    if(path.size == 0) return ImportError("empty module name"), -1;
+    if(path.size > PK_MAX_MODULE_PATH_LEN) return ImportError("module path is too long"), -1;
 
     if(path.data[0] == '.') {
-        c11__rtassert(vm->top_frame != NULL && vm->top_frame->module != NULL);
-
-        // try relative import
-        int dot_count = 1;
-        while(dot_count < path.size && path.data[dot_count] == '.')
-            dot_count++;
-
+        int dots = 0;
+        while(dots < path.size && path.data[dots] == '.')
+            dots++;
+        if(!vm->top_frame)
+            return ImportError("attempted relative import with no known parent package"), -1;
         py_ModuleInfo* mi = py_touserdata(vm->top_frame->module);
-        c11_sv package_sv = c11_string__sv(mi->package);
-        if(package_sv.size == 0) {
-            ImportError("attempted relative import with no known parent package");
-            return -1;
+        c11_sv package = c11_string__sv(mi->package);
+        if(package.size == 0)
+            return ImportError("attempted relative import with no known parent package"), -1;
+        for(int i = 1; i < dots; i++) {
+            int dot = c11_sv__rindex(package, '.');
+            if(dot == -1)
+                return ImportError("attempted relative import beyond top-level package"), -1;
+            package.size = dot;
         }
-
-        c11_vector /* T=c11_sv */ cpnts = c11_sv__split(package_sv, '.');
-        for(int i = 1; i < dot_count; i++) {
-            if(cpnts.length == 0){
-                ImportError("attempted relative import beyond top-level package");
-                return -1;
-            }
-            c11_vector__pop(&cpnts);
-        }
-
-        if(dot_count < path.size) {
-            c11_sv last_cpnt = c11_sv__slice(path, dot_count);
-            c11_vector__push(c11_sv, &cpnts, last_cpnt);
-        }
-
-        // join cpnts
         c11_sbuf buf;
         c11_sbuf__ctor(&buf);
-        for(int i = 0; i < cpnts.length; i++) {
-            if(i > 0) c11_sbuf__write_char(&buf, '.');
-            c11_sbuf__write_sv(&buf, c11__getitem(c11_sv, &cpnts, i));
+        c11_sbuf__write_sv(&buf, package);
+        if(dots < path.size) {
+            c11_sbuf__write_char(&buf, '.');
+            c11_sbuf__write_sv(&buf, c11_sv__slice(path, dots));
         }
-
-        c11_vector__dtor(&cpnts);
-        c11_string* new_path = c11_sbuf__submit(&buf);
-        int res = py_import(new_path->data);
-        c11_string__delete(new_path);
+        c11_string* absolute = c11_sbuf__submit(&buf);
+        int res = py_import(absolute->data);
+        c11_string__delete(absolute);
         return res;
     }
+    if(path.data[path.size - 1] == '.' || strstr(path_cstr, "..") != NULL)
+        return ImportError("invalid module name '%s'", path_cstr), -1;
 
-    c11__rtassert(path.data[0] != '.' && path.data[path.size - 1] != '.');
-
-    // import parent module (implicit recursion)
-    int last_dot_index = c11_sv__rindex(path, '.');
-    if(last_dot_index >= 0) {
-        c11_sv ppath = c11_sv__slice2(path, 0, last_dot_index);
-        py_GlobalRef ext_mod = py_getmodule(ppath.data);
-        if(!ext_mod) {
-            char buf[PK_MAX_MODULE_PATH_LEN + 1];
-            memcpy(buf, ppath.data, ppath.size);
-            buf[ppath.size] = '\0';
-            int res = py_import(buf);
-            if(res != 1) return res;
-            py_newnil(py_retval());
-        }
+    int last_dot = c11_sv__rindex(path, '.');
+    py_Ref parent = NULL;
+    if(last_dot != -1) {
+        const char* parent_path = py_name2str(py_namev((c11_sv){path.data, last_dot}));
+        int res = py_import(parent_path);
+        if(res != 1) return res;
+        parent = py_getmodule(parent_path);
     }
 
-    // check existing module
-    py_GlobalRef ext_mod = py_getmodule(path.data);
-    if(ext_mod) {
-        py_assign(py_retval(), ext_mod);
+    // Parent initialization may itself import the requested child. Cached
+    // children do not overwrite an attribute deliberately changed by user code.
+    py_Ref cached = py_getmodule(path_cstr);
+    if(cached) {
+        if(strcmp(path_cstr, "sys") == 0) pk_publish_module_tree(&vm->modules);
+        pk_publish_module(path_cstr, cached);
+        py_assign(py_retval(), cached);
         return 1;
     }
+    if(parent && !((py_ModuleInfo*)py_touserdata(parent))->is_package)
+        return ImportError("No module named '%s'; '%v' is not a package",
+                           path_cstr,
+                           (c11_sv){path.data, last_dot}),
+               -1;
 
     if(vm->callbacks.lazyimport) {
-        py_GlobalRef lazymod = vm->callbacks.lazyimport(path_cstr);
-        if(lazymod) {
-            c11__rtassert(py_istype(lazymod, tp_module));
-            py_assign(py_retval(), lazymod);
+        py_Ref module = vm->callbacks.lazyimport(path_cstr);
+        if(module) {
+            c11__rtassert(py_istype(module, tp_module));
+            if(parent) py_setdict(parent, py_name(path_cstr + last_dot + 1), module);
+            pk_publish_module(path_cstr, module);
+            py_assign(py_retval(), module);
             return 1;
         }
     }
 
-    // try import
-    c11_string* slashed_path = c11_sv__replace(path, '.', PK_PLATFORM_SEP);
-    c11_string* filename = c11_string__new3("%s.py", slashed_path->data);
-
+    // Kipferl imports source files only. A package wins over a same-named .py
+    // module, matching Python's path finder.
+    c11_string* slashed = c11_sv__replace(path, '.', PK_PLATFORM_SEP);
+    c11_string* filename = c11_string__new3("%s%c__init__.py", slashed->data, PK_PLATFORM_SEP);
+    bool is_package = false;
     bool need_free = true;
-    bool is_pyc = false;
-    bool is_init = false;
     const char* data = load_kPythonLib(path_cstr);
-    int data_size = -1;
-
-    if(data != NULL) {
+    if(data) {
         need_free = false;
-        goto __SUCCESS;
-    }
-
-    data = vm->callbacks.importfile(filename->data, &data_size);
-    if(data != NULL) goto __SUCCESS;
-
-    c11_string__delete(filename);
-    filename = c11_string__new3("%s.pyc", slashed_path->data);
-    data = vm->callbacks.importfile(filename->data, &data_size);
-    if(data != NULL) {
-        is_pyc = true;
-        goto __SUCCESS;
-    }
-
-    c11_string__delete(filename);
-    filename = c11_string__new3("%s%c__init__.py", slashed_path->data, PK_PLATFORM_SEP);
-    data = vm->callbacks.importfile(filename->data, &data_size);
-    if(data != NULL) {
-        is_init = true;
-        goto __SUCCESS;
-    }
-
-    c11_string__delete(filename);
-    filename = c11_string__new3("%s%c__init__.pyc", slashed_path->data, PK_PLATFORM_SEP);
-    data = vm->callbacks.importfile(filename->data, &data_size);
-    if(data != NULL) {
-        is_pyc = true;
-        is_init = true;
-        goto __SUCCESS;
-    }
-
-    c11_string__delete(filename);
-    c11_string__delete(slashed_path);
-    // not found
-    return load_module_from_dll_desktop_only(path_cstr);
-
-__SUCCESS:
-    do {
-    } while(0);
-    
-    py_GlobalRef mod = pk_newmodule(path_cstr, is_init);
-
-    bool ok;
-    if(is_pyc) {
-        ok = py_execo(data, data_size, filename->data, mod);
+        c11_string__delete(filename);
+        filename = c11_string__new3("%s.py", slashed->data);
     } else {
-        ok = py_exec(data, filename->data, EXEC_MODE, mod);
+        data = vm->callbacks.importfile(filename->data, NULL);
+        is_package = data != NULL;
+        if(!data) {
+            c11_string__delete(filename);
+            filename = c11_string__new3("%s.py", slashed->data);
+            data = vm->callbacks.importfile(filename->data, NULL);
+        }
     }
-    py_assign(py_retval(), mod);
+    if(!data) {
+        c11_string__delete(filename);
+        c11_string__delete(slashed);
+        int res = load_module_from_dll_desktop_only(path_cstr);
+        if(res == 1 && parent) py_setdict(parent, py_name(path_cstr + last_dot + 1), py_retval());
+        return res;
+    }
 
+    py_Ref module = pk_newmodule(path_cstr, false, is_package);
+    py_newstr(py_emplacedict(module, py_name("__file__")), filename->data);
+    if(is_package) {
+        py_newstr(py_pushtmp(), slashed->data);
+        py_list_append(py_getdict(module, py_name("__path__")), py_peek(-1));
+        py_pop();
+    }
+    bool ok = py_exec(data, filename->data, EXEC_MODE, module);
+    if(ok) {
+        if(parent) py_setdict(parent, py_name(path_cstr + last_dot + 1), module);
+        py_assign(py_retval(), module);
+    } else {
+        // Only the failing attempt is evicted. Successfully imported siblings
+        // stay cached, and escaped functions/classes retain this attempt's globals.
+        py_Ref slot = BinTree__try_get(&vm->modules, (void*)path_cstr);
+        py_newnil(slot);
+        py_Ref modules = pk_sys_modules();
+        if(modules) py_dict_delitem_by_str(modules, path_cstr);
+    }
     c11_string__delete(filename);
-    c11_string__delete(slashed_path);
+    c11_string__delete(slashed);
     if(need_free) PK_FREE((void*)data);
     return ok ? 1 : -1;
+}
+
+// kipferl patch: submodule fallback belongs to import-from, not ordinary getattr
+static bool pk_import_from(py_Ref module, py_Name name) {
+    if(py_getattr(module, name)) return true;
+    if(!py_matchexc(tp_AttributeError)) return false;
+    py_clearexc(NULL);
+    if(module->type == tp_module) {
+        py_ModuleInfo* mi = py_touserdata(module);
+        c11_string* path = c11_string__new3("%s.%s", mi->path->data, py_name2str(name));
+        int res = py_import(path->data);
+        c11_string__delete(path);
+        if(res == -1) return false;
+        if(res == 1) return true;
+        return ImportError("cannot import name '%n' from '%v'", name, c11_string__sv(mi->path));
+    }
+    return AttributeError(module, name);
 }
 
 bool py_importlib_reload(py_Ref module) {
@@ -32354,17 +32506,16 @@ bool py_importlib_reload(py_Ref module) {
     module = mi->self;
     c11_sv path = c11_string__sv(mi->path);
     c11_string* slashed_path = c11_sv__replace(path, '.', PK_PLATFORM_SEP);
-    c11_string* filename = c11_string__new3("%s.py", slashed_path->data);
-    // Here we only consider source modules.
-    // Because compiled modules have no source file (it cannot be reloaded)
+    // A package must reload its initializer, not a same-named .py sibling.
+    c11_string* filename =
+        mi->is_package ? c11_string__new3("%s%c__init__.py", slashed_path->data, PK_PLATFORM_SEP)
+                       : c11_string__new3("%s.py", slashed_path->data);
     char* data = vm->callbacks.importfile(filename->data, NULL);
+    c11_string__delete(slashed_path);
     if(data == NULL) {
         c11_string__delete(filename);
-        filename = c11_string__new3("%s%c__init__.py", slashed_path->data, PK_PLATFORM_SEP);
-        data = vm->callbacks.importfile(filename->data, NULL);
+        return ImportError("module '%v' not found", path);
     }
-    c11_string__delete(slashed_path);
-    if(data == NULL) return ImportError("module '%v' not found", path);
     // py_cleardict(module); BUG: removing old classes will cause RELOAD_MODE to fail
     bool ok = py_exec(data, filename->data, RELOAD_MODE, module);
     c11_string__delete(filename);
@@ -34297,21 +34448,6 @@ bool py_getattr(py_Ref self, py_Name name) {
         py_push(self);
         py_assign(py_pushtmp(), py_name2ref(name));
         return py_vectorcall(1, 0);
-    }
-
-    if(self->type == tp_module) {
-        py_ModuleInfo* mi = py_touserdata(self);
-        c11_sbuf buf;
-        c11_sbuf__ctor(&buf);
-        pk_sprintf(&buf, "%v.%n", c11_string__sv(mi->path), name);
-        c11_string* new_path = c11_sbuf__submit(&buf);
-        int res = py_import(new_path->data);
-        c11_string__delete(new_path);
-        if(res == -1) {
-            return false;
-        } else if(res == 1) {
-            return true;
-        }
     }
 
     return AttributeError(self, name);
