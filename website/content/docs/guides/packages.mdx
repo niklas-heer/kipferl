@@ -147,13 +147,17 @@ runtime identity in the lock to work around a mismatch.
 
 Version 0.7.4 is a security update of the `zip` and `rustls` libraries. The
 `zipfile` module now decodes member names as UTF-8 whenever they are valid
-UTF-8 and as CP437 otherwise, whatever the entry's UTF-8 flag says; only
-archives with mislabelled names read differently.
+UTF-8 and as CP437 otherwise, whatever the entry's UTF-8 flag says. Non-ASCII
+names stored without the flag now read differently when their bytes also form
+valid UTF-8, whether they were mislabelled or genuine CP437; ASCII names are
+unaffected.
 
 The embedded runtime changed, so runtime-bound dependency locks need a refresh:
 rerun `kipferl add` for your declared requirements, review and commit the lock,
 then run your application tests. Never edit hashes to bypass a mismatch.
-Standalone applications built with earlier versions keep running.
+Standalone applications built with earlier versions keep running with their old
+runtime; rebuild and redistribute those that read zip archives or make HTTPS
+requests to give them these fixes.
 
 ## Upgrade to 0.7.3
 
