@@ -161,6 +161,7 @@ fn run_without_terminal(source: &str, stdin: &[u8]) -> (bool, Output) {
     command
         .args(["-c", source])
         .env_remove("KIPFERL_TEST_KEYS")
+        .env_remove("NO_COLOR")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
