@@ -260,11 +260,16 @@ impl Vm {
         clippy::panic_in_result_fn
     )]
     pub fn set_argv(&self, arguments: &[CString]) -> Result<(), ContextError> {
-        let count = context_length(arguments.len())?;
-        let mut pointers: Vec<*mut c_char> = arguments
-            .iter()
-            .map(|argument| argument.as_ptr().cast_mut())
+        // PocketPy 2.2 treats argv[0] as the host program and leaves it out of
+        // `sys.argv`, so pass a placeholder before the Python arguments.
+        let mut pointers: Vec<*mut c_char> = std::iter::once(c"".as_ptr().cast_mut())
+            .chain(
+                arguments
+                    .iter()
+                    .map(|argument| argument.as_ptr().cast_mut()),
+            )
             .collect();
+        let count = context_length(pointers.len())?;
 
         // SAFETY: every pointer is NUL-terminated and remains valid throughout
         // the call; `count` was checked against the C ABI's signed length.

@@ -12,6 +12,60 @@ fn keeps_callback_values_rooted_across_allocation_and_exception_stress() {
     assert_eq!(text(&output.stderr), "");
 }
 
+// PocketPy records locals/globals for each traceback frame only while its
+// debugger runs, but the collector marks them for every caught exception. The
+// uninitialized values crashed Linux (SIGSEGV) and fail UBSan's bool check.
+#[test]
+fn collects_while_caught_exceptions_keep_their_tracebacks() {
+    let output = run(
+        concat!(
+            "import gc
+",
+            "def fail(depth):
+",
+            "    if depth == 0:
+",
+            "        raise ValueError('deep')
+",
+            "    fail(depth - 1)
+",
+            "kept = []
+",
+            "for i in range(200):
+",
+            "    try:
+",
+            "        fail(i % 9)
+",
+            "    except ValueError as error:
+",
+            "        kept.append(error)
+",
+            "    try:
+",
+            "        import missing_module_for_traceback_stress
+",
+            "    except ImportError as error:
+",
+            "        kept.append(error)
+",
+            "    if i % 20 == 0:
+",
+            "        gc.collect()
+",
+            "        junk = [[i] * 4 for _ in range(200)]
+",
+            "gc.collect()
+",
+            "assert len(kept) == 400 and str(kept[0]) == 'deep'",
+        ),
+        &[],
+    );
+    assert!(output.status.success(), "{}", diagnostic(&output));
+    assert_eq!(text(&output.stdout), "");
+    assert_eq!(text(&output.stderr), "");
+}
+
 #[test]
 fn repeatedly_initializes_executes_and_finalizes_the_runtime_process() {
     for cycle in 0..24 {

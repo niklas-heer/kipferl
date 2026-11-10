@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 4,
+  "patchset_version": 5,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -20,7 +20,13 @@
         "kipferl patch: module identity survives removal and retry of its cache entry",
         "kipferl patch: initialize dotted parents and publish children only after success",
         "kipferl patch: submodule fallback belongs to import-from, not ordinary getattr",
-        "kipferl patch: dotted imports bind the root unless an alias is requested"
+        "kipferl patch: dotted imports bind the root unless an alias is requested",
+        "kipferl patch: use the platform libm unless deterministic math is requested",
+        "kipferl patch: integral math results never use an undefined float conversion",
+        "kipferl patch: log(x, base) rounds like CPython's log(x) / log(base)",
+        "kipferl patch: keep stdc's predefined types but leave raw memory access unimportable",
+        "kipferl patch: gc.untrack skips marking children, so scripts could free live objects",
+        "kipferl patch: the collector marks these fields, so never leave them uninitialized"
       ]
     }
   ],
@@ -52,6 +58,18 @@
     {
       "id": "0007-dotted-imports",
       "file": "pocketpy/patches/0007-dotted-imports.patch"
+    },
+    {
+      "id": "0008-libm-math",
+      "file": "pocketpy/patches/0008-libm-math.patch"
+    },
+    {
+      "id": "0009-unsafe-script-apis",
+      "file": "pocketpy/patches/0009-unsafe-script-apis.patch"
+    },
+    {
+      "id": "0010-exception-frame-gc",
+      "file": "pocketpy/patches/0010-exception-frame-gc.patch"
     }
   ]
 }

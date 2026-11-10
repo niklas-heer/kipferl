@@ -175,3 +175,33 @@ print('unicode replacement passed')
     assert_eq!(output.stdout, b"unicode replacement passed\n");
     assert!(output.stderr.is_empty(), "{output:?}");
 }
+
+// PocketPy 2.2 registers `stdc` (malloc, free, memcpy, raw reads and writes by
+// integer address) and `gc.untrack`, after which a collection frees objects the
+// untracked container still references. Scripts can reach neither.
+#[test]
+fn raw_memory_and_gc_untracking_are_not_scriptable() {
+    let output = run(r"
+import sys
+try:
+    import stdc
+    raise AssertionError('stdc was importable')
+except ImportError as error:
+    print(error)
+assert 'stdc' not in sys.modules
+import gc
+assert not hasattr(gc, 'untrack') and not hasattr(gc, 'track')
+items = [[1, 2, 3] for _ in range(5)]
+assert gc.is_tracked(items)
+gc.collect()
+junk = [[9, 9, 9, 9] for _ in range(1000)]
+assert items[0] == [1, 2, 3] and items[4] == [1, 2, 3]
+print('raw memory access stays unavailable')
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(
+        output.stdout,
+        b"No module named 'stdc'\nraw memory access stays unavailable\n"
+    );
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
