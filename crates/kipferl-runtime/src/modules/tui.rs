@@ -148,6 +148,9 @@ fn optional_string(arguments: &Arguments, index: usize, c_string: bool) -> Optio
 }
 
 fn style_prefix(color: Option<&str>) -> (String, &'static str) {
+    if tui_core::no_color() {
+        return (String::new(), "");
+    }
     let start = tui_core::style_code(color, None, false, false, false, false, false);
     if start.is_empty() {
         (start, "")
@@ -190,7 +193,7 @@ unsafe extern "C" fn style(argc: c_int, stack: ffi::py_StackRef) -> bool {
         arguments.get(6).and_then(Value::boolean).unwrap_or(false),
         arguments.get(7).and_then(Value::boolean).unwrap_or(false),
     );
-    if prefix.is_empty() {
+    if prefix.is_empty() || tui_core::no_color() {
         return return_string(&text);
     }
     return_string(&format!("{prefix}{text}\x1b[0m"))
@@ -240,9 +243,11 @@ unsafe extern "C" fn box_output(argc: c_int, stack: ffi::py_StackRef) -> bool {
     if let Some(title) = title.as_deref() {
         output.push_str(chars.h);
         output.push_str(color_end);
-        output.push_str("\x1b[1m ");
+        output.push_str(tui_core::own_style("\x1b[1m"));
+        output.push(' ');
         output.push_str(title);
-        output.push_str(" \x1b[0m");
+        output.push(' ');
+        output.push_str(tui_core::own_style("\x1b[0m"));
         output.push_str(&color_start);
         output.push_str(&tui_core::repeat(
             chars.h,
@@ -346,7 +351,12 @@ fn status_message(
     let Some(message) = arguments.get(0).and_then(Value::string) else {
         return type_error(c"message must be a string");
     };
-    write_output(format!("\x1b[1;{color}m{symbol} \x1b[0m{message}\n").as_bytes());
+    let output = if tui_core::no_color() {
+        format!("{symbol} {message}\n")
+    } else {
+        format!("\x1b[1;{color}m{symbol} \x1b[0m{message}\n")
+    };
+    write_output(output.as_bytes());
     return_none()
 }
 
@@ -542,11 +552,11 @@ unsafe extern "C" fn table(argc: c_int, stack: ffi::py_StackRef) -> bool {
                 String::new()
             };
             if has_headers && row_index == 0 {
-                output.push_str("\x1b[1m");
+                output.push_str(tui_core::own_style("\x1b[1m"));
             }
             output.push_str(&cell);
             if has_headers && row_index == 0 {
-                output.push_str("\x1b[0m");
+                output.push_str(tui_core::own_style("\x1b[0m"));
             }
             output.push_str(&" ".repeat(width.saturating_sub(tui_core::visible_len(&cell))));
             output.push(' ');

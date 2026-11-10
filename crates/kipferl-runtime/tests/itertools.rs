@@ -89,7 +89,7 @@ fn preserves_itertools_binding_restriction_and_predicate_errors() {
         let output = run(source);
         assert_eq!(output.status.code(), Some(1), "{}", diagnostic(&output));
         assert!(
-            text(&output.stdout).contains(expected),
+            text(&output.stderr).contains(expected),
             "{}",
             diagnostic(&output)
         );

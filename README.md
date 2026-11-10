@@ -616,6 +616,12 @@ kipferl/
 - Package compatibility is recorded per artifact and runtime. Passing selected
   tests does not guarantee every API or execution path.
 - See `tests/compat_report_pocketpy.md` for current parity.
+- Uncaught exceptions print their traceback on stderr and exit with status 1,
+  as in CPython (unreleased; 0.7 and earlier used stdout).
+- Kipferl's own messages are styled only on a terminal and honour `NO_COLOR`;
+  `CLICOLOR_FORCE` or `FORCE_COLOR` force styling. `tui` and `input` drop their
+  styling under `NO_COLOR`, while `ansi` always returns the codes requested
+  (unreleased).
 
 ## Rust architecture and status
 

@@ -44,6 +44,7 @@ fn selection_byte_streams_match_the_zig_runtime() {
 #[test]
 fn accepts_the_input_test_key_variable() {
     let output = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
+        .env_remove("NO_COLOR")
         .args([
             "-c",
             "import input; print(repr(input.confirm('Continue?')))",
@@ -160,6 +161,7 @@ fn run_without_terminal(source: &str, stdin: &[u8]) -> (bool, Output) {
     command
         .args(["-c", source])
         .env_remove("KIPFERL_TEST_KEYS")
+        .env_remove("NO_COLOR")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -315,7 +317,7 @@ fn preserves_binding_and_argument_errors() {
         let output = run(source, "enter");
         assert_eq!(output.status.code(), Some(1), "{}", diagnostic(&output));
         assert!(
-            text(&output.stdout).contains(expected),
+            text(&output.stderr).contains(expected),
             "{}",
             diagnostic(&output)
         );
@@ -338,6 +340,7 @@ fn restores_real_terminal_settings_after_interaction() {
     let child_stdin = unsafe { File::from_raw_fd(child_stdin) };
 
     let child = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
+        .env_remove("NO_COLOR")
         .args([
             "-c",
             "import input; print(repr(input.confirm('Continue?')))",
@@ -411,6 +414,7 @@ fn run_ratatui_in_pty(source: &str, keys: &[u8]) -> String {
     let child_stdin = duplicate_file(slave.0);
     let child_stdout = duplicate_file(slave.0);
     let mut child = Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
+        .env_remove("NO_COLOR")
         .args(["-c", source])
         .env_remove("KIPFERL_TEST_KEYS")
         .stdin(Stdio::from(child_stdin))
@@ -467,6 +471,7 @@ fn run_ratatui_in_pty(source: &str, keys: &[u8]) -> String {
 )]
 fn run(source: &str, keys: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
+        .env_remove("NO_COLOR")
         .args(["-c", source])
         .env("KIPFERL_TEST_KEYS", keys)
         .stdin(Stdio::null())

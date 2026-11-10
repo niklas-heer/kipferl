@@ -56,14 +56,14 @@ fn reports_version_help_and_unknown_commands() {
     assert!(!no_script.status.success());
     assert_eq!(
         text(&no_script.stderr),
-        "\x1b[31mError:\x1b[0m No script specified\nUsage: kipferl run <script.py> [args...]\n"
+        "Error: No script specified\nUsage: kipferl run <script.py> [args...]\n"
     );
 
     let missing_script = run(&temporary, &["run", "missing.py"]);
     assert!(!missing_script.status.success());
     assert_eq!(
         text(&missing_script.stderr),
-        "\x1b[31mError:\x1b[0m Script not found: missing.py\n"
+        "Error: Script not found: missing.py\n"
     );
 }
 
@@ -138,7 +138,7 @@ fn test_runs_single_files_and_propagates_failures() {
     .expect("write failing test");
     let failed = run(&temporary, &["test", "failing.py"]);
     assert_eq!(failed.status.code(), Some(1));
-    assert!(text(&failed.stdout).contains("RuntimeError: expected test failure"));
+    assert!(text(&failed.stderr).contains("RuntimeError: expected test failure"));
     assert!(
         text(&failed.stderr).contains("error: Python execution failed"),
         "{}",
@@ -177,7 +177,7 @@ fn build_creates_all_three_modes_and_runs_a_universal_binary() {
         );
         assert!(built.status.success(), "{}", text(&built.stderr));
         if mode == "universal" {
-            assert!(text(&built.stdout).contains("Runtime profile \x1b[1mcore"));
+            assert!(text(&built.stdout).contains("Runtime profile core"));
         }
         let output_path = temporary.path.join(output);
         assert!(output_path.is_file());
@@ -294,7 +294,7 @@ fn build_packages_every_release_target_with_the_matching_assets() {
             "{target}: {}",
             text(&core_built.stderr)
         );
-        assert!(text(&core_built.stdout).contains("Runtime profile \x1b[1mcore"));
+        assert!(text(&core_built.stdout).contains("Runtime profile core"));
 
         let core_artifact = fs::read(temporary.path.join(core_output)).expect("read core artifact");
         let core_trailer =
@@ -332,7 +332,7 @@ fn build_selects_full_runtime_for_optional_or_dynamic_imports() {
         fs::write(temporary.path.join(&script), source).expect("write profile fixture");
         let built = run(&temporary, &["build", &script, "-o", &output]);
         assert!(built.status.success(), "{}", text(&built.stderr));
-        assert!(text(&built.stdout).contains("Runtime profile \x1b[1mfull"));
+        assert!(text(&built.stdout).contains("Runtime profile full"));
 
         let artifact = fs::read(temporary.path.join(output)).expect("read full artifact");
         let trailer = kipferl_format::Trailer::decode_from_end(&artifact).expect("decode trailer");
@@ -399,7 +399,7 @@ fn run_transforms_a_script_and_forwards_arguments() {
     .expect("write failing script");
     let failed = run(&temporary, &["run", "failure.py"]);
     assert_eq!(failed.status.code(), Some(1));
-    assert!(text(&failed.stdout).contains("RuntimeError: expected failure"));
+    assert!(text(&failed.stderr).contains("RuntimeError: expected failure"));
     assert!(text(&failed.stderr).contains("error: Python execution failed"));
 }
 
@@ -552,7 +552,7 @@ fn run_and_build_preserve_import_examples_inside_multiline_strings() {
             let executed = if mode == "single" {
                 run(&temporary, &["run", &output])
             } else {
-                assert!(text(&built.stdout).contains("Runtime profile \x1b[1mcore"));
+                assert!(text(&built.stdout).contains("Runtime profile core"));
                 Command::new(temporary.path.join(&output))
                     .current_dir(&temporary.path)
                     .env("KIPFERL_CACHE_DIR", temporary.path.join(".cache"))
@@ -739,6 +739,10 @@ fn run(temporary: &TestDirectory, arguments: &[&str]) -> Output {
         .args(arguments)
         .current_dir(&temporary.path)
         .env("KIPFERL_CACHE_DIR", temporary.path.join(".cache"))
+        // Assertions expect the default, uncoloured output of a pipe.
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR_FORCE")
+        .env_remove("FORCE_COLOR")
         .output()
         .expect("run Rust CLI")
 }

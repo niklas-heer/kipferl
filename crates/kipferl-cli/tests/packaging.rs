@@ -36,6 +36,10 @@ impl Fixture {
         Command::new(env!("CARGO_BIN_EXE_kipferl"))
             .current_dir(&self.0)
             .env("KIPFERL_CACHE_DIR", self.0.join("cache"))
+            // Assertions expect the default, uncoloured output of a pipe.
+            .env_remove("NO_COLOR")
+            .env_remove("CLICOLOR_FORCE")
+            .env_remove("FORCE_COLOR")
             .args(args)
             .output()
             .unwrap()
@@ -88,7 +92,7 @@ fn universal_carries_packages_lazy_modules_and_binary_assets_after_source_remova
         "dist/program",
     ]);
     success(&build);
-    assert!(String::from_utf8_lossy(&build.stdout).contains("Runtime profile \u{1b}[1mcore"));
+    assert!(String::from_utf8_lossy(&build.stdout).contains("Runtime profile core"));
     fs::remove_dir_all(fixture.0.join("source")).unwrap();
     let run = fixture.run("dist/program", &[]);
     success(&run);
@@ -108,7 +112,7 @@ fn transitive_imports_select_full_profile_and_keep_local_traceback_lines() {
     );
     let build = fixture.cli(&["build", "src/app.py", "-o", "program"]);
     success(&build);
-    assert!(String::from_utf8_lossy(&build.stdout).contains("Runtime profile \u{1b}[1mfull"));
+    assert!(String::from_utf8_lossy(&build.stdout).contains("Runtime profile full"));
     fs::remove_dir_all(fixture.0.join("src")).unwrap();
     let run = fixture.run("program", &[]);
     assert!(!run.status.success());

@@ -50,7 +50,7 @@ fn preserves_fnmatch_argument_errors() {
         let output = run(source);
         assert_eq!(output.status.code(), Some(1), "{}", diagnostic(&output));
         assert!(
-            text(&output.stdout).contains(expected),
+            text(&output.stderr).contains(expected),
             "{}",
             diagnostic(&output)
         );

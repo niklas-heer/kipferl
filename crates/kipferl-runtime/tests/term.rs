@@ -103,7 +103,7 @@ fn preserves_terminal_argument_and_formatting_errors() {
         let output = run(source, b"");
         assert_eq!(output.status.code(), Some(1), "{}", diagnostic(&output));
         assert!(
-            text(&output.stdout).contains(expected),
+            text(&output.stderr).contains(expected),
             "{}",
             diagnostic(&output)
         );

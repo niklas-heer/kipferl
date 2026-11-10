@@ -95,6 +95,8 @@ fn run(source: &str, arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
         .args(arguments)
+        // The fixture asserts tui's default styling.
+        .env_remove("NO_COLOR")
         .output()
         .expect("run Rust PocketPy runtime")
 }

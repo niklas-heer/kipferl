@@ -76,7 +76,7 @@ fn preserves_oserror_compatibility_and_repairs_the_one_argument_crash() {
         let output = run(source);
         assert_eq!(output.status.code(), Some(1), "{}", diagnostic(&output));
         assert!(
-            text(&output.stdout).contains(expected),
+            text(&output.stderr).contains(expected),
             "{}",
             diagnostic(&output)
         );

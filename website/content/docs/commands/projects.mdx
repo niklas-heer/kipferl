@@ -19,7 +19,9 @@ and hyphens with underscores: `my-cli` creates `my_cli/` and `my_cli.py`.
 `api` starts a JSON client; `interactive` starts a guided terminal app. Each
 normal project includes its entry script, README, `kipferl.json`, a starter
 test, and editor configuration with the runtime's type stubs. Follow the
-generated README for that template's arguments and examples.
+generated README for that template's arguments and examples. The starters
+print usage errors on stderr and exit with status 2, so redirecting their
+output captures only results.
 
 `kipferl new my-cli --minimal` creates only the script in the current directory.
 Use this for a one-file experiment. For an existing project, `kipferl init`

@@ -154,7 +154,7 @@ fn preserves_empty_results_and_argument_errors() {
             "{source}: {}",
             text(&output.stdout)
         );
-        assert!(text(&output.stdout).contains(expected));
+        assert!(text(&output.stderr).contains(expected));
         assert!(text(&output.stderr).contains("Python execution failed"));
     }
 }
@@ -165,6 +165,8 @@ fn preserves_empty_results_and_argument_errors() {
 fn run(source: &str) -> Output {
     Command::new(env!("CARGO_BIN_EXE_pocketpy-kipferl"))
         .args(["-c", source])
+        // Assertions expect tui's default styling.
+        .env_remove("NO_COLOR")
         .output()
         .expect("run Rust PocketPy runtime")
 }

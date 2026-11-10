@@ -145,6 +145,20 @@ pub(super) const fn table_chars(style: BorderStyle) -> TableChars {
 
 /// Mirrors the legacy byte-oriented width algorithm, including its treatment
 /// of every three- and four-byte UTF-8 scalar as double-width.
+/// Whether `NO_COLOR` (<https://no-color.org>) asks for unstyled output.
+///
+/// Only a non-empty value counts. When it does, `tui` and `input` add no
+/// styling of their own; text a script passes in is written unchanged, and
+/// the `ansi` module still returns the escape codes a script asks for.
+pub(super) fn no_color() -> bool {
+    std::env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty())
+}
+
+/// A style sequence `tui` or `input` adds itself, or nothing under `NO_COLOR`.
+pub(super) fn own_style(sequence: &'static str) -> &'static str {
+    if no_color() { "" } else { sequence }
+}
+
 pub(super) fn visible_len(value: &str) -> usize {
     let mut characters = value
         .split('\0')

@@ -163,7 +163,8 @@ fn wrapper_code_tracebacks_keep_original_filenames() -> io::Result<()> {
         .args(["-c", "import sys\ncode = sys._kipferl_compile_module('value = 1\\nraise ValueError(\\\"expected failure\\\")', 'original module.py')\nexec(code)"])
         .current_dir(&fixture.0).output()?;
     assert_eq!(output.status.code(), Some(1));
-    let diagnostic = String::from_utf8_lossy(&output.stdout);
+    assert!(output.stdout.is_empty(), "tracebacks belong on stderr");
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
     assert!(diagnostic.contains("original module.py"), "{diagnostic}");
     assert!(diagnostic.contains("line 2"), "{diagnostic}");
     assert!(
