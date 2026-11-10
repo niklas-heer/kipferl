@@ -69,12 +69,19 @@ fi
 python3 tests/vision/run_vision.py --runtime "$wrapper" || status=1
 python3 scripts/check_recipes.py --runtime "$wrapper" || status=1
 # Examples run without a terminal; interactive ones cancel at end of input.
+# Their exit codes vary, so check for hangs and sanitizer output instead:
+# GCC's libubsan reports to stderr even when log_path is set.
 for example in examples/*.py; do
   for arguments in "" "--help"; do
     code=0
-    (cd examples && timeout 60 "$wrapper" "$(basename "$example")" $arguments </dev/null >/dev/null 2>&1) || code=$?
+    output="$(cd examples && timeout 60 "$wrapper" "$(basename "$example")" $arguments </dev/null 2>&1)" || code=$?
     if [ "$code" -eq 124 ]; then
       echo "error: $example $arguments did not finish" >&2
+      status=1
+    fi
+    if printf '%s\n' "$output" | grep -qE 'runtime error:|ERROR: (Address|Leak)Sanitizer'; then
+      echo "error: $example $arguments produced a sanitizer report:" >&2
+      printf '%s\n' "$output" | tail -n 40 >&2
       status=1
     fi
   done
