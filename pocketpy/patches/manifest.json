@@ -32,6 +32,7 @@
         "kipferl patch: a raising gc debug callback aborts the process",
         "kipferl patch: pkpy.TValue forged values of any type from raw integers",
         "kipferl patch: the collector marks these fields, so never leave them uninitialized",
+        "kipferl patch: an empty slice has no buffer, and memcpy needs one",
         "kipferl patch: shift counts outside 0..63 are undefined in C",
         "kipferl patch: the repeated length must fit the int that sizes the new string",
         "kipferl patch: dimensions and their product must fit the int element count"

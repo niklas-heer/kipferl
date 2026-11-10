@@ -126,3 +126,15 @@ fn replacing_function_docstrings_frees_the_previous_text() {
     assert_eq!(text(&output.stdout), "");
     assert_eq!(text(&output.stderr), "");
 }
+
+// An empty bytes slice passed a null buffer to memcpy, which GCC's
+// UndefinedBehaviorSanitizer reports in the FFI sanitizer job.
+#[test]
+fn empty_bytes_slices_copy_nothing() {
+    let output = run(
+        "assert b'abc'[3:] == b'' and b''[:] == b'' and b'abc'[2:0] == b''\nassert b'abc'[::-1] == b'cba'\n",
+        &[],
+    );
+    assert!(output.status.success(), "{}", diagnostic(&output));
+    assert_eq!(text(&output.stderr), "");
+}

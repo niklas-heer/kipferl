@@ -168,6 +168,9 @@ result depends on the compiler:
   `ValueError("negative shift count")` as in CPython, and counts of 64 or more
   give `0` (or `-1` for a negative operand shifted right).
 
+- An empty `bytes` slice passed a null buffer to `memcpy`, which C leaves
+  undefined even for zero bytes; GCC's UndefinedBehaviorSanitizer reports it.
+
 Overflowing `+`, `-`, `*`, `**`, negation, `abs`, integer parsing and slice
 arithmetic wraps in two's complement, which every build already did in
 practice. `crates/pocketpy-sys/build.rs` compiles PocketPy with `-fwrapv` so

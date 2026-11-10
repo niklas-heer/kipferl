@@ -8940,7 +8940,8 @@ static bool bytes__getitem__(int argc, py_Ref argv) {
             c11_vector__push(unsigned char, &res, data[i]);
         }
         unsigned char* p = py_newbytes(py_retval(), res.length);
-        memcpy(p, res.data, res.length);
+        // kipferl patch: an empty slice has no buffer, and memcpy needs one
+        if(res.length) memcpy(p, res.data, res.length);
         c11_vector__dtor(&res);
         return true;
     } else {

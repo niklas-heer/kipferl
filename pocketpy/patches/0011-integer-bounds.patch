@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -7479,9 +7479,33 @@
+@@ -7479,8 +7479,32 @@
  DEF_INT_BITWISE_OP(__and__, &)
  DEF_INT_BITWISE_OP(__or__, |)
  DEF_INT_BITWISE_OP(__xor__, ^)
@@ -19,7 +19,7 @@
 +    py_newint(py_retval(), rhs >= 64 ? 0 : (py_i64)((uint64_t)lhs << rhs));
 +    return true;
 +}
- 
++
 +static bool int__rshift__(int argc, py_Ref argv) {
 +    PY_CHECK_ARGC(2);
 +    py_i64 lhs = py_toint(&argv[0]);
@@ -32,10 +32,9 @@
 +    py_newint(py_retval(), rhs >= 64 ? (lhs < 0 ? -1 : 0) : lhs >> rhs);
 +    return true;
 +}
-+
+ 
  static bool int__repr__(int argc, py_Ref argv) {
      PY_CHECK_ARGC(1);
-     py_i64 val = py_toint(&argv[0]);
 @@ -8334,8 +8358,11 @@
          py_newnotimplemented(py_retval());
      } else {
@@ -49,7 +48,17 @@
          } else {
              char* p = py_newstrn(py_retval(), self->size * n);
              for(int i = 0; i < n; i++) {
-@@ -22356,9 +22383,13 @@
+@@ -8913,7 +8940,8 @@
+             c11_vector__push(unsigned char, &res, data[i]);
+         }
+         unsigned char* p = py_newbytes(py_retval(), res.length);
+-        memcpy(p, res.data, res.length);
++        // kipferl patch: an empty slice has no buffer, and memcpy needs one
++        if(res.length) memcpy(p, res.data, res.length);
+         c11_vector__dtor(&res);
+         return true;
+     } else {
+@@ -22356,9 +22384,13 @@
      PY_CHECK_ARG_TYPE(0, tp_type);
      PY_CHECK_ARG_TYPE(1, tp_int);
      PY_CHECK_ARG_TYPE(2, tp_int);
