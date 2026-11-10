@@ -1,25 +1,32 @@
 /*
- *  Copyright (c) 2025 blueloveTH
+ *  Copyright (c) 2026 blueloveTH
  *  Distributed Under The MIT License
  *  https://github.com/pocketpy/pocketpy
  */
  
 #pragma once
 
+
+#define PK_IS_PUBLIC_INCLUDE
+
 // clang-format off
 
-#define PK_VERSION				"2.1.3"
+#define PK_VERSION				"2.2.0"
 #define PK_VERSION_MAJOR            2
-#define PK_VERSION_MINOR            1
-#define PK_VERSION_PATCH            3
+#define PK_VERSION_MINOR            2
+#define PK_VERSION_PATCH            0
 
 /*************** feature settings ***************/
 #ifndef PK_ENABLE_OS                // can be overridden by cmake
 #define PK_ENABLE_OS                1
 #endif
 
-#ifndef PK_ENABLE_THREADS           // can be overridden by cmake
-#define PK_ENABLE_THREADS           1
+#ifndef PK_ENABLE_THREADS           // must be enabled from cmake
+#define PK_ENABLE_THREADS           0
+#endif
+
+#ifndef PK_ENABLE_DLL               // must be enabled from cmake
+#define PK_ENABLE_DLL               0
 #endif
 
 #ifndef PK_ENABLE_DETERMINISM       // must be enabled from cmake
@@ -40,7 +47,7 @@
 
 // GC min threshold
 #ifndef PK_GC_MIN_THRESHOLD         // can be overridden by cmake
-    #define PK_GC_MIN_THRESHOLD     32768
+    #define PK_GC_MIN_THRESHOLD     20000
 #endif
 
 // This is the maximum size of the value stack in py_TValue units
@@ -58,12 +65,6 @@
 /*************** internal settings ***************/
 // This is the maximum character length of a module path
 #define PK_MAX_MODULE_PATH_LEN      63
-
-// This is some math constants
-#define PK_M_PI                     3.1415926535897932384
-#define PK_M_E                      2.7182818284590452354
-#define PK_M_DEG2RAD                0.017453292519943295
-#define PK_M_RAD2DEG                57.29577951308232
 
 // Hash table load factor (smaller ones mean less collision but more memory)
 // For class instance
@@ -178,7 +179,7 @@
 #ifdef NDEBUG
     #if defined(__GNUC__)
         #define PK_INLINE __attribute__((always_inline)) inline
-    #elif defined(_MSC_VER)
+    #elif defined(_MSC_VER) && !defined(__clang__)
         #define PK_INLINE __forceinline
     #else
         #define PK_INLINE inline
@@ -201,6 +202,11 @@ typedef union c11_vec3i {
     struct { int x, y, z; };
     int data[3];
 } c11_vec3i;
+
+typedef union c11_vec4i {
+    struct { int x, y, z, w; };
+    int data[4];
+} c11_vec4i;
 
 typedef union c11_vec2 {
     struct { float x, y; };
@@ -231,6 +237,7 @@ typedef union c11_color32 {
         unsigned char a;
     };
     unsigned char data[4];
+    uint32_t u32;
 } c11_color32;
 
 
@@ -259,19 +266,6 @@ typedef double py_f64;
 /// A generic destructor function.
 typedef void (*py_Dtor)(void*);
 
-#ifdef PK_IS_PUBLIC_INCLUDE
-typedef struct py_TValue {
-    py_Type type;
-    bool is_ptr;
-    int extra;
-
-    union {
-        int64_t _i64;
-        char _chars[16];
-    };
-} py_TValue;
-#endif
-
 /// A string view type. It is helpful for passing strings which are not null-terminated.
 typedef struct c11_sv {
     const char* data;
@@ -280,6 +274,7 @@ typedef struct c11_sv {
 
 #define PY_RAISE
 #define PY_RETURN
+#define PY_MAYBENULL
 
 /// A generic reference to a python object.
 typedef py_TValue* py_Ref;
@@ -307,10 +302,10 @@ typedef void (*py_TraceFunc)(py_Frame* frame, enum py_TraceEvent);
 
 /// A struct contains the callbacks of the VM.
 typedef struct py_Callbacks {
-    /// Used by `__import__` to load a source module.
-    char* (*importfile)(const char*);
+    /// Used by `__import__` to load a source or compiled module.
+    char* (*importfile)(const char* path, int* data_size);
     /// Called before `importfile` to lazy-import a C module.
-    py_GlobalRef (*lazyimport)(const char*);
+    PY_MAYBENULL py_GlobalRef (*lazyimport)(const char*);
     /// Used by `print` to output a string.
     void (*print)(const char*);
     /// Flush the output buffer of `print`.
@@ -318,8 +313,16 @@ typedef struct py_Callbacks {
     /// Used by `input` to get a character.
     int (*getchr)();
     /// Used by `gc.collect()` to mark extra objects for garbage collection.
-    void (*gc_mark)(void (*f)(py_Ref val, void* ctx), void* ctx);
+    PY_MAYBENULL void (*gc_mark)(void (*f)(py_Ref val, void* ctx), void* ctx);
+    /// Used by `PRINT_EXPR` bytecode.
+    PY_MAYBENULL bool (*displayhook)(py_Ref val) PY_RAISE;
 } py_Callbacks;
+
+/// A struct contains the application-level callbacks.
+typedef struct py_AppCallbacks {
+    void (*on_vm_ctor)(int index);
+    void (*on_vm_dtor)(int index);
+} py_AppCallbacks;
 
 /// Native function signature.
 /// @param argc number of arguments.
@@ -356,6 +359,8 @@ PK_API void* py_getvmctx();
 PK_API void py_setvmctx(void* ctx);
 /// Setup the callbacks for the current VM.
 PK_API py_Callbacks* py_callbacks();
+/// Setup the application callbacks
+PK_API py_AppCallbacks* py_appcallbacks();
 
 /// Set `sys.argv`. Used for storing command-line arguments.
 PK_API void py_sys_setargv(int argc, char** argv);
@@ -400,6 +405,11 @@ PK_API bool py_compile(const char* source,
                        const char* filename,
                        enum py_CompileMode mode,
                        bool is_dynamic) PY_RAISE PY_RETURN;
+/// Compile a `.py` file into a `.pyc` file.
+PK_API bool py_compilefile(const char* src_path,
+                           const char* dst_path) PY_RAISE;
+/// Run a compiled code object.
+PK_API bool py_execo(const void* data, int size, const char* filename, py_Ref module) PY_RAISE PY_RETURN;
 /// Run a source string.
 /// @param source source string.
 /// @param filename filename (for error messages).
@@ -518,10 +528,6 @@ PK_API void
     py_bindproperty(py_Type type, const char* name, py_CFunction getter, py_CFunction setter);
 /// Bind a magic method to type.
 PK_API void py_bindmagic(py_Type type, py_Name name, py_CFunction f);
-/// Bind a compile-time function via "decl-based" style.
-PK_API void py_macrobind(const char* sig, py_CFunction f);
-/// Get a compile-time function by name.
-PK_API py_ItemRef py_macroget(py_Name name);
 
 /************* Value Cast *************/
 
@@ -623,9 +629,9 @@ PK_API void py_tphookattributes(py_Type type,
 
 /************* Inspection *************/
 
-/// Get the current `function` object on the stack.
+/// Get the current `Callable` object on the stack of the most recent vectorcall.
 /// Return `NULL` if not available.
-/// NOTE: This function should be placed at the beginning of your decl-based bindings.
+/// NOTE: This function should be placed at the beginning of your bindings or you will get wrong result.
 PK_API py_StackRef py_inspect_currentfunction();
 /// Get the current `module` object where the code is executed.
 /// Return `NULL` if not available.
@@ -657,6 +663,13 @@ PK_API py_GlobalRef py_retval();
 #define py_r5() py_getreg(5)
 #define py_r6() py_getreg(6)
 #define py_r7() py_getreg(7)
+
+#define py_tmpr0() py_getreg(8)
+#define py_tmpr1() py_getreg(9)
+#define py_tmpr2() py_getreg(10)
+#define py_tmpr3() py_getreg(11)
+#define py_sysr0() py_getreg(12)    // for debugger
+#define py_sysr1() py_getreg(13)    // for pybind11
 
 /// Get an item from the object's `__dict__`.
 /// Return `NULL` if not found.
@@ -985,12 +998,14 @@ PK_API void py_newvec2(py_OutRef out, c11_vec2);
 PK_API void py_newvec3(py_OutRef out, c11_vec3);
 PK_API void py_newvec2i(py_OutRef out, c11_vec2i);
 PK_API void py_newvec3i(py_OutRef out, c11_vec3i);
+PK_API void py_newvec4i(py_OutRef out, c11_vec4i);
 PK_API void py_newcolor32(py_OutRef out, c11_color32);
 PK_API c11_mat3x3* py_newmat3x3(py_OutRef out);
 PK_API c11_vec2 py_tovec2(py_Ref self);
 PK_API c11_vec3 py_tovec3(py_Ref self);
 PK_API c11_vec2i py_tovec2i(py_Ref self);
 PK_API c11_vec3i py_tovec3i(py_Ref self);
+PK_API c11_vec4i py_tovec4i(py_Ref self);
 PK_API c11_mat3x3* py_tomat3x3(py_Ref self);
 PK_API c11_color32 py_tocolor32(py_Ref self);
 
@@ -1021,6 +1036,11 @@ PK_API void py_profiler_reset();
 PK_API char* py_profiler_report();
 
 /************* Others *************/
+int64_t time_ns();
+int64_t time_monotonic_ns();
+py_i64 cpy312__int_floordiv(py_i64 a, py_i64 b);
+py_i64 cpy312__int_mod(py_i64 a, py_i64 b);
+void cpy312__float_divmod(double vx, double wx, double *floordiv, double *mod);
 
 /// An utility function to read a line from stdin for REPL.
 PK_API int py_replinput(char* buf, int max_size);
@@ -1061,6 +1081,7 @@ enum py_PredefinedType {
     tp_BaseException,
     tp_Exception,
     tp_bytes,
+    tp_bytes_iterator,
     tp_namedict,
     tp_locals,
     tp_code,
@@ -1081,6 +1102,7 @@ enum py_PredefinedType {
     tp_SyntaxError,
     tp_RecursionError,
     tp_OSError,
+    tp_PermissionError,
     tp_NotImplementedError,
     tp_TypeError,
     tp_IndexError,
@@ -1094,11 +1116,22 @@ enum py_PredefinedType {
     tp_ImportError,
     tp_AssertionError,
     tp_KeyError,
+    /* stdc */
+    tp_stdc_Memory,
+    tp_stdc_Char, tp_stdc_UChar,
+    tp_stdc_Short, tp_stdc_UShort,
+    tp_stdc_Int, tp_stdc_UInt,
+    tp_stdc_Long, tp_stdc_ULong,
+    tp_stdc_LongLong, tp_stdc_ULongLong,
+    tp_stdc_Float, tp_stdc_Double,
+    tp_stdc_Pointer,
+    tp_stdc_Bool,
     /* vmath */
     tp_vec2,
     tp_vec3,
     tp_vec2i,
     tp_vec3i,
+    tp_vec4i,
     tp_mat3x3,
     tp_color32,
     /* array2d */
@@ -1108,6 +1141,26 @@ enum py_PredefinedType {
     tp_array2d_view,
     tp_chunked_array2d,
 };
+
+#ifndef PK_IS_AMALGAMATED_C
+#ifdef PK_IS_PUBLIC_INCLUDE
+typedef struct py_TValue {
+    py_Type type;
+    bool is_ptr;
+    int extra;
+
+    union {
+        int64_t _i64;
+        double _f64;
+        bool _bool;
+        py_CFunction _cfunc;
+        void* _obj;
+        void* _ptr;
+        char _chars[16];
+    };
+} py_TValue;
+#endif
+#endif
 
 #ifdef __cplusplus
 }
