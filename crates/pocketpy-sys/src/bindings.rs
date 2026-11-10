@@ -15,20 +15,6 @@ pub type py_i64 = i64;
 pub type py_f64 = f64;
 #[doc = " A generic destructor function."]
 pub type py_Dtor = ::core::option::Option<unsafe extern "C" fn(arg1: *mut ::core::ffi::c_void)>;
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct py_TValue {
-    pub type_: py_Type,
-    pub is_ptr: bool,
-    pub extra: ::core::ffi::c_int,
-    pub __bindgen_anon_1: py_TValue__bindgen_ty_1,
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub union py_TValue__bindgen_ty_1 {
-    pub _i64: i64,
-    pub _chars: [::core::ffi::c_char; 16usize],
-}
 #[doc = " A generic reference to a python object."]
 pub type py_Ref = *mut py_TValue;
 #[doc = " A reference which has the same lifespan as the python object."]
@@ -359,48 +345,85 @@ pub const py_PredefinedType_tp_super: py_PredefinedType = 19;
 pub const py_PredefinedType_tp_BaseException: py_PredefinedType = 20;
 pub const py_PredefinedType_tp_Exception: py_PredefinedType = 21;
 pub const py_PredefinedType_tp_bytes: py_PredefinedType = 22;
-pub const py_PredefinedType_tp_namedict: py_PredefinedType = 23;
-pub const py_PredefinedType_tp_locals: py_PredefinedType = 24;
-pub const py_PredefinedType_tp_code: py_PredefinedType = 25;
-pub const py_PredefinedType_tp_dict: py_PredefinedType = 26;
-pub const py_PredefinedType_tp_dict_iterator: py_PredefinedType = 27;
-pub const py_PredefinedType_tp_property: py_PredefinedType = 28;
-pub const py_PredefinedType_tp_star_wrapper: py_PredefinedType = 29;
-pub const py_PredefinedType_tp_staticmethod: py_PredefinedType = 30;
-pub const py_PredefinedType_tp_classmethod: py_PredefinedType = 31;
-pub const py_PredefinedType_tp_NoneType: py_PredefinedType = 32;
-pub const py_PredefinedType_tp_NotImplementedType: py_PredefinedType = 33;
-pub const py_PredefinedType_tp_ellipsis: py_PredefinedType = 34;
-pub const py_PredefinedType_tp_generator: py_PredefinedType = 35;
-pub const py_PredefinedType_tp_SystemExit: py_PredefinedType = 36;
-pub const py_PredefinedType_tp_KeyboardInterrupt: py_PredefinedType = 37;
-pub const py_PredefinedType_tp_StopIteration: py_PredefinedType = 38;
-pub const py_PredefinedType_tp_SyntaxError: py_PredefinedType = 39;
-pub const py_PredefinedType_tp_RecursionError: py_PredefinedType = 40;
-pub const py_PredefinedType_tp_OSError: py_PredefinedType = 41;
-pub const py_PredefinedType_tp_NotImplementedError: py_PredefinedType = 42;
-pub const py_PredefinedType_tp_TypeError: py_PredefinedType = 43;
-pub const py_PredefinedType_tp_IndexError: py_PredefinedType = 44;
-pub const py_PredefinedType_tp_ValueError: py_PredefinedType = 45;
-pub const py_PredefinedType_tp_RuntimeError: py_PredefinedType = 46;
-pub const py_PredefinedType_tp_TimeoutError: py_PredefinedType = 47;
-pub const py_PredefinedType_tp_ZeroDivisionError: py_PredefinedType = 48;
-pub const py_PredefinedType_tp_NameError: py_PredefinedType = 49;
-pub const py_PredefinedType_tp_UnboundLocalError: py_PredefinedType = 50;
-pub const py_PredefinedType_tp_AttributeError: py_PredefinedType = 51;
-pub const py_PredefinedType_tp_ImportError: py_PredefinedType = 52;
-pub const py_PredefinedType_tp_AssertionError: py_PredefinedType = 53;
-pub const py_PredefinedType_tp_KeyError: py_PredefinedType = 54;
-pub const py_PredefinedType_tp_vec2: py_PredefinedType = 55;
-pub const py_PredefinedType_tp_vec3: py_PredefinedType = 56;
-pub const py_PredefinedType_tp_vec2i: py_PredefinedType = 57;
-pub const py_PredefinedType_tp_vec3i: py_PredefinedType = 58;
-pub const py_PredefinedType_tp_mat3x3: py_PredefinedType = 59;
-pub const py_PredefinedType_tp_color32: py_PredefinedType = 60;
-pub const py_PredefinedType_tp_array2d_like: py_PredefinedType = 61;
-pub const py_PredefinedType_tp_array2d_like_iterator: py_PredefinedType = 62;
-pub const py_PredefinedType_tp_array2d: py_PredefinedType = 63;
-pub const py_PredefinedType_tp_array2d_view: py_PredefinedType = 64;
-pub const py_PredefinedType_tp_chunked_array2d: py_PredefinedType = 65;
+pub const py_PredefinedType_tp_bytes_iterator: py_PredefinedType = 23;
+pub const py_PredefinedType_tp_namedict: py_PredefinedType = 24;
+pub const py_PredefinedType_tp_locals: py_PredefinedType = 25;
+pub const py_PredefinedType_tp_code: py_PredefinedType = 26;
+pub const py_PredefinedType_tp_dict: py_PredefinedType = 27;
+pub const py_PredefinedType_tp_dict_iterator: py_PredefinedType = 28;
+pub const py_PredefinedType_tp_property: py_PredefinedType = 29;
+pub const py_PredefinedType_tp_star_wrapper: py_PredefinedType = 30;
+pub const py_PredefinedType_tp_staticmethod: py_PredefinedType = 31;
+pub const py_PredefinedType_tp_classmethod: py_PredefinedType = 32;
+pub const py_PredefinedType_tp_NoneType: py_PredefinedType = 33;
+pub const py_PredefinedType_tp_NotImplementedType: py_PredefinedType = 34;
+pub const py_PredefinedType_tp_ellipsis: py_PredefinedType = 35;
+pub const py_PredefinedType_tp_generator: py_PredefinedType = 36;
+pub const py_PredefinedType_tp_SystemExit: py_PredefinedType = 37;
+pub const py_PredefinedType_tp_KeyboardInterrupt: py_PredefinedType = 38;
+pub const py_PredefinedType_tp_StopIteration: py_PredefinedType = 39;
+pub const py_PredefinedType_tp_SyntaxError: py_PredefinedType = 40;
+pub const py_PredefinedType_tp_RecursionError: py_PredefinedType = 41;
+pub const py_PredefinedType_tp_OSError: py_PredefinedType = 42;
+pub const py_PredefinedType_tp_PermissionError: py_PredefinedType = 43;
+pub const py_PredefinedType_tp_NotImplementedError: py_PredefinedType = 44;
+pub const py_PredefinedType_tp_TypeError: py_PredefinedType = 45;
+pub const py_PredefinedType_tp_IndexError: py_PredefinedType = 46;
+pub const py_PredefinedType_tp_ValueError: py_PredefinedType = 47;
+pub const py_PredefinedType_tp_RuntimeError: py_PredefinedType = 48;
+pub const py_PredefinedType_tp_TimeoutError: py_PredefinedType = 49;
+pub const py_PredefinedType_tp_ZeroDivisionError: py_PredefinedType = 50;
+pub const py_PredefinedType_tp_NameError: py_PredefinedType = 51;
+pub const py_PredefinedType_tp_UnboundLocalError: py_PredefinedType = 52;
+pub const py_PredefinedType_tp_AttributeError: py_PredefinedType = 53;
+pub const py_PredefinedType_tp_ImportError: py_PredefinedType = 54;
+pub const py_PredefinedType_tp_AssertionError: py_PredefinedType = 55;
+pub const py_PredefinedType_tp_KeyError: py_PredefinedType = 56;
+pub const py_PredefinedType_tp_stdc_Memory: py_PredefinedType = 57;
+pub const py_PredefinedType_tp_stdc_Char: py_PredefinedType = 58;
+pub const py_PredefinedType_tp_stdc_UChar: py_PredefinedType = 59;
+pub const py_PredefinedType_tp_stdc_Short: py_PredefinedType = 60;
+pub const py_PredefinedType_tp_stdc_UShort: py_PredefinedType = 61;
+pub const py_PredefinedType_tp_stdc_Int: py_PredefinedType = 62;
+pub const py_PredefinedType_tp_stdc_UInt: py_PredefinedType = 63;
+pub const py_PredefinedType_tp_stdc_Long: py_PredefinedType = 64;
+pub const py_PredefinedType_tp_stdc_ULong: py_PredefinedType = 65;
+pub const py_PredefinedType_tp_stdc_LongLong: py_PredefinedType = 66;
+pub const py_PredefinedType_tp_stdc_ULongLong: py_PredefinedType = 67;
+pub const py_PredefinedType_tp_stdc_Float: py_PredefinedType = 68;
+pub const py_PredefinedType_tp_stdc_Double: py_PredefinedType = 69;
+pub const py_PredefinedType_tp_stdc_Pointer: py_PredefinedType = 70;
+pub const py_PredefinedType_tp_stdc_Bool: py_PredefinedType = 71;
+pub const py_PredefinedType_tp_vec2: py_PredefinedType = 72;
+pub const py_PredefinedType_tp_vec3: py_PredefinedType = 73;
+pub const py_PredefinedType_tp_vec2i: py_PredefinedType = 74;
+pub const py_PredefinedType_tp_vec3i: py_PredefinedType = 75;
+pub const py_PredefinedType_tp_vec4i: py_PredefinedType = 76;
+pub const py_PredefinedType_tp_mat3x3: py_PredefinedType = 77;
+pub const py_PredefinedType_tp_color32: py_PredefinedType = 78;
+pub const py_PredefinedType_tp_array2d_like: py_PredefinedType = 79;
+pub const py_PredefinedType_tp_array2d_like_iterator: py_PredefinedType = 80;
+pub const py_PredefinedType_tp_array2d: py_PredefinedType = 81;
+pub const py_PredefinedType_tp_array2d_view: py_PredefinedType = 82;
+pub const py_PredefinedType_tp_chunked_array2d: py_PredefinedType = 83;
 #[doc = " Python favored string formatting.\n %d: int\n %i: py_i64 (int64_t)\n %f: py_f64 (double)\n %s: const char*\n %q: c11_sv\n %v: c11_sv\n %c: char\n %p: void*\n %t: py_Type\n %n: py_Name"]
 pub type py_PredefinedType = ::core::ffi::c_uint;
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct py_TValue {
+    pub type_: py_Type,
+    pub is_ptr: bool,
+    pub extra: ::core::ffi::c_int,
+    pub __bindgen_anon_1: py_TValue__bindgen_ty_1,
+}
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union py_TValue__bindgen_ty_1 {
+    pub _i64: i64,
+    pub _f64: f64,
+    pub _bool: bool,
+    pub _cfunc: py_CFunction,
+    pub _obj: *mut ::core::ffi::c_void,
+    pub _ptr: *mut ::core::ffi::c_void,
+    pub _chars: [::core::ffi::c_char; 16usize],
+}

@@ -24,6 +24,10 @@ const FUNCTIONS: &[NativeFunction] = &[
         callback: identity,
     },
     NativeFunction {
+        name: c"override",
+        callback: identity,
+    },
+    NativeFunction {
         name: c"no_type_check",
         callback: identity,
     },
@@ -97,6 +101,8 @@ const SENTINELS: &[&CStr] = &[
     c"Required",
     c"NotRequired",
     c"ReadOnly",
+    c"TypeGuard",
+    c"TypeIs",
 ];
 
 pub(super) const MODULE: NativeModule = NativeModule {

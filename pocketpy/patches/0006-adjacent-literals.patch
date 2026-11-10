@@ -1,10 +1,12 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -25878,15 +25878,61 @@
+@@ -14421,15 +14421,63 @@
  }
-
+ 
  /* Expression Callbacks */
 +// kipferl patch: join adjacent plain string/bytes tokens once, preserving token ownership
++// kipferl patch: INT_MAX bounds the joined literal; 2.2.0 includes limits.h only later
++#include <limits.h>
 +static Error* concatenate_string_literals(Compiler* self, Token* first) {
 +    int lookahead = self->i;
 +    c11_sbuf buffer;
@@ -53,7 +55,7 @@
      Ctx__s_push(ctx(), (Expr*)e);
      return NULL;
  }
-
+ 
  static Error* exprBytes(Compiler* self) {
 -    c11_sv sv = c11_string__sv(prev()->value._str);
 -    Ctx__s_push(ctx(), (Expr*)RawStringExpr__new(prev()->line, sv, OP_BUILD_BYTES));
@@ -64,8 +66,8 @@
 +    Ctx__s_push(ctx(), (Expr*)RawStringExpr__new(first->line, sv, OP_BUILD_BYTES));
      return NULL;
  }
-
-@@ -26636,27 +26682,49 @@
+ 
+@@ -15123,27 +15171,49 @@
              }
              return NULL;
          }

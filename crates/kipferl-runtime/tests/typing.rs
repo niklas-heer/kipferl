@@ -28,6 +28,8 @@ fn preserves_typevar_alias_sentinel_and_identity_behavior() {
         "assert typing.final(marker) is marker\n",
         "assert typing.no_type_check(marker) is marker\n",
         "assert typing.runtime_checkable(marker) is marker\n",
+        "assert typing.override(marker) is marker\n",
+        "assert typing.TypeGuard is not typing.TypeIs\n",
         "assert typing.get_args(T) == ()\n",
         "assert typing.get_origin(T) is None\n",
         "assert typing.get_type_hints(marker) == {}\n",

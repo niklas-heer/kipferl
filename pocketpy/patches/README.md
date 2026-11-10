@@ -31,6 +31,9 @@ ordered patches, and compares the result byte for byte with the vendored file.
 `from ... import (...)` lists and function/lambda parameters, including
 `*args` and `**kwargs`. Empty import lists, double commas, unparenthesized
 trailing import commas, and parameters after `**kwargs` remain errors.
+PocketPy 2.2 accepts a trailing comma in `def` parameter lists and drops
+newlines inside brackets itself, so the patch only adds the lambda terminator
+and the parenthesized from-import case.
 
 `0006-adjacent-literals.patch` combines adjacent plain strings and bytes at
 compile time, including default values. It preserves Unicode and embedded NUL
@@ -79,3 +82,59 @@ are outside this patch.
 Regression tests in `crates/kipferl-runtime/tests/dotted_imports.rs` construct
 isolated local package trees and compare their behavior with CPython, including
 failure retries, circular imports, shadowing, reexports, and retained objects.
+
+PocketPy 2.2 rewrote the module system and now provides parts of this itself:
+implicit parent imports, root binding for `import a.b`, full `__name__`, and a
+`__package__` used for relative imports. The patch keeps that structure and adds
+what upstream still lacks: the package flag (upstream gives a top-level module
+its own name as `__package__`), parent attributes for children, failure
+eviction with stable module identity, `IMPORT_FROM`, `sys.modules`, `__file__`
+and `__path__`, package-before-module precedence, and `__import__` fromlists.
+Upstream's ordinary `getattr` fallback that imported `module.name` on any
+missing attribute is removed. Kipferl imports source files only: the `.pyc`
+probes that 2.2 added are left out, so an import performs at most two file
+lookups and never executes serialized bytecode found on disk.
+
+### Math accuracy
+
+PocketPy 2.2 replaced the C library's math with its own `dmath` routines
+everywhere: `sqrt(x)` is `pow(x, 0.5)`, `pow` is `exp(y * log(x))`, `exp` and
+`log` use short polynomial and spline approximations, `floor`/`ceil`/`trunc`
+cast through `int64_t`, and large-argument trigonometric reduction is disabled.
+`math.sqrt(9)`, `9 ** 0.5` and `math.pow(9, 0.5)` returned `2.9999999999999996`,
+and `1e300 // 1.0` was undefined. `0008-libm-math.patch` keeps `dmath` only
+when `PK_ENABLE_DETERMINISM` is set and otherwise delegates every approximated
+function to the platform libm, as PocketPy 2.1 and CPython do. Exact helpers
+(`fmod`, `modf`, `copysign`, `fabs`, the classification functions) stay shared.
+It also computes `math.log(x, base)` as `log(x) / log(base)` like CPython, and
+`math.floor`, `math.ceil` and `math.trunc`, which now return `int`, raise
+`ValueError` for NaN, infinities and values outside 64-bit integers instead of
+performing an undefined conversion (PocketPy has no `OverflowError`).
+`crates/kipferl-runtime/tests/float_math.rs` compares results bit for bit with
+CPython.
+
+### Memory-unsafe script APIs
+
+PocketPy 2.2 adds two ways for a script to corrupt memory, and
+`0009-unsafe-script-apis.patch` removes both so memory-unsafe operations stay
+behind Kipferl's Rust FFI boundary:
+
+- A `stdc` module with `malloc`, `free`, `memcpy` and raw reads and writes by
+  integer address. Its types are predefined, so the VM still creates them, but
+  the module is removed from the import cache. A local `stdc.py` still imports.
+- `gc.track` and `gc.untrack`. An untracked container is kept but its children
+  are not marked, so the next collection frees objects it still references and
+  later reads see reused memory. CPython has neither function; `gc.is_tracked`
+  remains.
+
+### Traceback frames and the collector
+
+Each caught exception records up to seven traceback frames. PocketPy fills
+their `locals` and `globals` only while its debugger runs, yet the collector
+marks both fields for every exception, so a collection read uninitialized
+memory. This crashed Linux builds (SIGSEGV) and fails UBSan's bool check; it is
+present in 2.1.3 as well. `0010-exception-frame-gc.patch` sets both to nil when
+the debugger is off. `crates/kipferl-runtime/tests/ffi_stress.rs`, which the
+sanitizer CI job runs, keeps hundreds of caught exceptions alive across
+collections.
+
