@@ -45,7 +45,7 @@ fn preserves_ansi_argument_errors() {
     ] {
         let output = run(source);
         assert_eq!(output.status.code(), Some(1));
-        assert!(text(&output.stdout).contains(expected));
+        assert!(text(&output.stderr).contains(expected));
         assert!(text(&output.stderr).contains("Python execution failed"));
     }
 }

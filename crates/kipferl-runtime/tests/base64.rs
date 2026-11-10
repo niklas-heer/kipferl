@@ -49,7 +49,7 @@ fn preserves_base64_errors_and_noncanonical_rejection() {
         let output = run(source);
         assert_eq!(output.status.code(), Some(1), "{}", diagnostic(&output));
         assert!(
-            text(&output.stdout).contains(expected),
+            text(&output.stderr).contains(expected),
             "{}",
             diagnostic(&output)
         );

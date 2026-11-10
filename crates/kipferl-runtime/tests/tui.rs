@@ -154,7 +154,7 @@ fn preserves_empty_results_and_argument_errors() {
             "{source}: {}",
             text(&output.stdout)
         );
-        assert!(text(&output.stdout).contains(expected));
+        assert!(text(&output.stderr).contains(expected));
         assert!(text(&output.stderr).contains("Python execution failed"));
     }
 }
