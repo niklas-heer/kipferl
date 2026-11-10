@@ -14,6 +14,18 @@ import ansi
 For most use cases, prefer the higher-level `tui.style()` function. Use `ansi` when you need fine-grained control or are building custom components.
 </Callout>
 
+`ansi` always returns the escape codes you ask for, including when `NO_COLOR`
+is set: it is the explicit, low-level layer. `tui` and `input` honour
+`NO_COLOR` for their own styling (see [Colors and NO_COLOR](/docs/modules/tui#colors-and-no_color)).
+To honour it in your own `ansi` output, check the environment:
+
+```python
+import ansi, os
+
+color = not os.environ.get("NO_COLOR")
+warn = (ansi.fg("yellow") + "warning:" + ansi.reset()) if color else "warning:"
+```
+
 ## Colors
 
 ### Foreground Colors

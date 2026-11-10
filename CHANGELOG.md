@@ -25,6 +25,29 @@ All notable user-facing changes are documented here.
     exposed, because they let scripts corrupt memory.
 - Startup and the bundled benchmarks are unchanged or slightly faster; the full
   runtime grows by about 66 KB and the core runtime by about 83 KB.
+- **Tracebacks moved to stderr.** An uncaught exception now prints its
+  traceback on stderr, as CPython does, instead of stdout; the exit status is
+  still 1 and stdout holds only what the program printed. This applies to
+  `kipferl run`, `kipferl dev`, `kipferl test`, built applications, and both
+  runtime profiles. Scripts or CI jobs that read tracebacks from stdout must
+  read stderr instead, for example with `2>&1`.
+- Tracebacks no longer show Kipferl's startup frame
+  (`exec(__kipferl_code)` in a temporary file) or the loader frames of bundled
+  local modules. The remaining frames, their file names, and their line
+  numbers are unchanged.
+- Kipferl's own CLI output is styled only on a terminal. Piped or redirected
+  output, such as `kipferl --version > file`, no longer contains escape codes.
+  `NO_COLOR` set to a non-empty value disables styling; `CLICOLOR_FORCE`
+  (except `0`) or `FORCE_COLOR` (except `0` and `false`) enable it for pipes;
+  `NO_COLOR` wins over both, and `TERM=dumb` counts as no terminal.
+- `tui` and `input` add no colours or styles of their own when `NO_COLOR` is
+  set to a non-empty value, and `tui.style()` then returns its text unchanged.
+  Without `NO_COLOR` their output is unchanged, including in pipes. `ansi`
+  always returns the requested codes. `input` previously also treated an
+  empty `NO_COLOR` as set.
+- The `kipferl new` starters (`cli`, `api`, `interactive`) print their errors
+  on stderr instead of stdout and still exit with status 2 (1 for request
+  failures). Existing projects keep their generated code.
 
 ### Fixed
 

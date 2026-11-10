@@ -9,8 +9,24 @@ description: Understand error messages and choose libraries the runtime supports
 Run `kipferl run` for one execution, or `kipferl dev` to restart after edits.
 Tracebacks identify the application's original filename and line, so open
 that location in your editor. Generated compatibility code should not shift
-your source line numbers. Fix the first relevant application frame, then rerun
-the test that exercises the failure.
+your source line numbers, and Kipferl's own startup frames are left out. Fix
+the first relevant application frame, then rerun the test that exercises the
+failure.
+
+As in CPython, an uncaught exception prints its traceback on stderr and exits
+with status 1; stdout holds only what the program printed. Redirecting output,
+as in `app > out.json`, therefore keeps the traceback out of the file. Use
+`2>&1` when you want both in one place. Kipferl 0.7 and earlier printed
+tracebacks on stdout.
+
+## Colour and NO_COLOR
+
+Kipferl's own messages are styled only when they go to a terminal. Setting
+`NO_COLOR` to any non-empty value turns styling off, and `CLICOLOR_FORCE`
+(any value except `0`) or `FORCE_COLOR` (any value except `0` and `false`)
+turns it on for pipes and files. `NO_COLOR` wins when both are set, and
+`TERM=dumb` counts as no terminal. Your application's own output follows the
+[module rules](/docs/modules/tui#colors-and-no_color).
 
 If a packaged app behaves differently, rebuild it after changes and run the
 new executable from an unrelated directory. Check that required data files

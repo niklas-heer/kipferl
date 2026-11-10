@@ -184,6 +184,20 @@ Available color names:
 - Hex: `#ff5500`, `#abc`
 - RGB values via `ansi.rgb(r, g, b)`
 
+## Colors and NO_COLOR
+
+When the `NO_COLOR` environment variable is set to a non-empty value
+([no-color.org](https://no-color.org)), `tui` adds no colours or other styling
+of its own: status messages, boxes, rules, tables, progress bars, and spinners
+keep their symbols and borders, and `tui.style()` returns the text unchanged.
+Text you pass in is printed as given, and the [`ansi`](/docs/modules/ansi)
+module still returns the codes you ask for. The [`input`](/docs/modules/input)
+prompts follow the same rule.
+
+Otherwise `tui` styles its output whether or not stdout is a terminal, so
+piped output keeps its escape codes. Check `term.is_tty()` if your application
+should print plain text into files and pipes.
+
 ## Utility Functions
 
 ### visible_len
