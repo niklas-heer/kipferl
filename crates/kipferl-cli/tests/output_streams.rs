@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-/// Environment variables that change colour decisions; tests start without them.
+/// Environment variables that change colour decisions; tests set them explicitly.
 const COLOR_VARIABLES: [&str; 4] = ["NO_COLOR", "CLICOLOR_FORCE", "FORCE_COLOR", "TERM"];
 
 struct Fixture(PathBuf);
@@ -186,4 +186,37 @@ fn import_time_and_chained_failures_show_only_user_frames() {
         fixture.anonymize(&chained.stderr),
         "Traceback (most recent call last):\n  File \"<dir>/chained.py\", line 2\n    {}['missing']\nKeyError: 'missing'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<dir>/chained.py\", line 4\n    raise ValueError('second')\nValueError: second\nerror: Python execution failed\n"
     );
+}
+
+#[test]
+fn starter_argument_errors_go_to_stderr_with_a_failure_status() {
+    let fixture = Fixture::new();
+    for (template, arguments) in [
+        ("cli", &["--unknown"][..]),
+        ("interactive", &["unexpected"][..]),
+        ("api", &["https://example.com"][..]),
+        ("api", &["example.com", "no-slash"][..]),
+    ] {
+        let name = format!("{template}_starter");
+        let created = fixture.cli(&["new", &name, "--template", template]);
+        assert!(created.status.success(), "{template}");
+        let project = fixture.0.join(&name);
+        let mut command = fixture.command(env!("CARGO_BIN_EXE_kipferl"));
+        let output = command
+            .current_dir(&project)
+            .args(["run", "--"])
+            .args(arguments)
+            .output();
+        let Ok(output) = output else {
+            panic!("cannot run the {template} starter");
+        };
+        assert_eq!(output.status.code(), Some(2), "{template} {arguments:?}");
+        assert!(output.stdout.is_empty(), "{template} {arguments:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).starts_with("Error: "),
+            "{template} {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let _ = fs::remove_dir_all(project);
+    }
 }

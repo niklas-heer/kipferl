@@ -41,7 +41,7 @@ def main():
     elif len(argv) == 2 and argv[0] == "--name":
         name = argv[1]
     else:
-        print("Error: expected --name NAME. Run with --help for usage.")
+        sys.stderr.write("Error: expected --name NAME. Run with --help for usage.\n")
         sys.exit(2)
     print(greeting(name))
 
@@ -67,7 +67,7 @@ def main():
         print("An interactive greeting tool. Prompts for your name.")
         return
     if len(sys.argv) > 1:
-        print("Error: unexpected arguments. Run with --help for usage.")
+        sys.stderr.write("Error: unexpected arguments. Run with --help for usage.\n")
         sys.exit(2)
     tui.box("__APP_NAME__\nBuilt with kipferl", title="Welcome", border_color="cyan")
     name = input.prompt("What's your name?", default="World")
@@ -97,11 +97,11 @@ def main():
         print("Non-JSON responses are printed as text. PATH defaults to /.")
         return
     if len(argv) > 2 or argv[0].startswith("-") or "://" in argv[0]:
-        print("Error: specify a host without https:// and an optional path.")
+        sys.stderr.write("Error: specify a host without https:// and an optional path.\n")
         sys.exit(2)
     path = argv[1] if len(argv) > 1 else "/"
     if not path.startswith("/"):
-        print("Error: PATH must start with /.")
+        sys.stderr.write("Error: PATH must start with /.\n")
         sys.exit(2)
     connection = HTTPSConnection(argv[0], timeout=15)
     try:
@@ -109,14 +109,14 @@ def main():
         response = connection.getresponse()
         body = response.read().decode("utf-8")
         if response.status >= 400:
-            print(f"Error: HTTP {response.status} {response.reason}")
+            sys.stderr.write(f"Error: HTTP {response.status} {response.reason}\n")
             sys.exit(1)
         try:
             print(format_payload(json.loads(body)))
         except ValueError:
             print(body)
     except Exception as error:
-        print(f"Request failed: {error}")
+        sys.stderr.write(f"Request failed: {error}\n")
         sys.exit(1)
 
 
