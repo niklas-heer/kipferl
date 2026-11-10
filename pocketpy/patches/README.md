@@ -131,10 +131,14 @@ behind Kipferl's Rust FFI boundary:
   later reads see reused memory. CPython has neither function; `gc.is_tracked`
   remains.
 
-The same patch stops publishing `pkpy.TValue`, present since 2.1. Its
-constructors built a value of any type from a raw integer, so
-`pkpy.TValue[int].__new__(list, address)` gave a list whose object pointer
-was that address. The rest of `pkpy` stays.
+The same patch also removes:
+
+- `pkpy.TValue`, present since 2.1. Its constructors built a value of any type
+  from a raw integer, so `pkpy.TValue[int].__new__(list, address)` gave a list
+  whose object pointer was that address. The rest of `pkpy` stays.
+- `gc.setup_debug_callback`, new in 2.2. It runs a Python callback inside every
+  collection and aborts the process when the callback raises, so a script
+  error ended the process instead of raising.
 
 ### Traceback frames and the collector
 

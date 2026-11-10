@@ -22,7 +22,9 @@ All notable user-facing changes are documented here.
     `typing.TypeGuard` and `typing.TypeIs`. Modules print as `<module 'name'>`.
   - PocketPy's undocumented `linalg` and `colorcvt` modules are gone upstream;
     its new `stdc` raw-memory module and `gc.track`/`gc.untrack` are not
-    exposed, because they let scripts corrupt memory.
+    exposed, because they let scripts corrupt memory, and neither is
+    `gc.setup_debug_callback`, which aborts the process when its callback
+    raises.
 - Startup and the bundled benchmarks are unchanged or slightly faster; the full
   runtime grows by about 66 KB and the core runtime by about 83 KB.
 - **Tracebacks moved to stderr.** An uncaught exception now prints its

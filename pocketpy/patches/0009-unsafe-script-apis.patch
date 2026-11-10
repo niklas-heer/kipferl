@@ -9,8 +9,13 @@
      pk__add_module_vmath();
      pk__add_module_array2d();
      // pk__add_module_colorcvt();
-@@ -24903,8 +24905,9 @@
-     py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
+@@ -24900,11 +24902,13 @@
+ 
+     py_bindfunc(mod, "collect", gc_collect);
+     py_bindfunc(mod, "collect_hint", gc_collect_hint);
+-    py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
++    // kipferl patch: a raising gc debug callback aborts the process
++    (void)gc_setup_debug_callback;
  
      py_bindfunc(mod, "is_tracked", gc_is_tracked);
 -    py_bindfunc(mod, "track", gc_track);
@@ -21,7 +26,7 @@
  }
  
  // src/modules\importlib.c
-@@ -27291,7 +27294,7 @@
+@@ -27291,7 +27295,7 @@
      py_bindproperty(ttype, "value", TValue_vec2i_value, NULL);
      py_dict_setitem(TValue_dict, py_tpobject(tp_vec2i), py_tpobject(ttype));
  

@@ -24933,7 +24933,8 @@ void pk__add_module_gc() {
 
     py_bindfunc(mod, "collect", gc_collect);
     py_bindfunc(mod, "collect_hint", gc_collect_hint);
-    py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
+    // kipferl patch: a raising gc debug callback aborts the process
+    (void)gc_setup_debug_callback;
 
     py_bindfunc(mod, "is_tracked", gc_is_tracked);
     // kipferl patch: gc.untrack skips marking children, so scripts could free live objects

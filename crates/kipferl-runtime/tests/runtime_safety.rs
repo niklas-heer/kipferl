@@ -178,7 +178,8 @@ print('unicode replacement passed')
 
 // PocketPy 2.2 registers `stdc` (malloc, free, memcpy, raw reads and writes by
 // integer address) and `gc.untrack`, after which a collection frees objects the
-// untracked container still references. Scripts can reach neither.
+// untracked container still references. Scripts can reach neither, nor
+// `gc.setup_debug_callback`, whose raising callback aborts the process.
 #[test]
 fn raw_memory_and_gc_untracking_are_not_scriptable() {
     let output = run(r"
@@ -191,6 +192,7 @@ except ImportError as error:
 assert 'stdc' not in sys.modules
 import gc
 assert not hasattr(gc, 'untrack') and not hasattr(gc, 'track')
+assert not hasattr(gc, 'setup_debug_callback')
 items = [[1, 2, 3] for _ in range(5)]
 assert gc.is_tracked(items)
 gc.collect()

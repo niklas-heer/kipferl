@@ -28,6 +28,7 @@
         "kipferl patch: round(x, n) keeps x when no digit at that scale fits an int64",
         "kipferl patch: keep stdc's predefined types but leave raw memory access unimportable",
         "kipferl patch: gc.untrack skips marking children, so scripts could free live objects",
+        "kipferl patch: a raising gc debug callback aborts the process",
         "kipferl patch: pkpy.TValue forged values of any type from raw integers",
         "kipferl patch: the collector marks these fields, so never leave them uninitialized",
         "kipferl patch: shift counts outside 0..63 are undefined in C",
