@@ -4,6 +4,14 @@ All notable user-facing changes are documented here.
 
 ## Unreleased
 
+### Security
+
+- Update the `zip` crate to 9.x, which fixes archive parsing advisories in the
+  `zipfile` module and wheel extraction, and `rustls` to 0.23.46 for HTTPS.
+  `zipfile` member names are now decoded as UTF-8 whenever they are valid
+  UTF-8 and as CP437 otherwise, whatever the entry's UTF-8 flag says. Before,
+  the flag decided, as in CPython; only archives with mislabelled names differ.
+
 ## [0.7.3] - 2026-11-10
 
 ### Added

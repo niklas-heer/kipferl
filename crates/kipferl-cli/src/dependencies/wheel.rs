@@ -24,7 +24,11 @@ pub(super) fn inspect(bytes: &[u8], artifact: &Artifact) -> io::Result<Wheel> {
     let mut total = 0_u64;
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(invalid)?;
-        let name = entry.name().trim_end_matches('/').to_owned();
+        let name = entry
+            .name()
+            .map_err(invalid)?
+            .trim_end_matches('/')
+            .to_owned();
         safe_path(&name)?;
         if !paths.insert(name.to_lowercase()) {
             return Err(invalid(format!(

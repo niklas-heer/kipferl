@@ -44,7 +44,7 @@ kipferl-pocketpy-sys = { path = "../pocketpy-sys" }
 toml = { version = "1.1.4", optional = true }
 ureq = { version = "3.3.0", default-features = false, features = ["rustls"], optional = true }
 yaml_serde = { version = "0.10.4", optional = true }
-zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"], optional = true }
+zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2"], optional = true }
 
 [lints]
 workspace = true

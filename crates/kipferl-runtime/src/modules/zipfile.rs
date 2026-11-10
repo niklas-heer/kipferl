@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ffi::c_int;
 use std::fs::File;
 use std::io::Read;
@@ -105,7 +106,13 @@ unsafe extern "C" fn names(argc: c_int, stack: ffi::py_StackRef) -> bool {
     let Ok(archive) = open_archive(&path) else {
         return value_error(c"File is not a zip file");
     };
-    let archive_names: Vec<_> = archive.file_names().map(str::to_owned).collect();
+    let Ok(archive_names) = archive
+        .file_names()
+        .map(|name| name.map(Cow::into_owned))
+        .collect::<Result<Vec<_>, _>>()
+    else {
+        return value_error(c"zip member name is invalid");
+    };
     let mut roots = RootFrame::new();
     let output = roots.list();
     for name in archive_names {
