@@ -12952,13 +12952,19 @@ typedef struct Ctx {
     c11_vector /*T=Expr_p*/ s_expr;
     c11_smallmap_n2d global_names;
     c11_smallmap_v2d co_consts_string_dedup_map;  // this stores 0-based index instead of pointer
+    // kipferl patch: the token of each try block's finally clause, compiled again on every exit
+    c11_vector /*T=CtxFinally*/ finally_clauses;
 } Ctx;
+
+typedef struct CtxFinally {
+    int iblock;
+    int token;
+} CtxFinally;
 
 typedef struct Expr Expr;
 
 static void Ctx__ctor(Ctx* self, CodeObject* co, FuncDecl* func, int level, py_Name n_self);
 static void Ctx__dtor(Ctx* self);
-static int Ctx__prepare_loop_divert(Ctx* self, int line, bool is_break);
 static int Ctx__enter_block(Ctx* self, CodeBlockType type);
 static void Ctx__exit_block(Ctx* self);
 static int Ctx__emit_(Ctx* self, Opcode opcode, uint16_t arg, int line);
@@ -14042,6 +14048,7 @@ static void Ctx__ctor(Ctx* self, CodeObject* co, FuncDecl* func, int level, py_N
     c11_vector__ctor(&self->s_expr, sizeof(Expr*));
     c11_smallmap_n2d__ctor(&self->global_names);
     c11_smallmap_v2d__ctor(&self->co_consts_string_dedup_map);
+    c11_vector__ctor(&self->finally_clauses, sizeof(CtxFinally));
 }
 
 static void Ctx__dtor(Ctx* self) {
@@ -14057,35 +14064,14 @@ static void Ctx__dtor(Ctx* self) {
         PK_FREE((void*)p);
     }
     c11_smallmap_v2d__dtor(&self->co_consts_string_dedup_map);
+    c11_vector__dtor(&self->finally_clauses);
 }
 
-static int Ctx__prepare_loop_divert(Ctx* self, int line, bool is_break) {
-    int index = self->curr_iblock;
-    while(index >= 0) {
-        CodeBlock* block = c11__at(CodeBlock, &self->co->blocks, index);
-        switch(block->type) {
-            case CodeBlockType_WHILE_LOOP: return index;
-            case CodeBlockType_FOR_LOOP: {
-                if(is_break) Ctx__emit_(self, OP_POP_TOP, BC_NOARG, line);
-                return index;
-            }
-            case CodeBlockType_WITH: {
-                Ctx__emit_(self, OP_POP_TOP, BC_NOARG, line);
-                break;
-            }
-            case CodeBlockType_TRY: {
-                Ctx__emit_(self, OP_END_TRY, BC_NOARG, line);
-                break;
-            }
-            case CodeBlockType_EXCEPT: {
-                Ctx__emit_(self, OP_END_TRY, BC_NOARG, line);
-                break;
-            }
-            default: break;
-        }
-        index = block->parent;
+static int Ctx__finally_token(Ctx* self, int iblock) {
+    c11__foreach(CtxFinally, &self->finally_clauses, it) {
+        if(it->iblock == iblock) return it->token;
     }
-    return index;
+    return -1;
 }
 
 static int Ctx__enter_block(Ctx* self, CodeBlockType type) {
@@ -15027,6 +15013,106 @@ static Error* compile_block_body(Compiler* self) {
     return NULL;
 }
 
+static bool Ctx__has_cleanup(Ctx* self) {
+    for(int index = self->curr_iblock; index >= 0;) {
+        CodeBlock* block = c11__at(CodeBlock, &self->co->blocks, index);
+        if(block->type == CodeBlockType_WITH || Ctx__finally_token(self, index) >= 0) return true;
+        index = block->parent;
+    }
+    return false;
+}
+
+typedef enum DivertKind { DIVERT_BREAK, DIVERT_CONTINUE, DIVERT_RETURN } DivertKind;
+
+// kipferl patch: break, continue and return run the finally clauses and __exit__ methods they leave
+static Error* compile_divert(Compiler* self, int line, DivertKind kind, int* out_loop) {
+    Error* err;
+    *out_loop = -1;
+    // a return only needs to unwind when it leaves cleanup code; the frame discards the rest
+    if(kind == DIVERT_RETURN && !Ctx__has_cleanup(ctx())) return NULL;
+    int index = ctx()->curr_iblock;
+    while(index >= 0) {
+        // copy the block: compiling a finally clause may grow the block vector
+        CodeBlock block = *c11__at(CodeBlock, &ctx()->co->blocks, index);
+        switch(block.type) {
+            case CodeBlockType_WHILE_LOOP:
+                if(kind != DIVERT_RETURN) {
+                    *out_loop = index;
+                    return NULL;
+                }
+                break;
+            case CodeBlockType_FOR_LOOP:
+                if(kind == DIVERT_BREAK) Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, line);
+                if(kind != DIVERT_RETURN) {
+                    *out_loop = index;
+                    return NULL;
+                }
+                // [iter, value] -> [value]
+                Ctx__emit_(ctx(), OP_ROT_TWO, BC_NOARG, line);
+                Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, line);
+                break;
+            case CodeBlockType_WITH:
+                // [manager, value] -> [value]; OP_WITH_EXIT pops the manager
+                if(kind == DIVERT_RETURN) Ctx__emit_(ctx(), OP_ROT_TWO, BC_NOARG, line);
+                Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, line);
+                break;
+            case CodeBlockType_TRY: {
+                Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, line);
+                int token = Ctx__finally_token(ctx(), index);
+                if(token >= 0) {
+                    // the clause runs outside the block it protects
+                    int saved_token = self->i;
+                    int saved_block = ctx()->curr_iblock;
+                    self->i = token;
+                    ctx()->curr_iblock = block.parent;
+                    err = compile_block_body(self);
+                    self->i = saved_token;
+                    ctx()->curr_iblock = saved_block;
+                    if(err) return err;
+                }
+                break;
+            }
+            case CodeBlockType_EXCEPT: Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, line); break;
+            default: break;
+        }
+        index = block.parent;
+    }
+    return NULL;
+}
+
+// kipferl patch: find the finally clause of the try statement whose header ends at `colon`
+static int find_finally_clause(Compiler* self, int colon) {
+    int j = colon;
+    while(true) {
+        // skip the clause body
+        j++;
+        if(tk(j)->type != TK_EOL) {
+            while(j < self->tokens_length - 1 && tk(j)->type != TK_EOL && tk(j)->type != TK_EOF)
+                j++;
+        } else {
+            while(tk(j)->type == TK_EOL)
+                j++;
+            if(tk(j)->type != TK_INDENT) return -1;
+            int depth = 0;
+            do {
+                if(tk(j)->type == TK_INDENT) depth++;
+                if(tk(j)->type == TK_DEDENT) depth--;
+                if(tk(j)->type == TK_EOF) return -1;
+                j++;
+            } while(depth > 0);
+        }
+        while(tk(j)->type == TK_EOL)
+            j++;
+        if(tk(j)->type == TK_FINALLY) return j + 1;
+        if(tk(j)->type != TK_EXCEPT && tk(j)->type != TK_ELSE) return -1;
+        // skip the next clause header
+        while(!(tk(j)->type == TK_COLON && tk(j)->brackets_level == 0)) {
+            if(tk(j)->type == TK_EOL || tk(j)->type == TK_EOF) return -1;
+            j++;
+        }
+    }
+}
+
 static Error* compile_if_stmt(Compiler* self) {
     Error* err;
     check(EXPR(self));  // condition
@@ -15647,6 +15733,16 @@ static Error* compile_try_except(Compiler* self) {
     int patches[8];
     int patches_length = 0;
 
+    // kipferl patch: try statements accept else and finally clauses
+    int finally_token = find_finally_clause(self, self->i);
+    if(finally_token >= 0) {
+        // the finally clause protects the whole statement, including except and else clauses
+        int block = Ctx__enter_block(ctx(), CodeBlockType_TRY);
+        CtxFinally clause = {block, finally_token};
+        c11_vector__push(CtxFinally, &ctx()->finally_clauses, clause);
+        Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
+    }
+
     Ctx__enter_block(ctx(), CodeBlockType_TRY);
     Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
     check(compile_block_body(self));
@@ -15662,59 +15758,82 @@ static Error* compile_try_except(Compiler* self) {
      * discarded.
      */
 
-    // known issue:
-    // A return, break, continue in try/except block will make the finally block not executed
-
-    bool has_finally = curr()->type == TK_FINALLY;
-    if(has_finally) return SyntaxError(self, "finally clause is not supported yet");
-
-    patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+    int else_patch = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
     Ctx__exit_block(ctx());
 
-    do {
-        if(patches_length == 8) {
-            return SyntaxError(self, "maximum number of except clauses reached");
-        }
-        py_Name as_name = 0;
-        consume(TK_EXCEPT);
-        if(is_expression(self, false)) {
-            // except <expr>:
-            check(EXPR(self));
-            Ctx__s_emit_top(ctx());
-            Ctx__emit_(ctx(), OP_EXCEPTION_MATCH, BC_NOARG, prev()->line);
-            if(match(TK_AS)) {
-                // except <expr> as <name>:
-                consume(TK_ID);
-                as_name = py_namev(Token__sv(prev()));
+    if(curr()->type != TK_EXCEPT) {
+        if(finally_token < 0) return SyntaxError(self, "expected 'except' or 'finally' block");
+        // no handler: pass the exception on to the finally clause
+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+        Ctx__patch_jump(ctx(), else_patch);
+        if(curr()->type == TK_ELSE) return SyntaxError(self, "expected 'finally' block");
+    } else {
+        do {
+            if(patches_length == 8) {
+                return SyntaxError(self, "maximum number of except clauses reached");
             }
-        } else {
-            // except:
-            Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
+            py_Name as_name = 0;
+            consume(TK_EXCEPT);
+            if(is_expression(self, false)) {
+                // except <expr>:
+                check(EXPR(self));
+                Ctx__s_emit_top(ctx());
+                Ctx__emit_(ctx(), OP_EXCEPTION_MATCH, BC_NOARG, prev()->line);
+                if(match(TK_AS)) {
+                    // except <expr> as <name>:
+                    consume(TK_ID);
+                    as_name = py_namev(Token__sv(prev()));
+                }
+            } else {
+                // except:
+                Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
+            }
+            int patch = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+            // on match
+            Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+            if(as_name) {
+                Ctx__emit_(ctx(), OP_PUSH_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+                Ctx__emit_store_name(ctx(), name_scope(self), as_name, BC_KEEPLINE);
+            }
+            Ctx__enter_block(ctx(), CodeBlockType_EXCEPT);
+            check(compile_block_body(self));
+            Ctx__exit_block(ctx());
+            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+            patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+            Ctx__patch_jump(ctx(), patch);
+        } while(curr()->type == TK_EXCEPT);
+
+        // no match, re-raise
+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+
+        // no exception: run the else clause outside the handlers
+        Ctx__patch_jump(ctx(), else_patch);
+        if(match(TK_ELSE)) check(compile_block_body(self));
+
+        // match one & handled, jump to the end
+        for(int i = 0; i < patches_length; i++) {
+            Ctx__patch_jump(ctx(), patches[i]);
         }
-        int patch = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-        // on match
-        Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
-        if(as_name) {
-            Ctx__emit_(ctx(), OP_PUSH_EXCEPTION, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_store_name(ctx(), name_scope(self), as_name, BC_KEEPLINE);
-        }
+    }
+
+    if(finally_token >= 0) {
+        Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+        int normal_patch = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+        Ctx__exit_block(ctx());
+        // an exception left the statement: run the clause, then re-raise it
+        consume(TK_FINALLY);
+        Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, prev()->line);
         Ctx__enter_block(ctx(), CodeBlockType_EXCEPT);
         check(compile_block_body(self));
         Ctx__exit_block(ctx());
-        Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
-        patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
-        Ctx__patch_jump(ctx(), patch);
-    } while(curr()->type == TK_EXCEPT);
-
-    // no match, re-raise
-    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
-
-    // match one & handled, jump to the end
-    for(int i = 0; i < patches_length; i++) {
-        Ctx__patch_jump(ctx(), patches[i]);
+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+        // the statement completed: compile the clause again for the normal path
+        Ctx__patch_jump(ctx(), normal_patch);
+        int end_token = self->i;
+        self->i = finally_token;
+        check(compile_block_body(self));
+        self->i = end_token;
     }
-
-    if(match(TK_FINALLY)) return SyntaxError(self, "finally clause is not supported yet");
     return NULL;
 }
 
@@ -15728,14 +15847,16 @@ static Error* compile_stmt(Compiler* self) {
     int kw_line = prev()->line;  // backup line number
     switch(prev()->type) {
         case TK_BREAK: {
-            int curr_loop_block = Ctx__prepare_loop_divert(ctx(), kw_line, true);
+            int curr_loop_block;
+            check(compile_divert(self, kw_line, DIVERT_BREAK, &curr_loop_block));
             if(curr_loop_block < 0) return SyntaxError(self, "'break' outside loop");
             Ctx__emit_(ctx(), OP_LOOP_BREAK, curr_loop_block, kw_line);
             consume_end_stmt();
             break;
         }
         case TK_CONTINUE: {
-            int curr_loop_block = Ctx__prepare_loop_divert(ctx(), kw_line, false);
+            int curr_loop_block;
+            check(compile_divert(self, kw_line, DIVERT_CONTINUE, &curr_loop_block));
             if(curr_loop_block < 0) return SyntaxError(self, "'continue' not properly in loop");
             Ctx__emit_(ctx(), OP_LOOP_CONTINUE, curr_loop_block, kw_line);
             consume_end_stmt();
@@ -15760,13 +15881,19 @@ static Error* compile_stmt(Compiler* self) {
         case TK_RETURN:
             if(self->contexts.length <= 1) return SyntaxError(self, "'return' outside function");
             if(match_end_stmt(self)) {
-                Ctx__emit_(ctx(), OP_RETURN_VALUE, 1, kw_line);
+                if(!Ctx__has_cleanup(ctx())) {
+                    Ctx__emit_(ctx(), OP_RETURN_VALUE, 1, kw_line);
+                    break;
+                }
+                Ctx__emit_(ctx(), OP_LOAD_NONE, BC_NOARG, kw_line);
             } else {
                 check(EXPR_TUPLE(self));
                 Ctx__s_emit_top(ctx());
                 consume_end_stmt();
-                Ctx__emit_(ctx(), OP_RETURN_VALUE, BC_NOARG, kw_line);
             }
+            int unused_loop;
+            check(compile_divert(self, kw_line, DIVERT_RETURN, &unused_loop));
+            Ctx__emit_(ctx(), OP_RETURN_VALUE, BC_NOARG, kw_line);
             break;
         /*************************************************/
         case TK_IF: check(compile_if_stmt(self)); break;
@@ -19114,7 +19241,11 @@ __NEXT_STEP:
                 TypeError("'%t' object does not support the context manager protocol", TOP()->type);
                 goto __ERROR;
             }
-            if(!py_vectorcall(0, 0)) goto __ERROR;
+            // kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython
+            py_newnone(SP()++);
+            py_newnone(SP()++);
+            py_newnone(SP()++);
+            if(!py_vectorcall(3, 0)) goto __ERROR;
             POP();
             DISPATCH();
         }
@@ -19128,8 +19259,11 @@ __NEXT_STEP:
                 TypeError("'%t' object does not support the context manager protocol", TOP()->type);
                 goto __ERROR;
             }
+            // kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython
+            py_push(py_tpobject(info->exc.type));
             py_push(&info->exc);
-            if(!py_vectorcall(1, 0)) goto __ERROR;
+            py_newnone(SP()++);
+            if(!py_vectorcall(3, 0)) goto __ERROR;
             int suppress = py_bool(py_retval());
             if(suppress < 0) goto __ERROR;
             POP();

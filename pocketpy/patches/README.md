@@ -228,3 +228,35 @@ checks every operand. Raw values are accepted only for plain data types (`int`,
 kind, a short buffer or a too-deep stack raises `ValueError("invalid pickle
 data")`. Pickles written by `pickle.dumps` load unchanged. Loading still calls
 the functions a pickle names, as in CPython, so it is only for trusted data.
+
+### try, finally and with cleanup
+
+PocketPy 2.2 rejects `finally` ("finally clause is not supported yet") and
+`else` after `except`. `0014-try-else-finally.patch` compiles both. The `else`
+clause runs after the try body completes without an exception, outside the
+handlers, so its own exceptions skip them. A `finally` clause protects the whole
+statement, `except` and `else` included: an exception that leaves the statement
+runs the clause and is re-raised, unless the clause itself raises, returns,
+breaks or continues. A `try` may have `finally` without `except`.
+
+`break`, `continue` and `return` that leave a `finally`-protected block run its
+clause, innermost first, before transferring control. The compiler locates the
+clause's tokens before compiling the body and compiles the clause again at each
+such exit, as well as once for normal completion and once for the exception
+path, so no new opcode or runtime state is needed. A `return` value stays on the
+stack while the clauses run. The same unwinding calls `__exit__` for every `with`
+block that `break`, `continue` or `return` leaves; upstream only discarded the
+manager, so `with open(...) as f: return f.read()` never closed the file.
+A `return` that leaves no `finally` or `with` block compiles exactly as before.
+
+Not covered: a generator that is never exhausted does not run its pending
+`finally` clauses (PocketPy generators have no `close()`), and an exception
+raised inside a `finally` clause does not record the original as `__context__`.
+
+`0015-with-exit-arguments.patch` calls `__exit__` with the CPython arguments:
+`(None, None, None)` on normal exit and `(type(exc), exc, None)` when an
+exception leaves the block (PocketPy has no traceback objects). Upstream
+called it with no arguments, so a context manager written for CPython,
+`def __exit__(self, exc_type, exc, tb)`, raised `TypeError`, and Kipferl's
+earlier `0003` exception path passed only the exception. `contextlib.suppress`
+now receives the exception type it checks.

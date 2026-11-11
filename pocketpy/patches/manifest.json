@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 7,
+  "patchset_version": 9,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -53,7 +53,12 @@
         "kipferl patch: a malformed header raises instead of reading past the data",
         "kipferl patch: the module name comes from the pickle and must fit the buffer",
         "kipferl patch: a raw value from the pickle becomes a value only for plain data types;",
-        "kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices"
+        "kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices",
+        "kipferl patch: the token of each try block's finally clause, compiled again on every exit",
+        "kipferl patch: break, continue and return run the finally clauses and __exit__ methods they leave",
+        "kipferl patch: find the finally clause of the try statement whose header ends at `colon`",
+        "kipferl patch: try statements accept else and finally clauses",
+        "kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython"
       ]
     }
   ],
@@ -109,6 +114,14 @@
     {
       "id": "0013-pickle-loads-validation",
       "file": "pocketpy/patches/0013-pickle-loads-validation.patch"
+    },
+    {
+      "id": "0014-try-else-finally",
+      "file": "pocketpy/patches/0014-try-else-finally.patch"
+    },
+    {
+      "id": "0015-with-exit-arguments",
+      "file": "pocketpy/patches/0015-with-exit-arguments.patch"
     }
   ]
 }

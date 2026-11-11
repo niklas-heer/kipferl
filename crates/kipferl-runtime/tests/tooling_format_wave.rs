@@ -16,7 +16,7 @@ fn passes_all_tooling_format_wave_compatibility_fixtures() {
         (
             "contextlib",
             include_str!("../../../tests/cpython/test_contextlib.py"),
-            "Results: 10 passed, 0 failed, 4 skipped",
+            "Results: 14 passed, 0 failed, 0 skipped",
         ),
         (
             "unittest",

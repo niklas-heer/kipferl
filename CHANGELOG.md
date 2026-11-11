@@ -2,6 +2,24 @@
 
 All notable user-facing changes are documented here.
 
+## [Unreleased]
+
+### Added
+
+- `try` statements accept `else` and `finally` clauses. `finally` runs on
+  normal completion, on exceptions, and when `break`, `continue` or `return`
+  leaves the block.
+
+### Fixed
+
+- `break`, `continue` and `return` inside a `with` block now call the context
+  manager's `__exit__`; previously `with open(path) as f: return f.read()`
+  left the file open.
+- `__exit__` receives `(exc_type, exc_value, traceback)` as in CPython. A
+  context manager written as `def __exit__(self, exc_type, exc, tb)` failed
+  with `TypeError`, and `contextlib.suppress` did not suppress anything.
+  `unittest`'s `assertRaises` context now also exposes `.exception`.
+
 ## [0.8.0] - 2026-11-11
 
 ### Changed

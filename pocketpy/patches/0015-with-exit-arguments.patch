@@ -1,0 +1,28 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -19241,7 +19241,11 @@
+                 TypeError("'%t' object does not support the context manager protocol", TOP()->type);
+                 goto __ERROR;
+             }
+-            if(!py_vectorcall(0, 0)) goto __ERROR;
++            // kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython
++            py_newnone(SP()++);
++            py_newnone(SP()++);
++            py_newnone(SP()++);
++            if(!py_vectorcall(3, 0)) goto __ERROR;
+             POP();
+             DISPATCH();
+         }
+@@ -19255,8 +19259,11 @@
+                 TypeError("'%t' object does not support the context manager protocol", TOP()->type);
+                 goto __ERROR;
+             }
++            // kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython
++            py_push(py_tpobject(info->exc.type));
+             py_push(&info->exc);
+-            if(!py_vectorcall(1, 0)) goto __ERROR;
++            py_newnone(SP()++);
++            if(!py_vectorcall(3, 0)) goto __ERROR;
+             int suppress = py_bool(py_retval());
+             if(suppress < 0) goto __ERROR;
+             POP();

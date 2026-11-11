@@ -25,11 +25,11 @@ class _AssertRaisesContext:
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
-        if len(args) == 0 or args[0] is None:
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
             raise AssertionError('did not raise')
-        error = args[0]
-        if isinstance(error, self.expected):
+        if isinstance(exc_value, self.expected):
+            self.exception = exc_value
             return True
         return False
 
