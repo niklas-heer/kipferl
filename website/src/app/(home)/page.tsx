@@ -36,13 +36,13 @@ const chapters = [
   {
     title: "Check your packages",
     detail: "Real evidence. Locked dependencies.",
-    time: 15,
+    time: 18,
     icon: ShieldCheck,
   },
   {
     title: "Ship one executable",
     detail: "Code, runtime, and resources together.",
-    time: 30,
+    time: 33.5,
     icon: Package,
   },
 ];
@@ -144,7 +144,7 @@ function WorkflowDemo() {
           <h2 id="demo-title">Meet your new workflow.</h2>
         </div>
         <span className={styles.recordingLabel}>
-          <span /> 51 sec · Kipferl 0.7.1
+          <span /> 54 sec · Kipferl 0.8.0
         </span>
       </div>
       <div className={styles.terminalWindow}>
@@ -168,7 +168,7 @@ function WorkflowDemo() {
             playsInline
             muted
             preload="none"
-            poster="/demos/kipferl-0.7.1.webp"
+            poster="/demos/kipferl-0.8.0.webp"
             aria-label="Silent terminal recording: create a Kipferl project, install and check tzdata, and build a standalone application. A text walkthrough follows."
             onPlay={() => setPlaying(true)}
             onError={() => setError(true)}
@@ -187,7 +187,7 @@ function WorkflowDemo() {
               if (index >= 0) setActive(index);
             }}
           >
-            <source src="/demos/kipferl-0.7.1.mp4" type="video/mp4" />
+            <source src="/demos/kipferl-0.8.0.mp4" type="video/mp4" />
             Your browser does not support this video. Read the walkthrough
             below.
           </video>
@@ -207,7 +207,7 @@ function WorkflowDemo() {
           {error && (
             <p className={styles.videoError}>
               The recording could not load.{" "}
-              <a href="/demos/kipferl-0.7.1.mp4">Download the video</a> or
+              <a href="/demos/kipferl-0.8.0.mp4">Download the video</a> or
               follow the text walkthrough below.
             </p>
           )}
