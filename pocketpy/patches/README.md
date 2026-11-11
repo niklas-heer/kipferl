@@ -304,3 +304,11 @@ specification, `str.format` and the new `format(value, spec='')` builtin.
 Other objects still format their `str()` as a string, a Kipferl leniency where
 CPython raises `TypeError`; an f-string field without a specification still
 uses `str()` directly. f-strings also accept the `!s` conversion.
+
+### Errors in except clauses
+
+When evaluating an `except` clause's expression raised, for example
+`except (KeyError, Undefined):`, PocketPy jumped back to the same handlers,
+which evaluated the clause again forever. `0018-except-clause-errors.patch`
+marks a try entry while its clauses are being matched, so a second exception
+leaves the statement and propagates like any other error, as in CPython.

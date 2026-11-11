@@ -22,6 +22,8 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- An exception raised while evaluating an `except` clause, such as a misspelled
+  exception name, propagates instead of hanging the program.
 - `break`, `continue` and `return` inside a `with` block now call the context
   manager's `__exit__`; previously `with open(path) as f: return f.read()`
   left the file open.

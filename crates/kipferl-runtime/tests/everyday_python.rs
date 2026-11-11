@@ -442,3 +442,29 @@ fn invalid_format_specs_raise_cpython_errors() -> io::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn errors_in_except_clauses_propagate_instead_of_hanging() -> io::Result<()> {
+    raises_like_cpython(
+        "try:\n    raise ValueError('x')\nexcept (KeyError, Undefined):\n    pass\n",
+    )?;
+    matches_cpython(
+        r#"
+def kinds():
+    raise RuntimeError("no kinds")
+def check():
+    try:
+        try:
+            raise ValueError("inner")
+        except kinds():
+            print("never")
+    except RuntimeError as e:
+        print("outer caught", e)
+    try:
+        raise KeyError("k")
+    except KeyError:
+        print("still handles")
+check()
+"#,
+    )
+}

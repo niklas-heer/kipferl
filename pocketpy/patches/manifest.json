@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 11,
+  "patchset_version": 12,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -65,7 +65,9 @@
         "kipferl patch: a generator expression may be the sole argument without parentheses",
         "kipferl patch: the format specification mini-language of str, int and float, as in CPython",
         "kipferl patch: f-strings accept the !s conversion",
-        "kipferl patch: format(value, format_spec='') applies the format specification mini-language"
+        "kipferl patch: format(value, format_spec='') applies the format specification mini-language",
+        "kipferl patch: an exception is being matched against the except clauses",
+        "kipferl patch: an error while evaluating an except clause leaves the try statement;"
       ]
     }
   ],
@@ -137,6 +139,10 @@
     {
       "id": "0017-format-spec",
       "file": "pocketpy/patches/0017-format-spec.patch"
+    },
+    {
+      "id": "0018-except-clause-errors",
+      "file": "pocketpy/patches/0018-except-clause-errors.patch"
     }
   ]
 }

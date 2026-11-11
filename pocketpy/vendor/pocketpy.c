@@ -6430,6 +6430,8 @@ typedef struct FrameExcInfo {
     int iblock;     // try block index
     int offset;     // stack offset from p0
     py_TValue exc;  // handled exception
+    // kipferl patch: an exception is being matched against the except clauses
+    bool matching;
 } FrameExcInfo;
 
 typedef struct py_Frame {
@@ -20176,7 +20178,10 @@ void Frame__delete(py_Frame* self) {
 int Frame__goto_exception_handler(py_Frame* self, ValueStack* value_stack, py_Ref exc) {
     FrameExcInfo* p = self->exc_stack.data;
     for(int i = self->exc_stack.length - 1; i >= 0; i--) {
-        if(py_isnil(&p[i].exc)) {
+        // kipferl patch: an error while evaluating an except clause leaves the try statement;
+        // re-entering its handlers evaluated the clause again forever
+        if(py_isnil(&p[i].exc) && !p[i].matching) {
+            p[i].matching = true;
             value_stack->sp = (self->p0 + p[i].offset);  // unwind the stack
             return c11__at(CodeBlock, &self->co->blocks, p[i].iblock)->end;
         } else {
@@ -20193,6 +20198,7 @@ void Frame__begin_try(py_Frame* self, py_TValue* sp) {
     info->iblock = iblock;
     info->offset = (int)(sp - self->p0);
     py_newnil(&info->exc);
+    info->matching = false;
 }
 
 FrameExcInfo* Frame__top_exc_info(py_Frame* self) {
