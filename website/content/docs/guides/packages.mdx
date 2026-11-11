@@ -162,6 +162,13 @@ rerun `kipferl add` for your declared requirements, review and commit the lock,
 then run your application tests. Never edit hashes to bypass a mismatch.
 Standalone applications built with earlier versions keep running with their old
 runtime; rebuild and redistribute them to give them the memory-safety fixes.
+Applications built with `--mode executable` or `--mode single` use the
+`pocketpy-kipferl` runtime found on `PATH` instead: install the 0.8.0 runtime
+wherever they run and test them there.
+
+Moving a project from v0.6 or a 0.7 release candidate? Also follow the earlier
+sections below, from [Upgrade to 0.7.0](#upgrade-to-070) onwards, including the
+`ucharm` renames in [Upgrade to 0.7.1](#upgrade-to-071).
 
 ## Upgrade to 0.7.4
 
