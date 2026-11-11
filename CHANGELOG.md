@@ -13,6 +13,12 @@ All notable user-facing changes are documented here.
   `any(...)`, `"".join(...)` and `next((x for x in xs if ...), None)`.
   Comprehensions accept several `for` and `if` clauses
   (`[(a, b) for a in xs for b in ys if a != b]`).
+- The full format specification mini-language for numbers and strings:
+  thousands separators (`f'{n:,}'`, `'{:_}'`, `f'{price:,.2f}'`), `b`/`o`/`x`/`X`
+  with `#` prefixes, `e`/`g`/`%` types, `+` and space signs, `=` alignment and
+  any fill character. Zero padding now follows the sign (`f'{-3.5:08.3f}'` is
+  `-003.500`). New `format()` builtin, `__format__` support and the `!s`
+  conversion in f-strings.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 10,
+  "patchset_version": 11,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -62,7 +62,10 @@
         "kipferl patch: generator expressions and nested comprehensions compile to a nested function",
         "kipferl patch: (<expr> for ...) is a generator expression",
         "kipferl patch: comprehensions with several for clauses",
-        "kipferl patch: a generator expression may be the sole argument without parentheses"
+        "kipferl patch: a generator expression may be the sole argument without parentheses",
+        "kipferl patch: the format specification mini-language of str, int and float, as in CPython",
+        "kipferl patch: f-strings accept the !s conversion",
+        "kipferl patch: format(value, format_spec='') applies the format specification mini-language"
       ]
     }
   ],
@@ -130,6 +133,10 @@
     {
       "id": "0016-generator-expressions",
       "file": "pocketpy/patches/0016-generator-expressions.patch"
+    },
+    {
+      "id": "0017-format-spec",
+      "file": "pocketpy/patches/0017-format-spec.patch"
     }
   ]
 }

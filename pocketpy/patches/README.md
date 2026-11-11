@@ -282,3 +282,25 @@ level before the first comma. Like other nested functions in PocketPy, the
 generator sees the enclosing function's locals as they were when it was
 created. `yield` inside a generator expression and `:=` binding in the
 enclosing scope are not supported.
+
+### Format specifications
+
+PocketPy 2.2 understood only `[fill][align][width][.precision][f|d|s]`, with a
+fill limited to a few punctuation characters, so `'{:,}'`, `f'{n:,.2f}'`,
+`'{:x}'`, `'{:+d}'` and `'{:.1%}'` raised `ValueError`, and `f'{-3.5:08.3f}'`
+put the zeros before the sign. `0017-format-spec.patch` implements CPython's
+format specification mini-language for `int`, `bool`, `float` and `str`:
+any fill character, `<`, `>`, `^` and `=` alignment, `+`, `-` and space signs,
+`#` alternate forms, `0` padding (grouped like the digits, so
+`format(1234, '08,')` is `'0,001,234'`), `,` and `_` grouping (four digits for
+`b`, `o`, `x`, `X`), precision, and the `b`, `c`, `d`, `o`, `x`, `X`, `n`,
+`e`, `E`, `f`, `F`, `g`, `G` and `%` types. Floats without a type use the
+shortest repr, as CPython does. Digits come from the C library's correctly
+rounded `printf`. Invalid specifications raise CPython's `ValueError`
+messages. The `z` option and locale-aware `n` grouping are not supported.
+
+A class that defines `__format__` is formatted through it, by f-strings with a
+specification, `str.format` and the new `format(value, spec='')` builtin.
+Other objects still format their `str()` as a string, a Kipferl leniency where
+CPython raises `TypeError`; an f-string field without a specification still
+uses `str()` directly. f-strings also accept the `!s` conversion.

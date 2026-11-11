@@ -43,6 +43,31 @@ fn matches_cpython(source: &str) -> io::Result<()> {
     )
 }
 
+/// Both interpreters reject `source` with the same exception type and message.
+fn raises_like_cpython(source: &str) -> io::Result<()> {
+    let last_line = |output: &Output| {
+        String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .rfind(|line| !line.starts_with("error: "))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let actual = run(env!("CARGO_BIN_EXE_pocketpy-kipferl"), source)?;
+    let expected = run("python3", source)?;
+    check(
+        !expected.status.success() && !actual.status.success(),
+        format!("{source:?} did not fail in both interpreters"),
+    )?;
+    check(
+        last_line(&actual) == last_line(&expected),
+        format!(
+            "{source:?} raised differently\n--- CPython\n{}\n--- Kipferl\n{}",
+            last_line(&expected),
+            last_line(&actual)
+        ),
+    )
+}
+
 #[test]
 fn try_statements_run_else_and_finally_clauses() -> io::Result<()> {
     matches_cpython(
@@ -360,6 +385,60 @@ fn malformed_generator_expressions_remain_syntax_errors() -> io::Result<()> {
                 format!("{program} accepted malformed source {source:?}"),
             )?;
         }
+    }
+    Ok(())
+}
+
+#[test]
+fn format_specs_follow_the_cpython_mini_language() -> io::Result<()> {
+    matches_cpython(
+        r##"
+ints = [0, 7, -7, 1234567, -1234567, 255, 2**40, True, False]
+int_specs = ["", ",", "_", "d", ">10,", "<10", "^11,", "=+12,", "+", " ", "010,", "08,",
+             "#x", "#X", "#o", "#b", "x", "_x", "_b", "#010_x", "e", ".2f", ",.2f", "%",
+             ".1%", "*^9", "n", "g", "-^7d", "0>5", "05"]
+for v in ints:
+    print(v, [format(v, spec) for spec in int_specs])
+print([format(v, "c") for v in [65, 233, 0x1F600]])
+floats = [0.0, -0.0, 1.5, -2.25, 1234567.891, 1e16, 1e-7, 3.14159, 100.0, 12.0, 2.5,
+          0.125, float("inf"), float("-inf"), float("nan"), 1e300]
+float_specs = ["", ",", "_", ".2f", ",.2f", "10.3f", "<10.1f", "^12,.1f", "=+12.2f",
+               "+.1f", " .1f", "010.2f", "010,.1f", "e", ".3e", "E", "g", ".3g", "G",
+               "#.3g", "%", ".1%", ".3", ".1", ".2", "10", "*>12", "08", ".0f", ".0e",
+               "#.0f", "F"]
+for v in floats:
+    print(v, [format(v, spec) for spec in float_specs])
+for spec in ["", "10", "<10", ">10", "^10", "*^10", ".2", "10.2", "s", "05", "é^7"]:
+    print(repr(format("héllo", spec)))
+n = 1234567.891
+print(f"{n:,.2f} {n:_.1f} {1234:>10,} {-1234567:,} {0:,} {42:+d} {3.5:08.3f}")
+print(f"{'a':<5}|{'b':^5}|{'c':>5}| {0.256:.1%} {12345.678:e} {255:#x} {255:08b} {255:o}")
+print(f"{'x'!r:>10}| {'y'!s:3}| {7!s:>3}|")
+print("{:,} {:_} {:>8.2f}".format(1234567, 7654321, 3.14159))
+class Money:
+    def __init__(self, cents):
+        self.cents = cents
+    def __format__(self, spec):
+        return format(self.cents / 100, spec or ".2f") + " EUR"
+print(f"{Money(5):>10.1f}", format(Money(250)), "{:.0f}".format(Money(99)))
+"##,
+    )
+}
+
+#[test]
+fn invalid_format_specs_raise_cpython_errors() -> io::Result<()> {
+    for source in [
+        "format(1, '.2d')",
+        "format(1, ',x')",
+        "format('a', '+')",
+        "format('a', ',')",
+        "format('a', '=')",
+        "format(1.5, 'd')",
+        "format('a', 'd')",
+        "format(1, 'abc')",
+        "format(1.5, '.')",
+    ] {
+        raises_like_cpython(source)?;
     }
     Ok(())
 }
