@@ -257,7 +257,21 @@
      for(int j = 0; j < n_rows; j++) {
          py_Ref row_j = py_list_getitem(argv, j);
          for(int i = 0; i < n_cols; i++) {
-@@ -35138,6 +35208,8 @@
+@@ -22984,7 +23054,12 @@
+     register_chunked_array2d(mod);
+ }
+ 
+-void py_newarray2d(py_OutRef out, int width, int height) { c11_newarray2d(out, width, height); }
++void py_newarray2d(py_OutRef out, int width, int height) {
++    // kipferl patch: this API has no way to report an error, so invalid dimensions stop
++    if(c11_newarray2d(out, width, height) == NULL) {
++        c11__abort("py_newarray2d(): invalid dimensions %d x %d", width, height);
++    }
++}
+ 
+ int py_array2d_getwidth(py_Ref self) {
+     assert(self->type == tp_array2d);
+@@ -35138,6 +35213,8 @@
  void py_newstr(py_OutRef out, const char* data) { py_newstrv(out, (c11_sv){data, strlen(data)}); }
  
  char* py_newstrn(py_OutRef out, int size) {
@@ -266,7 +280,7 @@
      if(size < 16) {
          out->type = tp_str;
          out->is_ptr = false;
-@@ -35146,7 +35218,7 @@
+@@ -35146,7 +35223,7 @@
          return ud->data;
      }
      ManagedHeap* heap = &pk_current_vm->heap;
@@ -275,7 +289,7 @@
      PyObject* obj = ManagedHeap__gcnew(heap, tp_str, 0, total_size);
      c11_string* ud = PyObject__userdata(obj);
      c11_string__ctor3(ud, size);
-@@ -35173,8 +35245,10 @@
+@@ -35173,8 +35250,10 @@
  
  unsigned char* py_newbytes(py_OutRef out, int size) {
      ManagedHeap* heap = &pk_current_vm->heap;

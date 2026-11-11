@@ -229,7 +229,8 @@ for c in memory.__subclasses__():
         pass
 forged = b'PK99(list)\n0\n*' + bytes([99, 0, 1, 0, 0, 0, 0, 0, 16] + [0] * 15) + b'-'
 for data in [forged, b'PK\n0\n\x1f\x15\x7f-', b'PK\n1\n\x00\x05-', b'PK\n0\n\x1d\x08ab',
-             b'PK1(' + b'x' * 300 + b'.y)\n0\n-', b'PK\n0\n' + b'\x03' * 20000 + b'-']:
+             b'PK1(' + b'x' * 300 + b'.y)\n0\n-', b'PK\n0\n' + b'\x03' * 20000 + b'-',
+             b'PK\n0\n\x27\x17\x00\x00\x00\x01\x06-']:
     try:
         pickle.loads(data)
         raise AssertionError('malformed pickle was accepted')
@@ -241,12 +242,16 @@ class Point:
 value = [1, 2.5, True, None, 'text', b'raw', (1, 2), {'k': [3]}, Point(4)]
 copy = pickle.loads(pickle.dumps(value))
 assert copy[:8] == value[:8] and copy[8].x == 4
+import array2d
+grid = array2d.array2d(2, 1, 'ab')
+grid[1, 0] = 3
+assert pickle.loads(pickle.dumps(grid)).tolist() == grid.tolist()
 print('value forging stays unavailable')
 ");
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         output.stdout,
-        b"ValueError\nValueError\nValueError\nValueError\nImportError\nValueError\n\
+        b"ValueError\nValueError\nValueError\nValueError\nImportError\nValueError\nValueError\n\
 value forging stays unavailable\n"
     );
     assert!(output.stderr.is_empty(), "{output:?}");

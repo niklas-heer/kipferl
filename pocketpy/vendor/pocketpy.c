@@ -23087,7 +23087,12 @@ void pk__add_module_array2d() {
     register_chunked_array2d(mod);
 }
 
-void py_newarray2d(py_OutRef out, int width, int height) { c11_newarray2d(out, width, height); }
+void py_newarray2d(py_OutRef out, int width, int height) {
+    // kipferl patch: this API has no way to report an error, so invalid dimensions stop
+    if(c11_newarray2d(out, width, height) == NULL) {
+        c11__abort("py_newarray2d(): invalid dimensions %d x %d", width, height);
+    }
+}
 
 int py_array2d_getwidth(py_Ref self) {
     assert(self->type == tp_array2d);
@@ -26403,7 +26408,8 @@ bool py_pickle_loads(const unsigned char* data, int size) {
     py_i64 memo_length;
     if(!pkl__header_read_int(&p, end, '\n', &memo_length)) goto __INVALID;
     // each memo entry is set by an operation, and the memo is one tuple
-    if(memo_length > size || memo_length > PK_OBJ_MAX_UDSIZE(0) / (int64_t)sizeof(py_TValue)) {
+    if(memo_length < 0 || memo_length > size ||
+       memo_length > PK_OBJ_MAX_UDSIZE(0) / (int64_t)sizeof(py_TValue)) {
         goto __INVALID;
     }
     ok = py_pickle_loads_body(p, end, (int)memo_length, &type_mapping);
@@ -26463,6 +26469,14 @@ static bool pkl__read_raw_value(const unsigned char* src,
             unsigned char b;
             memcpy(&b, src + offsetof(py_TValue, _bool), 1);
             val._bool = b != 0;
+            break;
+        }
+        case tp_str: {
+            // a short string is stored inline: an int size, then up to 15 bytes and a NUL
+            c11_string* inline_str = (c11_string*)(&val.extra);
+            int capacity = (int)(sizeof(py_TValue) - offsetof(py_TValue, extra) - sizeof(int));
+            if(inline_str->size < 0 || inline_str->size >= capacity) return false;
+            if(inline_str->data[inline_str->size] != '\0') return false;
             break;
         }
         default: return false;
@@ -26678,9 +26692,10 @@ static bool py_pickle_loads_body(const unsigned char* p,
                 READ_INT(n_cols);
                 READ_INT(n_rows);
                 if(!c11_array2d__check_size(n_cols, n_rows)) return false;
+                // the cells must be present before the array is allocated
+                NEED((size_t)(n_cols * n_rows) * sizeof(py_TValue));
                 c11_array2d* arr = c11_newarray2d(py_pushtmp(), (int)n_cols, (int)n_rows);
                 if(arr == NULL) return false;
-                NEED((size_t)arr->header.numel * sizeof(py_TValue));
                 for(int i = 0; i < arr->header.numel; i++) {
                     if(!pkl__read_raw_value(p, type_mapping, &arr->data[i])) INVALID();
                     p += sizeof(py_TValue);

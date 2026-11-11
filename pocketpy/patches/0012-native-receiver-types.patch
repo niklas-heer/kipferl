@@ -99,7 +99,7 @@
          bool ok = py_callcfunc(p0->_cfunc, p1 - argv, argv);
          self->stack.sp = p0;
          return ok ? RES_RETURN : RES_ERROR;
-@@ -30953,6 +30986,7 @@
+@@ -30958,6 +30991,7 @@
      self->closure = NULL;
      self->clazz = NULL;
      self->cfunc = NULL;
@@ -107,7 +107,7 @@
  }
  
  int CodeObject__add_varname(CodeObject* self, py_Name name) {
-@@ -31704,6 +31738,17 @@
+@@ -31709,6 +31743,17 @@
  void py_bind(py_Ref obj, const char* sig, py_CFunction f) {
      py_Ref tmp = py_pushtmp();
      py_Name name = py_newfunction(tmp, sig, f, NULL, 0);
@@ -125,7 +125,7 @@
      py_setdict(obj, name, tmp);
      py_pop();
  }
-@@ -31711,6 +31756,7 @@
+@@ -31716,6 +31761,7 @@
  void py_bindmethod(py_Type type, const char* name, py_CFunction f) {
      py_TValue tmp;
      py_newnativefunc(&tmp, f);
@@ -133,7 +133,7 @@
      py_setdict(py_tpobject(type), py_name(name), &tmp);
  }
  
-@@ -31735,8 +31781,10 @@
+@@ -31740,8 +31786,10 @@
      py_TValue tmp;
      py_newobject(&tmp, tp_property, 2, 0);
      py_newnativefunc(py_getslot(&tmp, 0), getter);
@@ -144,7 +144,7 @@
      } else {
          py_setslot(&tmp, 1, py_None());
      }
-@@ -31746,6 +31794,7 @@
+@@ -31751,6 +31799,7 @@
  void py_bindmagic(py_Type type, py_Name name, py_CFunction f) {
      py_Ref tmp = py_emplacedict(py_tpobject(type), name);
      py_newnativefunc(tmp, f);
@@ -152,7 +152,7 @@
  }
  
  // src/public\CodeExecution.c
-@@ -34862,6 +34911,7 @@
+@@ -34867,6 +34916,7 @@
  
  bool py_call(py_Ref f, int argc, py_Ref argv) {
      if(f->type == tp_nativefunc) {
@@ -160,7 +160,7 @@
          return py_callcfunc(f->_cfunc, argc, argv);
      } else {
          py_push(f);
-@@ -35280,6 +35330,7 @@
+@@ -35285,6 +35335,7 @@
  void py_newnativefunc(py_OutRef out, py_CFunction f) {
      out->type = tp_nativefunc;
      out->is_ptr = false;

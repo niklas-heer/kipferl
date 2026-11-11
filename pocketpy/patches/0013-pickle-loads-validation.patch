@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -25964,10 +25964,13 @@
+@@ -25969,10 +25969,13 @@
      PickleObject__write_bytes(buf, s, strlen(s) + 1);
  }
  
@@ -18,7 +18,7 @@
  }
  
  #define UNALIGNED_READ(p_val, p_buf)                                                               \
-@@ -25976,40 +25979,34 @@
+@@ -25981,40 +25984,34 @@
          (p_buf) += sizeof(*(p_val));                                                               \
      } while(0)
  
@@ -81,7 +81,7 @@
  static bool pickle_loads(int argc, py_Ref argv) {
      PY_CHECK_ARGC(1);
      PY_CHECK_ARG_TYPE(0, tp_bytes);
-@@ -26336,33 +26333,42 @@
+@@ -26341,33 +26338,42 @@
      c11_sv mod_name = c11_sv__slice2(path, 0, sep_index);
      c11_sv name = c11_sv__slice(path, sep_index + 1);
      char buf[PK_MAX_MODULE_PATH_LEN + 1];
@@ -139,7 +139,7 @@
  
      // PK
      if(size < 2 || p[0] != 'P' || p[1] != 'K')
-@@ -26372,23 +26378,40 @@
+@@ -26377,23 +26383,41 @@
      c11_smallmap_d2d type_mapping;
      c11_smallmap_d2d__ctor(&type_mapping);
  
@@ -173,7 +173,8 @@
 +    py_i64 memo_length;
 +    if(!pkl__header_read_int(&p, end, '\n', &memo_length)) goto __INVALID;
 +    // each memo entry is set by an operation, and the memo is one tuple
-+    if(memo_length > size || memo_length > PK_OBJ_MAX_UDSIZE(0) / (int64_t)sizeof(py_TValue)) {
++    if(memo_length < 0 || memo_length > size ||
++       memo_length > PK_OBJ_MAX_UDSIZE(0) / (int64_t)sizeof(py_TValue)) {
 +        goto __INVALID;
      }
 +    ok = py_pickle_loads_body(p, end, (int)memo_length, &type_mapping);
@@ -187,7 +188,7 @@
      c11_smallmap_d2d__dtor(&type_mapping);
      return ok;
  }
-@@ -26399,22 +26422,96 @@
+@@ -26404,22 +26428,104 @@
      return type;
  }
  
@@ -233,6 +234,14 @@
 +            unsigned char b;
 +            memcpy(&b, src + offsetof(py_TValue, _bool), 1);
 +            val._bool = b != 0;
++            break;
++        }
++        case tp_str: {
++            // a short string is stored inline: an int size, then up to 15 bytes and a NUL
++            c11_string* inline_str = (c11_string*)(&val.extra);
++            int capacity = (int)(sizeof(py_TValue) - offsetof(py_TValue, extra) - sizeof(int));
++            if(inline_str->size < 0 || inline_str->size >= capacity) return false;
++            if(inline_str->data[inline_str->size] != '\0') return false;
 +            break;
 +        }
 +        default: return false;
@@ -288,7 +297,7 @@
                  p_memo[index] = *py_peek(-1);
                  break;
              }
-@@ -26434,43 +26531,25 @@
+@@ -26439,43 +26545,25 @@
              case PKL_INT_0: case PKL_INT_1: case PKL_INT_2: case PKL_INT_3:
              case PKL_INT_4: case PKL_INT_5: case PKL_INT_6: case PKL_INT_7:
              case PKL_INT_8: case PKL_INT_9: case PKL_INT_10: case PKL_INT_11:
@@ -340,7 +349,7 @@
                  UNALIGNED_READ(&val, p);
                  py_newfloat(py_pushtmp(), val);
                  break;
-@@ -26484,24 +26563,33 @@
+@@ -26489,24 +26577,33 @@
                  break;
              }
              case PKL_STRING: {
@@ -381,7 +390,7 @@
                      py_StackRef item = py_peek(-1);
                      py_list_setitem(val, i, item);
                      py_pop();
-@@ -26510,10 +26598,13 @@
+@@ -26515,10 +26612,13 @@
                  break;
              }
              case PKL_BUILD_TUPLE: {
@@ -398,7 +407,7 @@
                      p[i] = *py_peek(-1);
                      py_pop();
                  }
-@@ -26521,12 +26612,15 @@
+@@ -26526,12 +26626,15 @@
                  break;
              }
              case PKL_BUILD_DICT: {
@@ -417,7 +426,7 @@
                      py_StackRef k = i;
                      py_StackRef v = i + 1;
                      bool ok = py_dict_setitem(val, k, v);
-@@ -26539,51 +26633,63 @@
+@@ -26544,51 +26647,64 @@
              }
              case PKL_VEC2: {
                  c11_vec2 val;
@@ -478,9 +487,10 @@
 +                READ_INT(n_cols);
 +                READ_INT(n_rows);
 +                if(!c11_array2d__check_size(n_cols, n_rows)) return false;
++                // the cells must be present before the array is allocated
++                NEED((size_t)(n_cols * n_rows) * sizeof(py_TValue));
 +                c11_array2d* arr = c11_newarray2d(py_pushtmp(), (int)n_cols, (int)n_rows);
 +                if(arr == NULL) return false;
-+                NEED((size_t)arr->header.numel * sizeof(py_TValue));
                  for(int i = 0; i < arr->header.numel; i++) {
 -                    arr->data[i].type = pkl__fix_type(arr->data[i].type, type_mapping);
 +                    if(!pkl__read_raw_value(p, type_mapping, &arr->data[i])) INVALID();
@@ -496,7 +506,7 @@
                  int res = py_import(path);
                  if(res == -1) return false;
                  if(res == 0) return ImportError("No module named '%s'", path);
-@@ -26591,7 +26697,9 @@
+@@ -26596,7 +26712,9 @@
                  break;
              }
              case PKL_GETATTR: {
@@ -507,7 +517,7 @@
                  py_Ref obj = py_peek(-1);
                  if(!py_getattr(obj, py_name(name))) return false;
                  py_pop();
-@@ -26599,45 +26707,59 @@
+@@ -26604,45 +26722,59 @@
                  break;
              }
              case PKL_TVALUE: {
