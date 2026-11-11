@@ -536,3 +536,44 @@ for bad in [lambda: dict([(1, 2, 3)]), lambda: dict(1, 2), lambda: {}.update({},
 "#,
     )
 }
+
+#[test]
+fn typing_forms_work_in_aliases_and_classes() -> io::Result<()> {
+    matches_cpython(
+        r#"
+from typing import (Any, Callable, ClassVar, Dict, Final, List, Literal, NamedTuple, NewType,
+                    Optional, Tuple, TypedDict, Union)
+MaybeInt = Optional[int]
+Handler = Callable[[int], Optional[str]]
+Pair = Tuple[int, ...]
+Mode = Literal["r", "w"]
+Rows = Optional[List[Dict[str, Any]]]
+print(Any, Optional)
+class Point(NamedTuple):
+    x: int
+    y: int = 0
+p = Point(1)
+print(p, p.x, p[1], list(p), p == Point(1, 0), p._asdict(), p._replace(y=5), len(p))
+print(Point(y=2, x=3), p._fields, hash(Point(1)) == hash(Point(1)))
+for bad in [lambda: Point(), lambda: Point(1, 2, 3), lambda: Point(1, q=2)]:
+    try:
+        bad()
+    except TypeError:
+        print("TypeError")
+class Movie(TypedDict):
+    name: str
+    year: int
+m = Movie(name="Up", year=2009)
+print(m["name"], m, isinstance(m, dict))
+UserId = NewType("UserId", int)
+print(UserId(5))
+def f(x: Optional[int] = None, y: Union[int, str] = 1) -> Optional[str]:
+    return None if x is None else str(x)
+print(f(), f(3))
+try:
+    Optional()
+except TypeError as e:
+    print("TypeError", e)
+"#,
+    )
+}

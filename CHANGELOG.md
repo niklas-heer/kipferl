@@ -22,6 +22,9 @@ All notable user-facing changes are documented here.
 - `dict()` and `dict.update()` accept mappings, any iterable of pairs and keyword
   arguments (`dict(zip(keys, values))`, `dict(a=1)`, `dict(defaultdict)`), and
   dicts gain `setdefault()`, `dict.fromkeys()` and the `|` and `|=` operators.
+- `typing.Optional`, `Union`, `Literal` and the other special forms can be
+  subscripted outside annotations (`MaybeInt = Optional[int]`), and `typing`
+  provides `NamedTuple`, `TypedDict` and `NewType`.
 
 ### Changed
 
