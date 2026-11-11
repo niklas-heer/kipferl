@@ -145,7 +145,7 @@ export default function KipferlReleasePage() {
           <div className="rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-2xl shadow-black/20">
             <Image
               src="/demo.gif"
-              alt="Kipferl 0.7.1 terminal demo: create a project, install timezone data, and ship an executable"
+              alt="Kipferl 0.8.0 terminal demo: create a project, install timezone data, and ship an executable"
               width={1280}
               height={800}
               className="w-full"
@@ -153,7 +153,7 @@ export default function KipferlReleasePage() {
             />
           </div>
           <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-            Recording refreshed for 0.7.1: project creation, package checks, and
+            Recording refreshed for 0.8.0: project creation, package checks, and
             standalone shipping. These project and package commands arrived in
             0.7; the rest of this article records the 0.6 release.
           </p>
