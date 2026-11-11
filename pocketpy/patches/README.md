@@ -361,3 +361,17 @@ anywhere (`first, *middle, last = items`; `OP_UNPACK_EX` now carries the
 target counts before and after it), accepts parenthesized targets in `for`
 loops and comprehensions (`for i, (key, value) in ...`), and uses CPython's
 "too many" and "not enough values to unpack" messages.
+
+### Exception attributes, arguments and causes
+
+PocketPy exceptions had no instance dictionary, so the everyday pattern of a
+custom exception storing a field, `self.code = code` in `__init__`, raised
+`TypeError: cannot set attribute`; their constructor accepted one argument and
+no keywords; and `raise ... from ...` was a syntax error.
+`0022-exception-attributes.patch` gives exceptions an instance `__dict__`,
+keeps several arguments as the `args` tuple (`ValueError('a', 1)` prints and
+reprs as in CPython), lets `__new__` accept keyword arguments so subclasses can
+define keyword parameters, and compiles `raise exc from cause`, which sets
+`__cause__` and `__suppress_context__`. `BaseException` provides `__cause__`,
+`__context__` (always `None`) and `__suppress_context__` defaults. Tracebacks
+do not print the cause chain.

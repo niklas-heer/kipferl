@@ -615,3 +615,46 @@ for bad in ["a, b = [1, 2, 3]", "a, b, c = [1, 2]", "a, *b, c = [1]"]:
 "#,
     )
 }
+
+#[test]
+fn exceptions_carry_attributes_arguments_and_causes() -> io::Result<()> {
+    matches_cpython(
+        r#"
+class AppError(Exception):
+    def __init__(self, message, code=1):
+        super().__init__(message)
+        self.code = code
+try:
+    raise AppError("boom", code=3)
+except AppError as e:
+    print(e, repr(e), e.code, e.args)
+e = ValueError("a", 1)
+print(e.args, str(e), repr(e))
+print(repr(ValueError()), str(ValueError()), ValueError("x").args, repr(KeyError("k")), str(KeyError("k")))
+v = ValueError("v")
+v.detail = "extra"
+print(v.detail, v.__cause__, v.__suppress_context__)
+def parse(text):
+    try:
+        return int(text)
+    except ValueError as err:
+        raise RuntimeError("bad number") from err
+try:
+    parse("x")
+except RuntimeError as e:
+    print(type(e.__cause__).__name__, e.__suppress_context__)
+try:
+    raise KeyError("k") from None
+except KeyError as e:
+    print(e.__cause__, e.__suppress_context__)
+try:
+    raise ValueError from KeyError
+except ValueError as e:
+    print(repr(e.__cause__))
+class Wrapped(Exception):
+    pass
+w = Wrapped("a", "b")
+print(w.args, str(w))
+"#,
+    )
+}

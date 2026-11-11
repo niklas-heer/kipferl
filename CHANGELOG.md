@@ -28,6 +28,8 @@ All notable user-facing changes are documented here.
 - Any iterable can be unpacked (`a, b = map(int, line.split())`), the starred
   target may appear anywhere (`first, *middle, last = items`), and `for`
   targets nest (`for i, (key, value) in enumerate(pairs)`).
+- `raise NewError(...) from err` sets `__cause__`, and exceptions accept several
+  arguments (`ValueError('a', 1).args`).
 
 ### Changed
 
@@ -41,6 +43,8 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- Custom exceptions can store attributes (`self.code = code` in `__init__`)
+  and take keyword arguments; both raised `TypeError`.
 - An exception raised while evaluating an `except` clause, such as a misspelled
   exception name, propagates instead of hanging the program.
 - `break`, `continue` and `return` inside a `with` block now call the context
