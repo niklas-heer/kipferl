@@ -58,6 +58,23 @@ All notable user-facing changes are documented here.
   `pkpy.TValue` built objects from raw addresses. Oversized repetitions and
   grids now raise `ValueError`, and `pkpy.TValue` is no longer available.
   These also affect 0.7.x.
+- Scripts could also forge objects or read arbitrary memory through types that
+  stayed reachable through `object.__subclasses__()`: the TValue types behind
+  `pkpy.TValue` and the static `read`/`write` methods of `stdc`'s memory types.
+  Neither exists any more.
+- A C method or constructor called through its class trusted the type of its
+  first argument, so `dict.clear([1])`, `dict.__new__(list)`,
+  `bytearray.__len__([])` or a class that borrowed another type's method
+  (`__getitem__ = list.__getitem__`) read or wrote one object as another. They
+  now raise `TypeError`, as in CPython.
+- `pickle.loads` trusted its input: crafted bytes could forge objects at any
+  address, read past the data or overflow the interpreter stack. Malformed
+  data now raises `ValueError`; pickles made by `pickle.dumps` load as before.
+  As in CPython, a pickle can still call functions, so load only trusted data.
+- An object whose size does not fit PocketPy's 32-bit allocation size, such as
+  a string of 2 GiB, raises `ValueError` where a script requests it directly
+  and otherwise stops the process instead of writing past a short allocation.
+  Long lists no longer overflow the byte offsets used to extend or sort them.
 
 ### Fixed
 

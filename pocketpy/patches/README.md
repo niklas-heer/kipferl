@@ -135,7 +135,14 @@ The same patch also removes:
 
 - `pkpy.TValue`, present since 2.1. Its constructors built a value of any type
   from a raw integer, so `pkpy.TValue[int].__new__(list, address)` gave a list
-  whose object pointer was that address. The rest of `pkpy` stays.
+  whose object pointer was that address. Unpublishing the name was not enough:
+  the concrete `TValue_int`, `TValue_float`, `TValue_vec2` and `TValue_vec2i`
+  types stayed reachable through `object.__subclasses__()`, so the patch never
+  creates them. The rest of `pkpy` stays.
+- The methods of `stdc`'s memory types (`Int.read(address, offset)`, `write`,
+  `array`, unchecked indexing). The types are still created, empty, because
+  their indices are predefined, and they too are reachable through
+  `__subclasses__()`; the module's functions are not bound either.
 - `gc.setup_debug_callback`, new in 2.2. It runs a Python callback inside every
   collection and aborts the process when the callback raises, so a script
   error ended the process instead of raising.
@@ -162,8 +169,23 @@ result depends on the compiler:
   one byte and kept writing past it. A result longer than
   `INT32_MAX` bytes raises `ValueError("repeated string is too long")`.
 - `array2d(cols, rows)` multiplied its dimensions as `int`, so
-  `array2d(65536, 65537, f)` allocated 65,536 cells and wrote past them. Dimensions
-  whose product exceeds `INT32_MAX` raise `ValueError`.
+  `array2d(65536, 65537, f)` allocated 65,536 cells and wrote past them. The
+  cells are the object's slots, and the object's size in bytes, header
+  included, is an `int` as well: `array2d(178956971, 1)` passed a check on the
+  element count alone. Every array2d is now created through one check of its
+  byte size, so `array2d()`, `fromlist`, the results of `map` and similar
+  methods on views, and unpickling raise `ValueError` for dimensions that do
+  not fit; views reject a `width * height` beyond `INT32_MAX`.
+- The allocator itself (`ManagedHeap__gcnew`, behind `py_newobject`, strings,
+  bytes and tuples) computes the object size in 64 bits and stops the process
+  when it does not fit an `int` or the allocation fails, instead of wrapping
+  to a short allocation. `py_newstrn` and `py_newbytes` stop on a negative
+  length, which only a wrapped size computation produces. `str * n` raises
+  `ValueError` before reaching that limit.
+- Growing a vector past `INT32_MAX` elements stops the process instead of
+  wrapping its capacity, and extending a vector or sorting a list computes byte
+  offsets in `size_t`, which an `int` product overflowed from about 90 million
+  list items.
 - `<<` and `>>` used the count directly: negative counts raise
   `ValueError("negative shift count")` as in CPython, and counts of 64 or more
   give `0` (or `-1` for a negative operand shifted right).
@@ -178,3 +200,31 @@ that this is defined rather than an accident of the optimizer, and the
 sanitizers stop reporting it. Python code that needs integers beyond 64 bits
 does not get them; that is unchanged.
 
+### Receiver types of C methods
+
+PocketPy's C methods read their first argument's userdata without checking
+its type, relying on attribute lookup to pass an instance. Calling them through
+the class bypassed that: `dict.clear([1])` treated a list as a dict,
+`dict.__new__(list)` or `random.Random.__new__(list)` built a list with another
+type's payload, and a class could borrow another type's C magic method
+(`__getitem__ = list.__getitem__`), which the interpreter's fast paths then
+called directly. Kipferl's own `py_bind` methods, such as `bytearray`'s, had
+the same assumption. `0012-native-receiver-types.patch` records the owning type
+when `py_bindmethod`, `py_bindmagic`, `py_bindproperty` or `py_bind` (for a
+first parameter named `self`, or `cls` of `__new__`) binds a C function to a
+type, and every call path checks it: the first argument must be an instance of
+that type, or for `__new__` a subclass of it. A mismatch raises `TypeError`, as
+in CPython. Instances and subclasses behave as before.
+
+### Pickle input
+
+`pickle.loads` trusted its input completely: reads were not bounded by the
+data, memo indices and stack depths were not checked, a raw value (`PKL_TVALUE`
+and array2d cells) could carry any type and pointer, and an object record could
+name a native type. `0013-pickle-loads-validation.patch` bounds every read and
+checks every operand. Raw values are accepted only for plain data types (`int`,
+`float`, `bool`, `None`, `NotImplemented`, `...`, the vector types and
+`color32`), object records only for Python classes, and a value of the wrong
+kind, a short buffer or a too-deep stack raises `ValueError("invalid pickle
+data")`. Pickles written by `pickle.dumps` load unchanged. Loading still calls
+the functions a pickle names, as in CPython, so it is only for trusted data.

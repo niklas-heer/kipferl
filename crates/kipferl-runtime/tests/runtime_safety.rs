@@ -209,16 +209,86 @@ print('raw memory access stays unavailable')
 }
 
 // `pkpy.TValue[int].__new__(list, address)` built a list whose object pointer
-// was the given integer, so any list operation read or wrote that address.
+// was the given integer, so any list operation read or wrote that address. The
+// concrete TValue types and stdc's memory types stayed reachable through
+// `object.__subclasses__()`, and pickle.loads copied raw values from its input.
 #[test]
 fn forged_values_are_not_scriptable() {
     let output = run(r"
-import pkpy
+import pkpy, pickle
 assert not hasattr(pkpy, 'TValue')
+names = [c.__name__ for c in object.__subclasses__()]
+assert not [n for n in names if n.startswith('TValue')], names
+memory = [c for c in object.__subclasses__() if c.__name__ == 'Memory'][0]
+for c in memory.__subclasses__():
+    assert not hasattr(c, 'read') and not hasattr(c, 'write') and not hasattr(c, 'array'), c
+    try:
+        c()
+        raise AssertionError('stdc value was created')
+    except TypeError:
+        pass
+forged = b'PK99(list)\n0\n*' + bytes([99, 0, 1, 0, 0, 0, 0, 0, 16] + [0] * 15) + b'-'
+for data in [forged, b'PK\n0\n\x1f\x15\x7f-', b'PK\n1\n\x00\x05-', b'PK\n0\n\x1d\x08ab',
+             b'PK1(' + b'x' * 300 + b'.y)\n0\n-', b'PK\n0\n' + b'\x03' * 20000 + b'-']:
+    try:
+        pickle.loads(data)
+        raise AssertionError('malformed pickle was accepted')
+    except (ValueError, ImportError) as error:
+        print(type(error).__name__)
+class Point:
+    def __init__(self, x):
+        self.x = x
+value = [1, 2.5, True, None, 'text', b'raw', (1, 2), {'k': [3]}, Point(4)]
+copy = pickle.loads(pickle.dumps(value))
+assert copy[:8] == value[:8] and copy[8].x == 4
 print('value forging stays unavailable')
 ");
     assert!(output.status.success(), "{output:?}");
-    assert_eq!(output.stdout, b"value forging stays unavailable\n");
+    assert_eq!(
+        output.stdout,
+        b"ValueError\nValueError\nValueError\nValueError\nImportError\nValueError\n\
+value forging stays unavailable\n"
+    );
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+// C methods and constructors trusted their first argument's type: `dict.clear([1])`
+// read a list as a dict, `dict.__new__(list)` made a list with a dict's payload, and
+// a class could borrow another type's C magic method. Each now raises TypeError.
+#[test]
+fn native_methods_reject_foreign_receivers() {
+    let output = run(r"
+import random, io, enum, array2d
+class Borrowed(dict):
+    __getitem__ = list.__getitem__
+    __setitem__ = list.__setitem__
+    __len__ = list.__len__
+def borrowed_set():
+    Borrowed()[0] = 1
+calls = [lambda: dict.clear([1]), lambda: dict.__len__([1]), lambda: list.__len__({}),
+         lambda: str.upper(5), lambda: list.sort({}), lambda: random.Random.choices([], [1]),
+         lambda: bytearray.__len__([]), lambda: bytearray.__setitem__([], 0, 1),
+         lambda: dict.__new__(list), lambda: BaseException.__new__(list),
+         lambda: random.Random.__new__(list), lambda: enum.Enum.__new__(list),
+         lambda: io.FileIO.__new__(list, 'x', 'r'), lambda: array2d.chunked_array2d.__new__(list, 2),
+         lambda: dict.__new__(5), lambda: Borrowed()[0], borrowed_set, lambda: len(Borrowed()),
+         lambda: sorted([[1], [2]], key=dict.__len__)]
+for call in calls:
+    try:
+        call()
+        raise AssertionError('foreign receiver was accepted')
+    except TypeError:
+        pass
+class Child(dict):
+    pass
+child = dict.__new__(Child)
+child['a'] = 1
+assert dict.__len__(child) == 1 and isinstance(child, Child)
+assert list.__len__([1, 2]) == 2 and int.__add__(2, 1) == 3
+print(len(calls), 'foreign receivers rejected')
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"19 foreign receivers rejected\n");
     assert!(output.stderr.is_empty(), "{output:?}");
 }
 
@@ -229,8 +299,10 @@ fn oversized_repetitions_and_grids_raise_instead_of_overflowing() {
     let output = run(r"
 import array2d
 for build in [lambda: 'a' * (2**32 + 1), lambda: 'ab' * (2**31 + 1), lambda: 'xyz' * 2**62,
+              lambda: 'a' * (2**31 - 1),
               lambda: array2d.array2d(65536, 65537, lambda pos: 0),
-              lambda: array2d.array2d(65536, 32768), lambda: array2d.array2d(2**32 + 1, 1)]:
+              lambda: array2d.array2d(65536, 32768), lambda: array2d.array2d(2**32 + 1, 1),
+              lambda: array2d.array2d(178956971, 1), lambda: array2d.array2d(1, 89478486)]:
     try:
         build()
         raise AssertionError('oversized result was accepted')
@@ -244,8 +316,9 @@ print('sizes checked')
     assert_eq!(
         output.stdout,
         b"repeated string is too long\nrepeated string is too long\nrepeated string is too long\n\
+repeated string is too long\narray2d() dimensions are too large\n\
 array2d() dimensions are too large\narray2d() dimensions are too large\n\
-array2d() dimensions are too large\nsizes checked\n"
+array2d() dimensions are too large\narray2d() dimensions are too large\nsizes checked\n"
     );
     assert!(output.stderr.is_empty(), "{output:?}");
 }

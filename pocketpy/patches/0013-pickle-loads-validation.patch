@@ -1,0 +1,583 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -25964,10 +25964,13 @@
+     PickleObject__write_bytes(buf, s, strlen(s) + 1);
+ }
+ 
+-const static char* pkl__read_cstr(const unsigned char** p) {
+-    const char* s = (const char*)*p;
+-    (*p) += strlen(s) + 1;
+-    return s;
++// kipferl patch: pickle.loads reads script-supplied bytes, so every read is bounded
++static bool pkl__read_cstr(const unsigned char** p, const unsigned char* end, const char** out) {
++    const unsigned char* nul = memchr(*p, '\0', end - *p);
++    if(nul == NULL) return false;
++    *out = (const char*)*p;
++    *p = nul + 1;
++    return true;
+ }
+ 
+ #define UNALIGNED_READ(p_val, p_buf)                                                               \
+@@ -25976,40 +25979,34 @@
+         (p_buf) += sizeof(*(p_val));                                                               \
+     } while(0)
+ 
+-static py_i64 pkl__read_int(const unsigned char** p) {
++#define PKL_READ_FIXED(T, out)                                                                     \
++    do {                                                                                           \
++        T val;                                                                                     \
++        if((size_t)(end - *p) < sizeof(T)) return false;                                           \
++        UNALIGNED_READ(&val, *p);                                                                  \
++        *(out) = val;                                                                              \
++        return true;                                                                               \
++    } while(0)
++
++static bool pkl__read_int(const unsigned char** p, const unsigned char* end, py_i64* out) {
++    if(*p >= end) return false;
+     PickleOp op = (PickleOp) * *p;
+     (*p)++;
++    if(op >= PKL_INT_0 && op <= PKL_INT_15) {
++        *out = op - PKL_INT_0;
++        return true;
++    }
+     switch(op) {
+-            // clang-format off
+-        case PKL_INT_0: return 0; case PKL_INT_1: return 1; case PKL_INT_2: return 2; case PKL_INT_3: return 3;
+-        case PKL_INT_4: return 4; case PKL_INT_5: return 5; case PKL_INT_6: return 6; case PKL_INT_7: return 7;
+-        case PKL_INT_8: return 8; case PKL_INT_9: return 9; case PKL_INT_10: return 10; case PKL_INT_11: return 11;
+-        case PKL_INT_12: return 12; case PKL_INT_13: return 13; case PKL_INT_14: return 14; case PKL_INT_15: return 15;
+-        // clang-format on
+-        case PKL_INT8: {
+-            int8_t val;
+-            UNALIGNED_READ(&val, *p);
+-            return val;
+-        }
+-        case PKL_INT16: {
+-            int16_t val;
+-            UNALIGNED_READ(&val, *p);
+-            return val;
+-        }
+-        case PKL_INT32: {
+-            int32_t val;
+-            UNALIGNED_READ(&val, *p);
+-            return val;
+-        }
+-        case PKL_INT64: {
+-            int64_t val;
+-            UNALIGNED_READ(&val, *p);
+-            return val;
+-        }
+-        default: c11__abort("pkl__read_int(): invalid op: %d", op);
++        case PKL_INT8: PKL_READ_FIXED(int8_t, out);
++        case PKL_INT16: PKL_READ_FIXED(int16_t, out);
++        case PKL_INT32: PKL_READ_FIXED(int32_t, out);
++        case PKL_INT64: PKL_READ_FIXED(int64_t, out);
++        default: return false;
+     }
+ }
+ 
++#undef PKL_READ_FIXED
++
+ static bool pickle_loads(int argc, py_Ref argv) {
+     PY_CHECK_ARGC(1);
+     PY_CHECK_ARG_TYPE(0, tp_bytes);
+@@ -26336,33 +26333,42 @@
+     c11_sv mod_name = c11_sv__slice2(path, 0, sep_index);
+     c11_sv name = c11_sv__slice(path, sep_index + 1);
+     char buf[PK_MAX_MODULE_PATH_LEN + 1];
++    // kipferl patch: the module name comes from the pickle and must fit the buffer
++    if(mod_name.size > PK_MAX_MODULE_PATH_LEN) return tp_nil;
+     memcpy(buf, mod_name.data, mod_name.size);
+     buf[mod_name.size] = '\0';
+     return py_gettype(buf, py_namev(name));
+ }
+ 
+-static c11_sv pkl__header_read_sv(const unsigned char** p, char sep) {
+-    c11_sv text;
+-    text.data = (const char*)*p;
+-    const char* p_end = strchr(text.data, sep);
+-    assert(p_end != NULL);
+-    text.size = p_end - text.data;
+-    *p = (const unsigned char*)p_end + 1;
+-    return text;
++static bool pkl__header_read_sv(const unsigned char** p,
++                                const unsigned char* end,
++                                char sep,
++                                c11_sv* out) {
++    const unsigned char* p_end = memchr(*p, sep, end - *p);
++    if(p_end == NULL) return false;
++    out->data = (const char*)*p;
++    out->size = p_end - *p;
++    *p = p_end + 1;
++    return true;
+ }
+ 
+-static py_i64 pkl__header_read_int(const unsigned char** p, char sep) {
+-    c11_sv text = pkl__header_read_sv(p, sep);
+-    py_i64 out;
+-    IntParsingResult res = c11__parse_uint(text, &out, 10);
+-    assert(res == IntParsing_SUCCESS);
+-    return out;
++static bool pkl__header_read_int(const unsigned char** p,
++                                 const unsigned char* end,
++                                 char sep,
++                                 py_i64* out) {
++    c11_sv text;
++    if(!pkl__header_read_sv(p, end, sep, &text)) return false;
++    return c11__parse_uint(text, out, 10) == IntParsing_SUCCESS;
+ }
+ 
+-bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_d2d* type_mapping);
++static bool py_pickle_loads_body(const unsigned char* p,
++                                 const unsigned char* end,
++                                 int memo_length,
++                                 c11_smallmap_d2d* type_mapping);
+ 
+ bool py_pickle_loads(const unsigned char* data, int size) {
+     const unsigned char* p = data;
++    const unsigned char* end = data + size;
+ 
+     // PK
+     if(size < 2 || p[0] != 'P' || p[1] != 'K')
+@@ -26372,23 +26378,40 @@
+     c11_smallmap_d2d type_mapping;
+     c11_smallmap_d2d__ctor(&type_mapping);
+ 
++    // kipferl patch: a malformed header raises instead of reading past the data
++    bool ok = false;
+     while(true) {
++        if(p >= end) goto __INVALID;
+         if(*p == '\n') {
+             p++;
+             break;
+         }
+-        py_Type type = pkl__header_read_int(&p, '(');
+-        c11_sv path = pkl__header_read_sv(&p, ')');
++        py_i64 type;
++        c11_sv path;
++        if(!pkl__header_read_int(&p, end, '(', &type) || type <= 0 || type > INT16_MAX) {
++            goto __INVALID;
++        }
++        if(!pkl__header_read_sv(&p, end, ')', &path)) goto __INVALID;
+         py_Type new_type = pkl__header_find_type(path);
+         if(new_type == 0) {
+-            c11_smallmap_d2d__dtor(&type_mapping);
+-            return ImportError("cannot find type '%v'", path);
++            ImportError("cannot find type '%v'", path);
++            goto __END;
+         }
+-        if(type != new_type) c11_smallmap_d2d__set(&type_mapping, type, new_type);
++        if(type != new_type) c11_smallmap_d2d__set(&type_mapping, (py_Type)type, new_type);
++    }
++
++    py_i64 memo_length;
++    if(!pkl__header_read_int(&p, end, '\n', &memo_length)) goto __INVALID;
++    // each memo entry is set by an operation, and the memo is one tuple
++    if(memo_length > size || memo_length > PK_OBJ_MAX_UDSIZE(0) / (int64_t)sizeof(py_TValue)) {
++        goto __INVALID;
+     }
++    ok = py_pickle_loads_body(p, end, (int)memo_length, &type_mapping);
++    goto __END;
+ 
+-    int memo_length = pkl__header_read_int(&p, '\n');
+-    bool ok = py_pickle_loads_body(p, memo_length, &type_mapping);
++__INVALID:
++    ValueError("invalid pickle data");
++__END:
+     c11_smallmap_d2d__dtor(&type_mapping);
+     return ok;
+ }
+@@ -26399,22 +26422,96 @@
+     return type;
+ }
+ 
+-bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_d2d* type_mapping) {
++// kipferl patch: types in the pickle are indices; only existing types are accepted
++static bool pkl__read_type(const unsigned char** p,
++                           const unsigned char* end,
++                           c11_smallmap_d2d* type_mapping,
++                           py_Type* out) {
++    py_i64 index;
++    if(!pkl__read_int(p, end, &index) || index <= 0 || index > INT16_MAX) return false;
++    py_Type type = pkl__fix_type((py_Type)index, type_mapping);
++    if(type <= 0 || type >= pk_current_vm->types.length) return false;
++    *out = type;
++    return true;
++}
++
++// kipferl patch: a raw value from the pickle becomes a value only for plain data types;
++// a pointer, a native function or a type with userdata would forge an object
++static bool pkl__read_raw_value(const unsigned char* src,
++                                c11_smallmap_d2d* type_mapping,
++                                py_TValue* out) {
++    unsigned char is_ptr;
++    memcpy(&is_ptr, src + offsetof(py_TValue, is_ptr), 1);
++    if(is_ptr != 0) return false;
++    py_TValue val;
++    memcpy(&val, src, sizeof(py_TValue));
++    if(val.type <= 0) return false;
++    val.type = pkl__fix_type(val.type, type_mapping);
++    switch(val.type) {
++        case tp_int:
++        case tp_float:
++        case tp_NoneType:
++        case tp_NotImplementedType:
++        case tp_ellipsis:
++        case tp_vec2:
++        case tp_vec3:
++        case tp_vec2i:
++        case tp_vec3i:
++        case tp_vec4i:
++        case tp_color32: break;
++        case tp_bool: {
++            unsigned char b;
++            memcpy(&b, src + offsetof(py_TValue, _bool), 1);
++            val._bool = b != 0;
++            break;
++        }
++        default: return false;
++    }
++    *out = val;
++    return true;
++}
++
++static bool pkl__has_nil(py_StackRef begin, int n) {
++    for(int i = 0; i < n; i++) {
++        if(py_isnil(begin + i)) return true;
++    }
++    return false;
++}
++
++static bool py_pickle_loads_body(const unsigned char* p,
++                                 const unsigned char* end,
++                                 int memo_length,
++                                 c11_smallmap_d2d* type_mapping) {
+     py_StackRef p0 = py_peek(0);
+     py_Ref p_memo = py_newtuple(py_pushtmp(), memo_length);
++    // kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices
++    // `depth` counts the values above the memo; nil is only valid as the self slot of a call
++#define DEPTH() ((int)(py_peek(0) - p0) - 1)
++#define INVALID() return ValueError("invalid pickle data")
++#define READ_INT(out)                                                                              \
++    if(!pkl__read_int(&p, end, &(out))) INVALID()
++#define NEED(n)                                                                                    \
++    if((size_t)(end - p) < (size_t)(n)) INVALID()
+     while(true) {
++        if(p >= end) INVALID();
++        if(pk_current_vm->stack.sp >= pk_current_vm->stack.end) INVALID();
+         PickleOp op = (PickleOp)*p;
+         p++;
+         switch(op) {
+             case PKL_MEMO_GET: {
+-                int index = pkl__read_int(&p);
++                py_i64 index;
++                READ_INT(index);
++                if(index < 0 || index >= memo_length) INVALID();
+                 py_Ref val = &p_memo[index];
+-                assert(!py_isnil(val));
++                if(py_isnil(val)) INVALID();
+                 py_push(val);
+                 break;
+             }
+             case PKL_MEMO_SET: {
+-                int index = pkl__read_int(&p);
++                py_i64 index;
++                READ_INT(index);
++                if(index < 0 || index >= memo_length) INVALID();
++                if(DEPTH() < 1 || py_isnil(py_peek(-1))) INVALID();
+                 p_memo[index] = *py_peek(-1);
+                 break;
+             }
+@@ -26434,43 +26531,25 @@
+             case PKL_INT_0: case PKL_INT_1: case PKL_INT_2: case PKL_INT_3:
+             case PKL_INT_4: case PKL_INT_5: case PKL_INT_6: case PKL_INT_7:
+             case PKL_INT_8: case PKL_INT_9: case PKL_INT_10: case PKL_INT_11:
+-            case PKL_INT_12: case PKL_INT_13: case PKL_INT_14: case PKL_INT_15: {
+-                py_newint(py_pushtmp(), op - PKL_INT_0);
+-                break;
+-            }
+-            // clang-format on
+-            case PKL_INT8: {
+-                int8_t val;
+-                UNALIGNED_READ(&val, p);
+-                py_newint(py_pushtmp(), val);
+-                break;
+-            }
+-            case PKL_INT16: {
+-                int16_t val;
+-                UNALIGNED_READ(&val, p);
+-                py_newint(py_pushtmp(), val);
+-                break;
+-            }
+-            case PKL_INT32: {
+-                int32_t val;
+-                UNALIGNED_READ(&val, p);
+-                py_newint(py_pushtmp(), val);
+-                break;
+-            }
+-            case PKL_INT64: {
+-                int64_t val;
+-                UNALIGNED_READ(&val, p);
++            case PKL_INT_12: case PKL_INT_13: case PKL_INT_14: case PKL_INT_15:
++            case PKL_INT8: case PKL_INT16: case PKL_INT32: case PKL_INT64: {
++                // clang-format on
++                py_i64 val;
++                p--;
++                READ_INT(val);
+                 py_newint(py_pushtmp(), val);
+                 break;
+             }
+             case PKL_FLOAT32: {
+                 float val;
++                NEED(sizeof(val));
+                 UNALIGNED_READ(&val, p);
+                 py_newfloat(py_pushtmp(), val);
+                 break;
+             }
+             case PKL_FLOAT64: {
+                 double val;
++                NEED(sizeof(val));
+                 UNALIGNED_READ(&val, p);
+                 py_newfloat(py_pushtmp(), val);
+                 break;
+@@ -26484,24 +26563,33 @@
+                 break;
+             }
+             case PKL_STRING: {
+-                int size = pkl__read_int(&p);
+-                char* dst = py_newstrn(py_pushtmp(), size);
++                py_i64 size;
++                READ_INT(size);
++                if(size < 0) INVALID();
++                NEED(size);
++                char* dst = py_newstrn(py_pushtmp(), (int)size);
+                 memcpy(dst, p, size);
+                 p += size;
+                 break;
+             }
+             case PKL_BYTES: {
+-                int size = pkl__read_int(&p);
+-                unsigned char* dst = py_newbytes(py_pushtmp(), size);
++                py_i64 size;
++                READ_INT(size);
++                if(size < 0) INVALID();
++                NEED(size);
++                unsigned char* dst = py_newbytes(py_pushtmp(), (int)size);
+                 memcpy(dst, p, size);
+                 p += size;
+                 break;
+             }
+             case PKL_BUILD_LIST: {
+-                int length = pkl__read_int(&p);
++                py_i64 length;
++                READ_INT(length);
++                if(length < 0 || length > DEPTH()) INVALID();
++                if(pkl__has_nil(py_peek(-(int)length), (int)length)) INVALID();
+                 py_Ref val = py_retval();
+-                py_newlistn(val, length);
+-                for(int i = length - 1; i >= 0; i--) {
++                py_newlistn(val, (int)length);
++                for(int i = (int)length - 1; i >= 0; i--) {
+                     py_StackRef item = py_peek(-1);
+                     py_list_setitem(val, i, item);
+                     py_pop();
+@@ -26510,10 +26598,13 @@
+                 break;
+             }
+             case PKL_BUILD_TUPLE: {
+-                int length = pkl__read_int(&p);
++                py_i64 length;
++                READ_INT(length);
++                if(length < 0 || length > DEPTH()) INVALID();
++                if(pkl__has_nil(py_peek(-(int)length), (int)length)) INVALID();
+                 py_Ref val = py_retval();
+-                py_Ref p = py_newtuple(val, length);
+-                for(int i = length - 1; i >= 0; i--) {
++                py_Ref p = py_newtuple(val, (int)length);
++                for(int i = (int)length - 1; i >= 0; i--) {
+                     p[i] = *py_peek(-1);
+                     py_pop();
+                 }
+@@ -26521,12 +26612,15 @@
+                 break;
+             }
+             case PKL_BUILD_DICT: {
+-                int length = pkl__read_int(&p);
++                py_i64 length;
++                READ_INT(length);
++                if(length < 0 || length > DEPTH() / 2) INVALID();
++                if(pkl__has_nil(py_peek(-2 * (int)length), 2 * (int)length)) INVALID();
+                 py_Ref val = py_pushtmp();
+                 py_newdict(val);
+                 py_StackRef begin = py_peek(-1) - 2 * length;
+-                py_StackRef end = py_peek(-1);
+-                for(py_StackRef i = begin; i < end; i += 2) {
++                py_StackRef stop = py_peek(-1);
++                for(py_StackRef i = begin; i < stop; i += 2) {
+                     py_StackRef k = i;
+                     py_StackRef v = i + 1;
+                     bool ok = py_dict_setitem(val, k, v);
+@@ -26539,51 +26633,63 @@
+             }
+             case PKL_VEC2: {
+                 c11_vec2 val;
++                NEED(sizeof(val));
+                 UNALIGNED_READ(&val, p);
+                 py_newvec2(py_pushtmp(), val);
+                 break;
+             }
+             case PKL_VEC3: {
+                 c11_vec3 val;
++                NEED(sizeof(val));
+                 UNALIGNED_READ(&val, p);
+                 py_newvec3(py_pushtmp(), val);
+                 break;
+             }
+             case PKL_VEC2I: {
++                py_i64 x, y;
++                READ_INT(x);
++                READ_INT(y);
+                 c11_vec2i val;
+-                val.x = pkl__read_int(&p);
+-                val.y = pkl__read_int(&p);
++                val.x = (int)x;
++                val.y = (int)y;
+                 py_newvec2i(py_pushtmp(), val);
+                 break;
+             }
+             case PKL_VEC3I: {
++                py_i64 x, y, z;
++                READ_INT(x);
++                READ_INT(y);
++                READ_INT(z);
+                 c11_vec3i val;
+-                val.x = pkl__read_int(&p);
+-                val.y = pkl__read_int(&p);
+-                val.z = pkl__read_int(&p);
++                val.x = (int)x;
++                val.y = (int)y;
++                val.z = (int)z;
+                 py_newvec3i(py_pushtmp(), val);
+                 break;
+             }
+             case PKL_TYPE: {
+-                py_Type type = (py_Type)pkl__read_int(&p);
+-                type = pkl__fix_type(type, type_mapping);
++                py_Type type;
++                if(!pkl__read_type(&p, end, type_mapping, &type)) INVALID();
+                 py_push(py_tpobject(type));
+                 break;
+             }
+             case PKL_ARRAY2D: {
+-                int n_cols = pkl__read_int(&p);
+-                int n_rows = pkl__read_int(&p);
+-                c11_array2d* arr = c11_newarray2d(py_pushtmp(), n_cols, n_rows);
+-                int total_size = arr->header.numel * sizeof(py_TValue);
+-                memcpy(arr->data, p, total_size);
++                py_i64 n_cols, n_rows;
++                READ_INT(n_cols);
++                READ_INT(n_rows);
++                if(!c11_array2d__check_size(n_cols, n_rows)) return false;
++                c11_array2d* arr = c11_newarray2d(py_pushtmp(), (int)n_cols, (int)n_rows);
++                if(arr == NULL) return false;
++                NEED((size_t)arr->header.numel * sizeof(py_TValue));
+                 for(int i = 0; i < arr->header.numel; i++) {
+-                    arr->data[i].type = pkl__fix_type(arr->data[i].type, type_mapping);
++                    if(!pkl__read_raw_value(p, type_mapping, &arr->data[i])) INVALID();
++                    p += sizeof(py_TValue);
+                 }
+-                p += total_size;
+                 break;
+             }
+             case PKL_IMPORT_PATH: {
+-                const char* path = pkl__read_cstr(&p);
++                const char* path;
++                if(!pkl__read_cstr(&p, end, &path)) INVALID();
+                 int res = py_import(path);
+                 if(res == -1) return false;
+                 if(res == 0) return ImportError("No module named '%s'", path);
+@@ -26591,7 +26697,9 @@
+                 break;
+             }
+             case PKL_GETATTR: {
+-                const char* name = pkl__read_cstr(&p);
++                const char* name;
++                if(!pkl__read_cstr(&p, end, &name)) INVALID();
++                if(DEPTH() < 1 || py_isnil(py_peek(-1))) INVALID();
+                 py_Ref obj = py_peek(-1);
+                 if(!py_getattr(obj, py_name(name))) return false;
+                 py_pop();
+@@ -26599,45 +26707,59 @@
+                 break;
+             }
+             case PKL_TVALUE: {
+-                py_TValue* tmp = py_pushtmp();
+-                memcpy(tmp, p, sizeof(py_TValue));
+-                tmp->type = pkl__fix_type(tmp->type, type_mapping);
++                NEED(sizeof(py_TValue));
++                py_TValue val;
++                if(!pkl__read_raw_value(p, type_mapping, &val)) INVALID();
++                py_push(&val);
+                 p += sizeof(py_TValue);
+                 break;
+             }
+             case PKL_CALL: {
+-                int argc = pkl__read_int(&p);
+-                if(!py_vectorcall(argc, 0)) return false;
++                py_i64 argc;
++                READ_INT(argc);
++                if(argc < 0 || argc > DEPTH() - 2) INVALID();
++                // [callable, self or nil, args...]
++                if(py_isnil(py_peek(-(int)argc - 2))) INVALID();
++                if(pkl__has_nil(py_peek(-(int)argc), (int)argc)) INVALID();
++                if(!py_vectorcall((uint16_t)argc, 0)) return false;
+                 py_push(py_retval());
+                 break;
+             }
+             case PKL_OBJECT: {
+-                py_Type type = (py_Type)pkl__read_int(&p);
+-                type = pkl__fix_type(type, type_mapping);
++                py_Type type;
++                if(!pkl__read_type(&p, end, type_mapping, &type)) INVALID();
++                // only instances of Python classes are plain attribute dictionaries
++                if(!pk_typeinfo(type)->is_python) INVALID();
++                py_i64 dict_length;
++                READ_INT(dict_length);
++                if(dict_length < 0 || dict_length > DEPTH()) INVALID();
++                if(pkl__has_nil(py_peek(-(int)dict_length), (int)dict_length)) INVALID();
+                 py_newobject(py_retval(), type, -1, 0);
+                 NameDict* dict = PyObject__dict(py_retval()->_obj);
+-                int dict_length = pkl__read_int(&p);
+                 for(int i = 0; i < dict_length; i++) {
+                     py_StackRef value = py_peek(-1);
+-                    c11_sv field = {(const char*)p, strlen((const char*)p)};
+-                    NameDict__set(dict, py_namev(field), value);
++                    const char* field;
++                    if(!pkl__read_cstr(&p, end, &field)) INVALID();
++                    NameDict__set(dict, py_name(field), value);
+                     py_pop();
+-                    p += field.size + 1;
+                 }
+                 py_push(py_retval());
+                 break;
+             }
+             case PKL_EOF: {
+                 // [memo, obj]
+-                if(py_peek(0) - p0 != 2) return ValueError("invalid pickle data");
++                if(py_peek(0) - p0 != 2 || py_isnil(py_peek(-1))) INVALID();
+                 py_assign(py_retval(), py_peek(-1));
+                 py_shrink(2);
+                 return true;
+             }
+-            default: c11__unreachable();
++            default: INVALID();
+         }
+     }
+-    c11__unreachable();
++#undef DEPTH
++#undef INVALID
++#undef READ_INT
++#undef NEED
+ }
+ 
+ static bool PickleObject__py_submit(PickleObject* self, py_OutRef out) {

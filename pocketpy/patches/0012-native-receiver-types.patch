@@ -1,0 +1,170 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -6400,9 +6400,12 @@
+     NameDict* closure;      // maybe NULL, strong ref
+     PyObject* clazz;        // weak ref; for super()
+     py_CFunction cfunc;     // wrapped C function; for decl-based binding
++    // kipferl patch: the type a bound C function belongs to (see pk__check_receiver)
++    int receiver;
+ } Function;
+ 
+ void Function__ctor(Function* self, FuncDecl_ decl, py_GlobalRef module, py_Ref globals);
++bool pk__check_receiver(int receiver, int argc, py_Ref argv);  // kipferl patch
+ void Function__dtor(Function* self);
+ 
+ 
+@@ -18320,6 +18323,8 @@
+             py_Ref magic = py_tpfindmagic(SECOND()->type, __getitem__);
+             if(magic) {
+                 if(magic->type == tp_nativefunc) {
++                    // kipferl patch: a class may hold another type's C magic method
++                    if(!pk__check_receiver(magic->extra, 2, SECOND())) goto __ERROR;
+                     if(!py_callcfunc(magic->_cfunc, 2, SECOND())) goto __ERROR;
+                     POP();
+                     py_assign(TOP(), py_retval());
+@@ -18399,6 +18404,8 @@
+             if(magic) {
+                 PUSH(THIRD());  // [val, a, b, val]
+                 if(magic->type == tp_nativefunc) {
++                    // kipferl patch: a class may hold another type's C magic method
++                    if(!pk__check_receiver(magic->extra, 3, THIRD())) goto __ERROR;
+                     if(!py_callcfunc(magic->_cfunc, 3, THIRD())) goto __ERROR;
+                     STACK_SHRINK(4);
+                 } else {
+@@ -18471,6 +18478,8 @@
+             py_Ref magic = py_tpfindmagic(SECOND()->type, __delitem__);
+             if(magic) {
+                 if(magic->type == tp_nativefunc) {
++                    // kipferl patch: a class may hold another type's C magic method
++                    if(!pk__check_receiver(magic->extra, 2, SECOND())) goto __ERROR;
+                     if(!py_callcfunc(magic->_cfunc, 2, SECOND())) goto __ERROR;
+                     STACK_SHRINK(2);
+                 } else {
+@@ -18626,6 +18635,8 @@
+             py_Ref magic = py_tpfindmagic(SECOND()->type, __contains__);
+             if(magic) {
+                 if(magic->type == tp_nativefunc) {
++                    // kipferl patch: a class may hold another type's C magic method
++                    if(!pk__check_receiver(magic->extra, 2, SECOND())) goto __ERROR;
+                     if(!py_callcfunc(magic->_cfunc, 2, SECOND())) goto __ERROR;
+                     STACK_SHRINK(2);
+                 } else {
+@@ -21032,6 +21043,25 @@
+     return true;
+ }
+ 
++// kipferl patch: C methods read their receiver's userdata without checking its type
++// A C function bound to a type records it: a positive receiver requires an instance of that
++// type as the first argument, a negative one (`__new__`) a subclass of it, and 0 checks nothing.
++bool pk__check_receiver(int receiver, int argc, py_Ref argv) {
++    if(receiver == 0) return true;
++    py_Type type = (py_Type)(receiver > 0 ? receiver : -receiver);
++    if(argc < 1 || argv->type == tp_nil) {
++        return TypeError("unbound method of '%t' objects needs an argument", type);
++    }
++    if(receiver > 0) {
++        if(py_isinstance(argv, type)) return true;
++        return TypeError("descriptor for '%t' objects doesn't apply to a '%t' object",
++                         type,
++                         argv->type);
++    }
++    if(argv->type == tp_type && py_issubclass(py_totype(argv), type)) return true;
++    return TypeError("%t.__new__(X): X must be a subtype of %t", type, type);
++}
++
+ FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall) {
+ #ifndef NDEBUG
+     pk_print_stack(self, self->top_frame, (Bytecode){0});
+@@ -21077,6 +21107,7 @@
+                     return opcall ? RES_CALL : VM__run_top_frame(self);
+                 } else {
+                     // decl-based binding
++                    if(!pk__check_receiver(fn->receiver, co->nlocals, argv)) return RES_ERROR;
+                     bool ok = py_callcfunc(fn->cfunc, co->nlocals, argv);
+                     self->stack.sp = p0;
+                     return ok ? RES_RETURN : RES_ERROR;
+@@ -21104,6 +21135,7 @@
+                     return opcall ? RES_CALL : VM__run_top_frame(self);
+                 } else {
+                     // decl-based binding
++                    if(!pk__check_receiver(fn->receiver, co->nlocals, argv)) return RES_ERROR;
+                     bool ok = py_callcfunc(fn->cfunc, co->nlocals, argv);
+                     self->stack.sp = p0;
+                     return ok ? RES_RETURN : RES_ERROR;
+@@ -21131,6 +21163,7 @@
+             TypeError("nativefunc does not accept keyword arguments");
+             return RES_ERROR;
+         }
++        if(!pk__check_receiver(p0->extra, p1 - argv, argv)) return RES_ERROR;
+         bool ok = py_callcfunc(p0->_cfunc, p1 - argv, argv);
+         self->stack.sp = p0;
+         return ok ? RES_RETURN : RES_ERROR;
+@@ -30953,6 +30986,7 @@
+     self->closure = NULL;
+     self->clazz = NULL;
+     self->cfunc = NULL;
++    self->receiver = 0;
+ }
+ 
+ int CodeObject__add_varname(CodeObject* self, py_Name name) {
+@@ -31704,6 +31738,17 @@
+ void py_bind(py_Ref obj, const char* sig, py_CFunction f) {
+     py_Ref tmp = py_pushtmp();
+     py_Name name = py_newfunction(tmp, sig, f, NULL, 0);
++    // kipferl patch: a method bound to a type checks its `self` or `__new__` argument
++    if(obj->type == tp_type) {
++        Function* fn = py_touserdata(tmp);
++        if(fn->decl->args.length > 0) {
++            int index = c11__getitem(int, &fn->decl->args, 0);
++            py_Name first = c11__getitem(py_Name, &fn->decl->code.varnames, index);
++            py_Type type = py_totype(obj);
++            if(first == py_name("self")) fn->receiver = type;
++            if(first == py_name("cls") && name == __new__) fn->receiver = -type;
++        }
++    }
+     py_setdict(obj, name, tmp);
+     py_pop();
+ }
+@@ -31711,6 +31756,7 @@
+ void py_bindmethod(py_Type type, const char* name, py_CFunction f) {
+     py_TValue tmp;
+     py_newnativefunc(&tmp, f);
++    tmp.extra = strcmp(name, "__new__") == 0 ? -type : type;  // kipferl patch: see py_bind
+     py_setdict(py_tpobject(type), py_name(name), &tmp);
+ }
+ 
+@@ -31735,8 +31781,10 @@
+     py_TValue tmp;
+     py_newobject(&tmp, tp_property, 2, 0);
+     py_newnativefunc(py_getslot(&tmp, 0), getter);
++    py_getslot(&tmp, 0)->extra = type;  // kipferl patch: see py_bind
+     if(setter) {
+         py_newnativefunc(py_getslot(&tmp, 1), setter);
++        py_getslot(&tmp, 1)->extra = type;
+     } else {
+         py_setslot(&tmp, 1, py_None());
+     }
+@@ -31746,6 +31794,7 @@
+ void py_bindmagic(py_Type type, py_Name name, py_CFunction f) {
+     py_Ref tmp = py_emplacedict(py_tpobject(type), name);
+     py_newnativefunc(tmp, f);
++    tmp->extra = name == __new__ ? -type : type;  // kipferl patch: see py_bind
+ }
+ 
+ // src/public\CodeExecution.c
+@@ -34862,6 +34911,7 @@
+ 
+ bool py_call(py_Ref f, int argc, py_Ref argv) {
+     if(f->type == tp_nativefunc) {
++        if(!pk__check_receiver(f->extra, argc, argv)) return false;
+         return py_callcfunc(f->_cfunc, argc, argv);
+     } else {
+         py_push(f);
+@@ -35280,6 +35330,7 @@
+ void py_newnativefunc(py_OutRef out, py_CFunction f) {
+     out->type = tp_nativefunc;
+     out->is_ptr = false;
++    out->extra = 0;  // kipferl patch: no receiver type unless a type binding sets one
+     out->_cfunc = f;
+ }
+ 

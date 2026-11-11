@@ -1,6 +1,25 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -7479,8 +7479,32 @@
+@@ -5983,6 +5983,9 @@
+ void* PyObject__userdata(PyObject* self);
+ 
+ #define PK_OBJ_SLOTS_SIZE(slots) ((slots) >= 0 ? sizeof(py_TValue) * (slots) : sizeof(NameDict))
++// kipferl patch: the largest userdata whose object size still fits the int that allocates it
++#define PK_OBJ_MAX_UDSIZE(slots)                                                                   \
++    ((int64_t)INT32_MAX - (int64_t)sizeof(PyObject) - (int64_t)PK_OBJ_SLOTS_SIZE(slots))
+ 
+ void PyObject__dtor(PyObject* self);
+ 
+@@ -6047,7 +6050,7 @@
+ 
+ #define ManagedHeap__new(self, type, slots, udsize)                                                \
+     ManagedHeap__gcnew((self), (type), (slots), (udsize))
+-PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int udsize);
++PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int64_t udsize);
+ 
+ // external implementation
+ void ManagedHeap__mark(ManagedHeap* self);
+@@ -7479,8 +7482,32 @@
  DEF_INT_BITWISE_OP(__and__, &)
  DEF_INT_BITWISE_OP(__or__, |)
  DEF_INT_BITWISE_OP(__xor__, ^)
@@ -35,7 +54,7 @@
  
  static bool int__repr__(int argc, py_Ref argv) {
      PY_CHECK_ARGC(1);
-@@ -8334,8 +8358,11 @@
+@@ -8334,8 +8361,11 @@
          py_newnotimplemented(py_retval());
      } else {
          py_i64 n = py_toint(py_arg(1));
@@ -43,12 +62,12 @@
 +        // kipferl patch: the repeated length must fit the int that sizes the new string
 +        if(n <= 0 || self->size == 0) {
              py_newstr(py_retval(), "");
-+        } else if(n > INT32_MAX / self->size) {
++        } else if(n > (PK_OBJ_MAX_UDSIZE(0) - (int64_t)sizeof(c11_string) - 1) / self->size) {
 +            return ValueError("repeated string is too long");
          } else {
              char* p = py_newstrn(py_retval(), self->size * n);
              for(int i = 0; i < n; i++) {
-@@ -8913,7 +8940,8 @@
+@@ -8913,7 +8943,8 @@
              c11_vector__push(unsigned char, &res, data[i]);
          }
          unsigned char* p = py_newbytes(py_retval(), res.length);
@@ -58,7 +77,165 @@
          c11_vector__dtor(&res);
          return true;
      } else {
-@@ -22356,9 +22384,13 @@
+@@ -9097,11 +9128,14 @@
+                       int (*f_lt)(const void* a, const void* b, void* extra),
+                       void* extra) {
+     // merge sort
+-    char *ptr = ptr_, *tmp = PK_MALLOC(length * elem_size);
+-    for(int seg = 1; seg < length; seg *= 2) {
+-        for(char* a = ptr; a < ptr + (length - seg) * elem_size; a += 2 * seg * elem_size) {
+-            char *b = a + seg * elem_size, *a_end = b, *b_end = b + seg * elem_size;
+-            if(b_end > ptr + length * elem_size) b_end = ptr + length * elem_size;
++    // kipferl patch: byte offsets are size_t; int products wrap for long lists
++    size_t n = (size_t)length, size = (size_t)elem_size;
++    char *ptr = ptr_, *tmp = PK_MALLOC(n * size);
++    if(tmp == NULL && n > 0) c11__abort("c11__stable_sort(): out of memory");
++    for(size_t seg = 1; seg < n; seg *= 2) {
++        for(char* a = ptr; a < ptr + (n - seg) * size; a += 2 * seg * size) {
++            char *b = a + seg * size, *a_end = b, *b_end = b + seg * size;
++            if(b_end > ptr + n * size) b_end = ptr + n * size;
+             bool ok = _stable_sort_merge(a, a_end, b, b_end, tmp, elem_size, f_lt, extra);
+             if(!ok) {
+                 PK_FREE(tmp);
+@@ -12798,20 +12832,25 @@
+     if(self->capacity < 1024) {
+         return self->capacity * 2;
+     } else {
++        // kipferl patch: the capacity is an int; stop instead of wrapping past it
++        if(self->capacity == INT32_MAX) c11__abort("c11_vector: too many elements");
+         // increase by 25%
+-        return self->capacity + (self->capacity >> 2);
++        int64_t next = (int64_t)self->capacity + (self->capacity >> 2);
++        return next > INT32_MAX ? INT32_MAX : (int)next;
+     }
+ }
+ 
+ void c11_vector__extend(c11_vector* self, const void* p, int size) {
+     if (size <= 0) return;
++    // kipferl patch: lengths are ints and byte offsets are size_t
++    if(size > INT32_MAX - self->length) c11__abort("c11_vector__extend(): too many elements");
+     int min_capacity = self->length + size;
+     if(self->capacity < min_capacity) {
+         int nextcap = c11_vector__nextcap(self);
+         c11_vector__reserve((self), c11__max(nextcap, min_capacity));
+     }
+-    void* dst = (char*)self->data + self->length * self->elem_size;
+-    memcpy(dst, p, size * self->elem_size);
++    void* dst = (char*)self->data + (size_t)self->length * (size_t)self->elem_size;
++    memcpy(dst, p, (size_t)size * (size_t)self->elem_size);
+     self->length += size;
+ }
+ 
+@@ -19988,14 +20027,21 @@
+     return small_freed + large_freed;
+ }
+ 
+-PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int udsize) {
++PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int64_t udsize) {
+     assert(slots >= 0 || slots == -1);
++    // kipferl patch: a size that does not fit an int stops the process instead of wrapping
++    if(slots < -1 || udsize < 0 || udsize > PK_OBJ_MAX_UDSIZE(slots)) {
++        c11__abort("cannot allocate an object with %d slots and %lld bytes of userdata",
++                   slots,
++                   (long long)udsize);
++    }
+     // header + slots + udsize
+     int size = sizeof(PyObject) + PK_OBJ_SLOTS_SIZE(slots) + udsize;
+     PyObject* obj = MultiPool__alloc(&self->small_objects, size);
+     uint8_t size_8b = 0;
+     if(obj == NULL) {
+         obj = PK_MALLOC(size);
++        if(obj == NULL) c11__abort("out of memory allocating %d bytes", size);
+         int quantized_size;
+         size_8b = encode_size_8b(size, &quantized_size);
+         self->large_total_size += quantized_size;
+@@ -21457,7 +21503,17 @@
+     return true;
+ }
+ 
++// kipferl patch: an array2d's cells are its slots, so their count must fit one object
++static bool c11_array2d__check_size(py_i64 n_cols, py_i64 n_rows) {
++    if(n_cols <= 0 || n_rows <= 0) return ValueError("array2d() expected positive dimensions");
++    int64_t max_numel = PK_OBJ_MAX_UDSIZE(0) - (int64_t)sizeof(c11_array2d);
++    max_numel /= (int64_t)sizeof(py_TValue);
++    if(n_cols > max_numel / n_rows) return ValueError("array2d() dimensions are too large");
++    return true;
++}
++
+ c11_array2d* c11_newarray2d(py_OutRef out, int n_cols, int n_rows) {
++    if(!c11_array2d__check_size(n_cols, n_rows)) return NULL;
+     int numel = n_cols * n_rows;
+     c11_array2d* ud = py_newobject(out, tp_array2d, numel, sizeof(c11_array2d));
+     ud->header.n_cols = n_cols;
+@@ -21701,6 +21757,7 @@
+     c11_array2d_like* self = py_touserdata(argv);
+     py_Ref f = py_arg(1);
+     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < self->n_rows; j++) {
+         for(int i = 0; i < self->n_cols; i++) {
+             py_Ref item = self->f_get(self, i, j);
+@@ -21753,6 +21810,7 @@
+         other = NULL;
+     }
+     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < self->n_rows; j++) {
+         for(int i = 0; i < self->n_cols; i++) {
+             py_Ref lhs = self->f_get(self, i, j);
+@@ -21779,6 +21837,7 @@
+     py_Ref f = py_arg(2);
+     if(!_array2d_like_check_same_shape(self, other)) return false;
+     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < self->n_rows; j++) {
+         for(int i = 0; i < self->n_cols; i++) {
+             py_push(f);
+@@ -21824,6 +21883,7 @@
+     PY_CHECK_ARGC(1);
+     c11_array2d_like* self = py_touserdata(argv);
+     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < self->n_rows; j++) {
+         for(int i = 0; i < self->n_cols; i++) {
+             py_Ref item = self->f_get(self, i, j);
+@@ -21841,6 +21901,7 @@
+     PY_CHECK_ARGC(1);
+     c11_array2d_like* self = py_touserdata(argv);
+     c11_array2d* res = c11_newarray2d(py_retval(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < self->n_rows; j++) {
+         for(int i = 0; i < self->n_cols; i++) {
+             py_Ref item = self->f_get(self, i, j);
+@@ -21927,6 +21988,11 @@
+         ValueError("width and height must be positive");
+         return NULL;
+     }
++    // kipferl patch: a view's element count is an int as well
++    if((int64_t)width * height > INT32_MAX) {
++        ValueError("width * height is too large");
++        return NULL;
++    }
+     res->header.n_cols = width;
+     res->header.n_rows = height;
+     res->header.numel = width * height;
+@@ -22162,6 +22228,7 @@
+     PY_CHECK_ARGC(3);
+     c11_array2d_like* self = py_touserdata(argv);
+     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     py_Ref value = py_arg(1);
+     const char* neighborhood = py_tostr(py_arg(2));
+ 
+@@ -22228,6 +22295,7 @@
+     if(ksize % 2 == 0) return ValueError("kernel size must be odd");
+     int ksize_half = ksize / 2;
+     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < self->n_rows; j++) {
+         for(int i = 0; i < self->n_cols; i++) {
+             py_i64 sum = 0;
+@@ -22356,9 +22424,10 @@
      PY_CHECK_ARG_TYPE(0, tp_type);
      PY_CHECK_ARG_TYPE(1, tp_int);
      PY_CHECK_ARG_TYPE(2, tp_int);
@@ -66,12 +243,47 @@
 -    int n_rows = argv[2]._i64;
 -    if(n_cols <= 0 || n_rows <= 0) return ValueError("array2d() expected positive dimensions");
 +    // kipferl patch: dimensions and their product must fit the int element count
-+    py_i64 cols = argv[1]._i64;
-+    py_i64 rows = argv[2]._i64;
-+    if(cols <= 0 || rows <= 0) return ValueError("array2d() expected positive dimensions");
-+    if(cols > INT32_MAX / rows) return ValueError("array2d() dimensions are too large");
-+    int n_cols = (int)cols;
-+    int n_rows = (int)rows;
++    if(!c11_array2d__check_size(argv[1]._i64, argv[2]._i64)) return false;
++    int n_cols = (int)argv[1]._i64;
++    int n_rows = (int)argv[2]._i64;
      c11_array2d* ud = c11_newarray2d(py_pushtmp(), n_cols, n_rows);
      // setup initial values
      if(py_callable(default_)) {
+@@ -22402,6 +22471,7 @@
+         }
+     }
+     c11_array2d* res = c11_newarray2d(py_retval(), n_cols, n_rows);
++    if(res == NULL) return false;
+     for(int j = 0; j < n_rows; j++) {
+         py_Ref row_j = py_list_getitem(argv, j);
+         for(int i = 0; i < n_cols; i++) {
+@@ -35138,6 +35208,8 @@
+ void py_newstr(py_OutRef out, const char* data) { py_newstrv(out, (c11_sv){data, strlen(data)}); }
+ 
+ char* py_newstrn(py_OutRef out, int size) {
++    // kipferl patch: a negative length is a wrapped size computation, not a short string
++    if(size < 0) c11__abort("py_newstrn(): negative size %d", size);
+     if(size < 16) {
+         out->type = tp_str;
+         out->is_ptr = false;
+@@ -35146,7 +35218,7 @@
+         return ud->data;
+     }
+     ManagedHeap* heap = &pk_current_vm->heap;
+-    int total_size = sizeof(c11_string) + size + 1;
++    int64_t total_size = (int64_t)sizeof(c11_string) + size + 1;
+     PyObject* obj = ManagedHeap__gcnew(heap, tp_str, 0, total_size);
+     c11_string* ud = PyObject__userdata(obj);
+     c11_string__ctor3(ud, size);
+@@ -35173,8 +35245,10 @@
+ 
+ unsigned char* py_newbytes(py_OutRef out, int size) {
+     ManagedHeap* heap = &pk_current_vm->heap;
++    // kipferl patch: a negative length is a wrapped size computation
++    if(size < 0) c11__abort("py_newbytes(): negative size %d", size);
+     // 4 bytes size + data
+-    PyObject* obj = ManagedHeap__gcnew(heap, tp_bytes, 0, sizeof(c11_bytes) + size);
++    PyObject* obj = ManagedHeap__gcnew(heap, tp_bytes, 0, (int64_t)sizeof(c11_bytes) + size);
+     c11_bytes* ud = PyObject__userdata(obj);
+     ud->size = size;
+     out->type = tp_bytes;

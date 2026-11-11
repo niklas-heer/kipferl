@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 6,
+  "patchset_version": 7,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -30,12 +30,30 @@
         "kipferl patch: keep stdc's predefined types but leave raw memory access unimportable",
         "kipferl patch: gc.untrack skips marking children, so scripts could free live objects",
         "kipferl patch: a raising gc debug callback aborts the process",
-        "kipferl patch: pkpy.TValue forged values of any type from raw integers",
+        "kipferl patch: the TValue types forge values of any type from raw payloads, so never create them",
+        "kipferl patch: stdc types stay reachable through __subclasses__, so bind no raw memory access",
+        "kipferl patch: keep stdc's predefined types but bind none of its raw memory functions",
         "kipferl patch: the collector marks these fields, so never leave them uninitialized",
         "kipferl patch: an empty slice has no buffer, and memcpy needs one",
         "kipferl patch: shift counts outside 0..63 are undefined in C",
         "kipferl patch: the repeated length must fit the int that sizes the new string",
-        "kipferl patch: dimensions and their product must fit the int element count"
+        "kipferl patch: dimensions and their product must fit the int element count",
+        "kipferl patch: the largest userdata whose object size still fits the int that allocates it",
+        "kipferl patch: a size that does not fit an int stops the process instead of wrapping",
+        "kipferl patch: a negative length is a wrapped size computation, not a short string",
+        "kipferl patch: an array2d's cells are its slots, so their count must fit one object",
+        "kipferl patch: a view's element count is an int as well",
+        "kipferl patch: the capacity is an int; stop instead of wrapping past it",
+        "kipferl patch: lengths are ints and byte offsets are size_t",
+        "kipferl patch: byte offsets are size_t; int products wrap for long lists",
+        "kipferl patch: C methods read their receiver's userdata without checking its type",
+        "kipferl patch: a method bound to a type checks its `self` or `__new__` argument",
+        "kipferl patch: a class may hold another type's C magic method",
+        "kipferl patch: pickle.loads reads script-supplied bytes, so every read is bounded",
+        "kipferl patch: a malformed header raises instead of reading past the data",
+        "kipferl patch: the module name comes from the pickle and must fit the buffer",
+        "kipferl patch: a raw value from the pickle becomes a value only for plain data types;",
+        "kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices"
       ]
     }
   ],
@@ -83,6 +101,14 @@
     {
       "id": "0011-integer-bounds",
       "file": "pocketpy/patches/0011-integer-bounds.patch"
+    },
+    {
+      "id": "0012-native-receiver-types",
+      "file": "pocketpy/patches/0012-native-receiver-types.patch"
+    },
+    {
+      "id": "0013-pickle-loads-validation",
+      "file": "pocketpy/patches/0013-pickle-loads-validation.patch"
     }
   ]
 }
