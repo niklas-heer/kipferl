@@ -54,7 +54,7 @@ The root `demo.gif` and `public/demo.gif` are refreshed from this same recording
 so historical article embeds show the current branding. Their captions identify
 the newer workflow rather than implying it was available in the older release.
 
-Documentation covers stable v0.7.4 and the current `main` checkout. Clearly
+Documentation covers stable v0.8.0 and the current `main` checkout. Clearly
 label future source-only changes. The homepage, shared docs notice, and
 AI-readable export read the stable version from `src/lib/release.ts`;
 `scripts/check_docs_version.py` keeps it, the installation guide, and the
