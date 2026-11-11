@@ -25,6 +25,9 @@ All notable user-facing changes are documented here.
 - `typing.Optional`, `Union`, `Literal` and the other special forms can be
   subscripted outside annotations (`MaybeInt = Optional[int]`), and `typing`
   provides `NamedTuple`, `TypedDict` and `NewType`.
+- Any iterable can be unpacked (`a, b = map(int, line.split())`), the starred
+  target may appear anywhere (`first, *middle, last = items`), and `for`
+  targets nest (`for i, (key, value) in enumerate(pairs)`).
 
 ### Changed
 

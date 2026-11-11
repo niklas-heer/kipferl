@@ -350,3 +350,14 @@ plus keyword arguments. It also adds `setdefault()`, `dict.fromkeys()` and
 `dict | dict`, which `|=` uses as well. Keyword signatures need the compiler,
 so these methods are bound once the VM has started rather than while the
 `dict` type is registered.
+
+### Unpacking
+
+PocketPy unpacked only lists and tuples, so `a, b = map(int, line.split())`
+or unpacking a generator raised `TypeError`, a starred target had to come
+last, and `for` targets could not nest. `0021-unpacking.patch` converts any
+other iterable to a list before unpacking, lets the starred target appear
+anywhere (`first, *middle, last = items`; `OP_UNPACK_EX` now carries the
+target counts before and after it), accepts parenthesized targets in `for`
+loops and comprehensions (`for i, (key, value) in ...`), and uses CPython's
+"too many" and "not enough values to unpack" messages.

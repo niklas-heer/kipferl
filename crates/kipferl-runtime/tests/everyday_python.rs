@@ -577,3 +577,41 @@ except TypeError as e:
 "#,
     )
 }
+
+#[test]
+fn any_iterable_unpacks_into_nested_and_starred_targets() -> io::Result<()> {
+    matches_cpython(
+        r#"
+a, b = map(int, "3 4".split())
+print(a + b)
+x, y = (i * 2 for i in range(2))
+print(x, y)
+first, *middle, last = [1, 2, 3, 4, 5]
+print(first, middle, last)
+*init, tail = "abc"
+print(init, tail)
+head, *rest = range(3)
+print(head, rest)
+a, *b, c = (1, 2)
+print(a, b, c)
+p, q = "xy"
+print(p, q)
+for i, (key, value) in enumerate([("a", 1), ("b", 2)]):
+    print(i, key, value)
+for (a, b), c in [((1, 2), 3)]:
+    print(a, b, c)
+print([n for n, (s, t) in [(1, (2, 3))]])
+from typing import NamedTuple
+class Point(NamedTuple):
+    x: int
+    y: int
+px, py = Point(5, 6)
+print(px, py)
+for bad in ["a, b = [1, 2, 3]", "a, b, c = [1, 2]", "a, *b, c = [1]"]:
+    try:
+        exec(bad)
+    except ValueError as e:
+        print("ValueError", e)
+"#,
+    )
+}

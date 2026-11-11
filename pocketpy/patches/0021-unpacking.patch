@@ -1,0 +1,108 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -13417,11 +13417,12 @@
+     } else {
+         // starred assignment target must be in a tuple
+         if(self->itemCount == 1) return false;
+-        // starred assignment target must be the last one (differ from cpython)
+-        if(starred_i != self->itemCount - 1) return false;
+-        // a,*b = [1,2,3]
+-        // stack is [1,2,3] -> [1,[2,3]]
+-        Ctx__emit_(ctx, OP_UNPACK_EX, self->itemCount - 1, self->line);
++        // kipferl patch: the starred target may be anywhere, as in `first, *middle, last = items`
++        int after = self->itemCount - 1 - starred_i;
++        if(starred_i > 255 || after > 255) return false;
++        // a,*b,c = [1,2,3,4]
++        // stack is [1,2,3,4] -> [1,[2,3],4]
++        Ctx__emit_(ctx, OP_UNPACK_EX, starred_i | (after << 8), self->line);
+     }
+     // do reverse emit
+     for(int i = self->itemCount - 1; i >= 0; i--) {
+@@ -14430,6 +14431,14 @@
+ static Error* EXPR_VARS(Compiler* self) {
+     int count = 0;
+     do {
++        // kipferl patch: loop targets may nest, as in `for i, (key, value) in ...`
++        if(match(TK_LPAREN)) {
++            Error* err = EXPR_VARS(self);
++            if(err) return err;
++            consume(TK_RPAREN);
++            count += 1;
++            continue;
++        }
+         consume(TK_ID);
+         py_Name name = py_namev(Token__sv(prev()));
+         NameExpr* e = NameExpr__new(prev()->line, name, name_scope(self));
+@@ -19315,12 +19324,20 @@
+                     DISPATCH();
+                 }
+                 default: {
+-                    TypeError("expected list or tuple to unpack, got %t", TOP()->type);
+-                    goto __ERROR;
++                    // kipferl patch: any iterable unpacks, as in `a, b = map(int, line.split())`
++                    if(!py_tpcall(tp_list, 1, TOP())) goto __ERROR;
++                    *TOP() = *py_retval();
++                    length = py_list_len(TOP());
++                    p = py_list_data(TOP());
++                    break;
+                 }
+             }
+-            if(length != byte.arg) {
+-                ValueError("expected %d values to unpack, got %d", byte.arg, length);
++            if(length > byte.arg) {
++                ValueError("too many values to unpack (expected %d)", byte.arg);
++                goto __ERROR;
++            }
++            if(length < byte.arg) {
++                ValueError("not enough values to unpack (expected %d, got %d)", byte.arg, length);
+                 goto __ERROR;
+             }
+             POP();
+@@ -19330,25 +19347,40 @@
+             DISPATCH();
+         }
+         case OP_UNPACK_EX: {
++            // kipferl patch: [before | after << 8] targets around the starred one, from any iterable
++            int before = byte.arg & 0xFF;
++            int after = byte.arg >> 8;
+             py_TValue* p;
+             int length = pk_arrayview(TOP(), &p);
+             if(length == -1) {
+-                TypeError("expected list or tuple to unpack, got %t", TOP()->type);
+-                goto __ERROR;
++                if(!py_tpcall(tp_list, 1, TOP())) goto __ERROR;
++                *TOP() = *py_retval();
++                length = pk_arrayview(TOP(), &p);
+             }
+-            int exceed = length - byte.arg;
++            int exceed = length - before - after;
+             if(exceed < 0) {
+-                ValueError("not enough values to unpack");
++                ValueError("not enough values to unpack (expected at least %d, got %d)",
++                           before + after,
++                           length);
+                 goto __ERROR;
+             }
+-            POP();
+-            for(int i = 0; i < byte.arg; i++) {
++            // the sequence stays rooted below the targets until they are in place
++            py_TValue sequence = *TOP();
++            for(int i = 0; i < before; i++) {
+                 PUSH(p + i);
+             }
+             py_newlistn(SP()++, exceed);
+             for(int i = 0; i < exceed; i++) {
+-                py_list_setitem(TOP(), i, p + byte.arg + i);
++                py_list_setitem(TOP(), i, p + before + i);
+             }
++            for(int i = 0; i < after; i++) {
++                PUSH(p + before + exceed + i);
++            }
++            // [sequence, targets...] -> [targets...]
++            py_TValue* base = SP() - (before + 1 + after) - 1;
++            assert(py_isidentical(base, &sequence));
++            memmove(base, base + 1, (before + 1 + after) * sizeof(py_TValue));
++            SP()--;
+             DISPATCH();
+         }
+         ///////////

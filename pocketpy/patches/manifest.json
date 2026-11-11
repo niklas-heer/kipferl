@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 14,
+  "patchset_version": 15,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -80,7 +80,11 @@
         "kipferl patch: 21! does not fit 64 bits",
         "kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords",
         "kipferl patch: signatures with keywords need the compiler and static methods need their type,",
-        "kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready"
+        "kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready",
+        "kipferl patch: loop targets may nest, as in `for i, (key, value) in ...`",
+        "kipferl patch: the starred target may be anywhere, as in `first, *middle, last = items`",
+        "kipferl patch: any iterable unpacks, as in `a, b = map(int, line.split())`",
+        "kipferl patch: [before | after << 8] targets around the starred one, from any iterable"
       ]
     }
   ],
@@ -164,6 +168,10 @@
     {
       "id": "0020-dict-constructor",
       "file": "pocketpy/patches/0020-dict-constructor.patch"
+    },
+    {
+      "id": "0021-unpacking",
+      "file": "pocketpy/patches/0021-unpacking.patch"
     }
   ]
 }
