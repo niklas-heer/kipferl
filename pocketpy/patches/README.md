@@ -337,3 +337,16 @@ count, so `int('0000000000000000000001')` parses and `-9223372036854775808` is
 accepted by `int()`. Floor division and modulo compute magnitudes unsigned, so
 `(-2**63) // 2` is no longer wrong. Integer hashing and bitwise operators keep
 their wrapping behaviour, which is correct for them.
+
+### dict construction and merging
+
+PocketPy's `dict()` accepted only a list or tuple of pairs and no keywords, and
+`dict.update()` only another dict, so `dict(zip(keys, values))`,
+`dict(a=1)`, `dict(mapping)`, `dict(defaultdict)` and `d.update(key=value)`
+raised. `0020-dict-constructor.patch` gives `dict()` and `update()` CPython's
+signature: one optional positional argument that is a dict, a mapping (an
+object with `keys()` and `__getitem__`) or an iterable of key-value pairs,
+plus keyword arguments. It also adds `setdefault()`, `dict.fromkeys()` and
+`dict | dict`, which `|=` uses as well. Keyword signatures need the compiler,
+so these methods are bound once the VM has started rather than while the
+`dict` type is registered.

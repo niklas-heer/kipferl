@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 13,
+  "patchset_version": 14,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -77,7 +77,10 @@
         "kipferl patch: a literal beyond 64 bits overflows instead of wrapping",
         "kipferl patch: detect overflow from the value, not the digit count, so leading zeros parse",
         "kipferl patch: infinite and out-of-range results overflow as in CPython",
-        "kipferl patch: 21! does not fit 64 bits"
+        "kipferl patch: 21! does not fit 64 bits",
+        "kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords",
+        "kipferl patch: signatures with keywords need the compiler and static methods need their type,",
+        "kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready"
       ]
     }
   ],
@@ -157,6 +160,10 @@
     {
       "id": "0019-integer-overflow",
       "file": "pocketpy/patches/0019-integer-overflow.patch"
+    },
+    {
+      "id": "0020-dict-constructor",
+      "file": "pocketpy/patches/0020-dict-constructor.patch"
     }
   ]
 }

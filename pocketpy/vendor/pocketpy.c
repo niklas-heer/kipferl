@@ -21414,6 +21414,10 @@ void VM__ctor(VM* self) {
         pk_newtype("OverflowError", tp_Exception, self->builtins, NULL, false, true);
     py_setdict(self->builtins, py_name("OverflowError"), py_tpobject(self->tp_OverflowError));
 
+    // kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready
+    void pk_dict__bind_signatures();
+    pk_dict__bind_signatures();
+
     // add python builtins
     do {
         bool ok;
@@ -33758,27 +33762,79 @@ void py_newdict(py_OutRef out) {
     Dict__ctor(ud, 17, 4);
 }
 
-static bool dict__init__(int argc, py_Ref argv) {
-    if(argc > 2) return TypeError("dict.__init__() takes at most 2 arguments (%d given)", argc);
-    if(argc == 1) {
-        py_newnone(py_retval());
+// kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords
+static bool pk_dict_update_from(py_Ref self, py_Ref source) {
+    Dict* ud = py_touserdata(self);
+    if(source->type == tp_dict) {
+        Dict* other = py_touserdata(source);
+        for(int i = 0; i < other->entries.length; i++) {
+            DictEntry* entry = c11__at(DictEntry, &other->entries, i);
+            if(py_isnil(&entry->key)) continue;
+            if(!Dict__set(ud, &entry->key, &entry->val)) return false;
+        }
         return true;
     }
-    assert(argc == 2);
-    py_TValue* p;
-    int length = pk_arrayview(py_arg(1), &p);
-    if(length == -1) { return TypeError("dict.__init__() expects a list or tuple"); }
-
-    Dict* self = py_touserdata(argv);
-    for(int i = 0; i < length; i++) {
-        py_Ref tuple = &p[i];
-        if(!py_istuple(tuple) || py_tuple_len(tuple) != 2) {
-            return ValueError("dict.__init__() argument must be a list of tuple-2");
-        }
-        py_Ref key = py_tuple_getitem(tuple, 0);
-        py_Ref val = py_tuple_getitem(tuple, 1);
-        if(!Dict__set(self, key, val)) return false;
+    // a mapping provides keys() and __getitem__
+    bool is_mapping = py_tpfindname(source->type, py_name("keys")) != NULL;
+    py_StackRef rooted = py_pushtmp();
+    py_StackRef iterator = py_pushtmp();
+    py_StackRef item = py_pushtmp();
+    *rooted = *source;
+    bool ok = false;
+    if(is_mapping) {
+        if(!py_getattr(rooted, py_name("keys"))) goto __OUT;
+        *item = *py_retval();
+        if(!py_call(item, 0, NULL)) goto __OUT;
+        *item = *py_retval();
+        if(!py_iter(item)) goto __OUT;
+    } else {
+        if(!py_iter(rooted)) goto __OUT;
     }
+    *iterator = *py_retval();
+    for(int index = 0;; index++) {
+        int res = py_next(iterator);
+        if(res == -1) goto __OUT;
+        if(res == 0) break;
+        *item = *py_retval();
+        if(is_mapping) {
+            if(!py_getitem(rooted, item)) goto __OUT;
+            if(!Dict__set(ud, item, py_retval())) goto __OUT;
+            continue;
+        }
+        py_TValue* pair;
+        int length = pk_arrayview(item, &pair);
+        if(length == -1) {
+            if(!py_tpcall(tp_tuple, 1, item)) {
+                py_clearexc(NULL);
+                TypeError("cannot convert dictionary update sequence element #%d to a sequence",
+                          index);
+                goto __OUT;
+            }
+            *item = *py_retval();
+            length = pk_arrayview(item, &pair);
+        }
+        if(length != 2) {
+            ValueError("dictionary update sequence element #%d has length %d; 2 is required",
+                       index,
+                       length);
+            goto __OUT;
+        }
+        if(!Dict__set(ud, &pair[0], &pair[1])) goto __OUT;
+    }
+    ok = true;
+__OUT:
+    py_shrink(3);
+    return ok;
+}
+
+static bool dict__init__(int argc, py_Ref argv) {
+    // __init__(self, *args, **kwargs)
+    int length = py_tuple_len(py_arg(1));
+    if(length > 1) return TypeError("dict expected at most 1 argument, got %d", length);
+    if(length == 1 && !pk_dict_update_from(py_arg(0), py_tuple_getitem(py_arg(1), 0))) {
+        return false;
+    }
+    if(!pk_dict_update_from(py_arg(0), py_arg(2))) return false;
     py_newnone(py_retval());
     return true;
 }
@@ -33932,17 +33988,66 @@ static bool dict_copy(int argc, py_Ref argv) {
 }
 
 static bool dict_update(int argc, py_Ref argv) {
-    PY_CHECK_ARGC(2);
-    PY_CHECK_ARG_TYPE(1, tp_dict);
-    Dict* self = py_touserdata(argv);
-    Dict* other = py_touserdata(py_arg(1));
-    for(int i = 0; i < other->entries.length; i++) {
-        DictEntry* entry = c11__at(DictEntry, &other->entries, i);
-        if(py_isnil(&entry->key)) continue;
-        if(!Dict__set(self, &entry->key, &entry->val)) return false;
+    // update(self, *args, **kwargs)
+    int length = py_tuple_len(py_arg(1));
+    if(length > 1) return TypeError("update expected at most 1 argument, got %d", length);
+    if(length == 1 && !pk_dict_update_from(py_arg(0), py_tuple_getitem(py_arg(1), 0))) {
+        return false;
     }
+    if(!pk_dict_update_from(py_arg(0), py_arg(2))) return false;
     py_newnone(py_retval());
     return true;
+}
+
+static bool dict_setdefault(int argc, py_Ref argv) {
+    // setdefault(self, key, default=None)
+    Dict* self = py_touserdata(argv);
+    DictEntry* entry;
+    if(!Dict__try_get(self, py_arg(1), &entry)) return false;
+    if(entry) {
+        *py_retval() = entry->val;
+        return true;
+    }
+    if(!Dict__set(self, py_arg(1), py_arg(2))) return false;
+    *py_retval() = *py_arg(2);
+    return true;
+}
+
+static bool dict_fromkeys(int argc, py_Ref argv) {
+    if(argc < 1 || argc > 2) return TypeError("fromkeys expected 1 or 2 arguments, got %d", argc);
+    py_StackRef result = py_pushtmp();
+    py_StackRef iterator = py_pushtmp();
+    py_newdict(result);
+    bool ok = false;
+    if(!py_iter(py_arg(0))) goto __OUT;
+    *iterator = *py_retval();
+    while(true) {
+        int res = py_next(iterator);
+        if(res == -1) goto __OUT;
+        if(res == 0) break;
+        if(!Dict__set(py_touserdata(result), py_retval(), argc == 2 ? py_arg(1) : py_None())) {
+            goto __OUT;
+        }
+    }
+    *py_retval() = *result;
+    ok = true;
+__OUT:
+    py_shrink(2);
+    return ok;
+}
+
+static bool dict__or__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    if(!py_isinstance(py_arg(1), tp_dict)) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    py_StackRef result = py_pushtmp();
+    py_newdict(result);
+    bool ok = pk_dict_update_from(result, py_arg(0)) && pk_dict_update_from(result, py_arg(1));
+    if(ok) *py_retval() = *result;
+    py_pop();
+    return ok;
 }
 
 static bool dict_get(int argc, py_Ref argv) {
@@ -34010,6 +34115,17 @@ static bool dict_items(int argc, py_Ref argv) {
     return true;
 }
 
+// kipferl patch: signatures with keywords need the compiler and static methods need their type,
+// so bind them once the VM is ready
+void pk_dict__bind_signatures() {
+    py_Ref type = py_tpobject(tp_dict);
+    py_bind(type, "__new__(cls, *args, **kwargs)", dict__new__);
+    py_bind(type, "__init__(self, *args, **kwargs)", dict__init__);
+    py_bind(type, "update(self, *args, **kwargs)", dict_update);
+    py_bind(type, "setdefault(self, key, default=None)", dict_setdefault);
+    py_bindstaticmethod(tp_dict, "fromkeys", dict_fromkeys);
+}
+
 py_Type pk_dict__register() {
     py_Type type = pk_newtype("dict", tp_object, NULL, (void (*)(void*))Dict__dtor, false, false);
 
@@ -34028,6 +34144,7 @@ py_Type pk_dict__register() {
     py_bindmethod(type, "clear", dict_clear);
     py_bindmethod(type, "copy", dict_copy);
     py_bindmethod(type, "update", dict_update);
+    py_bindmagic(type, __or__, dict__or__);
     py_bindmethod(type, "get", dict_get);
     py_bindmethod(type, "pop", dict_pop);
     py_bindmethod(type, "popitem", dict_popitem);

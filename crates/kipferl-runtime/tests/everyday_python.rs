@@ -500,3 +500,39 @@ for expression in ["2**63", "2**62 * 2", "9223372036854775807 + 1", "-(-(2**62) 
         format!("integer overflow did not raise:\n{stdout}"),
     )
 }
+
+#[test]
+fn dicts_accept_mappings_pairs_and_keywords() -> io::Result<()> {
+    matches_cpython(
+        r#"
+from collections import defaultdict, Counter
+print(dict(zip("ab", range(2))), dict({"a": 1}), dict([("a", 1)], b=2), dict(a=1, b=2), dict())
+print(dict((k, v) for k, v in [("x", 1)]), dict([["k", "v"]]), dict(["ab", "cd"]))
+d = defaultdict(list)
+d["a"].append(1)
+print(dict(d), dict(Counter("aab")))
+d = {"a": 1}
+d.update(b=2)
+d.update([("c", 3)])
+d.update({"d": 4}, e=5)
+print(d, d.setdefault("a", 9), d.setdefault("z", []), d)
+print(dict.fromkeys("ab"), dict.fromkeys(["x", "y"], 0))
+x = {"a": 1, "b": 2}
+y = {"b": 3, "c": 4}
+print(x | y, y | x, x)
+x |= y
+print(x)
+class Mapping:
+    def keys(self):
+        return ["p", "q"]
+    def __getitem__(self, key):
+        return key.upper()
+print(dict(Mapping()))
+for bad in [lambda: dict([(1, 2, 3)]), lambda: dict(1, 2), lambda: {}.update({}, {})]:
+    try:
+        bad()
+    except (TypeError, ValueError) as e:
+        print(type(e).__name__, e)
+"#,
+    )
+}

@@ -19,6 +19,9 @@ All notable user-facing changes are documented here.
   any fill character. Zero padding now follows the sign (`f'{-3.5:08.3f}'` is
   `-003.500`). New `format()` builtin, `__format__` support and the `!s`
   conversion in f-strings.
+- `dict()` and `dict.update()` accept mappings, any iterable of pairs and keyword
+  arguments (`dict(zip(keys, values))`, `dict(a=1)`, `dict(defaultdict)`), and
+  dicts gain `setdefault()`, `dict.fromkeys()` and the `|` and `|=` operators.
 
 ### Changed
 
