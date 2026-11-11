@@ -328,15 +328,24 @@ array2d() dimensions are too large\narray2d() dimensions are too large\nsizes ch
     assert!(output.stderr.is_empty(), "{output:?}");
 }
 
-// Integers are 64-bit: arithmetic wraps (the C core is built with -fwrapv),
-// and shifts follow Python for every count instead of C's undefined ones.
+// Integers are 64-bit: a result that does not fit raises OverflowError instead
+// of wrapping, and shifts follow Python for every count instead of C's
+// undefined ones.
 #[test]
-fn integer_overflow_wraps_and_shifts_are_defined() {
+fn integer_overflow_raises_and_shifts_are_defined() {
     let output = run(r"
 big = 2**62
-print(big * 4, big + big, -big - big - 1, 2**63, -(-2**63), abs(-2**63))
-print((-2**63) // -1, (-2**63) % -1, divmod(-2**63, -1))
-print(1 << 63, 1 << 64, 3 << 100, -1 >> 100, 5 >> 64, -8 >> 1, 1 << 0)
+m = -2**62 * 2
+for expression in ['big * 4', 'big + big', '-big - big - 2', '2**63', '-m', 'abs(m)',
+                   'm // -1', 'divmod(m, -1)', '1 << 63', '1 << 64', '3 << 100',
+                   'int(\'9223372036854775808\')', 'sum([2**62, 2**62])']:
+    try:
+        eval(expression)
+        print(expression, 'did not overflow')
+    except OverflowError as error:
+        pass
+print(-big - big, m % -1, m // 2, divmod(m, 7), -1 << 63, 0 << 100)
+print(-1 >> 100, 5 >> 64, -8 >> 1, 1 << 0, 1 << 62)
 for expression in ['1 << -1', '1 >> -1']:
     try:
         eval(expression)
@@ -346,10 +355,9 @@ for expression in ['1 << -1', '1 >> -1']:
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "0 -9223372036854775808 9223372036854775807 -9223372036854775808 \
--9223372036854775808 -9223372036854775808\n\
--9223372036854775808 0 (-9223372036854775808, 0)\n\
--9223372036854775808 0 0 -1 0 -4 1\n\
+        "-9223372036854775808 0 -4611686018427387904 (-1317624576693539402, 6) \
+-9223372036854775808 0\n\
+-1 0 -4 1 4611686018427387904\n\
 negative shift count\nnegative shift count\n"
     );
     assert!(output.stderr.is_empty(), "{output:?}");

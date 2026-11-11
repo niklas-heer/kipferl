@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 12,
+  "patchset_version": 13,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -67,7 +67,17 @@
         "kipferl patch: f-strings accept the !s conversion",
         "kipferl patch: format(value, format_spec='') applies the format specification mini-language",
         "kipferl patch: an exception is being matched against the except clauses",
-        "kipferl patch: an error while evaluating an except clause leaves the try statement;"
+        "kipferl patch: an error while evaluating an except clause leaves the try statement;",
+        "kipferl patch: integers are 64-bit, so results beyond that raise OverflowError",
+        "kipferl patch: an integer result that does not fit 64 bits raises instead of wrapping",
+        "kipferl patch: checked integer arithmetic",
+        "kipferl patch: magnitudes are unsigned, so INT64_MIN divides correctly",
+        "kipferl patch: a shift that loses bits overflows",
+        "kipferl patch: infinite and out-of-range floats overflow as in CPython",
+        "kipferl patch: a literal beyond 64 bits overflows instead of wrapping",
+        "kipferl patch: detect overflow from the value, not the digit count, so leading zeros parse",
+        "kipferl patch: infinite and out-of-range results overflow as in CPython",
+        "kipferl patch: 21! does not fit 64 bits"
       ]
     }
   ],
@@ -143,6 +153,10 @@
     {
       "id": "0018-except-clause-errors",
       "file": "pocketpy/patches/0018-except-clause-errors.patch"
+    },
+    {
+      "id": "0019-integer-overflow",
+      "file": "pocketpy/patches/0019-integer-overflow.patch"
     }
   ]
 }

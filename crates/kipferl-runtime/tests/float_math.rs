@@ -119,8 +119,8 @@ for expression in ['math.floor(math.nan)', 'math.ceil(math.inf)', 'math.trunc(-m
                    'math.floor(1e19)', 'math.ceil(-1e19)']:
     try:
         eval(expression)
-    except ValueError as error:
-        print(expression, error)
+    except (ValueError, OverflowError) as error:
+        print(expression, type(error).__name__, error)
 print(math.floor(-9223372036854775808.0), math.trunc(9.2e18))
 ",
     )?;
@@ -130,11 +130,11 @@ print(math.floor(-9223372036854775808.0), math.trunc(9.2e18))
     )?;
     check(
         output.stdout
-            == b"math.floor(math.nan) cannot convert float NaN to integer
-math.ceil(math.inf) cannot convert float infinity to integer
-math.trunc(-math.inf) cannot convert float infinity to integer
-math.floor(1e19) float too large to convert to int64
-math.ceil(-1e19) float too large to convert to int64
+            == b"math.floor(math.nan) ValueError cannot convert float NaN to integer
+math.ceil(math.inf) OverflowError cannot convert float infinity to integer
+math.trunc(-math.inf) OverflowError cannot convert float infinity to integer
+math.floor(1e19) OverflowError integer overflow: the result does not fit in a 64-bit int
+math.ceil(-1e19) OverflowError integer overflow: the result does not fit in a 64-bit int
 -9223372036854775808 9200000000000000000
 ",
         format!(
@@ -156,8 +156,8 @@ for expression in ['int(float(\'nan\'))', 'int(float(\'inf\'))', 'int(-1e300)', 
                    'round(float(\'nan\'))', 'round(float(\'-inf\'))', 'round(1e19)']:
     try:
         eval(expression)
-    except ValueError as error:
-        print(expression, error)
+    except (ValueError, OverflowError) as error:
+        print(expression, type(error).__name__, error)
 print(int(-2.0**63), int(9.2e18), int(-0.5), round(-9.2e18), round(2.4), round(-2.6))
 print(round(1e17, 2), round(1.5, 400), round(1.5, 2**62), round(-1e300, 5), round(0.0, 400))
 print(round(float('inf'), 2), round(float('nan'), 2), round(3.14159, 2))
@@ -169,13 +169,13 @@ print(round(float('inf'), 2), round(float('nan'), 2), round(3.14159, 2))
     )?;
     check(
         output.stdout
-            == b"int(float('nan')) cannot convert float NaN to integer
-int(float('inf')) cannot convert float infinity to integer
-int(-1e300) float too large to convert to int64
-int(2.0**63) float too large to convert to int64
-round(float('nan')) cannot convert float NaN to integer
-round(float('-inf')) cannot convert float infinity to integer
-round(1e19) float too large to convert to int64
+            == b"int(float('nan')) ValueError cannot convert float NaN to integer
+int(float('inf')) OverflowError cannot convert float infinity to integer
+int(-1e300) OverflowError integer overflow: the result does not fit in a 64-bit int
+int(2.0**63) OverflowError integer overflow: the result does not fit in a 64-bit int
+round(float('nan')) ValueError cannot convert float NaN to integer
+round(float('-inf')) OverflowError cannot convert float infinity to integer
+round(1e19) OverflowError integer overflow: the result does not fit in a 64-bit int
 -9223372036854775808 9200000000000000000 0 -9200000000000000000 2 -3
 1e+17 1.5 1.5 -1e+300 0.0
 inf nan 3.14

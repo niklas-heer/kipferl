@@ -20,6 +20,16 @@ All notable user-facing changes are documented here.
   `-003.500`). New `format()` builtin, `__format__` support and the `!s`
   conversion in f-strings.
 
+### Changed
+
+- **Integer overflow raises `OverflowError` instead of wrapping.** Kipferl's
+  integers are 64-bit; CPython's are unbounded. `2**63`, `2**62 * 2`,
+  `int('9223372036854775808')`, `1 << 64` and `math.factorial(21)` used to
+  return silently wrong numbers and now raise the new builtin `OverflowError`.
+  `int()`, `round()` and `math.floor`/`ceil`/`trunc` raise `OverflowError`
+  instead of `ValueError` for infinities and floats beyond 64 bits, and
+  `(-2**63) // 2` is computed correctly.
+
 ### Fixed
 
 - An exception raised while evaluating an `except` clause, such as a misspelled

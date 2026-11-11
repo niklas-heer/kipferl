@@ -198,7 +198,8 @@ arithmetic wraps in two's complement, which every build already did in
 practice. `crates/pocketpy-sys/build.rs` compiles PocketPy with `-fwrapv` so
 that this is defined rather than an accident of the optimizer, and the
 sanitizers stop reporting it. Python code that needs integers beyond 64 bits
-does not get them; that is unchanged.
+does not get them; that is unchanged. Patch `0019` (below) replaces the
+silent wrap of arithmetic, parsing and left shifts with `OverflowError`.
 
 ### Receiver types of C methods
 
@@ -312,3 +313,27 @@ When evaluating an `except` clause's expression raised, for example
 which evaluated the clause again forever. `0018-except-clause-errors.patch`
 marks a try entry while its clauses are being matched, so a second exception
 leaves the statement and propagates like any other error, as in CPython.
+
+### Integer overflow
+
+PocketPy's `int` is a C `int64_t`, and `2**63`, `9223372036854775807 + 1`,
+`int('9223372036854775808')` or `math.factorial(21)` silently wrapped to
+wrong values. CPython has arbitrary-precision integers. Implementing them
+would touch every integer path in the VM, its hashing, the C API that Kipferl's
+Rust modules use, and the performance of ordinary arithmetic, so Kipferl keeps
+64-bit integers and makes their limit loud: `0019-integer-overflow.patch`
+raises the new builtin `OverflowError` (a subclass of `Exception`) whenever an
+integer result does not fit, instead of returning a wrong answer. A program
+either gets the CPython result or an exception that names the problem.
+
+Checked are `+`, `-`, `*` (with `__builtin_*_overflow`), `**`, unary `-`,
+`abs()`, `//` and `divmod()` for `-2**63 // -1`, `<<` when bits would be lost
+(`-1 << 63` still fits), `math.factorial`, `int()` on strings, and integer
+literals, which the lexer rejects as too large. `int()`, `round()`,
+`math.floor`, `math.ceil` and `math.trunc` raise `OverflowError` for infinities
+and out-of-range floats, as CPython does for infinities; NaN still raises
+`ValueError`. Parsing now detects overflow from the value rather than the digit
+count, so `int('0000000000000000000001')` parses and `-9223372036854775808` is
+accepted by `int()`. Floor division and modulo compute magnitudes unsigned, so
+`(-2**63) // 2` is no longer wrong. Integer hashing and bitwise operators keep
+their wrapping behaviour, which is correct for them.

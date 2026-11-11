@@ -468,3 +468,35 @@ check()
 "#,
     )
 }
+
+#[test]
+fn integers_that_fit_64_bits_match_cpython_and_larger_ones_raise() -> io::Result<()> {
+    matches_cpython(
+        r#"
+m = -(2**62) * 2
+print(2**62, 10**18, 3**39, (-2)**63, m, m // 2, m // 3, m % 7, divmod(m, 7), m // -2)
+print(-1 << 63, 1 << 62, int("-9223372036854775808"), int("000000000000000000000001"))
+print(int("7fffffffffffffff", 16), int(-2.0**63), 9223372036854775807 - 1)
+import math
+print(math.factorial(20), sum([2**61, 2**61]))
+"#,
+    )?;
+    let output = run(
+        env!("CARGO_BIN_EXE_pocketpy-kipferl"),
+        r#"
+for expression in ["2**63", "2**62 * 2", "9223372036854775807 + 1", "-(-(2**62) * 2)",
+                   "int('9223372036854775808')", "1 << 64", "__import__('math').factorial(21)",
+                   "int(1e19)", "int(float('inf'))"]:
+    try:
+        eval(expression)
+        print(expression, "returned")
+    except OverflowError as error:
+        print(expression, "OverflowError", error)
+"#,
+    )?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    check(
+        output.status.success() && !stdout.contains("returned") && stdout.lines().count() == 9,
+        format!("integer overflow did not raise:\n{stdout}"),
+    )
+}
