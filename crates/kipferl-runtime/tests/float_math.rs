@@ -143,3 +143,46 @@ math.ceil(-1e19) float too large to convert to int64
         ),
     )
 }
+
+// `int()` and `round()` cast floats to int64 directly, which is undefined for
+// NaN, infinities and values outside int64 (and `round(x, n)` looped `n`
+// times). They raise like `math.floor`, or keep `x` when no digit fits.
+#[test]
+fn int_and_round_reject_undefined_conversions() -> io::Result<()> {
+    let output = run(
+        env!("CARGO_BIN_EXE_pocketpy-kipferl"),
+        r"
+for expression in ['int(float(\'nan\'))', 'int(float(\'inf\'))', 'int(-1e300)', 'int(2.0**63)',
+                   'round(float(\'nan\'))', 'round(float(\'-inf\'))', 'round(1e19)']:
+    try:
+        eval(expression)
+    except ValueError as error:
+        print(expression, error)
+print(int(-2.0**63), int(9.2e18), int(-0.5), round(-9.2e18), round(2.4), round(-2.6))
+print(round(1e17, 2), round(1.5, 400), round(1.5, 2**62), round(-1e300, 5), round(0.0, 400))
+print(round(float('inf'), 2), round(float('nan'), 2), round(3.14159, 2))
+",
+    )?;
+    check(
+        output.status.success() && output.stderr.is_empty(),
+        format!("Kipferl failed: {output:?}"),
+    )?;
+    check(
+        output.stdout
+            == b"int(float('nan')) cannot convert float NaN to integer
+int(float('inf')) cannot convert float infinity to integer
+int(-1e300) float too large to convert to int64
+int(2.0**63) float too large to convert to int64
+round(float('nan')) cannot convert float NaN to integer
+round(float('-inf')) cannot convert float infinity to integer
+round(1e19) float too large to convert to int64
+-9223372036854775808 9200000000000000000 0 -9200000000000000000 2 -3
+1e+17 1.5 1.5 -1e+300 0.0
+inf nan 3.14
+",
+        format!(
+            "unexpected conversion results:\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        ),
+    )
+}

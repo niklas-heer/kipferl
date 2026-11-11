@@ -131,6 +131,10 @@ run = [
   "cargo build --locked --release -p kipferl-cli",
 ]
 
+[tasks.sanitize-suites]
+description = "Run compatibility, Vision, recipes and examples against an ASan/UBSan runtime"
+run = "bash scripts/run-sanitized-suites.sh"
+
 [tasks.check-pocketpy]
 description = "Verify vendored PocketPy patches against upstream"
 run = "python3 scripts/verify-pocketpy-patches.py --check-upstream"

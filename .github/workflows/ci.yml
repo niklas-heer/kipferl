@@ -89,6 +89,10 @@ jobs:
             test_count=$((test_count + 1))
           done < <(find target/debug/deps -maxdepth 1 -type f -executable \( -name 'kipferl_runtime-*' -o -name 'ffi_stress-*' -o -name 'dotted_imports-*' \) | sort)
           test "$test_count" -eq 3
+      # The whole compatibility suite, Vision, recipes and examples exercise
+      # far more of PocketPy than the stress tests; run them instrumented too.
+      - name: Run every script suite against an instrumented runtime
+        run: mise run sanitize-suites
 
   build:
     name: Build (${{ matrix.target }})

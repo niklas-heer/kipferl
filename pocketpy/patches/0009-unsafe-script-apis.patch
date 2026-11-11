@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -20740,6 +20740,8 @@
+@@ -20752,6 +20752,8 @@
      py_newnotimplemented(py_emplacedict(self->builtins, py_name("NotImplemented")));
  
      pk__add_module_stdc();
@@ -9,8 +9,13 @@
      pk__add_module_vmath();
      pk__add_module_array2d();
      // pk__add_module_colorcvt();
-@@ -24883,8 +24885,9 @@
-     py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
+@@ -24902,11 +24904,13 @@
+ 
+     py_bindfunc(mod, "collect", gc_collect);
+     py_bindfunc(mod, "collect_hint", gc_collect_hint);
+-    py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
++    // kipferl patch: a raising gc debug callback aborts the process
++    (void)gc_setup_debug_callback;
  
      py_bindfunc(mod, "is_tracked", gc_is_tracked);
 -    py_bindfunc(mod, "track", gc_track);
@@ -21,3 +26,52 @@
  }
  
  // src/modules\importlib.c
+@@ -27265,6 +27269,8 @@
+ void pk__add_module_pkpy() {
+     py_Ref mod = py_newmodule("pkpy");
+ 
++    // kipferl patch: the TValue types forge values of any type from raw payloads, so never create them
++#if 0
+     py_Type ttype;
+     py_Ref TValue_dict = py_pushtmp();
+     py_newdict(TValue_dict);
+@@ -27295,6 +27301,7 @@
+ 
+     py_setdict(mod, py_name("TValue"), TValue_dict);
+     py_pop();
++#endif
+ 
+     py_bindfunc(mod, "memory_usage", pkpy_memory_usage);
+     py_bindfunc(mod, "memory_usage_info", pkpy_memory_usage_info);
+@@ -27772,13 +27779,7 @@
+         py_Type type = py_newtype(#Char_, tp_stdc_Memory, mod, NULL);                              \
+         py_tpsetfinal(type);                                                                       \
+         assert(type == tp_stdc_##Char_);                                                           \
+-        py_bindmagic(type, __new__, stdc_##Char_##__new__);                                        \
+-        py_bindmagic(type, __getitem__, stdc_##Char_##__getitem__);                                \
+-        py_bindmagic(type, __setitem__, stdc_##Char_##__setitem__);                                \
+-        py_bindproperty(type, "value", stdc_##Char_##__get_value, stdc_##Char_##__set_value);      \
+-        py_bindstaticmethod(type, "read", stdc_##Char_##__read_STATIC);                            \
+-        py_bindstaticmethod(type, "write", stdc_##Char_##__write_STATIC);                          \
+-        py_bindstaticmethod(type, "array", stdc_##Char_##__array_STATIC);                          \
++        /* kipferl patch: stdc types stay reachable through __subclasses__, so bind no raw memory access */ \
+         py_newint(py_emplacedict(py_tpobject(type), py_name("size")), sizeof(char_));              \
+     }
+ 
+@@ -27928,6 +27929,8 @@
+ void pk__add_module_stdc() {
+     py_Ref mod = py_newmodule("stdc");
+ 
++    // kipferl patch: keep stdc's predefined types but bind none of its raw memory functions
++#if 0
+     py_bindfunc(mod, "malloc", stdc_malloc);
+     py_bindfunc(mod, "free", stdc_free);
+     py_bindfunc(mod, "memcpy", stdc_memcpy);
+@@ -27941,6 +27944,7 @@
+     py_bindfunc(mod, "write_cstr", stdc_write_cstr);
+     py_bindfunc(mod, "read_bytes", stdc_read_bytes);
+     py_bindfunc(mod, "write_bytes", stdc_write_bytes);
++#endif
+ 
+     py_Type Memory = py_newtype("Memory", tp_object, mod, NULL);
+     assert(Memory == tp_stdc_Memory);

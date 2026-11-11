@@ -5983,6 +5983,9 @@ NameDict* PyObject__dict(PyObject* self);
 void* PyObject__userdata(PyObject* self);
 
 #define PK_OBJ_SLOTS_SIZE(slots) ((slots) >= 0 ? sizeof(py_TValue) * (slots) : sizeof(NameDict))
+// kipferl patch: the largest userdata whose object size still fits the int that allocates it
+#define PK_OBJ_MAX_UDSIZE(slots)                                                                   \
+    ((int64_t)INT32_MAX - (int64_t)sizeof(PyObject) - (int64_t)PK_OBJ_SLOTS_SIZE(slots))
 
 void PyObject__dtor(PyObject* self);
 
@@ -6047,7 +6050,7 @@ int ManagedHeap__sweep(ManagedHeap* self, ManagedHeapSwpetInfo* out_info);
 
 #define ManagedHeap__new(self, type, slots, udsize)                                                \
     ManagedHeap__gcnew((self), (type), (slots), (udsize))
-PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int udsize);
+PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int64_t udsize);
 
 // external implementation
 void ManagedHeap__mark(ManagedHeap* self);
@@ -6397,9 +6400,12 @@ typedef struct Function {
     NameDict* closure;      // maybe NULL, strong ref
     PyObject* clazz;        // weak ref; for super()
     py_CFunction cfunc;     // wrapped C function; for decl-based binding
+    // kipferl patch: the type a bound C function belongs to (see pk__check_receiver)
+    int receiver;
 } Function;
 
 void Function__ctor(Function* self, FuncDecl_ decl, py_GlobalRef module, py_Ref globals);
+bool pk__check_receiver(int receiver, int argc, py_Ref argv);  // kipferl patch
 void Function__dtor(Function* self);
 
 
@@ -7479,8 +7485,32 @@ static bool int_bit_length(int argc, py_Ref argv) {
 DEF_INT_BITWISE_OP(__and__, &)
 DEF_INT_BITWISE_OP(__or__, |)
 DEF_INT_BITWISE_OP(__xor__, ^)
-DEF_INT_BITWISE_OP(__lshift__, <<)
-DEF_INT_BITWISE_OP(__rshift__, >>)
+// kipferl patch: shift counts outside 0..63 are undefined in C
+static bool int__lshift__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    py_i64 lhs = py_toint(&argv[0]);
+    if(!py_isint(&argv[1])) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    py_i64 rhs = py_toint(&argv[1]);
+    if(rhs < 0) return ValueError("negative shift count");
+    py_newint(py_retval(), rhs >= 64 ? 0 : (py_i64)((uint64_t)lhs << rhs));
+    return true;
+}
+
+static bool int__rshift__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    py_i64 lhs = py_toint(&argv[0]);
+    if(!py_isint(&argv[1])) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    py_i64 rhs = py_toint(&argv[1]);
+    if(rhs < 0) return ValueError("negative shift count");
+    py_newint(py_retval(), rhs >= 64 ? (lhs < 0 ? -1 : 0) : lhs >> rhs);
+    return true;
+}
 
 static bool int__repr__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
@@ -7530,6 +7560,16 @@ static bool float__abs__(int argc, py_Ref argv) {
     return true;
 }
 
+// kipferl patch: int() and round() never use an undefined float conversion
+static bool pk_float_to_i64(py_f64 x, py_i64* out) {
+    if(dmath_isnan(x)) return ValueError("cannot convert float NaN to integer");
+    if(dmath_isinf(x)) return ValueError("cannot convert float infinity to integer");
+    if(x < -9223372036854775808.0 || x >= 9223372036854775808.0)
+        return ValueError("float too large to convert to int64");
+    *out = (py_i64)x;
+    return true;
+}
+
 static bool int__new__(int argc, py_Ref argv) {
     if(argc == 1 + 0) {
         // int() == 0
@@ -7541,7 +7581,9 @@ static bool int__new__(int argc, py_Ref argv) {
         switch(argv[1].type) {
             case tp_float: {
                 // int(1.1) == 1
-                py_newint(py_retval(), (py_i64)py_tofloat(&argv[1]));
+                py_i64 value;
+                if(!pk_float_to_i64(py_tofloat(&argv[1]), &value)) return false;
+                py_newint(py_retval(), value);
                 return true;
             }
             case tp_int: {
@@ -8322,8 +8364,11 @@ static bool str__mul__(int argc, py_Ref argv) {
         py_newnotimplemented(py_retval());
     } else {
         py_i64 n = py_toint(py_arg(1));
-        if(n <= 0) {
+        // kipferl patch: the repeated length must fit the int that sizes the new string
+        if(n <= 0 || self->size == 0) {
             py_newstr(py_retval(), "");
+        } else if(n > (PK_OBJ_MAX_UDSIZE(0) - (int64_t)sizeof(c11_string) - 1) / self->size) {
+            return ValueError("repeated string is too long");
         } else {
             char* p = py_newstrn(py_retval(), self->size * n);
             for(int i = 0; i < n; i++) {
@@ -8901,7 +8946,8 @@ static bool bytes__getitem__(int argc, py_Ref argv) {
             c11_vector__push(unsigned char, &res, data[i]);
         }
         unsigned char* p = py_newbytes(py_retval(), res.length);
-        memcpy(p, res.data, res.length);
+        // kipferl patch: an empty slice has no buffer, and memcpy needs one
+        if(res.length) memcpy(p, res.data, res.length);
         c11_vector__dtor(&res);
         return true;
     } else {
@@ -9085,11 +9131,14 @@ bool c11__stable_sort(void* ptr_,
                       int (*f_lt)(const void* a, const void* b, void* extra),
                       void* extra) {
     // merge sort
-    char *ptr = ptr_, *tmp = PK_MALLOC(length * elem_size);
-    for(int seg = 1; seg < length; seg *= 2) {
-        for(char* a = ptr; a < ptr + (length - seg) * elem_size; a += 2 * seg * elem_size) {
-            char *b = a + seg * elem_size, *a_end = b, *b_end = b + seg * elem_size;
-            if(b_end > ptr + length * elem_size) b_end = ptr + length * elem_size;
+    // kipferl patch: byte offsets are size_t; int products wrap for long lists
+    size_t n = (size_t)length, size = (size_t)elem_size;
+    char *ptr = ptr_, *tmp = PK_MALLOC(n * size);
+    if(tmp == NULL && n > 0) c11__abort("c11__stable_sort(): out of memory");
+    for(size_t seg = 1; seg < n; seg *= 2) {
+        for(char* a = ptr; a < ptr + (n - seg) * size; a += 2 * seg * size) {
+            char *b = a + seg * size, *a_end = b, *b_end = b + seg * size;
+            if(b_end > ptr + n * size) b_end = ptr + n * size;
             bool ok = _stable_sort_merge(a, a_end, b, b_end, tmp, elem_size, f_lt, extra);
             if(!ok) {
                 PK_FREE(tmp);
@@ -12786,20 +12835,25 @@ int c11_vector__nextcap(c11_vector* self) {
     if(self->capacity < 1024) {
         return self->capacity * 2;
     } else {
+        // kipferl patch: the capacity is an int; stop instead of wrapping past it
+        if(self->capacity == INT32_MAX) c11__abort("c11_vector: too many elements");
         // increase by 25%
-        return self->capacity + (self->capacity >> 2);
+        int64_t next = (int64_t)self->capacity + (self->capacity >> 2);
+        return next > INT32_MAX ? INT32_MAX : (int)next;
     }
 }
 
 void c11_vector__extend(c11_vector* self, const void* p, int size) {
     if (size <= 0) return;
+    // kipferl patch: lengths are ints and byte offsets are size_t
+    if(size > INT32_MAX - self->length) c11__abort("c11_vector__extend(): too many elements");
     int min_capacity = self->length + size;
     if(self->capacity < min_capacity) {
         int nextcap = c11_vector__nextcap(self);
         c11_vector__reserve((self), c11__max(nextcap, min_capacity));
     }
-    void* dst = (char*)self->data + self->length * self->elem_size;
-    memcpy(dst, p, size * self->elem_size);
+    void* dst = (char*)self->data + (size_t)self->length * (size_t)self->elem_size;
+    memcpy(dst, p, (size_t)size * (size_t)self->elem_size);
     self->length += size;
 }
 
@@ -18269,6 +18323,8 @@ __NEXT_STEP:
             py_Ref magic = py_tpfindmagic(SECOND()->type, __getitem__);
             if(magic) {
                 if(magic->type == tp_nativefunc) {
+                    // kipferl patch: a class may hold another type's C magic method
+                    if(!pk__check_receiver(magic->extra, 2, SECOND())) goto __ERROR;
                     if(!py_callcfunc(magic->_cfunc, 2, SECOND())) goto __ERROR;
                     POP();
                     py_assign(TOP(), py_retval());
@@ -18348,6 +18404,8 @@ __NEXT_STEP:
             if(magic) {
                 PUSH(THIRD());  // [val, a, b, val]
                 if(magic->type == tp_nativefunc) {
+                    // kipferl patch: a class may hold another type's C magic method
+                    if(!pk__check_receiver(magic->extra, 3, THIRD())) goto __ERROR;
                     if(!py_callcfunc(magic->_cfunc, 3, THIRD())) goto __ERROR;
                     STACK_SHRINK(4);
                 } else {
@@ -18420,6 +18478,8 @@ __NEXT_STEP:
             py_Ref magic = py_tpfindmagic(SECOND()->type, __delitem__);
             if(magic) {
                 if(magic->type == tp_nativefunc) {
+                    // kipferl patch: a class may hold another type's C magic method
+                    if(!pk__check_receiver(magic->extra, 2, SECOND())) goto __ERROR;
                     if(!py_callcfunc(magic->_cfunc, 2, SECOND())) goto __ERROR;
                     STACK_SHRINK(2);
                 } else {
@@ -18575,6 +18635,8 @@ __NEXT_STEP:
             py_Ref magic = py_tpfindmagic(SECOND()->type, __contains__);
             if(magic) {
                 if(magic->type == tp_nativefunc) {
+                    // kipferl patch: a class may hold another type's C magic method
+                    if(!pk__check_receiver(magic->extra, 2, SECOND())) goto __ERROR;
                     if(!py_callcfunc(magic->_cfunc, 2, SECOND())) goto __ERROR;
                     STACK_SHRINK(2);
                 } else {
@@ -19976,14 +20038,21 @@ int ManagedHeap__sweep(ManagedHeap* self, ManagedHeapSwpetInfo* out_info) {
     return small_freed + large_freed;
 }
 
-PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int udsize) {
+PyObject* ManagedHeap__gcnew(ManagedHeap* self, py_Type type, int slots, int64_t udsize) {
     assert(slots >= 0 || slots == -1);
+    // kipferl patch: a size that does not fit an int stops the process instead of wrapping
+    if(slots < -1 || udsize < 0 || udsize > PK_OBJ_MAX_UDSIZE(slots)) {
+        c11__abort("cannot allocate an object with %d slots and %lld bytes of userdata",
+                   slots,
+                   (long long)udsize);
+    }
     // header + slots + udsize
     int size = sizeof(PyObject) + PK_OBJ_SLOTS_SIZE(slots) + udsize;
     PyObject* obj = MultiPool__alloc(&self->small_objects, size);
     uint8_t size_8b = 0;
     if(obj == NULL) {
         obj = PK_MALLOC(size);
+        if(obj == NULL) c11__abort("out of memory allocating %d bytes", size);
         int quantized_size;
         size_8b = encode_size_8b(size, &quantized_size);
         self->large_total_size += quantized_size;
@@ -20974,6 +21043,25 @@ static bool
     return true;
 }
 
+// kipferl patch: C methods read their receiver's userdata without checking its type
+// A C function bound to a type records it: a positive receiver requires an instance of that
+// type as the first argument, a negative one (`__new__`) a subclass of it, and 0 checks nothing.
+bool pk__check_receiver(int receiver, int argc, py_Ref argv) {
+    if(receiver == 0) return true;
+    py_Type type = (py_Type)(receiver > 0 ? receiver : -receiver);
+    if(argc < 1 || argv->type == tp_nil) {
+        return TypeError("unbound method of '%t' objects needs an argument", type);
+    }
+    if(receiver > 0) {
+        if(py_isinstance(argv, type)) return true;
+        return TypeError("descriptor for '%t' objects doesn't apply to a '%t' object",
+                         type,
+                         argv->type);
+    }
+    if(argv->type == tp_type && py_issubclass(py_totype(argv), type)) return true;
+    return TypeError("%t.__new__(X): X must be a subtype of %t", type, type);
+}
+
 FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall) {
 #ifndef NDEBUG
     pk_print_stack(self, self->top_frame, (Bytecode){0});
@@ -21019,6 +21107,7 @@ FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall
                     return opcall ? RES_CALL : VM__run_top_frame(self);
                 } else {
                     // decl-based binding
+                    if(!pk__check_receiver(fn->receiver, co->nlocals, argv)) return RES_ERROR;
                     bool ok = py_callcfunc(fn->cfunc, co->nlocals, argv);
                     self->stack.sp = p0;
                     return ok ? RES_RETURN : RES_ERROR;
@@ -21046,6 +21135,7 @@ FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall
                     return opcall ? RES_CALL : VM__run_top_frame(self);
                 } else {
                     // decl-based binding
+                    if(!pk__check_receiver(fn->receiver, co->nlocals, argv)) return RES_ERROR;
                     bool ok = py_callcfunc(fn->cfunc, co->nlocals, argv);
                     self->stack.sp = p0;
                     return ok ? RES_RETURN : RES_ERROR;
@@ -21073,6 +21163,7 @@ FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall
             TypeError("nativefunc does not accept keyword arguments");
             return RES_ERROR;
         }
+        if(!pk__check_receiver(p0->extra, p1 - argv, argv)) return RES_ERROR;
         bool ok = py_callcfunc(p0->_cfunc, p1 - argv, argv);
         self->stack.sp = p0;
         return ok ? RES_RETURN : RES_ERROR;
@@ -21445,7 +21536,17 @@ static bool c11_array2d__set(c11_array2d* self, int col, int row, py_Ref value) 
     return true;
 }
 
+// kipferl patch: an array2d's cells are its slots, so their count must fit one object
+static bool c11_array2d__check_size(py_i64 n_cols, py_i64 n_rows) {
+    if(n_cols <= 0 || n_rows <= 0) return ValueError("array2d() expected positive dimensions");
+    int64_t max_numel = PK_OBJ_MAX_UDSIZE(0) - (int64_t)sizeof(c11_array2d);
+    max_numel /= (int64_t)sizeof(py_TValue);
+    if(n_cols > max_numel / n_rows) return ValueError("array2d() dimensions are too large");
+    return true;
+}
+
 c11_array2d* c11_newarray2d(py_OutRef out, int n_cols, int n_rows) {
+    if(!c11_array2d__check_size(n_cols, n_rows)) return NULL;
     int numel = n_cols * n_rows;
     c11_array2d* ud = py_newobject(out, tp_array2d, numel, sizeof(c11_array2d));
     ud->header.n_cols = n_cols;
@@ -21689,6 +21790,7 @@ static bool array2d_like_map(int argc, py_Ref argv) {
     c11_array2d_like* self = py_touserdata(argv);
     py_Ref f = py_arg(1);
     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < self->n_rows; j++) {
         for(int i = 0; i < self->n_cols; i++) {
             py_Ref item = self->f_get(self, i, j);
@@ -21741,6 +21843,7 @@ static bool _array2d_like_broadcasted_zip_with(int argc, py_Ref argv, py_Name op
         other = NULL;
     }
     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < self->n_rows; j++) {
         for(int i = 0; i < self->n_cols; i++) {
             py_Ref lhs = self->f_get(self, i, j);
@@ -21767,6 +21870,7 @@ static bool array2d_like_zip_with(int argc, py_Ref argv) {
     py_Ref f = py_arg(2);
     if(!_array2d_like_check_same_shape(self, other)) return false;
     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < self->n_rows; j++) {
         for(int i = 0; i < self->n_cols; i++) {
             py_push(f);
@@ -21812,6 +21916,7 @@ static bool array2d_like__invert__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
     c11_array2d_like* self = py_touserdata(argv);
     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < self->n_rows; j++) {
         for(int i = 0; i < self->n_cols; i++) {
             py_Ref item = self->f_get(self, i, j);
@@ -21829,6 +21934,7 @@ static bool array2d_like_copy(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
     c11_array2d_like* self = py_touserdata(argv);
     c11_array2d* res = c11_newarray2d(py_retval(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < self->n_rows; j++) {
         for(int i = 0; i < self->n_cols; i++) {
             py_Ref item = self->f_get(self, i, j);
@@ -21913,6 +22019,11 @@ static c11_array2d_view* _array2d_view__new(py_OutRef out,
     c11_array2d_view* res = py_newobject(out, tp_array2d_view, 1, sizeof(c11_array2d_view));
     if(width <= 0 || height <= 0) {
         ValueError("width and height must be positive");
+        return NULL;
+    }
+    // kipferl patch: a view's element count is an int as well
+    if((int64_t)width * height > INT32_MAX) {
+        ValueError("width * height is too large");
         return NULL;
     }
     res->header.n_cols = width;
@@ -22150,6 +22261,7 @@ static bool array2d_like_count_neighbors(int argc, py_Ref argv) {
     PY_CHECK_ARGC(3);
     c11_array2d_like* self = py_touserdata(argv);
     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     py_Ref value = py_arg(1);
     const char* neighborhood = py_tostr(py_arg(2));
 
@@ -22216,6 +22328,7 @@ static bool array2d_like_convolve(int argc, py_Ref argv) {
     if(ksize % 2 == 0) return ValueError("kernel size must be odd");
     int ksize_half = ksize / 2;
     c11_array2d* res = c11_newarray2d(py_pushtmp(), self->n_cols, self->n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < self->n_rows; j++) {
         for(int i = 0; i < self->n_cols; i++) {
             py_i64 sum = 0;
@@ -22344,9 +22457,10 @@ static bool array2d__new__(int argc, py_Ref argv) {
     PY_CHECK_ARG_TYPE(0, tp_type);
     PY_CHECK_ARG_TYPE(1, tp_int);
     PY_CHECK_ARG_TYPE(2, tp_int);
-    int n_cols = argv[1]._i64;
-    int n_rows = argv[2]._i64;
-    if(n_cols <= 0 || n_rows <= 0) return ValueError("array2d() expected positive dimensions");
+    // kipferl patch: dimensions and their product must fit the int element count
+    if(!c11_array2d__check_size(argv[1]._i64, argv[2]._i64)) return false;
+    int n_cols = (int)argv[1]._i64;
+    int n_rows = (int)argv[2]._i64;
     c11_array2d* ud = c11_newarray2d(py_pushtmp(), n_cols, n_rows);
     // setup initial values
     if(py_callable(default_)) {
@@ -22390,6 +22504,7 @@ static bool array2d_fromlist_STATIC(int argc, py_Ref argv) {
         }
     }
     c11_array2d* res = c11_newarray2d(py_retval(), n_cols, n_rows);
+    if(res == NULL) return false;
     for(int j = 0; j < n_rows; j++) {
         py_Ref row_j = py_list_getitem(argv, j);
         for(int i = 0; i < n_cols; i++) {
@@ -22972,7 +23087,12 @@ void pk__add_module_array2d() {
     register_chunked_array2d(mod);
 }
 
-void py_newarray2d(py_OutRef out, int width, int height) { c11_newarray2d(out, width, height); }
+void py_newarray2d(py_OutRef out, int width, int height) {
+    // kipferl patch: this API has no way to report an error, so invalid dimensions stop
+    if(c11_newarray2d(out, width, height) == NULL) {
+        c11__abort("py_newarray2d(): invalid dimensions %d x %d", width, height);
+    }
+}
 
 int py_array2d_getwidth(py_Ref self) {
     assert(self->type == tp_array2d);
@@ -23360,13 +23480,21 @@ static bool builtins_round(int argc, py_Ref argv) {
         py_f64 x = py_tofloat(py_arg(0));
         py_f64 offset = x >= 0 ? 0.5 : -0.5;
         if(ndigits == -1) {
-            py_newint(py_retval(), (py_i64)(x + offset));
+            py_i64 value;
+            if(!pk_float_to_i64(x + offset, &value)) return false;
+            py_newint(py_retval(), value);
             return true;
         }
         // py_f64 factor = dmath_exp10(ndigits);
+        // kipferl patch: round(x, n) keeps x when no digit at that scale fits an int64
         py_f64 factor = 1.0;
-        for(int i = 0; i < ndigits; i++) factor *= 10.0;
-        py_newfloat(py_retval(), (py_i64)(x * factor + offset) / factor);
+        for(int i = 0; i < ndigits && i < 400; i++) factor *= 10.0;
+        py_f64 scaled = x * factor + offset;
+        if(!(scaled > -9223372036854775808.0 && scaled < 9223372036854775808.0)) {
+            py_newfloat(py_retval(), x);
+            return true;
+        }
+        py_newfloat(py_retval(), (py_i64)scaled / factor);
         return true;
     }
 
@@ -23830,12 +23958,14 @@ static bool function__doc__set(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     Function* func = py_touserdata(py_arg(0));
     py_Ref val = py_arg(1);
+    // kipferl patch: the declaration owns its docstring; free the replaced one
+    if(!py_isnone(val)) PY_CHECK_ARG_TYPE(1, tp_str);
+    if(func->decl->docstring) py_free(func->decl->docstring);
     if(py_isnone(val)) {
         func->decl->docstring = NULL;
         py_newnone(py_retval());
         return true;
     }
-    PY_CHECK_ARG_TYPE(1, tp_str);
     func->decl->docstring = c11_strdup(py_tostr(val));
     py_newnone(py_retval());
     return true;
@@ -24882,7 +25012,8 @@ void pk__add_module_gc() {
 
     py_bindfunc(mod, "collect", gc_collect);
     py_bindfunc(mod, "collect_hint", gc_collect_hint);
-    py_bindfunc(mod, "setup_debug_callback", gc_setup_debug_callback);
+    // kipferl patch: a raising gc debug callback aborts the process
+    (void)gc_setup_debug_callback;
 
     py_bindfunc(mod, "is_tracked", gc_is_tracked);
     // kipferl patch: gc.untrack skips marking children, so scripts could free live objects
@@ -25838,10 +25969,13 @@ static void pkl__emit_cstr(PickleObject* buf, const char* s) {
     PickleObject__write_bytes(buf, s, strlen(s) + 1);
 }
 
-const static char* pkl__read_cstr(const unsigned char** p) {
-    const char* s = (const char*)*p;
-    (*p) += strlen(s) + 1;
-    return s;
+// kipferl patch: pickle.loads reads script-supplied bytes, so every read is bounded
+static bool pkl__read_cstr(const unsigned char** p, const unsigned char* end, const char** out) {
+    const unsigned char* nul = memchr(*p, '\0', end - *p);
+    if(nul == NULL) return false;
+    *out = (const char*)*p;
+    *p = nul + 1;
+    return true;
 }
 
 #define UNALIGNED_READ(p_val, p_buf)                                                               \
@@ -25850,39 +25984,33 @@ const static char* pkl__read_cstr(const unsigned char** p) {
         (p_buf) += sizeof(*(p_val));                                                               \
     } while(0)
 
-static py_i64 pkl__read_int(const unsigned char** p) {
+#define PKL_READ_FIXED(T, out)                                                                     \
+    do {                                                                                           \
+        T val;                                                                                     \
+        if((size_t)(end - *p) < sizeof(T)) return false;                                           \
+        UNALIGNED_READ(&val, *p);                                                                  \
+        *(out) = val;                                                                              \
+        return true;                                                                               \
+    } while(0)
+
+static bool pkl__read_int(const unsigned char** p, const unsigned char* end, py_i64* out) {
+    if(*p >= end) return false;
     PickleOp op = (PickleOp) * *p;
     (*p)++;
+    if(op >= PKL_INT_0 && op <= PKL_INT_15) {
+        *out = op - PKL_INT_0;
+        return true;
+    }
     switch(op) {
-            // clang-format off
-        case PKL_INT_0: return 0; case PKL_INT_1: return 1; case PKL_INT_2: return 2; case PKL_INT_3: return 3;
-        case PKL_INT_4: return 4; case PKL_INT_5: return 5; case PKL_INT_6: return 6; case PKL_INT_7: return 7;
-        case PKL_INT_8: return 8; case PKL_INT_9: return 9; case PKL_INT_10: return 10; case PKL_INT_11: return 11;
-        case PKL_INT_12: return 12; case PKL_INT_13: return 13; case PKL_INT_14: return 14; case PKL_INT_15: return 15;
-        // clang-format on
-        case PKL_INT8: {
-            int8_t val;
-            UNALIGNED_READ(&val, *p);
-            return val;
-        }
-        case PKL_INT16: {
-            int16_t val;
-            UNALIGNED_READ(&val, *p);
-            return val;
-        }
-        case PKL_INT32: {
-            int32_t val;
-            UNALIGNED_READ(&val, *p);
-            return val;
-        }
-        case PKL_INT64: {
-            int64_t val;
-            UNALIGNED_READ(&val, *p);
-            return val;
-        }
-        default: c11__abort("pkl__read_int(): invalid op: %d", op);
+        case PKL_INT8: PKL_READ_FIXED(int8_t, out);
+        case PKL_INT16: PKL_READ_FIXED(int16_t, out);
+        case PKL_INT32: PKL_READ_FIXED(int32_t, out);
+        case PKL_INT64: PKL_READ_FIXED(int64_t, out);
+        default: return false;
     }
 }
+
+#undef PKL_READ_FIXED
 
 static bool pickle_loads(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
@@ -26210,33 +26338,42 @@ static py_Type pkl__header_find_type(c11_sv path) {
     c11_sv mod_name = c11_sv__slice2(path, 0, sep_index);
     c11_sv name = c11_sv__slice(path, sep_index + 1);
     char buf[PK_MAX_MODULE_PATH_LEN + 1];
+    // kipferl patch: the module name comes from the pickle and must fit the buffer
+    if(mod_name.size > PK_MAX_MODULE_PATH_LEN) return tp_nil;
     memcpy(buf, mod_name.data, mod_name.size);
     buf[mod_name.size] = '\0';
     return py_gettype(buf, py_namev(name));
 }
 
-static c11_sv pkl__header_read_sv(const unsigned char** p, char sep) {
+static bool pkl__header_read_sv(const unsigned char** p,
+                                const unsigned char* end,
+                                char sep,
+                                c11_sv* out) {
+    const unsigned char* p_end = memchr(*p, sep, end - *p);
+    if(p_end == NULL) return false;
+    out->data = (const char*)*p;
+    out->size = p_end - *p;
+    *p = p_end + 1;
+    return true;
+}
+
+static bool pkl__header_read_int(const unsigned char** p,
+                                 const unsigned char* end,
+                                 char sep,
+                                 py_i64* out) {
     c11_sv text;
-    text.data = (const char*)*p;
-    const char* p_end = strchr(text.data, sep);
-    assert(p_end != NULL);
-    text.size = p_end - text.data;
-    *p = (const unsigned char*)p_end + 1;
-    return text;
+    if(!pkl__header_read_sv(p, end, sep, &text)) return false;
+    return c11__parse_uint(text, out, 10) == IntParsing_SUCCESS;
 }
 
-static py_i64 pkl__header_read_int(const unsigned char** p, char sep) {
-    c11_sv text = pkl__header_read_sv(p, sep);
-    py_i64 out;
-    IntParsingResult res = c11__parse_uint(text, &out, 10);
-    assert(res == IntParsing_SUCCESS);
-    return out;
-}
-
-bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_d2d* type_mapping);
+static bool py_pickle_loads_body(const unsigned char* p,
+                                 const unsigned char* end,
+                                 int memo_length,
+                                 c11_smallmap_d2d* type_mapping);
 
 bool py_pickle_loads(const unsigned char* data, int size) {
     const unsigned char* p = data;
+    const unsigned char* end = data + size;
 
     // PK
     if(size < 2 || p[0] != 'P' || p[1] != 'K')
@@ -26246,23 +26383,41 @@ bool py_pickle_loads(const unsigned char* data, int size) {
     c11_smallmap_d2d type_mapping;
     c11_smallmap_d2d__ctor(&type_mapping);
 
+    // kipferl patch: a malformed header raises instead of reading past the data
+    bool ok = false;
     while(true) {
+        if(p >= end) goto __INVALID;
         if(*p == '\n') {
             p++;
             break;
         }
-        py_Type type = pkl__header_read_int(&p, '(');
-        c11_sv path = pkl__header_read_sv(&p, ')');
+        py_i64 type;
+        c11_sv path;
+        if(!pkl__header_read_int(&p, end, '(', &type) || type <= 0 || type > INT16_MAX) {
+            goto __INVALID;
+        }
+        if(!pkl__header_read_sv(&p, end, ')', &path)) goto __INVALID;
         py_Type new_type = pkl__header_find_type(path);
         if(new_type == 0) {
-            c11_smallmap_d2d__dtor(&type_mapping);
-            return ImportError("cannot find type '%v'", path);
+            ImportError("cannot find type '%v'", path);
+            goto __END;
         }
-        if(type != new_type) c11_smallmap_d2d__set(&type_mapping, type, new_type);
+        if(type != new_type) c11_smallmap_d2d__set(&type_mapping, (py_Type)type, new_type);
     }
 
-    int memo_length = pkl__header_read_int(&p, '\n');
-    bool ok = py_pickle_loads_body(p, memo_length, &type_mapping);
+    py_i64 memo_length;
+    if(!pkl__header_read_int(&p, end, '\n', &memo_length)) goto __INVALID;
+    // each memo entry is set by an operation, and the memo is one tuple
+    if(memo_length < 0 || memo_length > size ||
+       memo_length > PK_OBJ_MAX_UDSIZE(0) / (int64_t)sizeof(py_TValue)) {
+        goto __INVALID;
+    }
+    ok = py_pickle_loads_body(p, end, (int)memo_length, &type_mapping);
+    goto __END;
+
+__INVALID:
+    ValueError("invalid pickle data");
+__END:
     c11_smallmap_d2d__dtor(&type_mapping);
     return ok;
 }
@@ -26273,22 +26428,104 @@ static py_Type pkl__fix_type(py_Type type, c11_smallmap_d2d* type_mapping) {
     return type;
 }
 
-bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_d2d* type_mapping) {
+// kipferl patch: types in the pickle are indices; only existing types are accepted
+static bool pkl__read_type(const unsigned char** p,
+                           const unsigned char* end,
+                           c11_smallmap_d2d* type_mapping,
+                           py_Type* out) {
+    py_i64 index;
+    if(!pkl__read_int(p, end, &index) || index <= 0 || index > INT16_MAX) return false;
+    py_Type type = pkl__fix_type((py_Type)index, type_mapping);
+    if(type <= 0 || type >= pk_current_vm->types.length) return false;
+    *out = type;
+    return true;
+}
+
+// kipferl patch: a raw value from the pickle becomes a value only for plain data types;
+// a pointer, a native function or a type with userdata would forge an object
+static bool pkl__read_raw_value(const unsigned char* src,
+                                c11_smallmap_d2d* type_mapping,
+                                py_TValue* out) {
+    unsigned char is_ptr;
+    memcpy(&is_ptr, src + offsetof(py_TValue, is_ptr), 1);
+    if(is_ptr != 0) return false;
+    py_TValue val;
+    memcpy(&val, src, sizeof(py_TValue));
+    if(val.type <= 0) return false;
+    val.type = pkl__fix_type(val.type, type_mapping);
+    switch(val.type) {
+        case tp_int:
+        case tp_float:
+        case tp_NoneType:
+        case tp_NotImplementedType:
+        case tp_ellipsis:
+        case tp_vec2:
+        case tp_vec3:
+        case tp_vec2i:
+        case tp_vec3i:
+        case tp_vec4i:
+        case tp_color32: break;
+        case tp_bool: {
+            unsigned char b;
+            memcpy(&b, src + offsetof(py_TValue, _bool), 1);
+            val._bool = b != 0;
+            break;
+        }
+        case tp_str: {
+            // a short string is stored inline: an int size, then up to 15 bytes and a NUL
+            c11_string* inline_str = (c11_string*)(&val.extra);
+            int capacity = (int)(sizeof(py_TValue) - offsetof(py_TValue, extra) - sizeof(int));
+            if(inline_str->size < 0 || inline_str->size >= capacity) return false;
+            if(inline_str->data[inline_str->size] != '\0') return false;
+            break;
+        }
+        default: return false;
+    }
+    *out = val;
+    return true;
+}
+
+static bool pkl__has_nil(py_StackRef begin, int n) {
+    for(int i = 0; i < n; i++) {
+        if(py_isnil(begin + i)) return true;
+    }
+    return false;
+}
+
+static bool py_pickle_loads_body(const unsigned char* p,
+                                 const unsigned char* end,
+                                 int memo_length,
+                                 c11_smallmap_d2d* type_mapping) {
     py_StackRef p0 = py_peek(0);
     py_Ref p_memo = py_newtuple(py_pushtmp(), memo_length);
+    // kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices
+    // `depth` counts the values above the memo; nil is only valid as the self slot of a call
+#define DEPTH() ((int)(py_peek(0) - p0) - 1)
+#define INVALID() return ValueError("invalid pickle data")
+#define READ_INT(out)                                                                              \
+    if(!pkl__read_int(&p, end, &(out))) INVALID()
+#define NEED(n)                                                                                    \
+    if((size_t)(end - p) < (size_t)(n)) INVALID()
     while(true) {
+        if(p >= end) INVALID();
+        if(pk_current_vm->stack.sp >= pk_current_vm->stack.end) INVALID();
         PickleOp op = (PickleOp)*p;
         p++;
         switch(op) {
             case PKL_MEMO_GET: {
-                int index = pkl__read_int(&p);
+                py_i64 index;
+                READ_INT(index);
+                if(index < 0 || index >= memo_length) INVALID();
                 py_Ref val = &p_memo[index];
-                assert(!py_isnil(val));
+                if(py_isnil(val)) INVALID();
                 py_push(val);
                 break;
             }
             case PKL_MEMO_SET: {
-                int index = pkl__read_int(&p);
+                py_i64 index;
+                READ_INT(index);
+                if(index < 0 || index >= memo_length) INVALID();
+                if(DEPTH() < 1 || py_isnil(py_peek(-1))) INVALID();
                 p_memo[index] = *py_peek(-1);
                 break;
             }
@@ -26308,43 +26545,25 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
             case PKL_INT_0: case PKL_INT_1: case PKL_INT_2: case PKL_INT_3:
             case PKL_INT_4: case PKL_INT_5: case PKL_INT_6: case PKL_INT_7:
             case PKL_INT_8: case PKL_INT_9: case PKL_INT_10: case PKL_INT_11:
-            case PKL_INT_12: case PKL_INT_13: case PKL_INT_14: case PKL_INT_15: {
-                py_newint(py_pushtmp(), op - PKL_INT_0);
-                break;
-            }
-            // clang-format on
-            case PKL_INT8: {
-                int8_t val;
-                UNALIGNED_READ(&val, p);
-                py_newint(py_pushtmp(), val);
-                break;
-            }
-            case PKL_INT16: {
-                int16_t val;
-                UNALIGNED_READ(&val, p);
-                py_newint(py_pushtmp(), val);
-                break;
-            }
-            case PKL_INT32: {
-                int32_t val;
-                UNALIGNED_READ(&val, p);
-                py_newint(py_pushtmp(), val);
-                break;
-            }
-            case PKL_INT64: {
-                int64_t val;
-                UNALIGNED_READ(&val, p);
+            case PKL_INT_12: case PKL_INT_13: case PKL_INT_14: case PKL_INT_15:
+            case PKL_INT8: case PKL_INT16: case PKL_INT32: case PKL_INT64: {
+                // clang-format on
+                py_i64 val;
+                p--;
+                READ_INT(val);
                 py_newint(py_pushtmp(), val);
                 break;
             }
             case PKL_FLOAT32: {
                 float val;
+                NEED(sizeof(val));
                 UNALIGNED_READ(&val, p);
                 py_newfloat(py_pushtmp(), val);
                 break;
             }
             case PKL_FLOAT64: {
                 double val;
+                NEED(sizeof(val));
                 UNALIGNED_READ(&val, p);
                 py_newfloat(py_pushtmp(), val);
                 break;
@@ -26358,24 +26577,33 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
                 break;
             }
             case PKL_STRING: {
-                int size = pkl__read_int(&p);
-                char* dst = py_newstrn(py_pushtmp(), size);
+                py_i64 size;
+                READ_INT(size);
+                if(size < 0) INVALID();
+                NEED(size);
+                char* dst = py_newstrn(py_pushtmp(), (int)size);
                 memcpy(dst, p, size);
                 p += size;
                 break;
             }
             case PKL_BYTES: {
-                int size = pkl__read_int(&p);
-                unsigned char* dst = py_newbytes(py_pushtmp(), size);
+                py_i64 size;
+                READ_INT(size);
+                if(size < 0) INVALID();
+                NEED(size);
+                unsigned char* dst = py_newbytes(py_pushtmp(), (int)size);
                 memcpy(dst, p, size);
                 p += size;
                 break;
             }
             case PKL_BUILD_LIST: {
-                int length = pkl__read_int(&p);
+                py_i64 length;
+                READ_INT(length);
+                if(length < 0 || length > DEPTH()) INVALID();
+                if(pkl__has_nil(py_peek(-(int)length), (int)length)) INVALID();
                 py_Ref val = py_retval();
-                py_newlistn(val, length);
-                for(int i = length - 1; i >= 0; i--) {
+                py_newlistn(val, (int)length);
+                for(int i = (int)length - 1; i >= 0; i--) {
                     py_StackRef item = py_peek(-1);
                     py_list_setitem(val, i, item);
                     py_pop();
@@ -26384,10 +26612,13 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
                 break;
             }
             case PKL_BUILD_TUPLE: {
-                int length = pkl__read_int(&p);
+                py_i64 length;
+                READ_INT(length);
+                if(length < 0 || length > DEPTH()) INVALID();
+                if(pkl__has_nil(py_peek(-(int)length), (int)length)) INVALID();
                 py_Ref val = py_retval();
-                py_Ref p = py_newtuple(val, length);
-                for(int i = length - 1; i >= 0; i--) {
+                py_Ref p = py_newtuple(val, (int)length);
+                for(int i = (int)length - 1; i >= 0; i--) {
                     p[i] = *py_peek(-1);
                     py_pop();
                 }
@@ -26395,12 +26626,15 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
                 break;
             }
             case PKL_BUILD_DICT: {
-                int length = pkl__read_int(&p);
+                py_i64 length;
+                READ_INT(length);
+                if(length < 0 || length > DEPTH() / 2) INVALID();
+                if(pkl__has_nil(py_peek(-2 * (int)length), 2 * (int)length)) INVALID();
                 py_Ref val = py_pushtmp();
                 py_newdict(val);
                 py_StackRef begin = py_peek(-1) - 2 * length;
-                py_StackRef end = py_peek(-1);
-                for(py_StackRef i = begin; i < end; i += 2) {
+                py_StackRef stop = py_peek(-1);
+                for(py_StackRef i = begin; i < stop; i += 2) {
                     py_StackRef k = i;
                     py_StackRef v = i + 1;
                     bool ok = py_dict_setitem(val, k, v);
@@ -26413,51 +26647,64 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
             }
             case PKL_VEC2: {
                 c11_vec2 val;
+                NEED(sizeof(val));
                 UNALIGNED_READ(&val, p);
                 py_newvec2(py_pushtmp(), val);
                 break;
             }
             case PKL_VEC3: {
                 c11_vec3 val;
+                NEED(sizeof(val));
                 UNALIGNED_READ(&val, p);
                 py_newvec3(py_pushtmp(), val);
                 break;
             }
             case PKL_VEC2I: {
+                py_i64 x, y;
+                READ_INT(x);
+                READ_INT(y);
                 c11_vec2i val;
-                val.x = pkl__read_int(&p);
-                val.y = pkl__read_int(&p);
+                val.x = (int)x;
+                val.y = (int)y;
                 py_newvec2i(py_pushtmp(), val);
                 break;
             }
             case PKL_VEC3I: {
+                py_i64 x, y, z;
+                READ_INT(x);
+                READ_INT(y);
+                READ_INT(z);
                 c11_vec3i val;
-                val.x = pkl__read_int(&p);
-                val.y = pkl__read_int(&p);
-                val.z = pkl__read_int(&p);
+                val.x = (int)x;
+                val.y = (int)y;
+                val.z = (int)z;
                 py_newvec3i(py_pushtmp(), val);
                 break;
             }
             case PKL_TYPE: {
-                py_Type type = (py_Type)pkl__read_int(&p);
-                type = pkl__fix_type(type, type_mapping);
+                py_Type type;
+                if(!pkl__read_type(&p, end, type_mapping, &type)) INVALID();
                 py_push(py_tpobject(type));
                 break;
             }
             case PKL_ARRAY2D: {
-                int n_cols = pkl__read_int(&p);
-                int n_rows = pkl__read_int(&p);
-                c11_array2d* arr = c11_newarray2d(py_pushtmp(), n_cols, n_rows);
-                int total_size = arr->header.numel * sizeof(py_TValue);
-                memcpy(arr->data, p, total_size);
+                py_i64 n_cols, n_rows;
+                READ_INT(n_cols);
+                READ_INT(n_rows);
+                if(!c11_array2d__check_size(n_cols, n_rows)) return false;
+                // the cells must be present before the array is allocated
+                NEED((size_t)(n_cols * n_rows) * sizeof(py_TValue));
+                c11_array2d* arr = c11_newarray2d(py_pushtmp(), (int)n_cols, (int)n_rows);
+                if(arr == NULL) return false;
                 for(int i = 0; i < arr->header.numel; i++) {
-                    arr->data[i].type = pkl__fix_type(arr->data[i].type, type_mapping);
+                    if(!pkl__read_raw_value(p, type_mapping, &arr->data[i])) INVALID();
+                    p += sizeof(py_TValue);
                 }
-                p += total_size;
                 break;
             }
             case PKL_IMPORT_PATH: {
-                const char* path = pkl__read_cstr(&p);
+                const char* path;
+                if(!pkl__read_cstr(&p, end, &path)) INVALID();
                 int res = py_import(path);
                 if(res == -1) return false;
                 if(res == 0) return ImportError("No module named '%s'", path);
@@ -26465,7 +26712,9 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
                 break;
             }
             case PKL_GETATTR: {
-                const char* name = pkl__read_cstr(&p);
+                const char* name;
+                if(!pkl__read_cstr(&p, end, &name)) INVALID();
+                if(DEPTH() < 1 || py_isnil(py_peek(-1))) INVALID();
                 py_Ref obj = py_peek(-1);
                 if(!py_getattr(obj, py_name(name))) return false;
                 py_pop();
@@ -26473,45 +26722,59 @@ bool py_pickle_loads_body(const unsigned char* p, int memo_length, c11_smallmap_
                 break;
             }
             case PKL_TVALUE: {
-                py_TValue* tmp = py_pushtmp();
-                memcpy(tmp, p, sizeof(py_TValue));
-                tmp->type = pkl__fix_type(tmp->type, type_mapping);
+                NEED(sizeof(py_TValue));
+                py_TValue val;
+                if(!pkl__read_raw_value(p, type_mapping, &val)) INVALID();
+                py_push(&val);
                 p += sizeof(py_TValue);
                 break;
             }
             case PKL_CALL: {
-                int argc = pkl__read_int(&p);
-                if(!py_vectorcall(argc, 0)) return false;
+                py_i64 argc;
+                READ_INT(argc);
+                if(argc < 0 || argc > DEPTH() - 2) INVALID();
+                // [callable, self or nil, args...]
+                if(py_isnil(py_peek(-(int)argc - 2))) INVALID();
+                if(pkl__has_nil(py_peek(-(int)argc), (int)argc)) INVALID();
+                if(!py_vectorcall((uint16_t)argc, 0)) return false;
                 py_push(py_retval());
                 break;
             }
             case PKL_OBJECT: {
-                py_Type type = (py_Type)pkl__read_int(&p);
-                type = pkl__fix_type(type, type_mapping);
+                py_Type type;
+                if(!pkl__read_type(&p, end, type_mapping, &type)) INVALID();
+                // only instances of Python classes are plain attribute dictionaries
+                if(!pk_typeinfo(type)->is_python) INVALID();
+                py_i64 dict_length;
+                READ_INT(dict_length);
+                if(dict_length < 0 || dict_length > DEPTH()) INVALID();
+                if(pkl__has_nil(py_peek(-(int)dict_length), (int)dict_length)) INVALID();
                 py_newobject(py_retval(), type, -1, 0);
                 NameDict* dict = PyObject__dict(py_retval()->_obj);
-                int dict_length = pkl__read_int(&p);
                 for(int i = 0; i < dict_length; i++) {
                     py_StackRef value = py_peek(-1);
-                    c11_sv field = {(const char*)p, strlen((const char*)p)};
-                    NameDict__set(dict, py_namev(field), value);
+                    const char* field;
+                    if(!pkl__read_cstr(&p, end, &field)) INVALID();
+                    NameDict__set(dict, py_name(field), value);
                     py_pop();
-                    p += field.size + 1;
                 }
                 py_push(py_retval());
                 break;
             }
             case PKL_EOF: {
                 // [memo, obj]
-                if(py_peek(0) - p0 != 2) return ValueError("invalid pickle data");
+                if(py_peek(0) - p0 != 2 || py_isnil(py_peek(-1))) INVALID();
                 py_assign(py_retval(), py_peek(-1));
                 py_shrink(2);
                 return true;
             }
-            default: c11__unreachable();
+            default: INVALID();
         }
     }
-    c11__unreachable();
+#undef DEPTH
+#undef INVALID
+#undef READ_INT
+#undef NEED
 }
 
 static bool PickleObject__py_submit(PickleObject* self, py_OutRef out) {
@@ -27246,6 +27509,8 @@ static bool pkpy_profiler_report(int argc, py_Ref argv) {
 void pk__add_module_pkpy() {
     py_Ref mod = py_newmodule("pkpy");
 
+    // kipferl patch: the TValue types forge values of any type from raw payloads, so never create them
+#if 0
     py_Type ttype;
     py_Ref TValue_dict = py_pushtmp();
     py_newdict(TValue_dict);
@@ -27276,6 +27541,7 @@ void pk__add_module_pkpy() {
 
     py_setdict(mod, py_name("TValue"), TValue_dict);
     py_pop();
+#endif
 
     py_bindfunc(mod, "memory_usage", pkpy_memory_usage);
     py_bindfunc(mod, "memory_usage_info", pkpy_memory_usage_info);
@@ -27753,13 +28019,7 @@ py_i64 py_Random_randint(py_Ref self, py_i64 a, py_i64 b) {
         py_Type type = py_newtype(#Char_, tp_stdc_Memory, mod, NULL);                              \
         py_tpsetfinal(type);                                                                       \
         assert(type == tp_stdc_##Char_);                                                           \
-        py_bindmagic(type, __new__, stdc_##Char_##__new__);                                        \
-        py_bindmagic(type, __getitem__, stdc_##Char_##__getitem__);                                \
-        py_bindmagic(type, __setitem__, stdc_##Char_##__setitem__);                                \
-        py_bindproperty(type, "value", stdc_##Char_##__get_value, stdc_##Char_##__set_value);      \
-        py_bindstaticmethod(type, "read", stdc_##Char_##__read_STATIC);                            \
-        py_bindstaticmethod(type, "write", stdc_##Char_##__write_STATIC);                          \
-        py_bindstaticmethod(type, "array", stdc_##Char_##__array_STATIC);                          \
+        /* kipferl patch: stdc types stay reachable through __subclasses__, so bind no raw memory access */ \
         py_newint(py_emplacedict(py_tpobject(type), py_name("size")), sizeof(char_));              \
     }
 
@@ -27909,6 +28169,8 @@ static bool stdc_write_bytes(int argc, py_Ref argv) {
 void pk__add_module_stdc() {
     py_Ref mod = py_newmodule("stdc");
 
+    // kipferl patch: keep stdc's predefined types but bind none of its raw memory functions
+#if 0
     py_bindfunc(mod, "malloc", stdc_malloc);
     py_bindfunc(mod, "free", stdc_free);
     py_bindfunc(mod, "memcpy", stdc_memcpy);
@@ -27922,6 +28184,7 @@ void pk__add_module_stdc() {
     py_bindfunc(mod, "write_cstr", stdc_write_cstr);
     py_bindfunc(mod, "read_bytes", stdc_read_bytes);
     py_bindfunc(mod, "write_bytes", stdc_write_bytes);
+#endif
 
     py_Type Memory = py_newtype("Memory", tp_object, mod, NULL);
     assert(Memory == tp_stdc_Memory);
@@ -30860,6 +31123,7 @@ void Function__ctor(Function* self, FuncDecl_ decl, py_GlobalRef module, py_Ref 
     self->closure = NULL;
     self->clazz = NULL;
     self->cfunc = NULL;
+    self->receiver = 0;
 }
 
 int CodeObject__add_varname(CodeObject* self, py_Name name) {
@@ -31611,6 +31875,17 @@ PK_INLINE py_TValue* PyObject__slots(PyObject* self) {
 void py_bind(py_Ref obj, const char* sig, py_CFunction f) {
     py_Ref tmp = py_pushtmp();
     py_Name name = py_newfunction(tmp, sig, f, NULL, 0);
+    // kipferl patch: a method bound to a type checks its `self` or `__new__` argument
+    if(obj->type == tp_type) {
+        Function* fn = py_touserdata(tmp);
+        if(fn->decl->args.length > 0) {
+            int index = c11__getitem(int, &fn->decl->args, 0);
+            py_Name first = c11__getitem(py_Name, &fn->decl->code.varnames, index);
+            py_Type type = py_totype(obj);
+            if(first == py_name("self")) fn->receiver = type;
+            if(first == py_name("cls") && name == __new__) fn->receiver = -type;
+        }
+    }
     py_setdict(obj, name, tmp);
     py_pop();
 }
@@ -31618,6 +31893,7 @@ void py_bind(py_Ref obj, const char* sig, py_CFunction f) {
 void py_bindmethod(py_Type type, const char* name, py_CFunction f) {
     py_TValue tmp;
     py_newnativefunc(&tmp, f);
+    tmp.extra = strcmp(name, "__new__") == 0 ? -type : type;  // kipferl patch: see py_bind
     py_setdict(py_tpobject(type), py_name(name), &tmp);
 }
 
@@ -31642,8 +31918,10 @@ void py_bindproperty(py_Type type, const char* name, py_CFunction getter, py_CFu
     py_TValue tmp;
     py_newobject(&tmp, tp_property, 2, 0);
     py_newnativefunc(py_getslot(&tmp, 0), getter);
+    py_getslot(&tmp, 0)->extra = type;  // kipferl patch: see py_bind
     if(setter) {
         py_newnativefunc(py_getslot(&tmp, 1), setter);
+        py_getslot(&tmp, 1)->extra = type;
     } else {
         py_setslot(&tmp, 1, py_None());
     }
@@ -31653,6 +31931,7 @@ void py_bindproperty(py_Type type, const char* name, py_CFunction getter, py_CFu
 void py_bindmagic(py_Type type, py_Name name, py_CFunction f) {
     py_Ref tmp = py_emplacedict(py_tpobject(type), name);
     py_newnativefunc(tmp, f);
+    tmp->extra = name == __new__ ? -type : type;  // kipferl patch: see py_bind
 }
 
 // src/public\CodeExecution.c
@@ -34769,6 +35048,7 @@ PK_INLINE bool py_vectorcall(uint16_t argc, uint16_t kwargc) {
 
 bool py_call(py_Ref f, int argc, py_Ref argv) {
     if(f->type == tp_nativefunc) {
+        if(!pk__check_receiver(f->extra, argc, argv)) return false;
         return py_callcfunc(f->_cfunc, argc, argv);
     } else {
         py_push(f);
@@ -35115,6 +35395,8 @@ void py_newbool(py_OutRef out, bool val) {
 void py_newstr(py_OutRef out, const char* data) { py_newstrv(out, (c11_sv){data, strlen(data)}); }
 
 char* py_newstrn(py_OutRef out, int size) {
+    // kipferl patch: a negative length is a wrapped size computation, not a short string
+    if(size < 0) c11__abort("py_newstrn(): negative size %d", size);
     if(size < 16) {
         out->type = tp_str;
         out->is_ptr = false;
@@ -35123,7 +35405,7 @@ char* py_newstrn(py_OutRef out, int size) {
         return ud->data;
     }
     ManagedHeap* heap = &pk_current_vm->heap;
-    int total_size = sizeof(c11_string) + size + 1;
+    int64_t total_size = (int64_t)sizeof(c11_string) + size + 1;
     PyObject* obj = ManagedHeap__gcnew(heap, tp_str, 0, total_size);
     c11_string* ud = PyObject__userdata(obj);
     c11_string__ctor3(ud, size);
@@ -35150,8 +35432,10 @@ void py_newfstr(py_OutRef out, const char* fmt, ...) {
 
 unsigned char* py_newbytes(py_OutRef out, int size) {
     ManagedHeap* heap = &pk_current_vm->heap;
+    // kipferl patch: a negative length is a wrapped size computation
+    if(size < 0) c11__abort("py_newbytes(): negative size %d", size);
     // 4 bytes size + data
-    PyObject* obj = ManagedHeap__gcnew(heap, tp_bytes, 0, sizeof(c11_bytes) + size);
+    PyObject* obj = ManagedHeap__gcnew(heap, tp_bytes, 0, (int64_t)sizeof(c11_bytes) + size);
     c11_bytes* ud = PyObject__userdata(obj);
     ud->size = size;
     out->type = tp_bytes;
@@ -35183,6 +35467,7 @@ void py_newnil(py_OutRef out) {
 void py_newnativefunc(py_OutRef out, py_CFunction f) {
     out->type = tp_nativefunc;
     out->is_ptr = false;
+    out->extra = 0;  // kipferl patch: no receiver type unless a type binding sets one
     out->_cfunc = f;
 }
 

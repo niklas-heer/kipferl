@@ -1,7 +1,6 @@
-diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -4080,7 +4082,8 @@ __NEXT_STEP:
+@@ -17916,7 +17916,8 @@
          }
          case OP_LOAD_FUNCTION: {
              FuncDecl_ decl = c11__getitem(FuncDecl_, &frame->co->func_decls, byte.arg);
@@ -11,7 +10,7 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
              Function__ctor(ud, decl, frame->module, frame->globals);
              if(decl->nested) {
                  if(frame->is_locals_special) {
-@@ -16599,6 +16622,22 @@ static bool function__doc__(int argc, py_Ref argv) {
+@@ -23557,10 +23558,40 @@
      return true;
  }
  
@@ -20,12 +19,14 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
 +    PY_CHECK_ARGC(2);
 +    Function* func = py_touserdata(py_arg(0));
 +    py_Ref val = py_arg(1);
++    // kipferl patch: the declaration owns its docstring; free the replaced one
++    if(!py_isnone(val)) PY_CHECK_ARG_TYPE(1, tp_str);
++    if(func->decl->docstring) py_free(func->decl->docstring);
 +    if(py_isnone(val)) {
 +        func->decl->docstring = NULL;
 +        py_newnone(py_retval());
 +        return true;
 +    }
-+    PY_CHECK_ARG_TYPE(1, tp_str);
 +    func->decl->docstring = c11_strdup(py_tostr(val));
 +    py_newnone(py_retval());
 +    return true;
@@ -34,10 +35,10 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
  static bool function__name__(int argc, py_Ref argv) {
      PY_CHECK_ARGC(1);
      Function* func = py_touserdata(py_arg(0));
-@@ -16606,6 +16645,18 @@ static bool function__name__(int argc, py_Ref argv) {
-     return true;
- }
- 
+     py_newstr(py_retval(), func->decl->code.name->data);
++    return true;
++}
++
 +// kipferl patch: allow setting function.__name__ for CPython compatibility
 +static bool function__name__set(int argc, py_Ref argv) {
 +    PY_CHECK_ARGC(2);
@@ -47,13 +48,10 @@ diff --git a/pocketpy/vendor/pocketpy.c b/pocketpy/vendor/pocketpy.c
 +    c11_string__delete(func->decl->code.name);
 +    func->decl->code.name = c11_string__new(s);
 +    py_newnone(py_retval());
-+    return true;
-+}
-+
- static bool function__repr__(int argc, py_Ref argv) {
-     // <function f at 0x10365b9c0>
-     PY_CHECK_ARGC(1);
-@@ -16624,8 +16675,8 @@ static bool function__repr__(int argc, py_Ref argv) {
+     return true;
+ }
+ 
+@@ -23582,8 +23613,8 @@
  py_Type pk_function__register() {
      py_Type type =
          pk_newtype("function", tp_object, NULL, (void (*)(void*))Function__dtor, false, true);

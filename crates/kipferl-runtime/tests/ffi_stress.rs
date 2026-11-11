@@ -113,3 +113,28 @@ fn diagnostic(output: &Output) -> String {
         text(&output.stderr)
     )
 }
+
+// Assigning `__doc__` replaced the declaration's docstring without freeing it;
+// LeakSanitizer in the FFI sanitizer job reports any leaked copy.
+#[test]
+fn replacing_function_docstrings_frees_the_previous_text() {
+    let output = run(
+        "def f():\n    'original'\nfor i in range(50):\n    f.__doc__ = 'doc ' + str(i)\nassert f.__doc__ == 'doc 49'\nf.__doc__ = None\nassert f.__doc__ is None\nf.__doc__ = 'last'\ntry:\n    f.__doc__ = 5\nexcept TypeError:\n    pass\nassert f.__doc__ == 'last'\n",
+        &[],
+    );
+    assert!(output.status.success(), "{}", diagnostic(&output));
+    assert_eq!(text(&output.stdout), "");
+    assert_eq!(text(&output.stderr), "");
+}
+
+// An empty bytes slice passed a null buffer to memcpy, which GCC's
+// UndefinedBehaviorSanitizer reports in the FFI sanitizer job.
+#[test]
+fn empty_bytes_slices_copy_nothing() {
+    let output = run(
+        "assert b'abc'[3:] == b'' and b''[:] == b'' and b'abc'[2:0] == b''\nassert b'abc'[::-1] == b'cba'\n",
+        &[],
+    );
+    assert!(output.status.success(), "{}", diagnostic(&output));
+    assert_eq!(text(&output.stderr), "");
+}

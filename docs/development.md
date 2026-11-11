@@ -39,6 +39,7 @@ explicit commands.
 | `mise run refresh-runtime-assets` | Build and verify this host's full/core runtimes and loader before embedding them in the CLI |
 | `mise run test` | `check`, release build, CPython compatibility, vision scenarios, recipes, and website checks |
 | `mise run bench` | Statistical loader benchmarks; run separately from correctness checks |
+| `mise run sanitize-suites` | Compatibility, Vision, recipes and examples against an ASan/UBSan-instrumented runtime |
 | `mise run website-dev` | Website development server |
 | `mise run seek` | Optional pinned crate, feature, and MSRV explorer, installed on demand |
 
@@ -180,7 +181,11 @@ Import changes have CPython-oracle package-tree tests covering bindings,
 initialization order, cycles, failed-import cleanup, and surviving module
 globals. The Linux ASan/UBSan job includes these tests alongside FFI stress
 tests. The CPython oracle subprocess does not inherit sanitizer preloads;
-the instrumented Kipferl subprocess does.
+the instrumented Kipferl subprocess does. The same job then runs
+`mise run sanitize-suites`, which builds an instrumented release runtime in
+`target/sanitize` and runs the whole compatibility suite, Vision, recipes and
+examples against it; any sanitizer report fails the job. The task also works
+on macOS with the Xcode clang runtime, without leak detection.
 
 Keep package manager tests deterministic: Rust fixtures create wheels and seed
 an offline cache, then exercise transitive resolution, extraction checks,
