@@ -260,3 +260,25 @@ called it with no arguments, so a context manager written for CPython,
 `def __exit__(self, exc_type, exc, tb)`, raised `TypeError`, and Kipferl's
 earlier `0003` exception path passed only the exception. `contextlib.suppress`
 now receives the exception type it checks.
+
+### Generator expressions and nested comprehensions
+
+PocketPy 2.2 has no generator expressions, and its comprehensions accept a
+single `for` clause with at most one `if`. `0016-generator-expressions.patch`
+compiles `(<expr> for ...)`, and a generator expression that is a call's sole
+argument (`sum(x for x in xs)`), the way CPython does: into a nested
+generator function, `<genexpr>`, called with the iterator of the first
+iterable. That iterable is evaluated, and `iter()` applied, in the enclosing
+scope, so `(y for y in 5)` raises `TypeError` at once and a class body can use
+its own names there; everything else runs lazily in the function's scope, so
+its loop variables do not leak. List, set and dict comprehensions with more
+than one `for` clause compile to a nested function the same way and return
+the built container; single-clause comprehensions keep PocketPy's faster
+inline code (and its leaking loop variable). Clauses may carry several `if`
+conditions.
+
+The compiler decides by scanning the bracket's tokens for a `for` at its own
+level before the first comma. Like other nested functions in PocketPy, the
+generator sees the enclosing function's locals as they were when it was
+created. `yield` inside a generator expression and `:=` binding in the
+enclosing scope are not supported.

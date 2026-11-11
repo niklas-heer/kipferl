@@ -9,6 +9,10 @@ All notable user-facing changes are documented here.
 - `try` statements accept `else` and `finally` clauses. `finally` runs on
   normal completion, on exceptions, and when `break`, `continue` or `return`
   leaves the block.
+- Generator expressions, lazily evaluated as in CPython: `sum(x * x for x in xs)`,
+  `any(...)`, `"".join(...)` and `next((x for x in xs if ...), None)`.
+  Comprehensions accept several `for` and `if` clauses
+  (`[(a, b) for a in xs for b in ys if a != b]`).
 
 ### Fixed
 

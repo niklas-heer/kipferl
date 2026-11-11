@@ -282,3 +282,84 @@ fn malformed_try_statements_remain_syntax_errors() -> io::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn generator_expressions_are_lazy_and_scoped_like_cpython() -> io::Result<()> {
+    matches_cpython(
+        r#"
+xs = [1, 2, 3]
+print(sum(x * x for x in xs))
+print(any(x > 2 for x in range(5)), all(x < 9 for x in range(5)))
+print("".join(c.upper() for c in "abc"))
+print(max(len(w) for w in ["a", "bbb"]), min(x for x in [5, 3]))
+print(tuple(i for i in range(3)), sorted(set(i % 2 for i in range(4))))
+print(next((x for x in range(10) if x > 3), None))
+g = (x * 2 for x in range(3))
+print(type(g).__name__, list(g), list(g))
+import itertools
+print(next(n for n in itertools.count(10) if n % 7 == 0))
+def f(scale):
+    data = [3, 1, 2]
+    return sorted(v * scale for v in data if v != 2)
+print(f(10))
+class C:
+    items = [1, 2, 3]
+    total = sum(i for i in items)
+print(C.total)
+x = "outer"
+print(list(x for x in "ab"), x)
+def lazy():
+    for i in range(3):
+        print("produce", i)
+        yield i
+g = (v + 1 for v in lazy())
+print("created")
+print(next(g))
+try:
+    (y for y in 5)
+except TypeError as e:
+    print("TypeError", e)
+print(sum(
+    v
+    for v in range(4)
+))
+"#,
+    )
+}
+
+#[test]
+fn comprehensions_accept_several_for_and_if_clauses() -> io::Result<()> {
+    matches_cpython(
+        r#"
+print([(a, b) for a in range(3) for b in range(3) if a != b if a < b])
+print({(a, b) for a in "xy" for b in "zz"} == {("x", "z"), ("y", "z")})
+print({a + b: len(a + b) for a in ["p", "qq"] for b in ["r", "ss"]})
+print(list((a, b) for a in range(2) for b in "ab"))
+print([y for x in [[1, 2], [3]] for y in x])
+print(list(i * j for i in range(3) if i for j in range(i)))
+def matrix(n):
+    return [[r * n + c for c in range(n)] for r in range(n)]
+print(matrix(3), [v for row in matrix(2) for v in row])
+"#,
+    )
+}
+
+#[test]
+fn malformed_generator_expressions_remain_syntax_errors() -> io::Result<()> {
+    for source in [
+        "f(x for x in y, 1)",
+        "f(1, x for x in y)",
+        "(x for x)",
+        "[x for x in]",
+    ] {
+        for program in [env!("CARGO_BIN_EXE_pocketpy-kipferl"), "python3"] {
+            let output = run(program, source)?;
+            check(
+                !output.status.success()
+                    && String::from_utf8_lossy(&output.stderr).contains("SyntaxError"),
+                format!("{program} accepted malformed source {source:?}"),
+            )?;
+        }
+    }
+    Ok(())
+}

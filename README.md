@@ -743,7 +743,7 @@ The runtime supports classes, decorators, generator functions, comprehensions, i
 
 Not supported:
 - `async`/`await` (limited support)
-- Adjacent f-string combinations and generator expressions
+- Adjacent f-string combinations
 - Some metaclass features
 - C extension packages (numpy, etc.)
 

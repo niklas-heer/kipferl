@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 9,
+  "patchset_version": 10,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -58,7 +58,11 @@
         "kipferl patch: break, continue and return run the finally clauses and __exit__ methods they leave",
         "kipferl patch: find the finally clause of the try statement whose header ends at `colon`",
         "kipferl patch: try statements accept else and finally clauses",
-        "kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython"
+        "kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython",
+        "kipferl patch: generator expressions and nested comprehensions compile to a nested function",
+        "kipferl patch: (<expr> for ...) is a generator expression",
+        "kipferl patch: comprehensions with several for clauses",
+        "kipferl patch: a generator expression may be the sole argument without parentheses"
       ]
     }
   ],
@@ -122,6 +126,10 @@
     {
       "id": "0015-with-exit-arguments",
       "file": "pocketpy/patches/0015-with-exit-arguments.patch"
+    },
+    {
+      "id": "0016-generator-expressions",
+      "file": "pocketpy/patches/0016-generator-expressions.patch"
     }
   ]
 }

@@ -1,0 +1,217 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -14737,14 +14737,172 @@
+         default: assert(false);
+     }
+     return NULL;
++}
++
++// kipferl patch: generator expressions and nested comprehensions compile to a nested function
++typedef enum ComprehensionKind {
++    COMPREHENSION_GENERATOR,
++    COMPREHENSION_LIST,
++    COMPREHENSION_SET,
++    COMPREHENSION_DICT,
++} ComprehensionKind;
++
++// Count the `for` clauses at the bracket level of the opening bracket just consumed, stopping at
++// its closing bracket or, when `stop_at_comma`, at a comma that separates call arguments.
++static int count_comprehension_fors(Compiler* self, bool stop_at_comma, bool* has_colon) {
++    int level = prev()->brackets_level;
++    int count = 0;
++    if(has_colon) *has_colon = false;
++    for(int j = self->i; j < self->tokens_length; j++) {
++        Token* t = tk(j);
++        if(t->type == TK_EOF || t->brackets_level < level) break;
++        if(t->brackets_level > level) continue;
++        if(t->type == TK_FOR) count++;
++        if(count == 0 && t->type == TK_COMMA && stop_at_comma) break;
++        if(count == 0 && t->type == TK_COLON && has_colon) *has_colon = true;
++    }
++    return count;
+ }
+ 
++static Error* compile_comprehension_clauses(Compiler* self,
++                                            ComprehensionKind kind,
++                                            int iter_end,
++                                            py_Name result,
++                                            c11_vector* starts) {
++    Error* err;
++    bool first = true;
++    do {
++        consume(TK_FOR);
++        check(EXPR_VARS(self));
++        consume(TK_IN);
++        if(first) {
++            // the first iterable was evaluated by the caller and arrives as the argument
++            int arg = c11_smallmap_n2d__get(&ctx()->co->varnames_inv, py_name(".0"), -1);
++            Ctx__emit_(ctx(), OP_LOAD_FAST, arg, prev()->line);
++            self->i = iter_end;
++        } else {
++            check(parse_expression(self, PREC_TERNARY + 1, false));
++            Ctx__s_emit_top(ctx());
++            Ctx__emit_(ctx(), OP_GET_ITER, BC_NOARG, BC_KEEPLINE);
++        }
++        int block = Ctx__enter_block(ctx(), CodeBlockType_FOR_LOOP);
++        int start = Ctx__emit_(ctx(), OP_FOR_ITER, block, BC_KEEPLINE);
++        c11_vector__push(int, starts, start);
++        Expr* vars = Ctx__s_popx(ctx());
++        bool ok = vtemit_store(vars, ctx());
++        vtdelete(vars);
++        if(!ok) return SyntaxError(self, "invalid syntax");
++        while(match(TK_IF)) {
++            check(parse_expression(self, PREC_TERNARY + 1, false));
++            Ctx__s_emit_top(ctx());
++            // a false condition continues this loop
++            int jump = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
++            Bytecode__set_signed_arg(c11__at(Bytecode, &ctx()->co->codes, jump), start - jump);
++        }
++        first = false;
++    } while(curr()->type == TK_FOR);
++
++    // the element expressions are below everything the clauses pushed and popped
++    if(kind == COMPREHENSION_GENERATOR) {
++        Ctx__s_emit_top(ctx());
++        Ctx__emit_(ctx(), OP_YIELD_VALUE, BC_NOARG, BC_KEEPLINE);
++    } else {
++        int index = c11_smallmap_n2d__get(&ctx()->co->varnames_inv, result, -1);
++        const char* method = kind == COMPREHENSION_LIST  ? "append"
++                             : kind == COMPREHENSION_SET ? "add"
++                                                         : "__setitem__";
++        int argc = kind == COMPREHENSION_DICT ? 2 : 1;
++        Expr* value = kind == COMPREHENSION_DICT ? Ctx__s_popx(ctx()) : NULL;
++        Ctx__emit_(ctx(), OP_LOAD_FAST, index, BC_KEEPLINE);
++        Ctx__emit_(ctx(), OP_LOAD_METHOD, Ctx__add_name(ctx(), py_name(method)), BC_KEEPLINE);
++        Ctx__s_emit_top(ctx());
++        if(value) {
++            vtemit_(value, ctx());
++            vtdelete(value);
++        }
++        Ctx__emit_(ctx(), OP_CALL, argc, BC_KEEPLINE);
++        Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
++    }
++    for(int i = starts->length - 1; i >= 0; i--) {
++        Ctx__emit_jump(ctx(), c11__getitem(int, starts, i), BC_KEEPLINE);
++        Ctx__exit_block(ctx());
++    }
++    if(kind != COMPREHENSION_GENERATOR) {
++        int index = c11_smallmap_n2d__get(&ctx()->co->varnames_inv, result, -1);
++        Ctx__emit_(ctx(), OP_LOAD_FAST, index, BC_KEEPLINE);
++        Ctx__emit_(ctx(), OP_RETURN_VALUE, BC_NOARG, BC_KEEPLINE);
++    }
++    return NULL;
++}
++
++// Compile the comprehension that starts at the current token into a function called with the
++// iterator of its first iterable, as CPython does, and push that call. The first iterable is
++// evaluated in the enclosing scope; everything else runs in the function's own scope.
++static Error* compile_comprehension_function(Compiler* self, ComprehensionKind kind) {
++    Error* err;
++    int line = curr()->line;
++    int level = prev()->brackets_level;
++    int element = self->i;
++    int j = element;
++    while(!(tk(j)->type == TK_FOR && tk(j)->brackets_level == level))
++        j++;
++    while(!(tk(j)->type == TK_IN && tk(j)->brackets_level == level)) {
++        if(tk(j)->type == TK_EOF || tk(j)->brackets_level < level) {
++            self->i = j;
++            return SyntaxError(self, "expected 'in'");
++        }
++        j++;
++    }
++    self->i = j + 1;
++    check(parse_expression(self, PREC_TERNARY + 1, false));  // stays on this context's stack
++    int iter_end = self->i;
++
++    static const char* names[] = {"<genexpr>", "<listcomp>", "<setcomp>", "<dictcomp>"};
++    int decl_index;
++    FuncDecl_ decl = push_f_context(self, (c11_sv){names[kind], (int)strlen(names[kind])}, &decl_index);
++    FuncDecl__add_arg(decl, py_name(".0"));
++    py_Name result = py_name(".r");
++    if(kind != COMPREHENSION_GENERATOR) {
++        int index = Ctx__add_varname(ctx(), result);
++        Opcode build = kind == COMPREHENSION_LIST  ? OP_BUILD_LIST
++                       : kind == COMPREHENSION_SET ? OP_BUILD_SET
++                                                   : OP_BUILD_DICT;
++        Ctx__emit_(ctx(), build, 0, line);
++        Ctx__emit_(ctx(), OP_STORE_FAST, index, BC_KEEPLINE);
++    }
++    self->i = element;
++    check(EXPR(self));
++    if(kind == COMPREHENSION_DICT) {
++        consume(TK_COLON);
++        check(EXPR(self));
++    }
++    c11_vector starts;
++    c11_vector__ctor(&starts, sizeof(int));
++    err = compile_comprehension_clauses(self, kind, iter_end, result, &starts);
++    c11_vector__dtor(&starts);
++    if(err) return err;
++    check(pop_context(self));
++
++    Expr* iterable = Ctx__s_popx(ctx());
++    CallExpr* call = CallExpr__new(line, (Expr*)LambdaExpr__new(line, decl_index));
++    Expr* iterator = (Expr*)UnaryExpr__new(line, iterable, OP_GET_ITER);
++    c11_vector__push(Expr*, &call->args, iterator);
++    Ctx__s_push(ctx(), (Expr*)call);
++    return NULL;
++}
++
+ static Error* exprGroup(Compiler* self) {
+     Error* err;
+     int line = prev()->line;
+     if(match(TK_RPAREN)) {
+         // empty tuple
+         Ctx__s_push(ctx(), (Expr*)TupleExpr__new(line, 0));
++        return NULL;
++    }
++    // kipferl patch: (<expr> for ...) is a generator expression
++    if(count_comprehension_fors(self, true, NULL) > 0) {
++        check(compile_comprehension_function(self, COMPREHENSION_GENERATOR));
++        consume(TK_RPAREN);
+         return NULL;
+     }
+     check(EXPR_TUPLE(self));  // () is just for change precedence
+@@ -14812,6 +14970,12 @@
+     Error* err;
+     int line = prev()->line;
+     int count = 0;
++    // kipferl patch: comprehensions with several for clauses
++    if(count_comprehension_fors(self, false, NULL) > 1) {
++        check(compile_comprehension_function(self, COMPREHENSION_LIST));
++        consume(TK_RBRACKET);
++        return NULL;
++    }
+     do {
+         if(curr()->type == TK_RBRACKET) break;
+         check(EXPR(self));
+@@ -14836,6 +15000,14 @@
+     int line = prev()->line;
+     bool parsing_dict = false;  // {...} may be dict or set
+     int count = 0;
++    // kipferl patch: comprehensions with several for clauses
++    bool has_colon;
++    if(count_comprehension_fors(self, false, &has_colon) > 1) {
++        check(compile_comprehension_function(self,
++                                             has_colon ? COMPREHENSION_DICT : COMPREHENSION_SET));
++        consume(TK_RBRACE);
++        return NULL;
++    }
+     do {
+         if(curr()->type == TK_RBRACE) break;
+         check(EXPR(self));  // [key]
+@@ -14883,6 +15055,13 @@
+ 
+     CallExpr* e = CallExpr__new(line, callable);
+     Ctx__s_push(ctx(), (Expr*)e);  // push onto the stack in advance
++    // kipferl patch: a generator expression may be the sole argument without parentheses
++    if(count_comprehension_fors(self, true, NULL) > 0) {
++        check(compile_comprehension_function(self, COMPREHENSION_GENERATOR));
++        c11_vector__push(Expr*, &e->args, Ctx__s_popx(ctx()));
++        consume(TK_RPAREN);
++        return NULL;
++    }
+     do {
+         if(curr()->type == TK_RPAREN) break;
+         if(curr()->type == TK_ID && next()->type == TK_ASSIGN) {
