@@ -1,51 +1,27 @@
 //! Everyday builtins and methods that the embedded interpreter lacks or
 //! implements partially, written in Python against the existing primitives.
-use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
+use std::ffi::c_int;
+
+use kipferl_pocketpy_sys as ffi;
+
+use crate::native::{
+    Arguments, NativeFunction, NativeModule, NativeModuleKind, RootFrame, Value, execute_module,
+    return_value, type_error,
+};
 
 const SOURCE: &str = r#"
-def _kipferl_addmod(a, b, mod):
-    # a and b lie in range(mod), so neither the sum nor this difference overflows
-    return a - (mod - b) if a >= mod - b else a + b
-
-
-def _kipferl_mulmod(a, b, mod):
-    try:
-        return a * b % mod
-    except OverflowError:
-        pass
-    # the product does not fit in 64 bits: multiply by doubling and adding
-    result = 0
-    while b:
-        if b & 1:
-            result = _kipferl_addmod(result, a, mod)
-        b >>= 1
-        if b:
-            a = _kipferl_addmod(a, a, mod)
-    return result
-
-
 def pow(base, exp, mod=None):
     if mod is None:
         return base ** exp
-    if not (isinstance(base, int) and isinstance(exp, int) and isinstance(mod, int)):
+    if not (isinstance(base, (int, bool)) and isinstance(exp, (int, bool))
+            and isinstance(mod, (int, bool))):
         raise TypeError("pow() 3rd argument not allowed unless all arguments are integers")
+    base, exp, mod = int(base), int(exp), int(mod)
     if mod == 0:
         raise ValueError("pow() 3rd argument cannot be 0")
     if exp < 0:
         raise ValueError("pow() negative exponent is not supported with a modulus")
-    if mod < 0:
-        # the result takes the sign of the modulus, as % does
-        result = pow(base, exp, -mod)
-        return result + mod if result else 0
-    result = 1 % mod
-    base = base % mod
-    while exp:
-        if exp & 1:
-            result = _kipferl_mulmod(result, base, mod)
-        exp >>= 1
-        if exp:
-            base = _kipferl_mulmod(base, base, mod)
-    return result
+    return _kipferl_powmod(base, exp, mod)
 
 
 def sum(iterable, start=0):
@@ -297,6 +273,16 @@ def _kipferl_list_iadd(self, other):
     return self
 
 
+def _kipferl_list_imul(self, count):
+    if not isinstance(count, (int, bool)):
+        return NotImplemented
+    # the native repetition accepts an int but not a bool
+    product = self * int(count)
+    self.clear()
+    self.extend(product)
+    return self
+
+
 def _kipferl_dict_ior(self, other):
     self.update(other)
     return self
@@ -312,6 +298,7 @@ def _kipferl_set_inplace(update):
 
 
 list.__iadd__ = _kipferl_list_iadd
+list.__imul__ = _kipferl_list_imul
 dict.__ior__ = _kipferl_dict_ior
 set.__ior__ = _kipferl_set_inplace(set.update)
 set.__iand__ = _kipferl_set_inplace(_kipferl_set_intersection_update)
@@ -376,10 +363,15 @@ def _kipferl_bytes_hex(self, sep=None):
 bytes.hex = _kipferl_bytes_hex
 "#;
 
+const FUNCTIONS: &[NativeFunction] = &[NativeFunction {
+    name: c"_kipferl_powmod",
+    callback: powmod,
+}];
+
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"builtins",
     kind: NativeModuleKind::Extend,
-    functions: &[],
+    functions: FUNCTIONS,
     signatures: &[],
     int_constants: &[],
     type_aliases: &[],
@@ -391,4 +383,82 @@ fn initialize(module: Value) {
         execute_module(module, SOURCE),
         "embedded builtins compatibility layer failed"
     );
+}
+
+/// `pow(base, exponent, modulus)` for a nonzero modulus. The result takes the
+/// sign of the modulus, as `%` does. Every product of two residues below
+/// 2^63 fits in 128 bits, so the minimum modulus needs no special case.
+fn modular_power(base: i64, exponent: u64, modulus: i64) -> Option<i64> {
+    let magnitude = i128::from(modulus.unsigned_abs());
+    let mut square = i128::from(base).checked_rem_euclid(magnitude)?;
+    let mut result = 1_i128.checked_rem(magnitude)?;
+    let mut remaining = exponent;
+    while remaining > 0 {
+        if remaining & 1 == 1 {
+            result = result.checked_mul(square)?.checked_rem(magnitude)?;
+        }
+        remaining >>= 1;
+        if remaining > 0 {
+            square = square.checked_mul(square)?.checked_rem(magnitude)?;
+        }
+    }
+    if modulus < 0 && result != 0 {
+        result = result.checked_sub(magnitude)?;
+    }
+    i64::try_from(result).ok()
+}
+
+unsafe extern "C" fn powmod(argc: c_int, stack: ffi::py_StackRef) -> bool {
+    // SAFETY: PocketPy supplies an active callback stack containing `argc` values.
+    let arguments = unsafe { Arguments::from_raw(argc, stack) };
+    if !arguments.require_arity(3, 3) {
+        return false;
+    }
+    let integer = |index| arguments.get(index).and_then(Value::integer);
+    let (Some(base), Some(exponent), Some(modulus)) = (integer(0), integer(1), integer(2)) else {
+        return type_error(c"pow() arguments must be integers");
+    };
+    let Ok(exponent) = u64::try_from(exponent) else {
+        return type_error(c"pow() exponent must not be negative");
+    };
+    let Some(result) = modular_power(base, exponent, modulus) else {
+        return type_error(c"pow() modulus must not be zero");
+    };
+    let mut roots = RootFrame::new();
+    return_value(roots.integer(result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::modular_power;
+
+    #[test]
+    fn modular_power_takes_the_sign_of_the_modulus() {
+        assert_eq!(modular_power(2, 3, 5), Some(3));
+        assert_eq!(modular_power(-2, 3, 5), Some(2));
+        assert_eq!(modular_power(2, 3, -5), Some(-2));
+        assert_eq!(modular_power(10, 3, -5), Some(0));
+        assert_eq!(modular_power(7, 0, 1), Some(0));
+        assert_eq!(modular_power(7, 0, -1), Some(0));
+        assert_eq!(modular_power(1, 1, 0), None);
+    }
+
+    #[test]
+    fn modular_power_handles_the_64_bit_extremes() {
+        assert_eq!(
+            modular_power(2, 3, i64::MIN),
+            Some(-9_223_372_036_854_775_800)
+        );
+        assert_eq!(modular_power(i64::MIN, 1, i64::MIN), Some(0));
+        assert_eq!(modular_power(-1, 1, i64::MIN), Some(-1));
+        assert_eq!(modular_power(i64::MAX, 2, i64::MAX), Some(0));
+        assert_eq!(
+            modular_power(i64::MAX - 1, u64::MAX, i64::MAX),
+            Some(i64::MAX - 1)
+        );
+        assert_eq!(
+            modular_power(3, 200, i64::MIN),
+            Some(-2_595_481_728_043_143_007)
+        );
+    }
 }

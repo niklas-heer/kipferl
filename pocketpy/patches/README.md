@@ -390,7 +390,8 @@ augmented assignment now carry argument 1, and the VM first calls the
 left operand's in-place method (`__ior__`, `__iadd__`, ...) when its type
 defines one and falls back to the binary operator when it does not or returns
 `NotImplemented`. Immutable builtins skip the lookup. Kipferl's Rust builtins
-module defines `list.__iadd__`, `dict.__ior__` and the in-place set operators.
+module defines `list.__iadd__`, `list.__imul__`, `dict.__ior__` and the
+in-place set operators.
 
 ### Unpacking
 

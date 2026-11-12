@@ -32,9 +32,9 @@ All notable user-facing changes are documented here.
   arguments (`dict(zip(keys, values))`, `dict(a=1)`, `dict(defaultdict)`), and
   dicts gain `setdefault()`, `dict.fromkeys()` and the `|` and `|=` operators.
 - Augmented assignment calls `__iadd__`, `__ior__` and the other in-place
-  methods first, as in CPython: `items += more`, `d |= other` and
-  `s |= other` change a list, dict or set in place, so a function that
-  receives it changes the caller's object.
+  methods first, as in CPython: `items += more`, `items *= n`, `d |= other`
+  and `s |= other` change a list, dict or set in place (and `*=` an
+  `array.array`), so a function that receives it changes the caller's object.
 - `typing.Optional`, `Union`, `Literal` and the other special forms can be
   subscripted outside annotations (`MaybeInt = Optional[int]`), and `typing`
   provides `NamedTuple`, `TypedDict` and `NewType`.

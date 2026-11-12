@@ -1176,6 +1176,9 @@ M = sys.maxsize
 print(pow(2**32, 1, 2**40), pow(2**32, 2, 2**40), pow(3, 10**18, M), pow(M - 1, M - 1, M))
 print(pow(2**62, 3, M), pow(-7, 5, 2**61 - 1), pow(5, 3, -7), pow(5, 0, -7), pow(6, 2, -4))
 print(pow(7, 0, 1), pow(0, 0, 5), pow(12345678901, 98765, 10**18 + 9), pow(-3, 3, 10))
+low = (-2) ** 63
+print(pow(2, 3, low), pow(low, 1, low), pow(-1, 1, low), pow(3, 200, low), pow(M, 2, low))
+print(pow(True, 2, 5), pow(3, True, 7), pow(-7, 5, -(2**62)))
 print(round(1, -20), round(-M, -20), round(M // 2, -19), round(5 * 10**18, -19), round(-5 * 10**18, -19))
 print(round(-M - 1, -25), round(4_999_999_999_999_999_999, -19), round(1234, -2), round(1250, -2))
 ",
@@ -1310,6 +1313,27 @@ print(ref, cell, h.items is ref)
 m = {"x": 1}
 m |= [("y", 2)]
 print(m)
+rows = [[0]]
+same = rows
+rows *= 3
+rows[0].append(1)
+print(rows, rows is same)
+for count in (2, 1, 0, -1, True, False):
+    r = [1, 2]
+    alias = r
+    r *= count
+    print(count, r, r is alias)
+import array
+numbers = array.array("i", [1, 2])
+view = numbers
+numbers *= 2
+print(list(view), numbers is view)
+for bad in ("x", 2.0, None):
+    try:
+        r = [1]
+        r *= bad
+    except TypeError:
+        print("TypeError", type(bad).__name__)
 try:
     items += 5
 except TypeError as e:
