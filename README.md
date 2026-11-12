@@ -741,12 +741,14 @@ MicroPython excels at microcontrollers. PocketPy excels at embedding Python in a
 
 The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals. Unreleased changes add `try`/`except`/`else`/`finally`, generator expressions, CPython's format-specification mini-language (`f'{n:,.2f}'`), `raise ... from ...`, unpacking of any iterable, and subscriptable `typing` forms such as `Optional[int]`.
 
-Integers are 64-bit. A result that does not fit raises `OverflowError` instead of growing as in CPython (unreleased; earlier versions wrapped silently).
+Integers are 64-bit. A result that does not fit raises `OverflowError` instead of growing as in CPython (unreleased; earlier versions wrapped silently). `sys.maxsize` (2**63 - 1) is the largest int; write the limits as `sys.maxsize` and `-sys.maxsize - 1`, because `2**63 - 1` and `-2**63` compute `2**63` first and overflow. Literals beyond 64 bits, such as `0xFFFFFFFFFFFFFFFF`, are a `SyntaxError`.
 
 Not supported:
 - `async`/`await` (limited support)
 - Adjacent f-string combinations, nested replacement fields in f-string format specifications (`f'{x:{width}}'`) and the `f'{x=}'` form
 - `nonlocal`, and default parameter values that are not literals
+- `open(path)` without an explicit mode; write `open(path, 'r')`
+- The `z` option of format specifications
 - Some metaclass features
 - C extension packages (numpy, etc.)
 

@@ -69,8 +69,10 @@ In runtimes built from the current source:
 - Comparison and predicate callbacks should leave input collection lengths
   unchanged; detected mutation raises `RuntimeError`. `deepcopy` snapshots
   container entries before invoking custom hooks.
-- Numeric range failures in `math.ldexp` and f32 `struct.pack` use `ValueError`.
-  Do not assume CPython's `OverflowError` is available.
+- Numeric range failures in `math.ldexp` and f32 `struct.pack` use `ValueError`
+  where CPython raises `OverflowError`.
+- Integers are 64-bit: a result beyond that raises `OverflowError`. Write the
+  limits as `sys.maxsize` and `-sys.maxsize - 1`; `2**63 - 1` overflows.
 
 Runtime fixes require a matching runtime build; rebuilding the CLI alone does
 not update its checked-in embedded runtime assets. See the repository README

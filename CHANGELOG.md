@@ -8,16 +8,20 @@ All notable user-facing changes are documented here.
 
 - `try` statements accept `else` and `finally` clauses. `finally` runs on
   normal completion, on exceptions, and when `break`, `continue` or `return`
-  leaves the block.
+  leaves the block; a `return`, `break` or `continue` inside `finally`
+  replaces a pending return as in CPython. Each way out of a `try` statement
+  compiles its `finally` clause again, so nesting `try`/`finally` inside
+  `finally` clauses more than ten levels deep raises `SyntaxError`.
 - Generator expressions, lazily evaluated as in CPython: `sum(x * x for x in xs)`,
   `any(...)`, `"".join(...)` and `next((x for x in xs if ...), None)`.
   Comprehensions accept several `for` and `if` clauses
   (`[(a, b) for a in xs for b in ys if a != b]`).
-- The full format specification mini-language for numbers and strings:
+- The format specification mini-language for numbers and strings, except the
+  `z` option:
   thousands separators (`f'{n:,}'`, `'{:_}'`, `f'{price:,.2f}'`), `b`/`o`/`x`/`X`
   with `#` prefixes, `e`/`g`/`%` types, `+` and space signs, `=` alignment and
-  any fill character. Zero padding now follows the sign (`f'{-3.5:08.3f}'` is
-  `-003.500`). New `format()` builtin, `__format__` support and the `!s`
+  any fill character and any precision. Zero padding now follows the sign
+  (`f'{-3.5:08.3f}'` is `-003.500`). New `format()` builtin, `__format__` support and the `!s`
   conversion in f-strings.
 - `%`-formatting supports flags, width, precision, `%(key)s` mappings and every
   conversion type (`'%5.1f'`, `'%-10s'`, `'%05d'`, `'%x'`), and `str.format`
@@ -27,6 +31,10 @@ All notable user-facing changes are documented here.
 - `dict()` and `dict.update()` accept mappings, any iterable of pairs and keyword
   arguments (`dict(zip(keys, values))`, `dict(a=1)`, `dict(defaultdict)`), and
   dicts gain `setdefault()`, `dict.fromkeys()` and the `|` and `|=` operators.
+- Augmented assignment calls `__iadd__`, `__ior__` and the other in-place
+  methods first, as in CPython: `items += more`, `d |= other` and
+  `s |= other` change a list, dict or set in place, so a function that
+  receives it changes the caller's object.
 - `typing.Optional`, `Union`, `Literal` and the other special forms can be
   subscripted outside annotations (`MaybeInt = Optional[int]`), and `typing`
   provides `NamedTuple`, `TypedDict` and `NewType`.
@@ -38,8 +46,13 @@ All notable user-facing changes are documented here.
 - `print()` accepts `file=` (`print(message, file=sys.stderr)`), and `sep` and
   `end` accept `None`.
 - `with a() as x, b() as y:`, keyword-only (`*`) and positional-only (`/`)
-  parameter markers, `*args` after parameters with defaults, and digit
-  separators in literals and `int()` (`1_000_000`, `int('1_000')`, `int(' 42 ')`).
+  parameters, `*args` after parameters with defaults, and digit separators in
+  literals and `int()` (`1_000_000`, `int('1_000')`, `int(' 42 ')`). Arguments
+  bind as in CPython: positional parameters accept keywords (`f(1, b=2)`),
+  keyword-only parameters reject positional arguments, a missing one raises
+  `TypeError` at the call, and positional-only parameters reject keywords.
+  `inspect.signature()` shows the `/` and `*` markers.
+- `ArithmeticError`, the base class of `OverflowError` and `ZeroDivisionError`.
 - Everyday builtins and methods: `pow(base, exp, mod)`, `sum(..., start)`,
   `min`/`max` with `default=`, `zip(..., strict=True)`, `str.split` and
   `str.rsplit` with `maxsplit` (and `sep=None`), `str.replace` with a count,
@@ -55,16 +68,32 @@ All notable user-facing changes are documented here.
 - `round()` rounds halves to even as CPython does: `round(2.5)` is `2` and
   `round(2.675, 2)` is `2.67` (correctly rounded from the binary value);
   negative `ndigits` work for ints and floats.
-- **Integer overflow raises `OverflowError` instead of wrapping.** Kipferl's
-  integers are 64-bit; CPython's are unbounded. `2**63`, `2**62 * 2`,
-  `int('9223372036854775808')`, `1 << 64` and `math.factorial(21)` used to
-  return silently wrong numbers and now raise the new builtin `OverflowError`.
-  `int()`, `round()` and `math.floor`/`ceil`/`trunc` raise `OverflowError`
-  instead of `ValueError` for infinities and floats beyond 64 bits, and
-  `(-2**63) // 2` is computed correctly.
+- **BREAKING: integer overflow raises `OverflowError` instead of wrapping.**
+  Kipferl's integers are 64-bit; CPython's are unbounded. `2**63`, `2**62 * 2`,
+  `int('9223372036854775808')`, `1 << 64`, `True + sys.maxsize` and
+  `math.factorial(21)` used to return silently wrong numbers and now raise the
+  new builtin `OverflowError`. `int()`, `round()` and
+  `math.floor`/`ceil`/`trunc` raise `OverflowError` instead of `ValueError` for
+  infinities and floats beyond 64 bits. Programs that relied on wrapping, such
+  as hash functions that multiply freely, must mask their intermediate results.
+  `sys.maxsize` is the largest int, 2**63 - 1. Write it, and the smallest
+  int, as `sys.maxsize` and `-sys.maxsize - 1`: `2**63 - 1` and `-2**63`
+  raise `OverflowError` because `2**63` is computed first. Integer literals
+  beyond 64 bits, such as `0xFFFFFFFFFFFFFFFF`, are a `SyntaxError` ("int
+  literal is too large"), and `int()` of such text raises `OverflowError`.
+  `(-sys.maxsize - 1) // 2`, `range()` near the limits, `int.bit_length()` and
+  `math.gcd()` of the smallest int, and `pow(base, exp, mod)` and `round(n, -k)`
+  whose intermediate results exceed 64 bits are computed exactly.
+- Argument errors use CPython's messages: `f() missing 1 required positional
+  argument: 'x'` and `f() takes from 1 to 2 positional arguments but 3 were
+  given` replace `f() takes 1 positional arguments but 0 were given` and
+  `too many arguments (f)`.
 
 ### Fixed
 
+- A function or module whose jumps exceed PocketPy's 16-bit offsets, such as
+  an `if` around tens of thousands of statements, raises `SyntaxError` ("code
+  is too large to compile") instead of aborting the process.
 - `json.dumps` indents when combined with `sort_keys=True` or `separators`,
   accepts a string or zero `indent`, and quotes non-string keys as CPython does.
 - `{**a, **b}` and `{**a, 'key': value}` merge dicts instead of crashing the

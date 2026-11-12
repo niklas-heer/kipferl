@@ -245,10 +245,20 @@ clause, innermost first, before transferring control. The compiler locates the
 clause's tokens before compiling the body and compiles the clause again at each
 such exit, as well as once for normal completion and once for the exception
 path, so no new opcode or runtime state is needed. A `return` value stays on the
-stack while the clauses run. The same unwinding calls `__exit__` for every `with`
+stack while the clauses run. A `break`, `continue` or `return` inside such a
+clause supersedes the pending return: the compiler records which blocks each
+inline clause opened and discards the waiting value as the new exit leaves
+the clause, so neither the value stack grows nor `OP_WITH_EXIT` mistakes a
+value for its manager. The same unwinding calls `__exit__` for every `with`
 block that `break`, `continue` or `return` leaves; upstream only discarded the
 manager, so `with open(...) as f: return f.read()` never closed the file.
 A `return` that leaves no `finally` or `with` block compiles exactly as before.
+
+Compiling a clause once per exit doubles the code with every `finally` nested
+inside another clause, so more than ten such levels raise `SyntaxError: too
+deeply nested try/finally`. A jump whose offset no longer fits PocketPy's
+16 bits, which such code or any very long function reaches, raises
+`SyntaxError: code is too large to compile` instead of aborting the process.
 
 Not covered: a generator that is never exhausted does not run its pending
 `finally` clauses (PocketPy generators have no `close()`), and an exception
@@ -299,6 +309,8 @@ any fill character, `<`, `>`, `^` and `=` alignment, `+`, `-` and space signs,
 shortest repr, as CPython does. Digits come from the C library's correctly
 rounded `printf`. Invalid specifications raise CPython's `ValueError`
 messages. The `z` option and locale-aware `n` grouping are not supported.
+Float bodies are formatted into a buffer sized from the precision, so any
+precision CPython accepts works (`format(1.0, '.201f')`).
 
 A class that defines `__format__` is formatted through it, by f-strings with a
 specification, `str.format` and the new `format(value, spec='')` builtin.
@@ -322,7 +334,8 @@ wrong values. CPython has arbitrary-precision integers. Implementing them
 would touch every integer path in the VM, its hashing, the C API that Kipferl's
 Rust modules use, and the performance of ordinary arithmetic, so Kipferl keeps
 64-bit integers and makes their limit loud: `0019-integer-overflow.patch`
-raises the new builtin `OverflowError` (a subclass of `Exception`) whenever an
+raises the new builtin `OverflowError` (a subclass of the new `ArithmeticError`,
+which `ZeroDivisionError` now also derives from) whenever an
 integer result does not fit, instead of returning a wrong answer. A program
 either gets the CPython result or an exception that names the problem.
 
@@ -335,8 +348,15 @@ and out-of-range floats, as CPython does for infinities; NaN still raises
 `ValueError`. Parsing now detects overflow from the value rather than the digit
 count, so `int('0000000000000000000001')` parses and `-9223372036854775808` is
 accepted by `int()`. Floor division and modulo compute magnitudes unsigned, so
-`(-2**63) // 2` is no longer wrong. Integer hashing and bitwise operators keep
-their wrapping behaviour, which is correct for them.
+`(-sys.maxsize - 1) // 2` is no longer wrong. `bool` arithmetic (`True +
+sys.maxsize`) is checked like `int`'s, a `range` whose next step would pass the
+64-bit limit ends instead of wrapping, and `int.bit_length()` and `math.gcd()`
+work on unsigned magnitudes, so the smallest int no longer hangs or returns a
+negative divisor. Integer hashing and bitwise operators keep their wrapping
+behaviour, which is correct for them.
+
+`2**63 - 1` and `-2**63` still raise, because `2**63` is computed first; write
+`sys.maxsize` and `-sys.maxsize - 1`.
 
 ### dict construction and merging
 
@@ -347,9 +367,20 @@ raised. `0020-dict-constructor.patch` gives `dict()` and `update()` CPython's
 signature: one optional positional argument that is a dict, a mapping (an
 object with `keys()` and `__getitem__`) or an iterable of key-value pairs,
 plus keyword arguments. It also adds `setdefault()`, `dict.fromkeys()` and
-`dict | dict`, which `|=` uses as well. Keyword signatures need the compiler,
-so these methods are bound once the VM has started rather than while the
-`dict` type is registered.
+`dict | dict`. Keyword signatures need the compiler, so these methods are
+bound once the VM has started rather than while the `dict` type is registered.
+Inserting a key calls its `__hash__` and `__eq__`, which may change the source
+or overwrite `py_retval()`, so `pk_dict_update_from` and `fromkeys` copy each
+key and value into rooted stack slots first and re-index the source entries on
+every step. `pk_dict_update_from` has external linkage for `0027`.
+
+Augmented assignment compiled `d |= x` as `d = d | x`, so a dict, list or set
+passed to a function was rebound instead of changed. The binary opcodes of an
+augmented assignment now carry argument 1, and the VM first calls the
+left operand's in-place method (`__ior__`, `__iadd__`, ...) when its type
+defines one and falls back to the binary operator when it does not or returns
+`NotImplemented`. Immutable builtins skip the lookup. Kipferl's Rust builtins
+module defines `list.__iadd__`, `dict.__ior__` and the in-place set operators.
 
 ### Unpacking
 
@@ -396,13 +427,17 @@ passing `NotImplemented` through.
 
 - `with a() as x, b() as y:` compiles as nested `with` statements, so the
   managers exit in reverse order.
-- A bare `*` in a parameter list starts keyword-only parameters, and `*args`
-  may follow parameters with defaults. A keyword-only parameter without a
-  default is accepted; when a call omits it, reading it raises
-  `UnboundLocalError` instead of the call raising `TypeError`.
-  `inspect.signature` reports it without a default.
-- `/` is accepted after positional-only parameters, which Kipferl still lets
-  callers pass by keyword.
+- A bare `*` in a parameter list starts keyword-only parameters, `/` ends the
+  positional-only ones, and `*args` may follow parameters with defaults.
+  `FuncDecl` records both boundaries (serialized code objects gain the two
+  fields, so their minor version is 2), and calls bind as in CPython:
+  positional parameters also take keywords (`f(1, b=2)`), keyword-only
+  parameters take no positional arguments, positional-only parameters take no
+  keywords (they go to `**kwargs` when there is one), and missing, duplicated
+  or surplus arguments raise CPython's `TypeError` messages. A call with
+  keywords or a wrong argument count to an otherwise simple function takes the
+  general path. `inspect.signature` reports the parameter kinds and prints the
+  `/` and `*` markers.
 - Numeric literals and `int()` accept single underscores between digits
   (`1_000_000`, `0x_ff`), and `int()` ignores surrounding whitespace.
 
@@ -425,6 +460,8 @@ top of `0017`'s mini-language:
   `%(key)` mapping lookups, the `-`, `+`, space, `#` and `0` flags, width and
   precision (including `*`), and every conversion type, and formats each field
   through the mini-language. Fields align right unless `-` is given, as in C.
+  Booleans format as the integers 0 and 1 for every numeric conversion and
+  `%c`, and a `*` width or precision beyond 32 bits raises `ValueError`.
 - `str.format` accepted only positional fields and no keyword arguments. It
   now resolves named fields from keyword arguments, attribute (`{0.name}`) and
   index (`{0[key]}`) accessors, `!r`, `!s` and `!a` conversions, and
@@ -441,4 +478,4 @@ PocketPy compiled `[*a, *b]`, `(*a,)` and `{*a}` but stored the internal
 `0027-display-unpacking.patch` expands starred items when list, tuple and set
 displays are built (only displays that contain one take the slower path), and
 compiles `**mapping` items in dict displays, which `BUILD_DICT` merges with
-the same logic as `dict.update()`.
+the same logic as `dict.update()` (`pk_dict_update_from`, declared here).
