@@ -5,7 +5,8 @@ use kipferl_pocketpy_sys as ffi;
 
 use crate::native::{
     Arguments, NativeFunction, NativeModule, NativeModuleKind, RootFrame, Value, bind_type_method,
-    bind_type_signature, create_type, return_string, return_value, type_error, type_object,
+    bind_type_signature, create_type, execute_module, return_string, return_value, type_error,
+    type_object,
 };
 
 static TYPEVAR_TYPE: AtomicI16 = AtomicI16::new(0);
@@ -105,6 +106,118 @@ const SENTINELS: &[&CStr] = &[
     c"TypeIs",
 ];
 
+/// Special forms are subscriptable in annotations and aliases, such as
+/// `Optional[int]` or `Union[int, str]`, and subscription returns the form
+/// itself. `NamedTuple`, `TypedDict` and `NewType` cover their common uses;
+/// `NamedTuple` instances are not tuples and their fields stay assignable.
+const SOURCE: &str = r#"
+class _SpecialForm:
+    def __init__(self, name):
+        self._name = name
+
+    def __getitem__(self, parameters):
+        return self
+
+    def __call__(self, *args, **kwargs):
+        raise TypeError("Cannot instantiate typing." + self._name)
+
+    def __repr__(self):
+        return "typing." + self._name
+
+
+class TypedDict(dict):
+    pass
+
+
+def NewType(name, tp):
+    def new_type(value):
+        return value
+
+    new_type.__name__ = name
+    return new_type
+
+
+class NamedTuple:
+    def __init__(self, *args, **kwargs):
+        fields = self._fields
+        if len(args) > len(fields):
+            raise TypeError(
+                "__new__() takes %d positional arguments but %d were given"
+                % (len(fields) + 1, len(args) + 1)
+            )
+        for index in range(len(fields)):
+            name = fields[index]
+            if index < len(args):
+                if name in kwargs:
+                    raise TypeError("got multiple values for argument '%s'" % name)
+                value = args[index]
+            elif name in kwargs:
+                value = kwargs.pop(name)
+            elif name in self._field_defaults:
+                value = self._field_defaults[name]
+            else:
+                raise TypeError("__new__() missing required argument: '%s'" % name)
+            setattr(self, name, value)
+        for name in kwargs:
+            raise TypeError("__new__() got an unexpected keyword argument '%s'" % name)
+
+    @property
+    def _fields(self):
+        # the fields are those of the class that names NamedTuple as its base
+        cls = type(self)
+        while cls.__base__ is not NamedTuple:
+            cls = cls.__base__
+        return tuple(cls.__annotations__)
+
+    @property
+    def _field_defaults(self):
+        defaults = {}
+        for name in self._fields:
+            if hasattr(type(self), name):
+                defaults[name] = getattr(type(self), name)
+        return defaults
+
+    def __iter__(self):
+        return iter(self._values())
+
+    def __len__(self):
+        return len(self._fields)
+
+    def __getitem__(self, index):
+        return self._values()[index]
+
+    def __eq__(self, other):
+        if isinstance(other, NamedTuple):
+            other = other._values()
+        return self._values() == other
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __lt__(self, other):
+        return self._values() < tuple(other)
+
+    def __hash__(self):
+        return hash(self._values())
+
+    def __repr__(self):
+        parts = []
+        for name in self._fields:
+            parts.append(name + "=" + repr(getattr(self, name)))
+        return type(self).__name__ + "(" + ", ".join(parts) + ")"
+
+    def _values(self):
+        return tuple(getattr(self, name) for name in self._fields)
+
+    def _asdict(self):
+        return {name: getattr(self, name) for name in self._fields}
+
+    def _replace(self, **changes):
+        values = self._asdict()
+        values.update(changes)
+        return type(self)(**values)
+"#;
+
 pub(super) const MODULE: NativeModule = NativeModule {
     name: c"typing",
     kind: NativeModuleKind::Create,
@@ -130,13 +243,18 @@ fn initialize(module: Value) {
         let alias = create_type(module, name);
         module.set_attribute(name, type_object(alias));
     }
+    let mut source = String::from(SOURCE);
     for &name in SENTINELS {
-        let mut roots = RootFrame::new();
-        let sentinel = roots.object(crate::native::predefined_type(
-            ffi::py_PredefinedType_tp_object,
-        ));
-        module.set_attribute(name, sentinel);
+        let name = name.to_string_lossy();
+        source.push_str(&name);
+        source.push_str(" = _SpecialForm('");
+        source.push_str(&name);
+        source.push_str("')\n");
     }
+    assert!(
+        execute_module(module, &source),
+        "embedded typing compatibility layer failed"
+    );
     let mut roots = RootFrame::new();
     let type_checking = roots.boolean(false);
     module.set_attribute(c"TYPE_CHECKING", type_checking);

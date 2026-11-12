@@ -131,10 +131,17 @@ unsafe extern "C" fn stream_write(argc: c_int, stack: ffi::py_StackRef) -> bool 
     let Some(text) = arguments.get(1).and_then(Value::string) else {
         return type_error(c"write() argument must be str");
     };
+    // print() writes through C stdio, so flush it first and flush this write
+    // too, keeping print() and sys.stdout.write() output in program order.
+    // SAFETY: fflush(NULL) flushes every open C output stream.
+    unsafe { libc::fflush(std::ptr::null_mut()) };
     let result = if error {
         std::io::stderr().write_all(text.as_bytes())
     } else {
-        std::io::stdout().write_all(text.as_bytes())
+        let mut stdout = std::io::stdout();
+        stdout
+            .write_all(text.as_bytes())
+            .and_then(|()| stdout.flush())
     };
     if result.is_err() {
         return type_error(c"failed to write stream");

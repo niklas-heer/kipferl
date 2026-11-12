@@ -69,10 +69,24 @@ with setup_teardown() as val:
 
 test("contextmanager teardown called after", teardown_called)
 
-# contextmanager with exception - SKIPPED
-# PocketPy's with statement doesn't call __exit__ with exception info,
-# so exception handling in context managers doesn't work properly.
-skip("contextmanager cleanup on exception", "PocketPy with statement limitation")
+cleaned_up = False
+
+
+@contextmanager
+def guarded():
+    global cleaned_up
+    try:
+        yield
+    finally:
+        cleaned_up = True
+
+
+try:
+    with guarded():
+        raise ValueError("boom")
+except ValueError:
+    pass
+test("contextmanager cleanup on exception", cleaned_up)
 
 # ============================================================================
 # suppress() tests
@@ -80,10 +94,18 @@ skip("contextmanager cleanup on exception", "PocketPy with statement limitation"
 
 print("\n=== suppress() tests ===")
 
-# suppress requires __exit__ to receive exception info and return True to suppress
-# PocketPy's with statement doesn't support this, so skip exception-related tests
-skip("suppress ValueError", "PocketPy with statement limitation")
-skip("suppress doesn't catch other types", "PocketPy with statement limitation")
+result = "raised"
+with suppress(ValueError):
+    raise ValueError("ignored")
+    result = "unreachable"
+test("suppress ValueError", result == "raised")
+
+try:
+    with suppress(ValueError):
+        raise KeyError("kept")
+    test("suppress doesn't catch other types", False)
+except KeyError:
+    test("suppress doesn't catch other types", True)
 
 result = "success"
 with suppress(ValueError):
@@ -112,9 +134,13 @@ with closing(obj) as c:
 
 test("closing called close", obj.closed)
 
-# closing on exception - SKIPPED
-# PocketPy's with statement doesn't call __exit__ when exception is raised
-skip("closing called close on exception", "PocketPy with statement limitation")
+obj = Closeable()
+try:
+    with closing(obj):
+        raise ValueError("boom")
+except ValueError:
+    pass
+test("closing called close on exception", obj.closed)
 
 # ============================================================================
 # nullcontext() tests

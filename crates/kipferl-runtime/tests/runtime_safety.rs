@@ -328,15 +328,29 @@ array2d() dimensions are too large\narray2d() dimensions are too large\nsizes ch
     assert!(output.stderr.is_empty(), "{output:?}");
 }
 
-// Integers are 64-bit: arithmetic wraps (the C core is built with -fwrapv),
-// and shifts follow Python for every count instead of C's undefined ones.
+// Integers are 64-bit: a result that does not fit raises OverflowError instead
+// of wrapping, and shifts follow Python for every count instead of C's
+// undefined ones.
 #[test]
-fn integer_overflow_wraps_and_shifts_are_defined() {
+fn integer_overflow_raises_and_shifts_are_defined() {
     let output = run(r"
+import math
 big = 2**62
-print(big * 4, big + big, -big - big - 1, 2**63, -(-2**63), abs(-2**63))
-print((-2**63) // -1, (-2**63) % -1, divmod(-2**63, -1))
-print(1 << 63, 1 << 64, 3 << 100, -1 >> 100, 5 >> 64, -8 >> 1, 1 << 0)
+m = -2**62 * 2
+for expression in ['big * 4', 'big + big', '-big - big - 2', '2**63', '-m', 'abs(m)',
+                   'm // -1', 'divmod(m, -1)', '1 << 63', '1 << 64', '3 << 100',
+                   'int(\'9223372036854775808\')', 'sum([2**62, 2**62])',
+                   'True + (big - 1 + big)', '(big - 1 + big) + True', 'm - True',
+                   'True - m', 'sum([big - 1 + big, True])', 'math.gcd(m, m)', 'math.gcd(m, 0)',
+                   'round(big - 1 + big, -19)']:
+    try:
+        eval(expression)
+        print(expression, 'did not overflow')
+    except OverflowError as error:
+        pass
+print(-big - big, m % -1, m // 2, divmod(m, 7), -1 << 63, 0 << 100)
+print(-1 >> 100, 5 >> 64, -8 >> 1, 1 << 0, 1 << 62)
+print(m.bit_length(), math.gcd(m, 6), True * (big - 1 + big), issubclass(OverflowError, ArithmeticError))
 for expression in ['1 << -1', '1 >> -1']:
     try:
         eval(expression)
@@ -346,11 +360,123 @@ for expression in ['1 << -1', '1 >> -1']:
     assert!(output.status.success(), "{output:?}");
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "0 -9223372036854775808 9223372036854775807 -9223372036854775808 \
--9223372036854775808 -9223372036854775808\n\
--9223372036854775808 0 (-9223372036854775808, 0)\n\
--9223372036854775808 0 0 -1 0 -4 1\n\
+        "-9223372036854775808 0 -4611686018427387904 (-1317624576693539402, 6) \
+-9223372036854775808 0\n\
+-1 0 -4 1 4611686018427387904\n\
+64 2 9223372036854775807 True\n\
 negative shift count\nnegative shift count\n"
     );
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+// Each way out of a try statement compiles its finally clause again, so clauses
+// nested inside clauses double the code per level, and long jumps did not fit
+// their 16-bit offsets: both aborted the process instead of raising SyntaxError.
+#[test]
+fn oversized_code_raises_syntax_errors_instead_of_aborting() {
+    let output = run(r"
+def nested(depth):
+    lines = ['def f():', '    x = 0']
+    for level in range(depth):
+        lines.append('    ' * (level + 1) + 'try:')
+        lines.append('    ' * (level + 2) + 'x += 1')
+        lines.append('    ' * (level + 1) + 'finally:')
+    lines.append('    ' * (depth + 1) + 'return x')
+    return '\n'.join(lines)
+for depth in [10, 11, 18]:
+    scope = {}
+    try:
+        exec(nested(depth), scope)
+        print(depth, scope['f']())
+    except SyntaxError as error:
+        print(depth, 'too deeply nested try/finally' in str(error))
+scope = {}
+try:
+    exec('def g(x):\n    if x:\n' + '        x = x + 1\n' * 20000 + '    return x\n', scope)
+    print(scope['g'](1))
+except SyntaxError as error:
+    print('code is too large to compile' in str(error))
+exec('total = 0\n' + 'total = total + 1\n' * 40000, scope)
+print(scope['total'])
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"10 10\n11 True\n18 True\nTrue\n40000\n");
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
+
+// Superseded returns used to stay on the value stack, and building a dict kept
+// pointers into containers that a key's __hash__ could free or overwrite.
+#[test]
+fn finally_overrides_and_hostile_dict_keys_keep_memory_intact() {
+    let output = run(r"
+# break/continue/return overrides repeated many times: a leak would overflow the value stack
+def spin(n):
+    total = 0
+    for i in range(n):
+        for j in range(3):
+            try:
+                try:
+                    return j
+                finally:
+                    if j == 0:
+                        continue
+                    break
+            finally:
+                total += 1
+    return total
+print(spin(20000))
+class M:
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+def nested_with(n):
+    count = 0
+    for i in range(n):
+        with M():
+            with M():
+                try:
+                    return 1
+                finally:
+                    count += 1
+                    continue
+    return count
+print(nested_with(20000))
+# dict hostile keys mutating the source repeatedly
+class Evil:
+    def __init__(self, src, n): self.src = src; self.n = n
+    def __hash__(self):
+        self.src.clear()
+        for i in range(64):
+            self.src[('f', self.n, i)] = [i] * 8
+        return self.n
+    def __eq__(self, other): return self is other
+for round_ in range(10):
+    src = {}
+    for i in range(40):
+        src[Evil(src, i)] = list(range(i))
+    a = dict(src); b = src | {}; c = {**src}; d = {}; d.update(src)
+print('dicts survived')
+class PairMutator:
+    def __init__(self, pair): self.pair = pair
+    def __hash__(self):
+        self.pair.clear()
+        self.pair.extend([object() for _ in range(200)])
+        return 1
+    def __eq__(self, other): return self is other
+for _ in range(100):
+    pair = []
+    pair.extend([PairMutator(pair), 'v'])
+    dict([pair])
+class MapMut:
+    def __init__(self): self.d = {i: i for i in range(50)}
+    def keys(self): return list(self.d.keys())
+    def __getitem__(self, k):
+        self.d.clear()
+        return (k, k)
+for _ in range(100):
+    dict(MapMut()); {**MapMut()}
+print(dict.fromkeys([(i, i) for i in range(1000)]) == {(i, i): None for i in range(1000)})
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"40000\n20000\ndicts survived\nTrue\n");
     assert!(output.stderr.is_empty(), "{output:?}");
 }

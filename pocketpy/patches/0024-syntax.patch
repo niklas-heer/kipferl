@@ -1,0 +1,662 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -6379,6 +6379,10 @@
+ 
+     FuncType type;
+     c11_smallmap_n2d kw_to_index;
++    // kipferl patch: the leading parameters before `/`, and the kwargs from which on `*` or
++    // `*args` makes them keyword-only (-1 if none are)
++    int posonly;
++    int kwonly;
+ } FuncDecl;
+ 
+ typedef FuncDecl* FuncDecl_;
+@@ -7632,6 +7636,8 @@
+     return true;
+ }
+ 
++#include <ctype.h>  // kipferl patch: int() parsing below
++
+ static bool int__new__(int argc, py_Ref argv) {
+     if(argc == 1 + 0) {
+         // int() == 0
+@@ -7674,12 +7680,35 @@
+     PY_CHECK_ARG_TYPE(1, tp_str);
+ 
+     c11_sv sv = py_tosv(py_arg(1));
++    // kipferl patch: int() ignores surrounding whitespace and accepts digit separators
++    while(sv.size && isspace((unsigned char)sv.data[0])) {
++        sv.data++;
++        sv.size--;
++    }
++    while(sv.size && isspace((unsigned char)sv.data[sv.size - 1]))
++        sv.size--;
+     bool negative = false;
+     if(sv.size && (sv.data[0] == '+' || sv.data[0] == '-')) {
+         negative = sv.data[0] == '-';
+         sv.data++;
+         sv.size--;
+     }
++    char digits[128];
++    if(sv.size < (int)sizeof(digits) && memchr(sv.data, '_', sv.size)) {
++        int length = 0;
++        for(int k = 0; k < sv.size; k++) {
++            if(sv.data[k] != '_') {
++                digits[length++] = sv.data[k];
++                continue;
++            }
++            bool after_digit = k > 0 && isalnum((unsigned char)sv.data[k - 1]);
++            bool before_digit = k + 1 < sv.size && isxdigit((unsigned char)sv.data[k + 1]);
++            if(!after_digit || !before_digit) {
++                return ValueError("invalid literal for int() with base %d: %q", base, py_tosv(py_arg(1)));
++            }
++        }
++        sv = (c11_sv){digits, length};
++    }
+     py_i64 val;
+     IntParsingResult parsed = c11__parse_uint(sv, &val, base);
+     // kipferl patch: a literal beyond 64 bits overflows instead of wrapping
+@@ -7692,7 +7721,7 @@
+         return pk_int_overflow();
+     }
+     if(parsed != IntParsing_SUCCESS) {
+-        return ValueError("invalid literal for int() with base %d: %q", base, sv);
++        return ValueError("invalid literal for int() with base %d: %q", base, py_tosv(py_arg(1)));
+     }
+     py_newint(py_retval(), negative ? -val : val);
+     return true;
+@@ -12909,7 +12938,7 @@
+ const char kPythonLibs_datetime[] = "from time import localtime\nimport operator\n\nclass timedelta:\n    def __init__(self, days=0, seconds=0):\n        self.days = days\n        self.seconds = seconds\n\n    def __repr__(self):\n        return f\"datetime.timedelta(days={self.days}, seconds={self.seconds})\"\n\n    def __eq__(self, other) -> bool:\n        if not isinstance(other, timedelta):\n            return NotImplemented\n        return (self.days, self.seconds) == (other.days, other.seconds)\n\n    def __ne__(self, other) -> bool:\n        if not isinstance(other, timedelta):\n            return NotImplemented\n        return (self.days, self.seconds) != (other.days, other.seconds)\n\n\nclass date:\n    def __init__(self, year: int, month: int, day: int):\n        self.year = year\n        self.month = month\n        self.day = day\n\n    @staticmethod\n    def today():\n        t = localtime()\n        return date(t.tm_year, t.tm_mon, t.tm_mday)\n    \n    def __cmp(self, other, op):\n        if not isinstance(other, date):\n            return NotImplemented\n        if self.year != other.year:\n            return op(self.year, other.year)\n        if self.month != other.month:\n            return op(self.month, other.month)\n        return op(self.day, other.day)\n\n    def __eq__(self, other) -> bool:\n        return self.__cmp(other, operator.eq)\n    \n    def __ne__(self, other) -> bool:\n        return self.__cmp(other, operator.ne)\n\n    def __lt__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.lt)\n\n    def __le__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.le)\n\n    def __gt__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.gt)\n\n    def __ge__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.ge)\n\n    def __str__(self):\n        return f\"{self.year}-{self.month:02}-{self.day:02}\"\n\n    def __repr__(self):\n        return f\"datetime.date({self.year}, {self.month}, {self.day})\"\n\n\nclass datetime(date):\n    def __init__(self, year: int, month: int, day: int, hour: int, minute: int, second: int):\n        super().__init__(year, month, day)\n        # Validate and set hour, minute, and second\n        if not 0 <= hour <= 23:\n            raise ValueError(\"Hour must be between 0 and 23\")\n        self.hour = hour\n        if not 0 <= minute <= 59:\n            raise ValueError(\"Minute must be between 0 and 59\")\n        self.minute = minute\n        if not 0 <= second <= 59:\n            raise ValueError(\"Second must be between 0 and 59\")\n        self.second = second\n\n    def date(self) -> date:\n        return date(self.year, self.month, self.day)\n\n    @staticmethod\n    def now():\n        t = localtime()\n        tm_sec = t.tm_sec\n        if tm_sec == 60:\n            tm_sec = 59\n        return datetime(t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, tm_sec)\n\n    def __str__(self):\n        return f\"{self.year}-{self.month:02}-{self.day:02} {self.hour:02}:{self.minute:02}:{self.second:02}\"\n\n    def __repr__(self):\n        return f\"datetime.datetime({self.year}, {self.month}, {self.day}, {self.hour}, {self.minute}, {self.second})\"\n\n    def __cmp(self, other, op):\n        if not isinstance(other, datetime):\n            return NotImplemented\n        if self.year != other.year:\n            return op(self.year, other.year)\n        if self.month != other.month:\n            return op(self.month, other.month)\n        if self.day != other.day:\n            return op(self.day, other.day)\n        if self.hour != other.hour:\n            return op(self.hour, other.hour)\n        if self.minute != other.minute:\n            return op(self.minute, other.minute)\n        return op(self.second, other.second)\n\n    def __eq__(self, other) -> bool:\n        return self.__cmp(other, operator.eq)\n    \n    def __ne__(self, other) -> bool:\n        return self.__cmp(other, operator.ne)\n    \n    def __lt__(self, other) -> bool:\n        return self.__cmp(other, operator.lt)\n    \n    def __le__(self, other) -> bool:\n        return self.__cmp(other, operator.le)\n    \n    def __gt__(self, other) -> bool:\n        return self.__cmp(other, operator.gt)\n    \n    def __ge__(self, other) -> bool:\n        return self.__cmp(other, operator.ge)\n\n\n";
+ const char kPythonLibs_functools[] = "class cache:\n    def __init__(self, f):\n        self.f = f\n        self.cache = {}\n\n    def __call__(self, *args):\n        if args not in self.cache:\n            self.cache[args] = self.f(*args)\n        return self.cache[args]\n    \nclass lru_cache:\n    def __init__(self, maxsize=128):\n        self.maxsize = maxsize\n        self.cache = {}\n\n    def __call__(self, f):\n        def wrapped(*args):\n            if args in self.cache:\n                res = self.cache.pop(args)\n                self.cache[args] = res\n                return res\n            \n            res = f(*args)\n            if len(self.cache) >= self.maxsize:\n                first_key = next(iter(self.cache))\n                self.cache.pop(first_key)\n            self.cache[args] = res\n            return res\n        return wrapped\n    \ndef reduce(function, sequence, initial=...):\n    it = iter(sequence)\n    if initial is ...:\n        try:\n            value = next(it)\n        except StopIteration:\n            raise TypeError(\"reduce() of empty sequence with no initial value\")\n    else:\n        value = initial\n    for element in it:\n        value = function(value, element)\n    return value\n\nclass partial:\n    def __init__(self, f, *args, **kwargs):\n        self.f = f\n        if not callable(f):\n            raise TypeError(\"the first argument must be callable\")\n        self.args = args\n        self.kwargs = kwargs\n\n    def __call__(self, *args, **kwargs):\n        kwargs.update(self.kwargs)\n        return self.f(*self.args, *args, **kwargs)\n\n";
+ const char kPythonLibs_heapq[] = "# Heap queue algorithm (a.k.a. priority queue)\ndef heappush(heap, item):\n    \"\"\"Push item onto heap, maintaining the heap invariant.\"\"\"\n    heap.append(item)\n    _siftdown(heap, 0, len(heap)-1)\n\ndef heappop(heap):\n    \"\"\"Pop the smallest item off the heap, maintaining the heap invariant.\"\"\"\n    lastelt = heap.pop()    # raises appropriate IndexError if heap is empty\n    if heap:\n        returnitem = heap[0]\n        heap[0] = lastelt\n        _siftup(heap, 0)\n        return returnitem\n    return lastelt\n\ndef heapreplace(heap, item):\n    \"\"\"Pop and return the current smallest value, and add the new item.\n\n    This is more efficient than heappop() followed by heappush(), and can be\n    more appropriate when using a fixed-size heap.  Note that the value\n    returned may be larger than item!  That constrains reasonable uses of\n    this routine unless written as part of a conditional replacement:\n\n        if item > heap[0]:\n            item = heapreplace(heap, item)\n    \"\"\"\n    returnitem = heap[0]    # raises appropriate IndexError if heap is empty\n    heap[0] = item\n    _siftup(heap, 0)\n    return returnitem\n\ndef heappushpop(heap, item):\n    \"\"\"Fast version of a heappush followed by a heappop.\"\"\"\n    if heap and heap[0] < item:\n        item, heap[0] = heap[0], item\n        _siftup(heap, 0)\n    return item\n\ndef heapify(x):\n    \"\"\"Transform list into a heap, in-place, in O(len(x)) time.\"\"\"\n    n = len(x)\n    # Transform bottom-up.  The largest index there's any point to looking at\n    # is the largest with a child index in-range, so must have 2*i + 1 < n,\n    # or i < (n-1)/2.  If n is even = 2*j, this is (2*j-1)/2 = j-1/2 so\n    # j-1 is the largest, which is n//2 - 1.  If n is odd = 2*j+1, this is\n    # (2*j+1-1)/2 = j so j-1 is the largest, and that's again n//2-1.\n    for i in reversed(range(n//2)):\n        _siftup(x, i)\n\n# 'heap' is a heap at all indices >= startpos, except possibly for pos.  pos\n# is the index of a leaf with a possibly out-of-order value.  Restore the\n# heap invariant.\ndef _siftdown(heap, startpos, pos):\n    newitem = heap[pos]\n    # Follow the path to the root, moving parents down until finding a place\n    # newitem fits.\n    while pos > startpos:\n        parentpos = (pos - 1) >> 1\n        parent = heap[parentpos]\n        if newitem < parent:\n            heap[pos] = parent\n            pos = parentpos\n            continue\n        break\n    heap[pos] = newitem\n\ndef _siftup(heap, pos):\n    endpos = len(heap)\n    startpos = pos\n    newitem = heap[pos]\n    # Bubble up the smaller child until hitting a leaf.\n    childpos = 2*pos + 1    # leftmost child position\n    while childpos < endpos:\n        # Set childpos to index of smaller child.\n        rightpos = childpos + 1\n        if rightpos < endpos and not heap[childpos] < heap[rightpos]:\n            childpos = rightpos\n        # Move the smaller child up.\n        heap[pos] = heap[childpos]\n        pos = childpos\n        childpos = 2*pos + 1\n    # The leaf at pos is empty now.  Put newitem there, and bubble it up\n    # to its final resting place (by sifting its parents down).\n    heap[pos] = newitem\n    _siftdown(heap, startpos, pos)";
+-const char kPythonLibs_inspect[] = "class _empty:\n    pass\n\n\nclass Parameter:\n    POSITIONAL_ONLY = 0\n    POSITIONAL_OR_KEYWORD = 1\n    VAR_POSITIONAL = 2\n    KEYWORD_ONLY = 3\n    VAR_KEYWORD = 4\n\n    empty = _empty\n\n    def __init__(self, name, kind, *default):\n        self.name = name\n        self.kind = kind\n        # pocketpy only allows literal defaults, so use *default as sentinel\n        self.default = default[0] if default else _empty\n\n    def __str__(self):\n        res = self.name\n        if self.default is not _empty:\n            res += '=' + repr(self.default)\n        if self.kind == Parameter.VAR_POSITIONAL:\n            res = '*' + res\n        elif self.kind == Parameter.VAR_KEYWORD:\n            res = '**' + res\n        return res\n\n    def __repr__(self):\n        return '<Parameter \"' + str(self) + '\">'\n\n\nclass Signature:\n    empty = _empty\n\n    def __init__(self, parameters):\n        self.parameters = {p.name: p for p in parameters}\n\n    def __str__(self):\n        return '(' + ', '.join([str(p) for p in self.parameters.values()]) + ')'\n\n    def __repr__(self):\n        return '<Signature ' + str(self) + '>'\n\n\ndef _make_params(func):\n    return [Parameter(*entry) for entry in _signature_data(func)]\n\n\ndef signature(obj):\n    if not callable(obj):\n        raise TypeError(repr(obj) + ' is not a callable object')\n    if isinstance(obj, type):\n        return Signature(_make_params(obj.__init__)[1:])\n    if hasattr(obj, '__func__'):\n        return Signature(_make_params(obj.__func__)[1:])\n    return Signature(_make_params(obj))\n";
++const char kPythonLibs_inspect[] = "class _empty:\n    pass\n\n\nclass Parameter:\n    POSITIONAL_ONLY = 0\n    POSITIONAL_OR_KEYWORD = 1\n    VAR_POSITIONAL = 2\n    KEYWORD_ONLY = 3\n    VAR_KEYWORD = 4\n\n    empty = _empty\n\n    def __init__(self, name, kind, *default):\n        self.name = name\n        self.kind = kind\n        # pocketpy only allows literal defaults, so use *default as sentinel\n        self.default = default[0] if default else _empty\n\n    def __str__(self):\n        res = self.name\n        if self.default is not _empty:\n            res += '=' + repr(self.default)\n        if self.kind == Parameter.VAR_POSITIONAL:\n            res = '*' + res\n        elif self.kind == Parameter.VAR_KEYWORD:\n            res = '**' + res\n        return res\n\n    def __repr__(self):\n        return '<Parameter \"' + str(self) + '\">'\n\n\nclass Signature:\n    empty = _empty\n\n    def __init__(self, parameters):\n        self.parameters = {p.name: p for p in parameters}\n\n    def __str__(self):\n        # kipferl patch: mark positional-only and keyword-only parameters\n        parts = []\n        open_positional_only = False\n        need_star = True\n        for p in self.parameters.values():\n            if p.kind == Parameter.POSITIONAL_ONLY:\n                open_positional_only = True\n            elif open_positional_only:\n                parts.append('/')\n                open_positional_only = False\n            if p.kind == Parameter.KEYWORD_ONLY and need_star:\n                parts.append('*')\n            if p.kind in (Parameter.VAR_POSITIONAL, Parameter.KEYWORD_ONLY):\n                need_star = False\n            parts.append(str(p))\n        if open_positional_only:\n            parts.append('/')\n        return '(' + ', '.join(parts) + ')'\n\n    def __repr__(self):\n        return '<Signature ' + str(self) + '>'\n\n\ndef _make_params(func):\n    return [Parameter(*entry) for entry in _signature_data(func)]\n\n\ndef signature(obj):\n    if not callable(obj):\n        raise TypeError(repr(obj) + ' is not a callable object')\n    if isinstance(obj, type):\n        return Signature(_make_params(obj.__init__)[1:])\n    if hasattr(obj, '__func__'):\n        return Signature(_make_params(obj.__func__)[1:])\n    return Signature(_make_params(obj))\n";
+ const char kPythonLibs_long_v1[] = "# after v1.2.2, int is always 64-bit\nPyLong_SHIFT = 60//2 - 1\n\nPyLong_BASE = 2 ** PyLong_SHIFT\nPyLong_MASK = PyLong_BASE - 1\nPyLong_DECIMAL_SHIFT = 4\nPyLong_DECIMAL_BASE = 10 ** PyLong_DECIMAL_SHIFT\n\n##############################################################\n\ndef ulong_fromint(x: int):\n    # return a list of digits and sign\n    if x == 0: return [0], 1\n    sign = 1 if x > 0 else -1\n    if sign < 0: x = -x\n    res = []\n    while x:\n        res.append(x & PyLong_MASK)\n        x >>= PyLong_SHIFT\n    return res, sign\n\ndef ulong_cmp(a: list, b: list) -> int:\n    # return 1 if a>b, -1 if a<b, 0 if a==b\n    if len(a) > len(b): return 1\n    if len(a) < len(b): return -1\n    for i in range(len(a)-1, -1, -1):\n        if a[i] > b[i]: return 1\n        if a[i] < b[i]: return -1\n    return 0\n\ndef ulong_pad_(a: list, size: int):\n    # pad leading zeros to have `size` digits\n    delta = size - len(a)\n    if delta > 0:\n        a.extend([0] * delta)\n\ndef ulong_unpad_(a: list):\n    # remove leading zeros\n    while len(a)>1 and a[-1]==0:\n        a.pop()\n\ndef ulong_add(a: list, b: list) -> list:\n    res = [0] * max(len(a), len(b))\n    ulong_pad_(a, len(res))\n    ulong_pad_(b, len(res))\n    carry = 0\n    for i in range(len(res)):\n        carry += a[i] + b[i]\n        res[i] = carry & PyLong_MASK\n        carry >>= PyLong_SHIFT\n    if carry > 0:\n        res.append(carry)\n    return res\n\ndef ulong_inc_(a: list):\n    a[0] += 1\n    for i in range(len(a)):\n        if a[i] < PyLong_BASE: break\n        a[i] -= PyLong_BASE\n        if i+1 == len(a):\n            a.append(1)\n        else:\n            a[i+1] += 1\n    \n\ndef ulong_sub(a: list, b: list) -> list:\n    # a >= b\n    res = []\n    borrow = 0\n    for i in range(len(b)):\n        tmp = a[i] - b[i] - borrow\n        if tmp < 0:\n            tmp += PyLong_BASE\n            borrow = 1\n        else:\n            borrow = 0\n        res.append(tmp)\n    for i in range(len(b), len(a)):\n        tmp = a[i] - borrow\n        if tmp < 0:\n            tmp += PyLong_BASE\n            borrow = 1\n        else:\n            borrow = 0\n        res.append(tmp)\n    ulong_unpad_(res)\n    return res\n\ndef ulong_divmodi(a: list, b: int):\n    # b > 0\n    res = []\n    carry = 0\n    for i in range(len(a)-1, -1, -1):\n        carry <<= PyLong_SHIFT\n        carry += a[i]\n        res.append(carry // b)\n        carry %= b\n    res.reverse()\n    ulong_unpad_(res)\n    return res, carry\n\n\ndef ulong_divmod(a: list, b: list):\n\n    if ulong_cmp(a, b) < 0:\n        return [0], a\n\n    if len(b) == 1:\n        q, r = ulong_divmodi(a, b[0])\n        r, _ = ulong_fromint(r)\n        return q, r\n\n    max = (len(a) - len(b)) * PyLong_SHIFT + \x5c\n        (a[-1].bit_length() - b[-1].bit_length())\n\n    low = [0]\n\n    high = (max // PyLong_SHIFT) * [0] + \x5c\n        [(2**(max % PyLong_SHIFT)) & PyLong_MASK]\n\n    while ulong_cmp(low, high) < 0:\n        ulong_inc_(high)\n        mid, r = ulong_divmodi(ulong_add(low, high), 2)\n        if ulong_cmp(a, ulong_mul(b, mid)) >= 0:\n            low = mid\n        else:\n            high = ulong_sub(mid, [1])\n\n    q = [0] * (len(a) - len(b) + 1)\n    while ulong_cmp(a, ulong_mul(b, low)) >= 0:\n        q = ulong_add(q, low)\n        a = ulong_sub(a, ulong_mul(b, low))\n    ulong_unpad_(q)\n    return q, a\n\ndef ulong_floordivi(a: list, b: int):\n    # b > 0\n    return ulong_divmodi(a, b)[0]\n\ndef ulong_muli(a: list, b: int):\n    # b >= 0\n    res = [0] * len(a)\n    carry = 0\n    for i in range(len(a)):\n        carry += a[i] * b\n        res[i] = carry & PyLong_MASK\n        carry >>= PyLong_SHIFT\n    if carry > 0:\n        res.append(carry)\n    return res\n\ndef ulong_mul(a: list, b: list):\n    N = len(a) + len(b)\n    # use grade-school multiplication\n    res = [0] * N\n    for i in range(len(a)):\n        carry = 0\n        for j in range(len(b)):\n            carry += res[i+j] + a[i] * b[j]\n            res[i+j] = carry & PyLong_MASK\n            carry >>= PyLong_SHIFT\n        res[i+len(b)] = carry\n    ulong_unpad_(res)\n    return res\n\ndef ulong_powi(a: list, b: int):\n    # b >= 0\n    if b == 0: return [1]\n    res = [1]\n    while b:\n        if b & 1:\n            res = ulong_mul(res, a)\n        a = ulong_mul(a, a)\n        b >>= 1\n    return res\n\ndef ulong_repr(x: list) -> str:\n    res = []\n    while len(x)>1 or x[0]>0:   # non-zero\n        x, r = ulong_divmodi(x, PyLong_DECIMAL_BASE)\n        res.append(str(r).zfill(PyLong_DECIMAL_SHIFT))\n    res.reverse()\n    s = ''.join(res)\n    if len(s) == 0: return '0'\n    if len(s) > 1: s = s.lstrip('0')\n    return s\n\ndef ulong_fromstr(s: str):\n    if s[-1] == 'L':\n        s = s[:-1]\n    res, base = [0], [1]\n    if s[0] == '-':\n        sign = -1\n        s = s[1:]\n    else:\n        sign = 1\n    s = s[::-1]\n    for c in s:\n        c = ord(c) - 48\n        assert 0 <= c <= 9\n        res = ulong_add(res, ulong_muli(base, c))\n        base = ulong_muli(base, 10)\n    return res, sign\n\nclass long:\n    def __init__(self, x):\n        if type(x) is tuple:\n            self.digits, self.sign = x\n        elif type(x) is int:\n            self.digits, self.sign = ulong_fromint(x)\n        elif type(x) is float:\n            self.digits, self.sign = ulong_fromint(int(x))\n        elif type(x) is str:\n            self.digits, self.sign = ulong_fromstr(x)\n        elif type(x) is long:\n            self.digits, self.sign = x.digits.copy(), x.sign\n        else:\n            raise TypeError('expected int or str')\n        \n    def __len__(self):\n        return len(self.digits)\n\n    def __add__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        if self.sign == other.sign:\n            return long((ulong_add(self.digits, other.digits), self.sign))\n        else:\n            cmp = ulong_cmp(self.digits, other.digits)\n            if cmp == 0:\n                return long(0)\n            if cmp > 0:\n                return long((ulong_sub(self.digits, other.digits), self.sign))\n            else:\n                return long((ulong_sub(other.digits, self.digits), other.sign))\n            \n    def __radd__(self, other):\n        return self.__add__(other)\n    \n    def __sub__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        if self.sign != other.sign:\n            return long((ulong_add(self.digits, other.digits), self.sign))\n        cmp = ulong_cmp(self.digits, other.digits)\n        if cmp == 0:\n            return long(0)\n        if cmp > 0:\n            return long((ulong_sub(self.digits, other.digits), self.sign))\n        else:\n            return long((ulong_sub(other.digits, self.digits), -other.sign))\n            \n    def __rsub__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        return other.__sub__(self)\n    \n    def __mul__(self, other):\n        if type(other) is int:\n            return long((\n                ulong_muli(self.digits, abs(other)),\n                self.sign * (1 if other >= 0 else -1)\n            ))\n        elif type(other) is long:\n            return long((\n                ulong_mul(self.digits, other.digits),\n                self.sign * other.sign\n            ))\n        return NotImplemented\n    \n    def __rmul__(self, other):\n        return self.__mul__(other)\n    \n    #######################################################\n    def __divmod__(self, other):\n        if type(other) is int:\n            assert self.sign == 1 and other > 0\n            q, r = ulong_divmodi(self.digits, other)\n            return long((q, 1)), r\n        if type(other) is long:\n            assert self.sign == 1 and other.sign == 1\n            q, r = ulong_divmod(self.digits, other.digits)\n            assert len(other)>1 or other.digits[0]>0\n            return long((q, 1)), long((r, 1))\n        raise NotImplementedError\n\n    def __floordiv__(self, other):\n        return self.__divmod__(other)[0]\n\n    def __mod__(self, other):\n        return self.__divmod__(other)[1]\n\n    def __pow__(self, other: int):\n        assert type(other) is int and other >= 0\n        if self.sign == -1 and other & 1:\n            sign = -1\n        else:\n            sign = 1\n        return long((ulong_powi(self.digits, other), sign))\n    \n    def __lshift__(self, other: int):\n        assert type(other) is int and other >= 0\n        x = self.digits.copy()\n        q, r = divmod(other, PyLong_SHIFT)\n        x = [0]*q + x\n        for _ in range(r): x = ulong_muli(x, 2)\n        return long((x, self.sign))\n    \n    def __rshift__(self, other: int):\n        assert type(other) is int and other >= 0\n        x = self.digits.copy()\n        q, r = divmod(other, PyLong_SHIFT)\n        x = x[q:]\n        if not x: return long(0)\n        for _ in range(r): x = ulong_floordivi(x, 2)\n        return long((x, self.sign))\n    \n    def __neg__(self):\n        return long((self.digits, -self.sign))\n    \n    def __cmp__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        if self.sign > other.sign:\n            return 1\n        elif self.sign < other.sign:\n            return -1\n        else:\n            return ulong_cmp(self.digits, other.digits)\n        \n    def __eq__(self, other):\n        return self.__cmp__(other) == 0\n    def __ne__(self, other):\n        return self.__cmp__(other) != 0\n    def __lt__(self, other):\n        return self.__cmp__(other) < 0\n    def __le__(self, other):\n        return self.__cmp__(other) <= 0\n    def __gt__(self, other):\n        return self.__cmp__(other) > 0\n    def __ge__(self, other):\n        return self.__cmp__(other) >= 0\n            \n    def __repr__(self):\n        prefix = '-' if self.sign < 0 else ''\n        return prefix + ulong_repr(self.digits) + 'L'";
+ const char kPythonLibs_operator[] = "# https://docs.python.org/3/library/operator.html#mapping-operators-to-functions\n\ndef le(a, b): return a <= b\ndef lt(a, b): return a < b\ndef ge(a, b): return a >= b\ndef gt(a, b): return a > b\ndef eq(a, b): return a == b\ndef ne(a, b): return a != b\n\ndef and_(a, b): return a & b\ndef or_(a, b): return a | b\ndef xor(a, b): return a ^ b\ndef invert(a): return ~a\ndef lshift(a, b): return a << b\ndef rshift(a, b): return a >> b\n\ndef is_(a, b): return a is b\ndef is_not(a, b): return a is not b\ndef not_(a): return not a\ndef truth(a): return bool(a)\ndef contains(a, b): return b in a\n\ndef add(a, b): return a + b\ndef sub(a, b): return a - b\ndef mul(a, b): return a * b\ndef truediv(a, b): return a / b\ndef floordiv(a, b): return a // b\ndef mod(a, b): return a % b\ndef pow(a, b): return a ** b\ndef neg(a): return -a\ndef matmul(a, b): return a @ b\n\ndef getitem(a, b): return a[b]\ndef setitem(a, b, c): a[b] = c\ndef delitem(a, b): del a[b]\n\ndef iadd(a, b): a += b; return a\ndef isub(a, b): a -= b; return a\ndef imul(a, b): a *= b; return a\ndef itruediv(a, b): a /= b; return a\ndef ifloordiv(a, b): a //= b; return a\ndef imod(a, b): a %= b; return a\n# def ipow(a, b): a **= b; return a\n# def imatmul(a, b): a @= b; return a\ndef iand(a, b): a &= b; return a\ndef ior(a, b): a |= b; return a\ndef ixor(a, b): a ^= b; return a\ndef ilshift(a, b): a <<= b; return a\ndef irshift(a, b): a >>= b; return a\n\nclass attrgetter:\n    def __init__(self, attr):\n        self.attr = attr\n    def __call__(self, obj):\n        return getattr(obj, self.attr)\n\nclass itemgetter:\n    def __init__(self, item):\n        self.item = item\n    def __call__(self, obj):\n        return obj[self.item]\n";
+ const char kPythonLibs_typing[] = "class _Placeholder:\n    def __init__(self, *args, **kwargs):\n        pass\n    def __getitem__(self, *args):\n        return self\n    def __call__(self, *args, **kwargs):\n        return self\n    def __and__(self, other):\n        return self\n    def __or__(self, other):\n        return self\n    def __xor__(self, other):\n        return self\n\n\n_PLACEHOLDER = _Placeholder()\n\nSequence = _PLACEHOLDER\nList = _PLACEHOLDER\nDict = _PLACEHOLDER\nTuple = _PLACEHOLDER\nSet = _PLACEHOLDER\nAny = _PLACEHOLDER\nUnion = _PLACEHOLDER\nOptional = _PLACEHOLDER\nCallable = _PLACEHOLDER\nType = _PLACEHOLDER\nTypeAlias = _PLACEHOLDER\nNewType = _PLACEHOLDER\n\nClassVar = _PLACEHOLDER\n\nLiteral = _PLACEHOLDER\nLiteralString = _PLACEHOLDER\n\nIterable = _PLACEHOLDER\nGenerator = _PLACEHOLDER\nIterator = _PLACEHOLDER\n\nHashable = _PLACEHOLDER\n\nTypeVar = _PLACEHOLDER\nParamSpec = _PLACEHOLDER\nSelf = _PLACEHOLDER\n\nProtocol = object\nGeneric = object\nNever = object\n\nTYPE_CHECKING = False\n\n# decorators\noverload = lambda x: x\noverride = lambda x: x\nfinal = lambda x: x\n\n# exhaustiveness checking\nassert_never = lambda x: x\n\nTypedDict = dict\nNotRequired = _PLACEHOLDER\nReadOnly = _PLACEHOLDER\nRequired = _PLACEHOLDER\nTypeIs = _PLACEHOLDER\nTypeGuard = _PLACEHOLDER\n\ncast = lambda _, val: val\n";
+@@ -15721,6 +15750,8 @@
+ 
+ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
+     int state = 0;  // 0 for args, 1 for *args, 2 for k=v, 3 for **kwargs
++    bool seen_star = false;
++    bool seen_slash = false;
+     Error* err;
+     do {
+         // allow trailing comma
+@@ -15728,11 +15759,29 @@
+         if(curr()->type == (is_lambda ? TK_COLON : TK_RPAREN)) break;
+ 
+         if(state >= 3) return SyntaxError(self, "**kwargs should be the last argument");
++        // kipferl patch: `/` ends the positional-only parameters
++        if(match(TK_DIV)) {
++            if(seen_star) return SyntaxError(self, "/ must be ahead of *");
++            if(seen_slash) return SyntaxError(self, "/ may appear only once");
++            decl->posonly = decl->args.length + decl->kwargs.length;
++            if(decl->posonly == 0) {
++                return SyntaxError(self, "at least one argument must precede /");
++            }
++            seen_slash = true;
++            continue;
++        }
+         if(match(TK_MUL)) {
+-            if(state < 1)
+-                state = 1;
+-            else
+-                return SyntaxError(self, "*args should be placed before **kwargs");
++            // kipferl patch: `*` may follow parameters with defaults, but only once
++            if(seen_star) return SyntaxError(self, "* argument may appear only once");
++            seen_star = true;
++            // the parameters after it are keyword-only
++            decl->kwonly = decl->kwargs.length;
++            state = 1;
++            // kipferl patch: a bare `*` starts keyword-only parameters
++            if(curr()->type == TK_COMMA) {
++                state = 2;
++                continue;
++            }
+         } else if(match(TK_POW)) {
+             state = 3;
+         }
+@@ -15754,9 +15803,18 @@
+                 state += 1;
+                 break;
+             case 2: {
+-                consume(TK_ASSIGN);
+                 py_TValue value;
+-                check(read_literal(self, &value));
++                // kipferl patch: a keyword-only parameter without a default starts unbound
++                if(!match(TK_ASSIGN)) {
++                    if(!seen_star) {
++                        return SyntaxError(
++                            self,
++                            "parameter without a default follows parameter with a default");
++                    }
++                    py_newnil(&value);
++                } else {
++                    check(read_literal(self, &value));
++                }
+                 FuncDecl__add_kwarg(decl, name, &value);
+             } break;
+             case 3:
+@@ -16151,6 +16209,62 @@
+     return NULL;
+ }
+ 
++// kipferl patch: one `with` item; the items after it are nested inside its block
++static Error* compile_with_items(Compiler* self) {
++    Error* err;
++    check(EXPR(self));  // [ <expr> ]
++    Ctx__s_emit_top(ctx());
++    Ctx__enter_block(ctx(), CodeBlockType_WITH);
++    NameExpr* as_name = NULL;
++    if(match(TK_AS)) {
++        consume(TK_ID);
++        py_Name name = py_namev(Token__sv(prev()));
++        as_name = NameExpr__new(prev()->line, name, name_scope(self));
++    }
++    Ctx__emit_(ctx(), OP_WITH_ENTER, BC_NOARG, prev()->line);
++    // [ <expr> <expr>.__enter__() ]
++    if(as_name) {
++        bool ok = vtemit_store((Expr*)as_name, ctx());
++        vtdelete((Expr*)as_name);
++        if(!ok) return SyntaxError(self, "invalid syntax");
++    } else {
++        // discard `__enter__()`'s return value
++        Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
++    }
++    // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
++    Ctx__enter_block(ctx(), CodeBlockType_TRY);
++    Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
++    // kipferl patch: `with a, b:` nests the remaining items
++    if(match(TK_COMMA)) {
++        check(compile_with_items(self));
++    } else {
++        check(compile_block_body(self));
++    }
++    Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
++    Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, prev()->line);
++    int patch_normal = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
++    Ctx__exit_block(ctx());
++
++    // except:
++    Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
++    int patch_no_match = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
++    Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
++    Ctx__emit_(ctx(), OP_WITH_EXIT_EXC, BC_NOARG, BC_KEEPLINE);
++    int patch_reraise = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
++    Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
++    int patch_handled = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
++
++    // re-raise
++    Ctx__patch_jump(ctx(), patch_reraise);
++    Ctx__patch_jump(ctx(), patch_no_match);
++    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
++
++    Ctx__patch_jump(ctx(), patch_normal);
++    Ctx__patch_jump(ctx(), patch_handled);
++    Ctx__exit_block(ctx());
++    return NULL;
++}
++
+ static Error* compile_stmt(Compiler* self) {
+     Error* err;
+     if(match(TK_CLASS)) {
+@@ -16297,53 +16411,7 @@
+             Ctx__s_pop(ctx());
+             consume_end_stmt();
+         } break;
+-        case TK_WITH: {
+-            check(EXPR(self));  // [ <expr> ]
+-            Ctx__s_emit_top(ctx());
+-            Ctx__enter_block(ctx(), CodeBlockType_WITH);
+-            NameExpr* as_name = NULL;
+-            if(match(TK_AS)) {
+-                consume(TK_ID);
+-                py_Name name = py_namev(Token__sv(prev()));
+-                as_name = NameExpr__new(prev()->line, name, name_scope(self));
+-            }
+-            Ctx__emit_(ctx(), OP_WITH_ENTER, BC_NOARG, prev()->line);
+-            // [ <expr> <expr>.__enter__() ]
+-            if(as_name) {
+-                bool ok = vtemit_store((Expr*)as_name, ctx());
+-                vtdelete((Expr*)as_name);
+-                if(!ok) return SyntaxError(self, "invalid syntax");
+-            } else {
+-                // discard `__enter__()`'s return value
+-                Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
+-            }
+-            // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
+-            Ctx__enter_block(ctx(), CodeBlockType_TRY);
+-            Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
+-            check(compile_block_body(self));
+-            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+-            Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, prev()->line);
+-            int patch_normal = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+-            Ctx__exit_block(ctx());
+-
+-            // except:
+-            Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
+-            int patch_no_match = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+-            Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+-            Ctx__emit_(ctx(), OP_WITH_EXIT_EXC, BC_NOARG, BC_KEEPLINE);
+-            int patch_reraise = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+-            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+-            int patch_handled = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+-
+-            // re-raise
+-            Ctx__patch_jump(ctx(), patch_reraise);
+-            Ctx__patch_jump(ctx(), patch_no_match);
+-            Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+-
+-            Ctx__patch_jump(ctx(), patch_normal);
+-            Ctx__patch_jump(ctx(), patch_handled);
+-            Ctx__exit_block(ctx());
+-        } break;
++        case TK_WITH: check(compile_with_items(self)); break;
+         /*************************************************/
+         // handle dangling expression or assignment
+         default: {
+@@ -16713,6 +16781,7 @@
+         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
+         case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
+         case '.': case 'x': case 'o': case 'j':
++        case '_':  // kipferl patch: digit separators
+         return true;
+         default: return false;
+             // clang-format on
+@@ -16931,13 +17000,29 @@
+     bool is_scientific_notation = false;
+     if(*(i - 1) == 'e' && (*i == '+' || *i == '-')) {
+         i++;
+-        while(isdigit(*i) || *i == 'j')
++        while(isdigit(*i) || *i == 'j' || *i == '_')
+             i++;
+         is_scientific_notation = true;
+     }
+ 
+-    c11_sv text = {self->token_start, i - self->token_start};
++    c11_sv raw = {self->token_start, i - self->token_start};
+     self->curr_char = i;
++    // kipferl patch: a single underscore may separate digits, as in 1_000_000 or 0x_ff
++    char digits[128];
++    int length = 0;
++    for(int k = 0; k < raw.size; k++) {
++        char c = raw.data[k];
++        if(c == '_') {
++            bool after_digit = k > 0 && isalnum((unsigned char)raw.data[k - 1]);
++            bool before_digit = k + 1 < raw.size && isxdigit((unsigned char)raw.data[k + 1]);
++            if(!after_digit || !before_digit) return LexerError(self, "invalid decimal literal");
++            continue;
++        }
++        if(length == (int)sizeof(digits) - 1) return LexerError(self, "invalid number literal");
++        digits[length++] = c;
++    }
++    digits[length] = '\0';
++    c11_sv text = {digits, length};
+ 
+     if(text.data[0] != '.' && !is_scientific_notation) {
+         // try integer
+@@ -21847,68 +21932,151 @@
+     return true;
+ }
+ 
++// kipferl patch: bind arguments as CPython does. Parameters are numbered in declaration
++// order, args before kwargs; the first FuncDecl__positional of them take positional arguments,
++// and all but the first `posonly` take keywords.
++static int FuncDecl__positional(const FuncDecl* decl) {
++    return decl->args.length + (decl->kwonly < 0 ? decl->kwargs.length : decl->kwonly);
++}
++
++static int FuncDecl__param_at(const FuncDecl* decl, int ordinal) {
++    if(ordinal < decl->args.length) return c11__getitem(int32_t, &decl->args, ordinal);
++    return c11__at(FuncDeclKwArg, &decl->kwargs, ordinal - decl->args.length)->index;
++}
++
++static int FuncDecl__ordinal(const FuncDecl* decl, int index) {
++    int count = decl->args.length + decl->kwargs.length;
++    for(int i = 0; i < count; i++) {
++        if(FuncDecl__param_at(decl, i) == index) return i;
++    }
++    return -1;
++}
++
++// "'a'", "'a' and 'b'", "'a', 'b', and 'c'", as CPython lists missing arguments
++static bool pk_missing_arguments(const FuncDecl* decl, py_TValue* buffer, int first, int end,
++                                 const char* kind) {
++    const CodeObject* co = &decl->code;
++    int missing = 0;
++    for(int i = first; i < end; i++) {
++        missing += py_isnil(&buffer[FuncDecl__param_at(decl, i)]);
++    }
++    if(missing == 0) return true;
++    c11_sbuf names;
++    c11_sbuf__ctor(&names);
++    int written = 0;
++    for(int i = first; i < end; i++) {
++        int index = FuncDecl__param_at(decl, i);
++        if(!py_isnil(&buffer[index])) continue;
++        if(written > 0) {
++            if(missing > 2) c11_sbuf__write_char(&names, ',');
++            c11_sbuf__write_cstr(&names, written == missing - 1 ? " and " : " ");
++        }
++        c11_sbuf__write_char(&names, '\'');
++        c11_sbuf__write_cstr(&names, py_name2str(c11__getitem(py_Name, &co->varnames, index)));
++        c11_sbuf__write_char(&names, '\'');
++        written++;
++    }
++    c11_string* text = c11_sbuf__submit(&names);
++    TypeError("%s() missing %d required %s argument%s: %s",
++              co->name->data,
++              missing,
++              kind,
++              missing == 1 ? "" : "s",
++              text->data);
++    c11_string__delete(text);
++    return false;
++}
++
++static bool pk_posonly_as_keyword(const FuncDecl* decl, py_Ref p1, int kwargc) {
++    c11_sbuf names;
++    c11_sbuf__ctor(&names);
++    int written = 0;
++    for(int j = 0; j < kwargc; j++) {
++        py_Name key = (py_Name)py_toint(&p1[2 * j]);
++        int index = c11_smallmap_n2d__get(&decl->kw_to_index, key, -1);
++        if(index < 0 || FuncDecl__ordinal(decl, index) >= decl->posonly) continue;
++        if(written++ > 0) c11_sbuf__write_cstr(&names, ", ");
++        c11_sbuf__write_cstr(&names, py_name2str(key));
++    }
++    c11_string* text = c11_sbuf__submit(&names);
++    TypeError("%s() got some positional-only arguments passed as keyword arguments: '%s'",
++              decl->code.name->data,
++              text->data);
++    c11_string__delete(text);
++    return false;
++}
++
+ static bool
+     prepare_py_call(py_TValue* buffer, py_Ref argv, py_Ref p1, int kwargc, const FuncDecl* decl) {
+     const CodeObject* co = &decl->code;
+-    int decl_argc = decl->args.length;
+-
+-    if(p1 - argv < decl_argc) {
+-        return TypeError("%s() takes %d positional arguments but %d were given",
+-                         co->name->data,
+-                         decl_argc,
+-                         (int)(p1 - argv));
+-    }
++    int given = p1 - argv;
++    int positional = FuncDecl__positional(decl);
++    int bound = given < positional ? given : positional;
+ 
+-    py_TValue* t = argv;
+-    // prepare args
+     memset(buffer, 0, co->nlocals * sizeof(py_TValue));
+-    c11__foreach(int, &decl->args, index) buffer[*index] = *t++;
+-    // prepare kwdefaults
++    // defaults; a required keyword-only parameter has a nil one
+     c11__foreach(FuncDeclKwArg, &decl->kwargs, kv) buffer[kv->index] = kv->value;
+-
+-    // handle *args
++    for(int i = 0; i < bound; i++) {
++        buffer[FuncDecl__param_at(decl, i)] = argv[i];
++    }
+     if(decl->starred_arg != -1) {
+-        int exceed_argc = p1 - t;
+-        py_Ref vargs = &buffer[decl->starred_arg];
+-        py_Ref data = py_newtuple(vargs, exceed_argc);
+-        for(int j = 0; j < exceed_argc; j++) {
+-            data[j] = *t++;
++        int extra = given - bound;
++        py_Ref data = py_newtuple(&buffer[decl->starred_arg], extra);
++        for(int j = 0; j < extra; j++) {
++            data[j] = argv[bound + j];
+         }
+-    } else {
+-        // kwdefaults override
+-        // def f(a, b, c=None)
+-        // f(1, 2, 3) -> c=3
+-        c11__foreach(FuncDeclKwArg, &decl->kwargs, kv) {
+-            if(t >= p1) break;
+-            buffer[kv->index] = *t++;
+-        }
+-        // not able to consume all args
+-        if(t < p1) return TypeError("too many arguments (%s)", co->name->data);
+     }
+-
+     if(decl->starred_kwarg != -1) py_newdict(&buffer[decl->starred_kwarg]);
+ 
+     for(int j = 0; j < kwargc; j++) {
+         py_Name key = (py_Name)py_toint(&p1[2 * j]);
++        // `f(a=1, **{'a': 2})` passes the keyword twice
++        for(int k = 0; k < j; k++) {
++            if((py_Name)py_toint(&p1[2 * k]) == key) {
++                return TypeError("%s() got multiple values for keyword argument '%n'",
++                                 co->name->data,
++                                 key);
++            }
++        }
+         int index = c11_smallmap_n2d__get(&decl->kw_to_index, key, -1);
+-        // if key is an explicit key, set as local variable
+-        if(index >= 0) {
++        int ordinal = index >= 0 ? FuncDecl__ordinal(decl, index) : -1;
++        if(ordinal >= decl->posonly) {
++            if(ordinal < bound) {
++                return TypeError("%s() got multiple values for argument '%n'", co->name->data, key);
++            }
+             buffer[index] = p1[2 * j + 1];
++        } else if(decl->starred_kwarg != -1) {
++            // a positional-only name passed by keyword lands in **kwargs
++            bool ok =
++                py_dict_setitem(&buffer[decl->starred_kwarg], py_name2ref(key), &p1[2 * j + 1]);
++            if(!ok) return false;
++        } else if(index >= 0) {
++            return pk_posonly_as_keyword(decl, p1, kwargc);
+         } else {
+-            // otherwise, set as **kwargs if possible
+-            if(decl->starred_kwarg == -1) {
+-                return TypeError("'%n' is an invalid keyword argument for %s()",
+-                                 key,
+-                                 co->name->data);
+-            } else {
+-                // add to **kwargs
+-                bool ok =
+-                    py_dict_setitem(&buffer[decl->starred_kwarg], py_name2ref(key), &p1[2 * j + 1]);
+-                if(!ok) return false;
+-            }
++            return TypeError("'%n' is an invalid keyword argument for %s()", key, co->name->data);
+         }
+     }
+-    return true;
++
++    if(given > positional && decl->starred_arg == -1) {
++        const char* verb = given == 1 ? "was" : "were";
++        if(positional > decl->args.length) {
++            return TypeError("%s() takes from %d to %d positional arguments but %d %s given",
++                             co->name->data,
++                             decl->args.length,
++                             positional,
++                             given,
++                             verb);
++        }
++        return TypeError("%s() takes %d positional argument%s but %d %s given",
++                         co->name->data,
++                         positional,
++                         positional == 1 ? "" : "s",
++                         given,
++                         verb);
++    }
++    if(!pk_missing_arguments(decl, buffer, 0, positional, "positional")) return false;
++    int total = decl->args.length + decl->kwargs.length;
++    return pk_missing_arguments(decl, buffer, positional, total, "keyword-only");
+ }
+ 
+ // kipferl patch: C methods read their receiver's userdata without checking its type
+@@ -21962,7 +22130,8 @@
+         const CodeObject* co = &fn->decl->code;
+ 
+         switch(fn->decl->type) {
+-            case FuncType_NORMAL: {
++            case FuncType_NORMAL:
++            __NORMAL_CALL: {
+                 bool ok = prepare_py_call(self->vectorcall_buffer, argv, p1, kwargc, fn->decl);
+                 if(!ok) return RES_ERROR;
+                 // copy buffer back to stack
+@@ -21982,15 +22151,8 @@
+                 }
+             }
+             case FuncType_SIMPLE:
+-                if(p1 - argv != fn->decl->args.length) {
+-                    const char* fmt = "%s() takes %d positional arguments but %d were given";
+-                    TypeError(fmt, co->name->data, fn->decl->args.length, (int)(p1 - argv));
+-                    return RES_ERROR;
+-                }
+-                if(kwargc) {
+-                    TypeError("%s() takes no keyword arguments", co->name->data);
+-                    return RES_ERROR;
+-                }
++                // kipferl patch: keywords and argument errors take the general path
++                if(p1 - argv != fn->decl->args.length || kwargc) goto __NORMAL_CALL;
+                 // [callable, <self>, args..., local_vars...]
+                 //      ^p0                    ^p1      ^_sp
+                 self->stack.sp = argv + co->nlocals;
+@@ -25977,31 +26139,35 @@
+ 
+     bool has_starred_arg = decl->starred_arg != -1;
+     bool has_starred_kwarg = decl->starred_kwarg != -1;
+-    int total = decl->args.length + decl->kwargs.length + (int)has_starred_arg +
+-                (int)has_starred_kwarg;
++    int params = decl->args.length + decl->kwargs.length;
++    int total = params + (int)has_starred_arg + (int)has_starred_kwarg;
+ 
+     py_TValue* items = py_newtuple(py_retval(), total);
+     int j = 0;
+-    for(int i = 0; i < decl->args.length; i++) {
+-        int32_t index = c11__getitem(int32_t, &decl->args, i);
++    // kipferl patch: parameters in declaration order with their positional-only and
++    // keyword-only kinds; *args sits between the positional and keyword-only ones
++    int positional = FuncDecl__positional(decl);
++    for(int i = 0; i <= params; i++) {
++        if(i == positional && has_starred_arg) {
++            py_Name name = c11__getitem(py_Name, &co->varnames, decl->starred_arg);
++            py_TValue* entry = py_newtuple(&items[j++], 2);
++            py_newstr(&entry[0], py_name2str(name));
++            py_newint(&entry[1], 2);
++        }
++        if(i == params) break;
++        int index = FuncDecl__param_at(decl, i);
+         py_Name name = c11__getitem(py_Name, &co->varnames, index);
+-        py_TValue* entry = py_newtuple(&items[j++], 2);
+-        py_newstr(&entry[0], py_name2str(name));
+-        py_newint(&entry[1], 1);
+-    }
+-    if(has_starred_arg) {
+-        py_Name name = c11__getitem(py_Name, &co->varnames, decl->starred_arg);
+-        py_TValue* entry = py_newtuple(&items[j++], 2);
++        int kind = i < decl->posonly ? 0 : i < positional ? 1 : 3;
++        const py_TValue* value = NULL;
++        if(i >= decl->args.length) {
++            value = &c11__at(FuncDeclKwArg, &decl->kwargs, i - decl->args.length)->value;
++            // a required keyword-only parameter has no default
++            if(py_isnil(value)) value = NULL;
++        }
++        py_TValue* entry = py_newtuple(&items[j++], value ? 3 : 2);
+         py_newstr(&entry[0], py_name2str(name));
+-        py_newint(&entry[1], 2);
+-    }
+-    for(int i = 0; i < decl->kwargs.length; i++) {
+-        FuncDeclKwArg kv = c11__getitem(FuncDeclKwArg, &decl->kwargs, i);
+-        py_TValue* entry = py_newtuple(&items[j++], 3);
+-        py_newstr(&entry[0], py_name2str(kv.key));
+-        // defaults after *args can only be passed by keyword
+-        py_newint(&entry[1], has_starred_arg ? 3 : 1);
+-        entry[2] = kv.value;
++        py_newint(&entry[1], kind);
++        if(value) entry[2] = *value;
+     }
+     if(has_starred_kwarg) {
+         py_Name name = c11__getitem(py_Name, &co->varnames, decl->starred_kwarg);
+@@ -31931,6 +32097,8 @@
+     self->type = FuncType_UNSET;
+ 
+     c11_smallmap_n2d__ctor(&self->kw_to_index);
++    self->posonly = 0;
++    self->kwonly = -1;
+     return self;
+ }
+ 
+@@ -31958,6 +32126,8 @@
+ void FuncDecl__add_arg(FuncDecl* self, py_Name name) {
+     int32_t index = CodeObject__add_varname(&self->code, name);
+     c11_vector__push(int32_t, &self->args, index);
++    // kipferl patch: positional parameters can be passed by keyword too
++    c11_smallmap_n2d__set(&self->kw_to_index, name, index);
+ }
+ 
+ void FuncDecl__add_kwarg(FuncDecl* self, py_Name name, const py_TValue* value) {
+@@ -32069,8 +32239,9 @@
+ // Magic number for CodeObject serialization: "CO" = 0x434F
+ #define CODEOBJECT_MAGIC 0x434F
+ #define CODEOBJECT_VER_MAJOR 1
+-#define CODEOBJECT_VER_MINOR 1
+-#define CODEOBJECT_VER_MINOR_MIN 1
++// kipferl patch: function declarations record positional-only and keyword-only parameters
++#define CODEOBJECT_VER_MINOR 2
++#define CODEOBJECT_VER_MINOR_MIN 2
+ 
+ // Forward declarations
+ static void FuncDecl__serialize(c11_serializer* s,
+@@ -32103,6 +32274,7 @@
+         }
+         case tp_NoneType: break;
+         case tp_ellipsis: break;
++        case tp_nil: break;  // kipferl patch: a required keyword-only parameter
+         case tp_tuple: {
+             int len = py_tuple_len(val);
+             c11_serializer__write_i32(s, len);
+@@ -32146,6 +32318,11 @@
+             py_newnone(out);
+             break;
+         }
++        case tp_nil: {
++            // kipferl patch: a required keyword-only parameter
++            py_newnil(out);
++            break;
++        }
+         case tp_ellipsis: {
+             py_newellipsis(out);
+             break;
+@@ -32381,6 +32558,10 @@
+ 
+     // type
+     c11_serializer__write_i8(s, (int8_t)decl->type);
++
++    // kipferl patch: positional-only and keyword-only parameters
++    c11_serializer__write_i32(s, decl->posonly);
++    c11_serializer__write_i32(s, decl->kwonly);
+ }
+ 
+ // Deserialize FuncDecl
+@@ -32405,6 +32586,11 @@
+                        c11_deserializer__read_bytes(d, args_len * sizeof(int32_t)),
+                        args_len);
+     c11_deserializer__consume_mark(d, ']');
++    // kipferl patch: positional parameters can be passed by keyword too
++    c11__foreach(int32_t, &self->args, index) {
++        py_Name name = c11__getitem(py_Name, &self->code.varnames, *index);
++        c11_smallmap_n2d__set(&self->kw_to_index, name, *index);
++    }
+ 
+     // kwargs
+     int kwargs_len = c11_deserializer__read_i32(d);
+@@ -32438,6 +32624,10 @@
+ 
+     // type
+     self->type = (FuncType)c11_deserializer__read_i8(d);
++
++    // kipferl patch: positional-only and keyword-only parameters
++    self->posonly = c11_deserializer__read_i32(d);
++    self->kwonly = c11_deserializer__read_i32(d);
+     return self;
+ }
+ 

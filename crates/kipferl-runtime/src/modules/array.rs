@@ -56,6 +56,10 @@ class array:
     def __rmul__(self, count):
         return self * count
 
+    def __imul__(self, count):
+        self._values = self._values * count
+        return self
+
     def __eq__(self, other):
         return isinstance(other, array) and self.typecode == other.typecode and self._values == other._values
 

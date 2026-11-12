@@ -47,11 +47,11 @@ fn preserves_itertools_binding_restriction_and_predicate_errors() {
     for (source, expected) in [
         (
             "import itertools; itertools.count(1, 2, 3)",
-            "TypeError: too many arguments (count)",
+            "TypeError: count() takes from 0 to 2 positional arguments but 3 were given",
         ),
         (
             "import itertools; itertools.cycle()",
-            "TypeError: cycle() takes 1 positional arguments but 0 were given",
+            "TypeError: cycle() missing 1 required positional argument: 'iterable'",
         ),
         (
             "import itertools; itertools.cycle((1, 2))",
@@ -59,7 +59,7 @@ fn preserves_itertools_binding_restriction_and_predicate_errors() {
         ),
         (
             "import itertools; itertools.repeat()",
-            "TypeError: repeat() takes 1 positional arguments but 0 were given",
+            "TypeError: repeat() missing 1 required positional argument: 'object'",
         ),
         (
             "import itertools; itertools.chain([1], 2)",

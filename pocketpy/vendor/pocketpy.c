@@ -6379,6 +6379,10 @@ typedef struct FuncDecl {
 
     FuncType type;
     c11_smallmap_n2d kw_to_index;
+    // kipferl patch: the leading parameters before `/`, and the kwargs from which on `*` or
+    // `*args` makes them keyword-only (-1 if none are)
+    int posonly;
+    int kwonly;
 } FuncDecl;
 
 typedef FuncDecl* FuncDecl_;
@@ -6430,6 +6434,8 @@ typedef struct FrameExcInfo {
     int iblock;     // try block index
     int offset;     // stack offset from p0
     py_TValue exc;  // handled exception
+    // kipferl patch: an exception is being matched against the except clauses
+    bool matching;
 } FrameExcInfo;
 
 typedef struct py_Frame {
@@ -6580,6 +6586,8 @@ typedef struct VM {
 
     py_StackRef curr_class;
     py_StackRef curr_function;
+    // kipferl patch: integers are 64-bit, so results beyond that raise OverflowError
+    py_Type tp_OverflowError;
     
     TraceInfo trace_info;
     WatchdogInfo watchdog_info;
@@ -6610,6 +6618,10 @@ bool pk__object_new(int argc, py_Ref argv);
 bool pk_wrapper__self(int argc, py_Ref argv);
 
 const char* pk_op2str(py_Name op);
+static bool pk_default__ne__(int argc, py_Ref argv);  // kipferl patch: see its definition
+static bool pk_expand_starred(py_TValue* begin, int count, py_Ref out);  // kipferl patch
+static bool pk_has_starred(py_TValue* begin, int count);  // kipferl patch
+bool pk_dict_update_from(py_Ref self, py_Ref source);  // kipferl patch: see dict
 
 typedef enum FrameResult {
     RES_ERROR = 0,
@@ -6638,10 +6650,12 @@ bool pk_execdyn(CodeObject* co, py_Ref module, py_Ref globals, py_Ref locals);
 /// The result is stored in `self->last_retval`.
 /// The stack remains unchanged.
 bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop);
+int pk_stack_inplaceop(VM* self, py_Name op);  // kipferl patch
 
 void pk_print_stack(VM* self, py_Frame* frame, Bytecode byte);
 
 bool pk_format_object(VM* self, py_Ref val, c11_sv spec);
+bool pk_format_fstring_field(VM* self, py_Ref val, c11_sv spec);
 
 // type registration
 void pk_object__register();
@@ -6882,6 +6896,8 @@ typedef struct BaseException {
     py_TValue args;
     py_TValue inner_exc;
     c11_vector /*T=BaseExceptionFrame*/ stacktrace;
+    // kipferl patch: `args` holds the tuple of several arguments instead of the single one
+    bool args_is_tuple;
 } BaseException;
 
 char* safe_stringify_exception(py_Ref exc);
@@ -7152,6 +7168,12 @@ py_Type pk_boundmethod__register() {
     return type;
 }
 // src/bindings\py_number.c
+// kipferl patch: an integer result that does not fit 64 bits raises instead of wrapping
+static bool pk_int_overflow(void) {
+    return py_exception(pk_current_vm->tp_OverflowError,
+                        "integer overflow: the result does not fit in a 64-bit int");
+}
+
 static bool try_castfloat(py_Ref self, double* out) {
     switch(self->type) {
         case tp_int: *out = (double)self->_i64; return true;
@@ -7188,9 +7210,38 @@ static bool try_castfloat(py_Ref self, double* out) {
         return true;                                                                               \
     }
 
-DEF_NUM_BINARY_OP(__add__, +, py_newint, py_newfloat)
-DEF_NUM_BINARY_OP(__sub__, -, py_newint, py_newfloat)
-DEF_NUM_BINARY_OP(__mul__, *, py_newint, py_newfloat)
+// kipferl patch: checked integer arithmetic
+#define DEF_NUM_CHECKED_OP(name, op, checked)                                                      \
+    static bool int##name(int argc, py_Ref argv) {                                                 \
+        PY_CHECK_ARGC(2);                                                                          \
+        if(py_isint(&argv[1])) {                                                                   \
+            py_i64 out;                                                                            \
+            if(checked(py_toint(&argv[0]), py_toint(&argv[1]), &out)) return pk_int_overflow();    \
+            py_newint(py_retval(), out);                                                           \
+        } else if(py_isfloat(&argv[1])) {                                                          \
+            py_i64 lhs = py_toint(&argv[0]);                                                       \
+            py_f64 rhs = py_tofloat(&argv[1]);                                                     \
+            py_newfloat(py_retval(), lhs op rhs);                                                  \
+        } else {                                                                                   \
+            py_newnotimplemented(py_retval());                                                     \
+        }                                                                                          \
+        return true;                                                                               \
+    }                                                                                              \
+    static bool float##name(int argc, py_Ref argv) {                                               \
+        PY_CHECK_ARGC(2);                                                                          \
+        py_f64 lhs = py_tofloat(&argv[0]);                                                         \
+        py_f64 rhs;                                                                                \
+        if(try_castfloat(&argv[1], &rhs)) {                                                        \
+            py_newfloat(py_retval(), lhs op rhs);                                                  \
+        } else {                                                                                   \
+            py_newnotimplemented(py_retval());                                                     \
+        }                                                                                          \
+        return true;                                                                               \
+    }
+
+DEF_NUM_CHECKED_OP(__add__, +, __builtin_add_overflow)
+DEF_NUM_CHECKED_OP(__sub__, -, __builtin_sub_overflow)
+DEF_NUM_CHECKED_OP(__mul__, *, __builtin_mul_overflow)
 
 DEF_NUM_BINARY_OP(__eq__, ==, py_newbool, py_newbool)
 DEF_NUM_BINARY_OP(__ne__, !=, py_newbool, py_newbool)
@@ -7202,6 +7253,7 @@ DEF_NUM_BINARY_OP(__ge__, >=, py_newbool, py_newbool)
 static bool int__neg__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
     py_i64 val = py_toint(&argv[0]);
+    if(val == INT64_MIN) return pk_int_overflow();
     py_newint(py_retval(), -val);
     return true;
 }
@@ -7254,10 +7306,11 @@ static bool number__pow__(int argc, py_Ref argv) {
             // rhs >= 0
             py_i64 ret = 1;
             while(true) {
-                if(rhs & 1) ret *= lhs;
+                if((rhs & 1) && __builtin_mul_overflow(ret, lhs, &ret)) return pk_int_overflow();
                 rhs >>= 1;
                 if(!rhs) break;
-                lhs *= lhs;  // place this here to avoid overflow
+                // the remaining bits multiply at least this square into the result
+                if(__builtin_mul_overflow(lhs, lhs, &lhs)) return pk_int_overflow();
             }
             py_newint(py_retval(), ret);
         }
@@ -7273,28 +7326,30 @@ static bool number__pow__(int argc, py_Ref argv) {
     return true;
 }
 
-static py_i64 i64_abs(py_i64 x) { return x < 0 ? -x : x; }
+// kipferl patch: magnitudes are unsigned, so INT64_MIN divides correctly
+static uint64_t u64_abs(py_i64 x) { return x < 0 ? (uint64_t)0 - (uint64_t)x : (uint64_t)x; }
 
+// the caller rejects INT64_MIN // -1, the only quotient that does not fit
 py_i64 cpy312__int_floordiv(py_i64 a, py_i64 b) {
     assert(b != 0);
     if(a == 0) return 0;
     if((a < 0) == (b < 0)) {
-        return i64_abs(a) / i64_abs(b);
+        return (py_i64)(u64_abs(a) / u64_abs(b));
     } else {
-        return -1 - (i64_abs(a) - 1) / i64_abs(b);
+        return (py_i64)((uint64_t)0 - 1 - (u64_abs(a) - 1) / u64_abs(b));
     }
 }
 
 py_i64 cpy312__int_mod(py_i64 a, py_i64 b) {
     assert(b != 0);
     if(a == 0) return 0;
-    py_i64 res;
+    uint64_t res;
     if((a < 0) == (b < 0)) {
-        res = i64_abs(a) % i64_abs(b);
+        res = u64_abs(a) % u64_abs(b);
     } else {
-        res = i64_abs(b) - 1 - (i64_abs(a) - 1) % i64_abs(b);
+        res = u64_abs(b) - 1 - (u64_abs(a) - 1) % u64_abs(b);
     }
-    return b < 0 ? -res : res;
+    return b < 0 ? (py_i64)((uint64_t)0 - res) : (py_i64)res;
 }
 
 // https://github.com/python/cpython/blob/3.11/Objects/floatobject.c#L677
@@ -7341,6 +7396,7 @@ static bool int__floordiv__(int argc, py_Ref argv) {
     if(py_isint(&argv[1])) {
         py_i64 rhs = py_toint(&argv[1]);
         if(rhs == 0) return ZeroDivisionError("integer division by zero");
+        if(lhs == INT64_MIN && rhs == -1) return pk_int_overflow();
         py_newint(py_retval(), cpy312__int_floordiv(lhs, rhs));
     } else {
         py_newnotimplemented(py_retval());
@@ -7443,6 +7499,7 @@ static bool int__divmod__(int argc, py_Ref argv) {
     py_i64 lhs = py_toint(&argv[0]);
     py_i64 rhs = py_toint(&argv[1]);
     if(rhs == 0) return ZeroDivisionError("integer division or modulo by zero");
+    if(lhs == INT64_MIN && rhs == -1) return pk_int_overflow();
     py_Ref p = py_newtuple(py_retval(), 2);
     py_newint(&p[0], cpy312__int_floordiv(lhs, rhs));
     py_newint(&p[1], cpy312__int_mod(lhs, rhs));
@@ -7458,8 +7515,9 @@ static bool int__invert__(int argc, py_Ref argv) {
 
 static bool int_bit_length(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
-    py_i64 x = py_toint(py_arg(0));
-    if(x < 0) x = -x;
+    py_i64 value = py_toint(py_arg(0));
+    // kipferl patch: the magnitude of the smallest int only fits unsigned
+    uint64_t x = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;
     int bits = 0;
     while(x) {
         x >>= 1;
@@ -7495,7 +7553,15 @@ static bool int__lshift__(int argc, py_Ref argv) {
     }
     py_i64 rhs = py_toint(&argv[1]);
     if(rhs < 0) return ValueError("negative shift count");
-    py_newint(py_retval(), rhs >= 64 ? 0 : (py_i64)((uint64_t)lhs << rhs));
+    if(lhs == 0) {
+        py_newint(py_retval(), 0);
+        return true;
+    }
+    // kipferl patch: a shift that loses bits overflows
+    if(rhs >= 64) return pk_int_overflow();
+    py_i64 result = (py_i64)((uint64_t)lhs << rhs);
+    if(result >> rhs != lhs) return pk_int_overflow();
+    py_newint(py_retval(), result);
     return true;
 }
 
@@ -7549,6 +7615,7 @@ static bool float__hash__(int argc, py_Ref argv) {
 static bool int__abs__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
     py_i64 val = py_toint(&argv[0]);
+    if(val == INT64_MIN) return pk_int_overflow();
     py_newint(py_retval(), val < 0 ? -val : val);
     return true;
 }
@@ -7563,12 +7630,17 @@ static bool float__abs__(int argc, py_Ref argv) {
 // kipferl patch: int() and round() never use an undefined float conversion
 static bool pk_float_to_i64(py_f64 x, py_i64* out) {
     if(dmath_isnan(x)) return ValueError("cannot convert float NaN to integer");
-    if(dmath_isinf(x)) return ValueError("cannot convert float infinity to integer");
-    if(x < -9223372036854775808.0 || x >= 9223372036854775808.0)
-        return ValueError("float too large to convert to int64");
+    // kipferl patch: infinite and out-of-range floats overflow as in CPython
+    if(dmath_isinf(x)) {
+        return py_exception(pk_current_vm->tp_OverflowError,
+                            "cannot convert float infinity to integer");
+    }
+    if(x < -9223372036854775808.0 || x >= 9223372036854775808.0) return pk_int_overflow();
     *out = (py_i64)x;
     return true;
 }
+
+#include <ctype.h>  // kipferl patch: int() parsing below
 
 static bool int__new__(int argc, py_Ref argv) {
     if(argc == 1 + 0) {
@@ -7612,15 +7684,48 @@ static bool int__new__(int argc, py_Ref argv) {
     PY_CHECK_ARG_TYPE(1, tp_str);
 
     c11_sv sv = py_tosv(py_arg(1));
+    // kipferl patch: int() ignores surrounding whitespace and accepts digit separators
+    while(sv.size && isspace((unsigned char)sv.data[0])) {
+        sv.data++;
+        sv.size--;
+    }
+    while(sv.size && isspace((unsigned char)sv.data[sv.size - 1]))
+        sv.size--;
     bool negative = false;
     if(sv.size && (sv.data[0] == '+' || sv.data[0] == '-')) {
         negative = sv.data[0] == '-';
         sv.data++;
         sv.size--;
     }
+    char digits[128];
+    if(sv.size < (int)sizeof(digits) && memchr(sv.data, '_', sv.size)) {
+        int length = 0;
+        for(int k = 0; k < sv.size; k++) {
+            if(sv.data[k] != '_') {
+                digits[length++] = sv.data[k];
+                continue;
+            }
+            bool after_digit = k > 0 && isalnum((unsigned char)sv.data[k - 1]);
+            bool before_digit = k + 1 < sv.size && isxdigit((unsigned char)sv.data[k + 1]);
+            if(!after_digit || !before_digit) {
+                return ValueError("invalid literal for int() with base %d: %q", base, py_tosv(py_arg(1)));
+            }
+        }
+        sv = (c11_sv){digits, length};
+    }
     py_i64 val;
-    if(c11__parse_uint(sv, &val, base) != IntParsing_SUCCESS) {
-        return ValueError("invalid literal for int() with base %d: %q", base, sv);
+    IntParsingResult parsed = c11__parse_uint(sv, &val, base);
+    // kipferl patch: a literal beyond 64 bits overflows instead of wrapping
+    if(parsed == IntParsing_OVERFLOW) {
+        // -9223372036854775808 is the one value whose magnitude does not fit
+        if(negative && base == 10 && c11__sveq2(sv, "9223372036854775808")) {
+            py_newint(py_retval(), INT64_MIN);
+            return true;
+        }
+        return pk_int_overflow();
+    }
+    if(parsed != IntParsing_SUCCESS) {
+        return ValueError("invalid literal for int() with base %d: %q", base, py_tosv(py_arg(1)));
     }
     py_newint(py_retval(), negative ? -val : val);
     return true;
@@ -7768,7 +7873,10 @@ static bool bool__add__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), lhs + rhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_add_overflow(lhs, rhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7780,7 +7888,10 @@ static bool bool__sub__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), lhs - rhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_sub_overflow(lhs, rhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7792,7 +7903,10 @@ static bool bool__rsub__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), rhs - lhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_sub_overflow(rhs, lhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7804,7 +7918,10 @@ static bool bool__mul__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), lhs * rhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_mul_overflow(lhs, rhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7915,6 +8032,13 @@ bool pk__object_new(int argc, py_Ref argv) {
         return TypeError("object.__new__(%t) is not safe, use %t.__new__() instead", cls, cls);
     }
     py_newobject(py_retval(), cls, -1, 0);
+    return true;
+}
+
+// kipferl patch: each singleton type has one instance, so its type identifies it
+static bool singleton__hash__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(1);
+    py_newint(py_retval(), 0x5f3759df + argv->type);
     return true;
 }
 
@@ -8184,7 +8308,10 @@ bool range_iterator__next__(int argc, py_Ref argv) {
         if(ud->current <= ud->range.stop) return StopIteration();
     }
     py_newint(py_retval(), ud->current);
-    ud->current += ud->range.step;
+    // kipferl patch: a step past the 64-bit range ends the iteration
+    if(__builtin_add_overflow(ud->current, ud->range.step, &ud->current)) {
+        ud->current = ud->range.stop;
+    }
     return true;
 }
 
@@ -8233,112 +8360,216 @@ static bool str__len__(int argc, py_Ref argv) {
     return true;
 }
 
+// kipferl patch: printf-style formatting with mapping keys, flags, width, precision and every
+// conversion type, delegated to the format specification mini-language
 static bool str__mod__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     c11_string* self = pk_tostr(&argv[0]);
-    // %s
-    // %d %i
-    // %f
-    // %r
-    // %%
     py_TValue* args;
     int args_count;
+    bool is_mapping = false;
     if(py_istype(&argv[1], tp_tuple)) {
         args_count = py_tuple_len(&argv[1]);
         args = py_tuple_data(&argv[1]);
     } else {
         args_count = 1;
         args = &argv[1];
+        // any object with __getitem__ but a string is a mapping, as in CPython
+        is_mapping = !py_istype(&argv[1], tp_str) && py_tpfindmagic(argv[1].type, __getitem__);
     }
 
     int arg_index = 0;
+    bool used_mapping = false;
     const char* p = self->data;
     const char* p_end = self->data + self->size;
 
     c11_sbuf buf;
     c11_sbuf__ctor(&buf);
+    py_StackRef value = py_pushtmp();
+
+#define PERCENT_FAIL(expr)                                                                         \
+    do {                                                                                           \
+        expr;                                                                                      \
+        c11_sbuf__dtor(&buf);                                                                      \
+        py_pop();                                                                                  \
+        return false;                                                                              \
+    } while(0)
+#define PERCENT_NEXT_ARG()                                                                         \
+    do {                                                                                           \
+        if(used_mapping || arg_index >= args_count)                                                \
+            PERCENT_FAIL(TypeError("not enough arguments for format string"));                     \
+        *value = args[arg_index++];                                                                \
+    } while(0)
 
     while(p < p_end) {
+        if(*p != '%') {
+            c11_sbuf__write_char(&buf, *p++);
+            continue;
+        }
+        p++;
+        if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format"));
         if(*p == '%') {
+            c11_sbuf__write_char(&buf, '%');
             p++;
-            if(p >= p_end) {
-                c11_sbuf__dtor(&buf);
-                return ValueError("incomplete format");
-            }
-            char spec = *p;
+            continue;
+        }
+        bool has_value = false;
+        if(*p == '(') {
+            if(!is_mapping) PERCENT_FAIL(TypeError("format requires a mapping"));
+            const char* key_begin = ++p;
+            while(p < p_end && *p != ')')
+                p++;
+            if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format key"));
+            py_newstrv(value, (c11_sv){key_begin, (int)(p - key_begin)});
             p++;
-            if(spec == '%') {
-                // %% -> %
-                c11_sbuf__write_char(&buf, '%');
-            } else if(spec == 's') {
-                // %s -> string
-                if(arg_index >= args_count) {
-                    c11_sbuf__dtor(&buf);
-                    return TypeError("not enough arguments for format string");
-                }
-                if(!py_str(&args[arg_index])) {
-                    c11_sbuf__dtor(&buf);
-                    return false;
-                }
-                c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
-                arg_index++;
-            } else if(spec == 'd' || spec == 'i') {
-                // %d or %i -> integer
-                if(arg_index >= args_count) {
-                    c11_sbuf__dtor(&buf);
-                    return TypeError("not enough arguments for format string");
-                }
-                if(!py_checktype(&args[arg_index], tp_int)) {
-                    c11_sbuf__dtor(&buf);
-                    return false;
-                }
-                py_i64 val = py_toint(&args[arg_index]);
-                c11_sbuf__write_i64(&buf, val);
-                arg_index++;
-            } else if(spec == 'f') {
-                // %f -> float
-                if(arg_index >= args_count) {
-                    c11_sbuf__dtor(&buf);
-                    return TypeError("not enough arguments for format string");
-                }
-                py_f64 val;
-                if(py_istype(&args[arg_index], tp_float)) {
-                    val = py_tofloat(&args[arg_index]);
-                } else if(py_istype(&args[arg_index], tp_int)) {
-                    val = (py_f64)py_toint(&args[arg_index]);
-                } else {
-                    c11_sbuf__dtor(&buf);
-                    return TypeError("a float is required");
-                }
-                c11_sbuf__write_f64(&buf, val, 6);
-                arg_index++;
-            } else if(spec == 'r') {
-                // %r -> repr
-                if(arg_index >= args_count) {
-                    c11_sbuf__dtor(&buf);
-                    return TypeError("not enough arguments for format string");
-                }
-                if(!py_repr(&args[arg_index])) {
-                    c11_sbuf__dtor(&buf);
-                    return false;
-                }
-                c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
-                arg_index++;
-            } else {
-                c11_sbuf__dtor(&buf);
-                return ValueError("unsupported format character '%c'", spec);
-            }
-        } else {
-            c11_sbuf__write_char(&buf, *p);
+            if(!py_getitem(&argv[1], value)) PERCENT_FAIL((void)0);
+            *value = *py_retval();
+            has_value = true;
+            used_mapping = true;
+        }
+        // flags
+        char spec[64];
+        int n = 0;
+        bool left = false, zero = false, alternate = false;
+        char sign = 0;
+        while(p < p_end && strchr("-+ #0", *p)) {
+            if(*p == '-') left = true;
+            if(*p == '0') zero = true;
+            if(*p == '#') alternate = true;
+            if(*p == '+') sign = '+';
+            if(*p == ' ' && sign != '+') sign = ' ';
             p++;
         }
-    }
+        // width and precision, either of which may come from the arguments
+        int64_t width = -1, precision = -1;
+        if(p < p_end && *p == '*') {
+            p++;
+            if(used_mapping || arg_index >= args_count)
+                PERCENT_FAIL(TypeError("not enough arguments for format string"));
+            if(!py_isint(&args[arg_index])) PERCENT_FAIL(TypeError("* wants int"));
+            width = py_toint(&args[arg_index++]);
+            if(width < -INT32_MAX || width > INT32_MAX) PERCENT_FAIL(ValueError("width too big"));
+            if(width < 0) {
+                left = true;
+                width = -width;
+            }
+        } else {
+            while(p < p_end && isdigit((unsigned char)*p)) {
+                width = (width < 0 ? 0 : width) * 10 + (*p++ - '0');
+                if(width > INT32_MAX) PERCENT_FAIL(ValueError("width too big"));
+            }
+        }
+        if(p < p_end && *p == '.') {
+            p++;
+            precision = 0;
+            if(p < p_end && *p == '*') {
+                p++;
+                if(used_mapping || arg_index >= args_count)
+                    PERCENT_FAIL(TypeError("not enough arguments for format string"));
+                if(!py_isint(&args[arg_index])) PERCENT_FAIL(TypeError("* wants int"));
+                precision = py_toint(&args[arg_index++]);
+                if(precision > INT32_MAX) PERCENT_FAIL(ValueError("precision too big"));
+                if(precision < 0) precision = 0;
+            } else {
+                while(p < p_end && isdigit((unsigned char)*p)) {
+                    precision = precision * 10 + (*p++ - '0');
+                    if(precision > INT32_MAX) PERCENT_FAIL(ValueError("precision too big"));
+                }
+            }
+        }
+        while(p < p_end && strchr("hlL", *p))
+            p++;  // length modifiers are accepted and ignored
+        if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format"));
+        char type = *p++;
+        if(!has_value) PERCENT_NEXT_ARG();
 
-    if(arg_index != args_count) {
+        switch(type) {
+            case 'd':
+            case 'i':
+            case 'u':
+                type = 'd';
+                // fall through
+            case 'x':
+            case 'X':
+            case 'o':
+                if(py_isfloat(value)) {
+                    if(type != 'd') {
+                        PERCENT_FAIL(TypeError("%%%c format: an integer is required, not float",
+                                               type));
+                    }
+                    if(!py_tpcall(tp_int, 1, value)) PERCENT_FAIL((void)0);
+                    *value = *py_retval();
+                } else if(!py_isint(value) && !py_isbool(value)) {
+                    PERCENT_FAIL(TypeError("%%%c format: a real number is required, not %t",
+                                           type,
+                                           value->type));
+                }
+                break;
+            case 'e':
+            case 'E':
+            case 'f':
+            case 'F':
+            case 'g':
+            case 'G':
+                if(!py_isint(value) && !py_isfloat(value) && !py_isbool(value)) {
+                    PERCENT_FAIL(TypeError("must be real number, not %t", value->type));
+                }
+                // bool is an int subclass with its own representation
+                if(py_isbool(value)) py_newfloat(value, py_tobool(value) ? 1.0 : 0.0);
+                if(!py_isfloat(value)) py_newfloat(value, (py_f64)py_toint(value));
+                break;
+            case 'c':
+                if(py_isstr(value)) {
+                    if(c11_sv__u8_length(py_tosv(value)) != 1)
+                        PERCENT_FAIL(TypeError("%%c requires an int or a unicode character"));
+                    type = 's';
+                } else if(py_isbool(value)) {
+                    py_newint(value, py_tobool(value));
+                } else if(!py_isint(value)) {
+                    PERCENT_FAIL(TypeError("%%c requires an int or a unicode character"));
+                }
+                zero = false;
+                break;
+            case 's':
+            case 'r':
+            case 'a':
+                if(!(type == 's' ? py_str(value) : py_repr(value))) PERCENT_FAIL((void)0);
+                *value = *py_retval();
+                type = 's';
+                zero = false;
+                sign = 0;
+                alternate = false;
+                break;
+            default:
+                PERCENT_FAIL(ValueError("unsupported format character '%c' (0x%x) at index %d",
+                                        type,
+                                        (int)(unsigned char)type,
+                                        (int)(p - self->data - 1)));
+        }
+        if(type != 's' && type != 'c' && precision < 0 && strchr("eEfFgG", type)) precision = 6;
+        if(type == 's' || type == 'c') sign = 0;
+        // CPython's %x and %o take precision as a minimum digit count; it rarely appears
+        if(strchr("dxXo", type)) precision = -1;
+        // printf-style fields align right unless the `-` flag is given
+        // (zero padding goes after the sign instead)
+        if(left || !zero || type == 's') spec[n++] = left ? '<' : '>';
+        if(sign) spec[n++] = sign;
+        if(alternate) spec[n++] = '#';
+        if(zero && !left && type != 's') spec[n++] = '0';
+        if(width >= 0) n += snprintf(spec + n, sizeof(spec) - n, "%lld", (long long)width);
+        if(precision >= 0) n += snprintf(spec + n, sizeof(spec) - n, ".%lld", (long long)precision);
+        spec[n++] = type;
+        if(!pk_format_object(pk_current_vm, value, (c11_sv){spec, n})) PERCENT_FAIL((void)0);
+        c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
+    }
+#undef PERCENT_NEXT_ARG
+#undef PERCENT_FAIL
+
+    py_pop();
+    if(!used_mapping && arg_index != args_count && !is_mapping) {
         c11_sbuf__dtor(&buf);
         return TypeError("not all arguments converted during string formatting");
     }
-
     c11_sbuf__py_submit(&buf, py_retval());
     return true;
 }
@@ -8404,7 +8635,11 @@ static bool str__repr__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
     c11_sbuf buf;
     c11_sbuf__ctor(&buf);
-    c11_sbuf__write_quoted(&buf, py_tosv(&argv[0]), '\'');
+    // kipferl patch: like CPython, use double quotes for text with ' but no "
+    c11_sv text = py_tosv(&argv[0]);
+    bool has_single = memchr(text.data, '\'', text.size) != NULL;
+    bool has_double = memchr(text.data, '"', text.size) != NULL;
+    c11_sbuf__write_quoted(&buf, text, has_single && !has_double ? '"' : '\'');
     c11_sbuf__py_submit(&buf, py_retval());
     return true;
 }
@@ -8729,104 +8964,225 @@ static bool str_encode(int argc, py_Ref argv) {
     return true;
 }
 
-static bool str_format(int argc, py_Ref argv) {
-    c11_sv self = py_tosv(argv);
-    py_Ref args = argv + 1;
-    int64_t auto_field_index = -1;
-    bool manual_field_used = false;
-    const char* p_begin = self.data;
-    const char* p_end = self.data + self.size;
-    const char* p = p_begin;
-    c11_sbuf buf;
-    c11_sbuf__ctor(&buf);
-    while(p < p_end) {
-        if(*p == '{') {
-            if((p + 1) < p_end && p[1] == '{') {
-                // '{{' -> '{'
-                c11_sbuf__write_char(&buf, '{');
-                p += 2;
-            } else {
-                if((p + 1) >= p_end) {
-                    c11_sbuf__dtor(&buf);
-                    return ValueError("single '{' encountered in format string");
-                }
-                p++;
-                // parse field
-                c11_sv field = {p, 0};
-                while(p < p_end && *p != '}' && *p != ':') {
-                    p++;
-                }
-                if(p < p_end) field.size = p - field.data;
-                // parse spec
-                c11_sv spec = {p, 0};
-                if(*p == ':') {
-                    while(p < p_end && *p != '}') {
-                        p++;
-                    }
-                    if(p < p_end) spec.size = p - spec.data;
-                }
-                if(p < p_end) {
-                    c11__rtassert(*p == '}');
-                } else {
-                    c11_sbuf__dtor(&buf);
-                    return ValueError("expected '}' before end of string");
-                }
-                // parse auto field
-                int64_t arg_index;
-                if(field.size > 0) {  // {0}
-                    if(auto_field_index >= 0) {
-                        c11_sbuf__dtor(&buf);
-                        return ValueError(
-                            "cannot switch from automatic field numbering to manual field specification");
-                    }
-                    IntParsingResult res = c11__parse_uint(field, &arg_index, 10);
-                    if(res != IntParsing_SUCCESS) {
-                        c11_sbuf__dtor(&buf);
-                        return ValueError("only integer field name is supported");
-                    }
-                    manual_field_used = true;
-                } else {  // {}
-                    if(manual_field_used) {
-                        c11_sbuf__dtor(&buf);
-                        return ValueError(
-                            "cannot switch from manual field specification to automatic field numbering");
-                    }
-                    auto_field_index++;
-                    arg_index = auto_field_index;
-                }
-                // do format
-                if(arg_index < 0 || arg_index >= (argc - 1)) {
-                    c11_sbuf__dtor(&buf);
-                    return IndexError("replacement index %i out of range for positional args tuple",
-                                      arg_index);
-                }
-                bool ok = pk_format_object(pk_current_vm, &args[arg_index], spec);
-                if(!ok) {
-                    c11_sbuf__dtor(&buf);
-                    return false;
-                }
-                // append to buf
-                c11__rtassert(py_isstr(py_retval()));
-                c11_sv formatted = py_tosv(py_retval());
-                c11_sbuf__write_sv(&buf, formatted);
-                p++;  // skip '}'
+// kipferl patch: str.format fields may be named, use attributes and indexes, convert with
+// !r, !s or !a, and nest replacement fields in their format specification
+typedef struct StrFormatState {
+    py_Ref args;      // tuple
+    py_Ref mapping;   // dict, mapping or NULL
+    int auto_index;   // next automatic field number
+    bool manual;      // a field was numbered explicitly
+} StrFormatState;
+
+static bool pk_str_format_into(c11_sbuf* out, c11_sv tmpl, StrFormatState* st, int depth);
+
+static bool pk_str_format_field(c11_sbuf* out, c11_sv field, StrFormatState* st, int depth) {
+    // field: name[.attr|[key]]*[!conv][:spec]
+    const char* p = field.data;
+    const char* end = field.data + field.size;
+    const char* name_end = p;
+    while(name_end < end && !strchr(".[!:", *name_end))
+        name_end++;
+    c11_sv name = {p, (int)(name_end - p)};
+    py_StackRef value = py_pushtmp();
+    py_StackRef key = py_pushtmp();
+    bool ok = false;
+    if(name.size == 0) {
+        if(st->manual) {
+            ValueError("cannot switch from manual field specification to automatic field numbering");
+            goto __OUT;
+        }
+        if(st->auto_index >= py_tuple_len(st->args)) {
+            IndexError("Replacement index %d out of range for positional args tuple", st->auto_index);
+            goto __OUT;
+        }
+        *value = *py_tuple_getitem(st->args, st->auto_index++);
+    } else if(isdigit((unsigned char)name.data[0])) {
+        if(st->auto_index > 0) {
+            ValueError("cannot switch from automatic field numbering to manual field specification");
+            goto __OUT;
+        }
+        st->manual = true;
+        int64_t index;
+        if(c11__parse_uint(name, &index, 10) != IntParsing_SUCCESS) {
+            ValueError("invalid field name %q", name);
+            goto __OUT;
+        }
+        if(index >= py_tuple_len(st->args)) {
+            IndexError("Replacement index %d out of range for positional args tuple", (int)index);
+            goto __OUT;
+        }
+        *value = *py_tuple_getitem(st->args, (int)index);
+    } else {
+        py_newstrv(key, name);
+        if(st->mapping == NULL || !py_getitem(st->mapping, key)) {
+            if(st->mapping == NULL || py_matchexc(tp_KeyError)) {
+                py_clearexc(NULL);
+                KeyError(key);
             }
-        } else if(*p == '}') {
-            if((p + 1) < p_end && p[1] == '}') {
-                // '}}' -> '}'
-                c11_sbuf__write_char(&buf, '}');
-                p += 2;
+            goto __OUT;
+        }
+        *value = *py_retval();
+    }
+    p = name_end;
+    // attribute and index accessors
+    while(p < end && (*p == '.' || *p == '[')) {
+        if(*p == '.') {
+            const char* attr = ++p;
+            while(p < end && !strchr(".[!:", *p))
+                p++;
+            py_newstrv(key, (c11_sv){attr, (int)(p - attr)});
+            if(!py_getattr(value, py_namev(py_tosv(key)))) goto __OUT;
+        } else {
+            const char* item = ++p;
+            while(p < end && *p != ']')
+                p++;
+            if(p >= end) {
+                ValueError("Missing ']' in format string");
+                goto __OUT;
+            }
+            c11_sv text = {item, (int)(p - item)};
+            int64_t index;
+            if(text.size > 0 && c11__parse_uint(text, &index, 10) == IntParsing_SUCCESS) {
+                py_newint(key, index);
             } else {
-                c11_sbuf__dtor(&buf);
-                return ValueError("single '}' encountered in format string");
+                py_newstrv(key, text);
+            }
+            p++;
+            if(!py_getitem(value, key)) goto __OUT;
+        }
+        *value = *py_retval();
+    }
+    // conversion
+    if(p < end && *p == '!') {
+        if(p + 1 >= end || !strchr("rsa", p[1])) {
+            if(p + 1 < end) {
+                ValueError("Unknown conversion specifier %c", p[1]);
+            } else {
+                ValueError("end of string while looking for conversion specifier");
+            }
+            goto __OUT;
+        }
+        if(!(p[1] == 's' ? py_str(value) : py_repr(value))) goto __OUT;
+        *value = *py_retval();
+        p += 2;
+    }
+    c11_sv spec = {"", 0};
+    c11_sbuf nested;
+    c11_sbuf__ctor(&nested);
+    if(p < end) {
+        if(*p != ':') {
+            c11_sbuf__dtor(&nested);
+            ValueError("expected ':' after conversion specifier");
+            goto __OUT;
+        }
+        p++;
+        spec = (c11_sv){p, (int)(end - p)};
+        if(memchr(spec.data, '{', spec.size)) {
+            if(depth >= 1) {
+                c11_sbuf__dtor(&nested);
+                ValueError("Max string recursion exceeded");
+                goto __OUT;
+            }
+            if(!pk_str_format_into(&nested, spec, st, depth + 1)) {
+                c11_sbuf__dtor(&nested);
+                goto __OUT;
             }
         } else {
-            c11_sbuf__write_char(&buf, *p);
-            p++;
+            c11_sbuf__write_sv(&nested, spec);
         }
+    }
+    c11_string* resolved = c11_sbuf__submit(&nested);
+    ok = pk_format_object(pk_current_vm, value, c11_string__sv(resolved));
+    c11_string__delete(resolved);
+    if(ok) c11_sbuf__write_sv(out, py_tosv(py_retval()));
+__OUT:
+    py_shrink(2);
+    return ok;
+}
+
+static bool pk_str_format_into(c11_sbuf* out, c11_sv tmpl, StrFormatState* st, int depth) {
+    const char* p = tmpl.data;
+    const char* end = tmpl.data + tmpl.size;
+    while(p < end) {
+        if(*p == '{') {
+            if(p + 1 < end && p[1] == '{') {
+                c11_sbuf__write_char(out, '{');
+                p += 2;
+                continue;
+            }
+            // the field ends at the matching brace; its spec may nest one level
+            const char* begin = ++p;
+            if(begin == end) return ValueError("Single '{' encountered in format string");
+            int level = 1;
+            bool in_name = true;
+            while(p < end) {
+                if(in_name && *p == '[') {
+                    // an item key may contain braces: "{0[}]}"
+                    while(p < end && *p != ']')
+                        p++;
+                    if(p >= end) break;
+                } else if(in_name && (*p == '!' || *p == ':')) {
+                    in_name = false;
+                } else if(*p == '{') {
+                    level++;
+                } else if(*p == '}' && --level == 0) {
+                    break;
+                }
+                p++;
+            }
+            if(p >= end) return ValueError("expected '}' before end of string");
+            if(!pk_str_format_field(out, (c11_sv){begin, (int)(p - begin)}, st, depth)) {
+                return false;
+            }
+            p++;
+        } else if(*p == '}') {
+            if(p + 1 < end && p[1] == '}') {
+                c11_sbuf__write_char(out, '}');
+                p += 2;
+                continue;
+            }
+            return ValueError("Single '}' encountered in format string");
+        } else {
+            c11_sbuf__write_char(out, *p++);
+        }
+    }
+    return true;
+}
+
+static bool str_format(int argc, py_Ref argv) {
+    // format(self, *args, **kwargs)
+    StrFormatState st = {py_arg(1), py_arg(2), 0, false};
+    c11_sbuf buf;
+    c11_sbuf__ctor(&buf);
+    if(!pk_str_format_into(&buf, py_tosv(argv), &st, 0)) {
+        c11_sbuf__dtor(&buf);
+        return false;
     }
     c11_sbuf__py_submit(&buf, py_retval());
     return true;
+}
+
+static bool str_format_map(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    py_StackRef empty = py_pushtmp();
+    py_newtuple(empty, 0);
+    StrFormatState st = {empty, py_arg(1), 0, false};
+    c11_sbuf buf;
+    c11_sbuf__ctor(&buf);
+    bool ok = pk_str_format_into(&buf, py_tosv(argv), &st, 0);
+    py_pop();
+    if(!ok) {
+        c11_sbuf__dtor(&buf);
+        return false;
+    }
+    c11_sbuf__py_submit(&buf, py_retval());
+    return true;
+}
+
+// kipferl patch: keyword signatures need the compiler, so bind them once the VM is ready
+void pk_str__bind_signatures() {
+    py_bind(py_tpobject(tp_str), "format(self, *args, **kwargs)", str_format);
+    py_bindmethod(tp_str, "format_map", str_format_map);
 }
 
 py_Type pk_str__register() {
@@ -8871,7 +9227,6 @@ py_Type pk_str__register() {
     py_bindmethod(tp_str, "find", str_find);
     py_bindmethod(tp_str, "index", str_index);
     py_bindmethod(tp_str, "encode", str_encode);
-    py_bindmethod(tp_str, "format", str_format);
     return type;
 }
 
@@ -11916,6 +12271,8 @@ unsigned char* c11_memdup(const unsigned char* src, int size) {
     return dst;
 }
 
+// kipferl patch: detect overflow from the value, not the digit count, so leading zeros parse
+// and 9223372036854775808 overflows instead of wrapping
 IntParsingResult c11__parse_uint(c11_sv text, int64_t* out, int base) {
     *out = 0;
 
@@ -11930,81 +12287,33 @@ IntParsingResult c11__parse_uint(c11_sv text, int64_t* out, int base) {
         else
             base = 10;
     }
+    if(base == 2 && c11__sveq2(prefix, "0b")) text = (c11_sv){text.data + 2, text.size - 2};
+    if(base == 8 && c11__sveq2(prefix, "0o")) text = (c11_sv){text.data + 2, text.size - 2};
+    if(base == 16 && c11__sveq2(prefix, "0x")) text = (c11_sv){text.data + 2, text.size - 2};
+    if(base != 2 && base != 8 && base != 10 && base != 16) return IntParsing_FAILURE;
+    if(text.size == 0) return IntParsing_FAILURE;
 
-    if(base == 10) {
-        // 10-base  12334
-        if(text.size == 0) return IntParsing_FAILURE;
-        for(int i = 0; i < text.size; i++) {
-            char c = text.data[i];
-            if(c >= '0' && c <= '9') {
-                *out = (*out * 10) + (c - '0');
-            } else {
-                return IntParsing_FAILURE;
-            }
+    uint64_t value = 0;
+    bool overflow = false;
+    for(int i = 0; i < text.size; i++) {
+        char c = text.data[i];
+        int digit;
+        if(c >= '0' && c <= '9') {
+            digit = c - '0';
+        } else if(c >= 'a' && c <= 'f') {
+            digit = c - 'a' + 10;
+        } else if(c >= 'A' && c <= 'F') {
+            digit = c - 'A' + 10;
+        } else {
+            return IntParsing_FAILURE;
         }
-        // "9223372036854775807".__len__() == 19
-        if(text.size > 19) return IntParsing_OVERFLOW;
-        return IntParsing_SUCCESS;
-    } else if(base == 2) {
-        // 2-base   0b101010
-        if(c11__sveq2(prefix, "0b")) {
-            // text.remove_prefix(2);
-            text = (c11_sv){text.data + 2, text.size - 2};
-        }
-        if(text.size == 0) return IntParsing_FAILURE;
-        for(int i = 0; i < text.size; i++) {
-            char c = text.data[i];
-            if(c == '0' || c == '1') {
-                *out = (*out << 1) | (c - '0');
-            } else {
-                return IntParsing_FAILURE;
-            }
-        }
-        // "111111111111111111111111111111111111111111111111111111111111111".__len__() == 63
-        if(text.size > 63) return IntParsing_OVERFLOW;
-        return IntParsing_SUCCESS;
-    } else if(base == 8) {
-        // 8-base   0o123
-        if(c11__sveq2(prefix, "0o")) {
-            // text.remove_prefix(2);
-            text = (c11_sv){text.data + 2, text.size - 2};
-        }
-        if(text.size == 0) return IntParsing_FAILURE;
-        for(int i = 0; i < text.size; i++) {
-            char c = text.data[i];
-            if(c >= '0' && c <= '7') {
-                *out = (*out << 3) | (c - '0');
-            } else {
-                return IntParsing_FAILURE;
-            }
-        }
-        // "777777777777777777777".__len__() == 21
-        if(text.size > 21) return IntParsing_OVERFLOW;
-        return IntParsing_SUCCESS;
-    } else if(base == 16) {
-        // 16-base  0x123
-        if(c11__sveq2(prefix, "0x")) {
-            // text.remove_prefix(2);
-            text = (c11_sv){text.data + 2, text.size - 2};
-        }
-        if(text.size == 0) return IntParsing_FAILURE;
-        for(int i = 0; i < text.size; i++) {
-            char c = text.data[i];
-            if(c >= '0' && c <= '9') {
-                *out = (*out << 4) | (c - '0');
-            } else if(c >= 'a' && c <= 'f') {
-                *out = (*out << 4) | (c - 'a' + 10);
-            } else if(c >= 'A' && c <= 'F') {
-                *out = (*out << 4) | (c - 'A' + 10);
-            } else {
-                return IntParsing_FAILURE;
-            }
-        }
-        // "7fffffffffffffff".__len__() == 16
-        if(text.size > 16) return IntParsing_OVERFLOW;
-        return IntParsing_SUCCESS;
+        if(digit >= base) return IntParsing_FAILURE;
+        if(value > ((uint64_t)INT64_MAX - (uint64_t)digit) / (uint64_t)base) overflow = true;
+        value = value * (uint64_t)base + (uint64_t)digit;
     }
-    return IntParsing_FAILURE;
+    if(overflow) return IntParsing_OVERFLOW;
+    *out = (int64_t)value;
+    return IntParsing_SUCCESS;
 }
 
 const char* c11__search_u32_ranges(int c, const c11_u32_range* p, int n_ranges) {
@@ -12849,8 +13158,14 @@ void c11_vector__extend(c11_vector* self, const void* p, int size) {
     if(size > INT32_MAX - self->length) c11__abort("c11_vector__extend(): too many elements");
     int min_capacity = self->length + size;
     if(self->capacity < min_capacity) {
+        // kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it
+        uintptr_t begin = (uintptr_t)self->data;
+        uintptr_t end = begin + (size_t)self->length * (size_t)self->elem_size;
+        bool aliased = begin != 0 && (uintptr_t)p >= begin && (uintptr_t)p < end;
+        size_t offset = aliased ? (uintptr_t)p - begin : 0;
         int nextcap = c11_vector__nextcap(self);
         c11_vector__reserve((self), c11__max(nextcap, min_capacity));
+        if(aliased) p = (char*)self->data + offset;
     }
     void* dst = (char*)self->data + (size_t)self->length * (size_t)self->elem_size;
     memcpy(dst, p, (size_t)size * (size_t)self->elem_size);
@@ -12868,7 +13183,7 @@ const char kPythonLibs_dataclasses[] = "def _get_annotations(cls: type):\n    in
 const char kPythonLibs_datetime[] = "from time import localtime\nimport operator\n\nclass timedelta:\n    def __init__(self, days=0, seconds=0):\n        self.days = days\n        self.seconds = seconds\n\n    def __repr__(self):\n        return f\"datetime.timedelta(days={self.days}, seconds={self.seconds})\"\n\n    def __eq__(self, other) -> bool:\n        if not isinstance(other, timedelta):\n            return NotImplemented\n        return (self.days, self.seconds) == (other.days, other.seconds)\n\n    def __ne__(self, other) -> bool:\n        if not isinstance(other, timedelta):\n            return NotImplemented\n        return (self.days, self.seconds) != (other.days, other.seconds)\n\n\nclass date:\n    def __init__(self, year: int, month: int, day: int):\n        self.year = year\n        self.month = month\n        self.day = day\n\n    @staticmethod\n    def today():\n        t = localtime()\n        return date(t.tm_year, t.tm_mon, t.tm_mday)\n    \n    def __cmp(self, other, op):\n        if not isinstance(other, date):\n            return NotImplemented\n        if self.year != other.year:\n            return op(self.year, other.year)\n        if self.month != other.month:\n            return op(self.month, other.month)\n        return op(self.day, other.day)\n\n    def __eq__(self, other) -> bool:\n        return self.__cmp(other, operator.eq)\n    \n    def __ne__(self, other) -> bool:\n        return self.__cmp(other, operator.ne)\n\n    def __lt__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.lt)\n\n    def __le__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.le)\n\n    def __gt__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.gt)\n\n    def __ge__(self, other: 'date') -> bool:\n        return self.__cmp(other, operator.ge)\n\n    def __str__(self):\n        return f\"{self.year}-{self.month:02}-{self.day:02}\"\n\n    def __repr__(self):\n        return f\"datetime.date({self.year}, {self.month}, {self.day})\"\n\n\nclass datetime(date):\n    def __init__(self, year: int, month: int, day: int, hour: int, minute: int, second: int):\n        super().__init__(year, month, day)\n        # Validate and set hour, minute, and second\n        if not 0 <= hour <= 23:\n            raise ValueError(\"Hour must be between 0 and 23\")\n        self.hour = hour\n        if not 0 <= minute <= 59:\n            raise ValueError(\"Minute must be between 0 and 59\")\n        self.minute = minute\n        if not 0 <= second <= 59:\n            raise ValueError(\"Second must be between 0 and 59\")\n        self.second = second\n\n    def date(self) -> date:\n        return date(self.year, self.month, self.day)\n\n    @staticmethod\n    def now():\n        t = localtime()\n        tm_sec = t.tm_sec\n        if tm_sec == 60:\n            tm_sec = 59\n        return datetime(t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, tm_sec)\n\n    def __str__(self):\n        return f\"{self.year}-{self.month:02}-{self.day:02} {self.hour:02}:{self.minute:02}:{self.second:02}\"\n\n    def __repr__(self):\n        return f\"datetime.datetime({self.year}, {self.month}, {self.day}, {self.hour}, {self.minute}, {self.second})\"\n\n    def __cmp(self, other, op):\n        if not isinstance(other, datetime):\n            return NotImplemented\n        if self.year != other.year:\n            return op(self.year, other.year)\n        if self.month != other.month:\n            return op(self.month, other.month)\n        if self.day != other.day:\n            return op(self.day, other.day)\n        if self.hour != other.hour:\n            return op(self.hour, other.hour)\n        if self.minute != other.minute:\n            return op(self.minute, other.minute)\n        return op(self.second, other.second)\n\n    def __eq__(self, other) -> bool:\n        return self.__cmp(other, operator.eq)\n    \n    def __ne__(self, other) -> bool:\n        return self.__cmp(other, operator.ne)\n    \n    def __lt__(self, other) -> bool:\n        return self.__cmp(other, operator.lt)\n    \n    def __le__(self, other) -> bool:\n        return self.__cmp(other, operator.le)\n    \n    def __gt__(self, other) -> bool:\n        return self.__cmp(other, operator.gt)\n    \n    def __ge__(self, other) -> bool:\n        return self.__cmp(other, operator.ge)\n\n\n";
 const char kPythonLibs_functools[] = "class cache:\n    def __init__(self, f):\n        self.f = f\n        self.cache = {}\n\n    def __call__(self, *args):\n        if args not in self.cache:\n            self.cache[args] = self.f(*args)\n        return self.cache[args]\n    \nclass lru_cache:\n    def __init__(self, maxsize=128):\n        self.maxsize = maxsize\n        self.cache = {}\n\n    def __call__(self, f):\n        def wrapped(*args):\n            if args in self.cache:\n                res = self.cache.pop(args)\n                self.cache[args] = res\n                return res\n            \n            res = f(*args)\n            if len(self.cache) >= self.maxsize:\n                first_key = next(iter(self.cache))\n                self.cache.pop(first_key)\n            self.cache[args] = res\n            return res\n        return wrapped\n    \ndef reduce(function, sequence, initial=...):\n    it = iter(sequence)\n    if initial is ...:\n        try:\n            value = next(it)\n        except StopIteration:\n            raise TypeError(\"reduce() of empty sequence with no initial value\")\n    else:\n        value = initial\n    for element in it:\n        value = function(value, element)\n    return value\n\nclass partial:\n    def __init__(self, f, *args, **kwargs):\n        self.f = f\n        if not callable(f):\n            raise TypeError(\"the first argument must be callable\")\n        self.args = args\n        self.kwargs = kwargs\n\n    def __call__(self, *args, **kwargs):\n        kwargs.update(self.kwargs)\n        return self.f(*self.args, *args, **kwargs)\n\n";
 const char kPythonLibs_heapq[] = "# Heap queue algorithm (a.k.a. priority queue)\ndef heappush(heap, item):\n    \"\"\"Push item onto heap, maintaining the heap invariant.\"\"\"\n    heap.append(item)\n    _siftdown(heap, 0, len(heap)-1)\n\ndef heappop(heap):\n    \"\"\"Pop the smallest item off the heap, maintaining the heap invariant.\"\"\"\n    lastelt = heap.pop()    # raises appropriate IndexError if heap is empty\n    if heap:\n        returnitem = heap[0]\n        heap[0] = lastelt\n        _siftup(heap, 0)\n        return returnitem\n    return lastelt\n\ndef heapreplace(heap, item):\n    \"\"\"Pop and return the current smallest value, and add the new item.\n\n    This is more efficient than heappop() followed by heappush(), and can be\n    more appropriate when using a fixed-size heap.  Note that the value\n    returned may be larger than item!  That constrains reasonable uses of\n    this routine unless written as part of a conditional replacement:\n\n        if item > heap[0]:\n            item = heapreplace(heap, item)\n    \"\"\"\n    returnitem = heap[0]    # raises appropriate IndexError if heap is empty\n    heap[0] = item\n    _siftup(heap, 0)\n    return returnitem\n\ndef heappushpop(heap, item):\n    \"\"\"Fast version of a heappush followed by a heappop.\"\"\"\n    if heap and heap[0] < item:\n        item, heap[0] = heap[0], item\n        _siftup(heap, 0)\n    return item\n\ndef heapify(x):\n    \"\"\"Transform list into a heap, in-place, in O(len(x)) time.\"\"\"\n    n = len(x)\n    # Transform bottom-up.  The largest index there's any point to looking at\n    # is the largest with a child index in-range, so must have 2*i + 1 < n,\n    # or i < (n-1)/2.  If n is even = 2*j, this is (2*j-1)/2 = j-1/2 so\n    # j-1 is the largest, which is n//2 - 1.  If n is odd = 2*j+1, this is\n    # (2*j+1-1)/2 = j so j-1 is the largest, and that's again n//2-1.\n    for i in reversed(range(n//2)):\n        _siftup(x, i)\n\n# 'heap' is a heap at all indices >= startpos, except possibly for pos.  pos\n# is the index of a leaf with a possibly out-of-order value.  Restore the\n# heap invariant.\ndef _siftdown(heap, startpos, pos):\n    newitem = heap[pos]\n    # Follow the path to the root, moving parents down until finding a place\n    # newitem fits.\n    while pos > startpos:\n        parentpos = (pos - 1) >> 1\n        parent = heap[parentpos]\n        if newitem < parent:\n            heap[pos] = parent\n            pos = parentpos\n            continue\n        break\n    heap[pos] = newitem\n\ndef _siftup(heap, pos):\n    endpos = len(heap)\n    startpos = pos\n    newitem = heap[pos]\n    # Bubble up the smaller child until hitting a leaf.\n    childpos = 2*pos + 1    # leftmost child position\n    while childpos < endpos:\n        # Set childpos to index of smaller child.\n        rightpos = childpos + 1\n        if rightpos < endpos and not heap[childpos] < heap[rightpos]:\n            childpos = rightpos\n        # Move the smaller child up.\n        heap[pos] = heap[childpos]\n        pos = childpos\n        childpos = 2*pos + 1\n    # The leaf at pos is empty now.  Put newitem there, and bubble it up\n    # to its final resting place (by sifting its parents down).\n    heap[pos] = newitem\n    _siftdown(heap, startpos, pos)";
-const char kPythonLibs_inspect[] = "class _empty:\n    pass\n\n\nclass Parameter:\n    POSITIONAL_ONLY = 0\n    POSITIONAL_OR_KEYWORD = 1\n    VAR_POSITIONAL = 2\n    KEYWORD_ONLY = 3\n    VAR_KEYWORD = 4\n\n    empty = _empty\n\n    def __init__(self, name, kind, *default):\n        self.name = name\n        self.kind = kind\n        # pocketpy only allows literal defaults, so use *default as sentinel\n        self.default = default[0] if default else _empty\n\n    def __str__(self):\n        res = self.name\n        if self.default is not _empty:\n            res += '=' + repr(self.default)\n        if self.kind == Parameter.VAR_POSITIONAL:\n            res = '*' + res\n        elif self.kind == Parameter.VAR_KEYWORD:\n            res = '**' + res\n        return res\n\n    def __repr__(self):\n        return '<Parameter \"' + str(self) + '\">'\n\n\nclass Signature:\n    empty = _empty\n\n    def __init__(self, parameters):\n        self.parameters = {p.name: p for p in parameters}\n\n    def __str__(self):\n        return '(' + ', '.join([str(p) for p in self.parameters.values()]) + ')'\n\n    def __repr__(self):\n        return '<Signature ' + str(self) + '>'\n\n\ndef _make_params(func):\n    return [Parameter(*entry) for entry in _signature_data(func)]\n\n\ndef signature(obj):\n    if not callable(obj):\n        raise TypeError(repr(obj) + ' is not a callable object')\n    if isinstance(obj, type):\n        return Signature(_make_params(obj.__init__)[1:])\n    if hasattr(obj, '__func__'):\n        return Signature(_make_params(obj.__func__)[1:])\n    return Signature(_make_params(obj))\n";
+const char kPythonLibs_inspect[] = "class _empty:\n    pass\n\n\nclass Parameter:\n    POSITIONAL_ONLY = 0\n    POSITIONAL_OR_KEYWORD = 1\n    VAR_POSITIONAL = 2\n    KEYWORD_ONLY = 3\n    VAR_KEYWORD = 4\n\n    empty = _empty\n\n    def __init__(self, name, kind, *default):\n        self.name = name\n        self.kind = kind\n        # pocketpy only allows literal defaults, so use *default as sentinel\n        self.default = default[0] if default else _empty\n\n    def __str__(self):\n        res = self.name\n        if self.default is not _empty:\n            res += '=' + repr(self.default)\n        if self.kind == Parameter.VAR_POSITIONAL:\n            res = '*' + res\n        elif self.kind == Parameter.VAR_KEYWORD:\n            res = '**' + res\n        return res\n\n    def __repr__(self):\n        return '<Parameter \"' + str(self) + '\">'\n\n\nclass Signature:\n    empty = _empty\n\n    def __init__(self, parameters):\n        self.parameters = {p.name: p for p in parameters}\n\n    def __str__(self):\n        # kipferl patch: mark positional-only and keyword-only parameters\n        parts = []\n        open_positional_only = False\n        need_star = True\n        for p in self.parameters.values():\n            if p.kind == Parameter.POSITIONAL_ONLY:\n                open_positional_only = True\n            elif open_positional_only:\n                parts.append('/')\n                open_positional_only = False\n            if p.kind == Parameter.KEYWORD_ONLY and need_star:\n                parts.append('*')\n            if p.kind in (Parameter.VAR_POSITIONAL, Parameter.KEYWORD_ONLY):\n                need_star = False\n            parts.append(str(p))\n        if open_positional_only:\n            parts.append('/')\n        return '(' + ', '.join(parts) + ')'\n\n    def __repr__(self):\n        return '<Signature ' + str(self) + '>'\n\n\ndef _make_params(func):\n    return [Parameter(*entry) for entry in _signature_data(func)]\n\n\ndef signature(obj):\n    if not callable(obj):\n        raise TypeError(repr(obj) + ' is not a callable object')\n    if isinstance(obj, type):\n        return Signature(_make_params(obj.__init__)[1:])\n    if hasattr(obj, '__func__'):\n        return Signature(_make_params(obj.__func__)[1:])\n    return Signature(_make_params(obj))\n";
 const char kPythonLibs_long_v1[] = "# after v1.2.2, int is always 64-bit\nPyLong_SHIFT = 60//2 - 1\n\nPyLong_BASE = 2 ** PyLong_SHIFT\nPyLong_MASK = PyLong_BASE - 1\nPyLong_DECIMAL_SHIFT = 4\nPyLong_DECIMAL_BASE = 10 ** PyLong_DECIMAL_SHIFT\n\n##############################################################\n\ndef ulong_fromint(x: int):\n    # return a list of digits and sign\n    if x == 0: return [0], 1\n    sign = 1 if x > 0 else -1\n    if sign < 0: x = -x\n    res = []\n    while x:\n        res.append(x & PyLong_MASK)\n        x >>= PyLong_SHIFT\n    return res, sign\n\ndef ulong_cmp(a: list, b: list) -> int:\n    # return 1 if a>b, -1 if a<b, 0 if a==b\n    if len(a) > len(b): return 1\n    if len(a) < len(b): return -1\n    for i in range(len(a)-1, -1, -1):\n        if a[i] > b[i]: return 1\n        if a[i] < b[i]: return -1\n    return 0\n\ndef ulong_pad_(a: list, size: int):\n    # pad leading zeros to have `size` digits\n    delta = size - len(a)\n    if delta > 0:\n        a.extend([0] * delta)\n\ndef ulong_unpad_(a: list):\n    # remove leading zeros\n    while len(a)>1 and a[-1]==0:\n        a.pop()\n\ndef ulong_add(a: list, b: list) -> list:\n    res = [0] * max(len(a), len(b))\n    ulong_pad_(a, len(res))\n    ulong_pad_(b, len(res))\n    carry = 0\n    for i in range(len(res)):\n        carry += a[i] + b[i]\n        res[i] = carry & PyLong_MASK\n        carry >>= PyLong_SHIFT\n    if carry > 0:\n        res.append(carry)\n    return res\n\ndef ulong_inc_(a: list):\n    a[0] += 1\n    for i in range(len(a)):\n        if a[i] < PyLong_BASE: break\n        a[i] -= PyLong_BASE\n        if i+1 == len(a):\n            a.append(1)\n        else:\n            a[i+1] += 1\n    \n\ndef ulong_sub(a: list, b: list) -> list:\n    # a >= b\n    res = []\n    borrow = 0\n    for i in range(len(b)):\n        tmp = a[i] - b[i] - borrow\n        if tmp < 0:\n            tmp += PyLong_BASE\n            borrow = 1\n        else:\n            borrow = 0\n        res.append(tmp)\n    for i in range(len(b), len(a)):\n        tmp = a[i] - borrow\n        if tmp < 0:\n            tmp += PyLong_BASE\n            borrow = 1\n        else:\n            borrow = 0\n        res.append(tmp)\n    ulong_unpad_(res)\n    return res\n\ndef ulong_divmodi(a: list, b: int):\n    # b > 0\n    res = []\n    carry = 0\n    for i in range(len(a)-1, -1, -1):\n        carry <<= PyLong_SHIFT\n        carry += a[i]\n        res.append(carry // b)\n        carry %= b\n    res.reverse()\n    ulong_unpad_(res)\n    return res, carry\n\n\ndef ulong_divmod(a: list, b: list):\n\n    if ulong_cmp(a, b) < 0:\n        return [0], a\n\n    if len(b) == 1:\n        q, r = ulong_divmodi(a, b[0])\n        r, _ = ulong_fromint(r)\n        return q, r\n\n    max = (len(a) - len(b)) * PyLong_SHIFT + \x5c\n        (a[-1].bit_length() - b[-1].bit_length())\n\n    low = [0]\n\n    high = (max // PyLong_SHIFT) * [0] + \x5c\n        [(2**(max % PyLong_SHIFT)) & PyLong_MASK]\n\n    while ulong_cmp(low, high) < 0:\n        ulong_inc_(high)\n        mid, r = ulong_divmodi(ulong_add(low, high), 2)\n        if ulong_cmp(a, ulong_mul(b, mid)) >= 0:\n            low = mid\n        else:\n            high = ulong_sub(mid, [1])\n\n    q = [0] * (len(a) - len(b) + 1)\n    while ulong_cmp(a, ulong_mul(b, low)) >= 0:\n        q = ulong_add(q, low)\n        a = ulong_sub(a, ulong_mul(b, low))\n    ulong_unpad_(q)\n    return q, a\n\ndef ulong_floordivi(a: list, b: int):\n    # b > 0\n    return ulong_divmodi(a, b)[0]\n\ndef ulong_muli(a: list, b: int):\n    # b >= 0\n    res = [0] * len(a)\n    carry = 0\n    for i in range(len(a)):\n        carry += a[i] * b\n        res[i] = carry & PyLong_MASK\n        carry >>= PyLong_SHIFT\n    if carry > 0:\n        res.append(carry)\n    return res\n\ndef ulong_mul(a: list, b: list):\n    N = len(a) + len(b)\n    # use grade-school multiplication\n    res = [0] * N\n    for i in range(len(a)):\n        carry = 0\n        for j in range(len(b)):\n            carry += res[i+j] + a[i] * b[j]\n            res[i+j] = carry & PyLong_MASK\n            carry >>= PyLong_SHIFT\n        res[i+len(b)] = carry\n    ulong_unpad_(res)\n    return res\n\ndef ulong_powi(a: list, b: int):\n    # b >= 0\n    if b == 0: return [1]\n    res = [1]\n    while b:\n        if b & 1:\n            res = ulong_mul(res, a)\n        a = ulong_mul(a, a)\n        b >>= 1\n    return res\n\ndef ulong_repr(x: list) -> str:\n    res = []\n    while len(x)>1 or x[0]>0:   # non-zero\n        x, r = ulong_divmodi(x, PyLong_DECIMAL_BASE)\n        res.append(str(r).zfill(PyLong_DECIMAL_SHIFT))\n    res.reverse()\n    s = ''.join(res)\n    if len(s) == 0: return '0'\n    if len(s) > 1: s = s.lstrip('0')\n    return s\n\ndef ulong_fromstr(s: str):\n    if s[-1] == 'L':\n        s = s[:-1]\n    res, base = [0], [1]\n    if s[0] == '-':\n        sign = -1\n        s = s[1:]\n    else:\n        sign = 1\n    s = s[::-1]\n    for c in s:\n        c = ord(c) - 48\n        assert 0 <= c <= 9\n        res = ulong_add(res, ulong_muli(base, c))\n        base = ulong_muli(base, 10)\n    return res, sign\n\nclass long:\n    def __init__(self, x):\n        if type(x) is tuple:\n            self.digits, self.sign = x\n        elif type(x) is int:\n            self.digits, self.sign = ulong_fromint(x)\n        elif type(x) is float:\n            self.digits, self.sign = ulong_fromint(int(x))\n        elif type(x) is str:\n            self.digits, self.sign = ulong_fromstr(x)\n        elif type(x) is long:\n            self.digits, self.sign = x.digits.copy(), x.sign\n        else:\n            raise TypeError('expected int or str')\n        \n    def __len__(self):\n        return len(self.digits)\n\n    def __add__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        if self.sign == other.sign:\n            return long((ulong_add(self.digits, other.digits), self.sign))\n        else:\n            cmp = ulong_cmp(self.digits, other.digits)\n            if cmp == 0:\n                return long(0)\n            if cmp > 0:\n                return long((ulong_sub(self.digits, other.digits), self.sign))\n            else:\n                return long((ulong_sub(other.digits, self.digits), other.sign))\n            \n    def __radd__(self, other):\n        return self.__add__(other)\n    \n    def __sub__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        if self.sign != other.sign:\n            return long((ulong_add(self.digits, other.digits), self.sign))\n        cmp = ulong_cmp(self.digits, other.digits)\n        if cmp == 0:\n            return long(0)\n        if cmp > 0:\n            return long((ulong_sub(self.digits, other.digits), self.sign))\n        else:\n            return long((ulong_sub(other.digits, self.digits), -other.sign))\n            \n    def __rsub__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        return other.__sub__(self)\n    \n    def __mul__(self, other):\n        if type(other) is int:\n            return long((\n                ulong_muli(self.digits, abs(other)),\n                self.sign * (1 if other >= 0 else -1)\n            ))\n        elif type(other) is long:\n            return long((\n                ulong_mul(self.digits, other.digits),\n                self.sign * other.sign\n            ))\n        return NotImplemented\n    \n    def __rmul__(self, other):\n        return self.__mul__(other)\n    \n    #######################################################\n    def __divmod__(self, other):\n        if type(other) is int:\n            assert self.sign == 1 and other > 0\n            q, r = ulong_divmodi(self.digits, other)\n            return long((q, 1)), r\n        if type(other) is long:\n            assert self.sign == 1 and other.sign == 1\n            q, r = ulong_divmod(self.digits, other.digits)\n            assert len(other)>1 or other.digits[0]>0\n            return long((q, 1)), long((r, 1))\n        raise NotImplementedError\n\n    def __floordiv__(self, other):\n        return self.__divmod__(other)[0]\n\n    def __mod__(self, other):\n        return self.__divmod__(other)[1]\n\n    def __pow__(self, other: int):\n        assert type(other) is int and other >= 0\n        if self.sign == -1 and other & 1:\n            sign = -1\n        else:\n            sign = 1\n        return long((ulong_powi(self.digits, other), sign))\n    \n    def __lshift__(self, other: int):\n        assert type(other) is int and other >= 0\n        x = self.digits.copy()\n        q, r = divmod(other, PyLong_SHIFT)\n        x = [0]*q + x\n        for _ in range(r): x = ulong_muli(x, 2)\n        return long((x, self.sign))\n    \n    def __rshift__(self, other: int):\n        assert type(other) is int and other >= 0\n        x = self.digits.copy()\n        q, r = divmod(other, PyLong_SHIFT)\n        x = x[q:]\n        if not x: return long(0)\n        for _ in range(r): x = ulong_floordivi(x, 2)\n        return long((x, self.sign))\n    \n    def __neg__(self):\n        return long((self.digits, -self.sign))\n    \n    def __cmp__(self, other):\n        if type(other) is int:\n            other = long(other)\n        elif type(other) is not long:\n            return NotImplemented\n        if self.sign > other.sign:\n            return 1\n        elif self.sign < other.sign:\n            return -1\n        else:\n            return ulong_cmp(self.digits, other.digits)\n        \n    def __eq__(self, other):\n        return self.__cmp__(other) == 0\n    def __ne__(self, other):\n        return self.__cmp__(other) != 0\n    def __lt__(self, other):\n        return self.__cmp__(other) < 0\n    def __le__(self, other):\n        return self.__cmp__(other) <= 0\n    def __gt__(self, other):\n        return self.__cmp__(other) > 0\n    def __ge__(self, other):\n        return self.__cmp__(other) >= 0\n            \n    def __repr__(self):\n        prefix = '-' if self.sign < 0 else ''\n        return prefix + ulong_repr(self.digits) + 'L'";
 const char kPythonLibs_operator[] = "# https://docs.python.org/3/library/operator.html#mapping-operators-to-functions\n\ndef le(a, b): return a <= b\ndef lt(a, b): return a < b\ndef ge(a, b): return a >= b\ndef gt(a, b): return a > b\ndef eq(a, b): return a == b\ndef ne(a, b): return a != b\n\ndef and_(a, b): return a & b\ndef or_(a, b): return a | b\ndef xor(a, b): return a ^ b\ndef invert(a): return ~a\ndef lshift(a, b): return a << b\ndef rshift(a, b): return a >> b\n\ndef is_(a, b): return a is b\ndef is_not(a, b): return a is not b\ndef not_(a): return not a\ndef truth(a): return bool(a)\ndef contains(a, b): return b in a\n\ndef add(a, b): return a + b\ndef sub(a, b): return a - b\ndef mul(a, b): return a * b\ndef truediv(a, b): return a / b\ndef floordiv(a, b): return a // b\ndef mod(a, b): return a % b\ndef pow(a, b): return a ** b\ndef neg(a): return -a\ndef matmul(a, b): return a @ b\n\ndef getitem(a, b): return a[b]\ndef setitem(a, b, c): a[b] = c\ndef delitem(a, b): del a[b]\n\ndef iadd(a, b): a += b; return a\ndef isub(a, b): a -= b; return a\ndef imul(a, b): a *= b; return a\ndef itruediv(a, b): a /= b; return a\ndef ifloordiv(a, b): a //= b; return a\ndef imod(a, b): a %= b; return a\n# def ipow(a, b): a **= b; return a\n# def imatmul(a, b): a @= b; return a\ndef iand(a, b): a &= b; return a\ndef ior(a, b): a |= b; return a\ndef ixor(a, b): a ^= b; return a\ndef ilshift(a, b): a <<= b; return a\ndef irshift(a, b): a >>= b; return a\n\nclass attrgetter:\n    def __init__(self, attr):\n        self.attr = attr\n    def __call__(self, obj):\n        return getattr(obj, self.attr)\n\nclass itemgetter:\n    def __init__(self, item):\n        self.item = item\n    def __call__(self, obj):\n        return obj[self.item]\n";
 const char kPythonLibs_typing[] = "class _Placeholder:\n    def __init__(self, *args, **kwargs):\n        pass\n    def __getitem__(self, *args):\n        return self\n    def __call__(self, *args, **kwargs):\n        return self\n    def __and__(self, other):\n        return self\n    def __or__(self, other):\n        return self\n    def __xor__(self, other):\n        return self\n\n\n_PLACEHOLDER = _Placeholder()\n\nSequence = _PLACEHOLDER\nList = _PLACEHOLDER\nDict = _PLACEHOLDER\nTuple = _PLACEHOLDER\nSet = _PLACEHOLDER\nAny = _PLACEHOLDER\nUnion = _PLACEHOLDER\nOptional = _PLACEHOLDER\nCallable = _PLACEHOLDER\nType = _PLACEHOLDER\nTypeAlias = _PLACEHOLDER\nNewType = _PLACEHOLDER\n\nClassVar = _PLACEHOLDER\n\nLiteral = _PLACEHOLDER\nLiteralString = _PLACEHOLDER\n\nIterable = _PLACEHOLDER\nGenerator = _PLACEHOLDER\nIterator = _PLACEHOLDER\n\nHashable = _PLACEHOLDER\n\nTypeVar = _PLACEHOLDER\nParamSpec = _PLACEHOLDER\nSelf = _PLACEHOLDER\n\nProtocol = object\nGeneric = object\nNever = object\n\nTYPE_CHECKING = False\n\n# decorators\noverload = lambda x: x\noverride = lambda x: x\nfinal = lambda x: x\n\n# exhaustiveness checking\nassert_never = lambda x: x\n\nTypedDict = dict\nNotRequired = _PLACEHOLDER\nReadOnly = _PLACEHOLDER\nRequired = _PLACEHOLDER\nTypeIs = _PLACEHOLDER\nTypeGuard = _PLACEHOLDER\n\ncast = lambda _, val: val\n";
@@ -12952,13 +13267,32 @@ typedef struct Ctx {
     c11_vector /*T=Expr_p*/ s_expr;
     c11_smallmap_n2d global_names;
     c11_smallmap_v2d co_consts_string_dedup_map;  // this stores 0-based index instead of pointer
+    // kipferl patch: the token of each try block's finally clause, compiled again on every exit
+    c11_vector /*T=CtxFinally*/ finally_clauses;
+    // return values waiting below finally clauses that are being compiled inline
+    c11_vector /*T=CtxPending*/ pending_returns;
+    // finally clauses being compiled inside each other; every level doubles the code
+    int finally_depth;
+    // a jump did not fit its 16-bit offset
+    bool jump_overflow;
 } Ctx;
+
+typedef struct CtxFinally {
+    int iblock;
+    int token;
+} CtxFinally;
+
+// a finally clause compiled for a return: its value waits on the stack below the clause, which
+// opens blocks from `first_block` on; `live` is cleared while a later exit has discarded it
+typedef struct CtxPending {
+    int first_block;
+    bool live;
+} CtxPending;
 
 typedef struct Expr Expr;
 
 static void Ctx__ctor(Ctx* self, CodeObject* co, FuncDecl* func, int level, py_Name n_self);
 static void Ctx__dtor(Ctx* self);
-static int Ctx__prepare_loop_divert(Ctx* self, int line, bool is_break);
 static int Ctx__enter_block(Ctx* self, CodeBlockType type);
 static void Ctx__exit_block(Ctx* self);
 static int Ctx__emit_(Ctx* self, Opcode opcode, uint16_t arg, int line);
@@ -13390,11 +13724,12 @@ bool TupleExpr__emit_store(Expr* self_, Ctx* ctx) {
     } else {
         // starred assignment target must be in a tuple
         if(self->itemCount == 1) return false;
-        // starred assignment target must be the last one (differ from cpython)
-        if(starred_i != self->itemCount - 1) return false;
-        // a,*b = [1,2,3]
-        // stack is [1,2,3] -> [1,[2,3]]
-        Ctx__emit_(ctx, OP_UNPACK_EX, self->itemCount - 1, self->line);
+        // kipferl patch: the starred target may be anywhere, as in `first, *middle, last = items`
+        int after = self->itemCount - 1 - starred_i;
+        if(starred_i > 255 || after > 255) return false;
+        // a,*b,c = [1,2,3,4]
+        // stack is [1,2,3,4] -> [1,[2,3],4]
+        Ctx__emit_(ctx, OP_UNPACK_EX, starred_i | (after << 8), self->line);
     }
     // do reverse emit
     for(int i = self->itemCount - 1; i >= 0; i--) {
@@ -13741,6 +14076,8 @@ static void BinaryExpr__emit_(Expr* self_, Ctx* ctx) {
         default: c11__unreachable();
     }
 
+    // kipferl patch: an augmented assignment tries the in-place method first
+    if(self->inplace) arg = 1;
     Ctx__emit_(ctx, opcode, arg, self->line);
 
     for(int i = 0; i < jmps.length; i++) {
@@ -14042,6 +14379,10 @@ static void Ctx__ctor(Ctx* self, CodeObject* co, FuncDecl* func, int level, py_N
     c11_vector__ctor(&self->s_expr, sizeof(Expr*));
     c11_smallmap_n2d__ctor(&self->global_names);
     c11_smallmap_v2d__ctor(&self->co_consts_string_dedup_map);
+    c11_vector__ctor(&self->finally_clauses, sizeof(CtxFinally));
+    c11_vector__ctor(&self->pending_returns, sizeof(CtxPending));
+    self->finally_depth = 0;
+    self->jump_overflow = false;
 }
 
 static void Ctx__dtor(Ctx* self) {
@@ -14057,35 +14398,15 @@ static void Ctx__dtor(Ctx* self) {
         PK_FREE((void*)p);
     }
     c11_smallmap_v2d__dtor(&self->co_consts_string_dedup_map);
+    c11_vector__dtor(&self->finally_clauses);
+    c11_vector__dtor(&self->pending_returns);
 }
 
-static int Ctx__prepare_loop_divert(Ctx* self, int line, bool is_break) {
-    int index = self->curr_iblock;
-    while(index >= 0) {
-        CodeBlock* block = c11__at(CodeBlock, &self->co->blocks, index);
-        switch(block->type) {
-            case CodeBlockType_WHILE_LOOP: return index;
-            case CodeBlockType_FOR_LOOP: {
-                if(is_break) Ctx__emit_(self, OP_POP_TOP, BC_NOARG, line);
-                return index;
-            }
-            case CodeBlockType_WITH: {
-                Ctx__emit_(self, OP_POP_TOP, BC_NOARG, line);
-                break;
-            }
-            case CodeBlockType_TRY: {
-                Ctx__emit_(self, OP_END_TRY, BC_NOARG, line);
-                break;
-            }
-            case CodeBlockType_EXCEPT: {
-                Ctx__emit_(self, OP_END_TRY, BC_NOARG, line);
-                break;
-            }
-            default: break;
-        }
-        index = block->parent;
+static int Ctx__finally_token(Ctx* self, int iblock) {
+    c11__foreach(CtxFinally, &self->finally_clauses, it) {
+        if(it->iblock == iblock) return it->token;
     }
-    return index;
+    return -1;
 }
 
 static int Ctx__enter_block(Ctx* self, CodeBlockType type) {
@@ -14144,17 +14465,22 @@ static int Ctx__emit_name(Ctx* self, py_Name name, int line) {
     return Ctx__emit_(self, OP_LOAD_NAME_AS_INT, (uint16_t)index, line);
 }
 
+// kipferl patch: a jump too long for its offset fails the compilation instead of the process
+static void Ctx__set_jump(Ctx* self, int index, int offset) {
+    if(offset < INT16_MIN || offset > INT16_MAX) {
+        self->jump_overflow = true;
+        offset = 0;
+    }
+    Bytecode__set_signed_arg(c11__at(Bytecode, &self->co->codes, index), offset);
+}
+
 static void Ctx__patch_jump(Ctx* self, int index) {
-    Bytecode* co_codes = (Bytecode*)self->co->codes.data;
-    int target = self->co->codes.length;
-    Bytecode__set_signed_arg(&co_codes[index], target - index);
+    Ctx__set_jump(self, index, self->co->codes.length - index);
 }
 
 static void Ctx__emit_jump(Ctx* self, int target, int line) {
     int index = Ctx__emit_(self, OP_JUMP_FORWARD, BC_NOARG, line);
-    // should place after Ctx__emit_ because of realloc
-    Bytecode* co_codes = (Bytecode*)self->co->codes.data;
-    Bytecode__set_signed_arg(&co_codes[index], target - index);
+    Ctx__set_jump(self, index, target - index);
 }
 
 static int Ctx__add_varname(Ctx* self, py_Name name) {
@@ -14423,6 +14749,14 @@ static Error* EXPR_TUPLE(Compiler* self) { return EXPR_TUPLE_ALLOW_SLICE(self, f
 static Error* EXPR_VARS(Compiler* self) {
     int count = 0;
     do {
+        // kipferl patch: loop targets may nest, as in `for i, (key, value) in ...`
+        if(match(TK_LPAREN)) {
+            Error* err = EXPR_VARS(self);
+            if(err) return err;
+            consume(TK_RPAREN);
+            count += 1;
+            continue;
+        }
         consume(TK_ID);
         py_Name name = py_namev(Token__sv(prev()));
         NameExpr* e = NameExpr__new(prev()->line, name, name_scope(self));
@@ -14473,15 +14807,17 @@ static Error* pop_context(Compiler* self) {
         Bytecode* bc = c11__at(Bytecode, codes, i);
         if(bc->op == OP_LOOP_CONTINUE) {
             CodeBlock* block = c11__at(CodeBlock, &ctx()->co->blocks, bc->arg);
-            Bytecode__set_signed_arg(bc, block->start - i);
+            Ctx__set_jump(ctx(), i, block->start - i);
         } else if(bc->op == OP_LOOP_BREAK) {
             CodeBlock* block = c11__at(CodeBlock, &ctx()->co->blocks, bc->arg);
-            Bytecode__set_signed_arg(bc, (block->end2 != -1 ? block->end2 : block->end) - i);
+            Ctx__set_jump(ctx(), i, (block->end2 != -1 ? block->end2 : block->end) - i);
         } else if(bc->op == OP_FOR_ITER || bc->op == OP_FOR_ITER_YIELD_VALUE) {
             CodeBlock* block = c11__at(CodeBlock, &ctx()->co->blocks, bc->arg);
-            Bytecode__set_signed_arg(bc, block->end - i);
+            Ctx__set_jump(ctx(), i, block->end - i);
         }
     }
+    // kipferl patch: report a jump that did not fit instead of aborting
+    if(ctx()->jump_overflow) return SyntaxError(self, "code is too large to compile");
     // pre-compute func->is_simple
     FuncDecl* func = ctx()->func;
     if(func) {
@@ -14753,12 +15089,170 @@ static Error* exprUnaryOp(Compiler* self) {
     return NULL;
 }
 
+// kipferl patch: generator expressions and nested comprehensions compile to a nested function
+typedef enum ComprehensionKind {
+    COMPREHENSION_GENERATOR,
+    COMPREHENSION_LIST,
+    COMPREHENSION_SET,
+    COMPREHENSION_DICT,
+} ComprehensionKind;
+
+// Count the `for` clauses at the bracket level of the opening bracket just consumed, stopping at
+// its closing bracket or, when `stop_at_comma`, at a comma that separates call arguments.
+static int count_comprehension_fors(Compiler* self, bool stop_at_comma, bool* has_colon) {
+    int level = prev()->brackets_level;
+    int count = 0;
+    if(has_colon) *has_colon = false;
+    for(int j = self->i; j < self->tokens_length; j++) {
+        Token* t = tk(j);
+        if(t->type == TK_EOF || t->brackets_level < level) break;
+        if(t->brackets_level > level) continue;
+        if(t->type == TK_FOR) count++;
+        if(count == 0 && t->type == TK_COMMA && stop_at_comma) break;
+        if(count == 0 && t->type == TK_COLON && has_colon) *has_colon = true;
+    }
+    return count;
+}
+
+static Error* compile_comprehension_clauses(Compiler* self,
+                                            ComprehensionKind kind,
+                                            int iter_end,
+                                            py_Name result,
+                                            c11_vector* starts) {
+    Error* err;
+    bool first = true;
+    do {
+        consume(TK_FOR);
+        check(EXPR_VARS(self));
+        consume(TK_IN);
+        if(first) {
+            // the first iterable was evaluated by the caller and arrives as the argument
+            int arg = c11_smallmap_n2d__get(&ctx()->co->varnames_inv, py_name(".0"), -1);
+            Ctx__emit_(ctx(), OP_LOAD_FAST, arg, prev()->line);
+            self->i = iter_end;
+        } else {
+            check(parse_expression(self, PREC_TERNARY + 1, false));
+            Ctx__s_emit_top(ctx());
+            Ctx__emit_(ctx(), OP_GET_ITER, BC_NOARG, BC_KEEPLINE);
+        }
+        int block = Ctx__enter_block(ctx(), CodeBlockType_FOR_LOOP);
+        int start = Ctx__emit_(ctx(), OP_FOR_ITER, block, BC_KEEPLINE);
+        c11_vector__push(int, starts, start);
+        Expr* vars = Ctx__s_popx(ctx());
+        bool ok = vtemit_store(vars, ctx());
+        vtdelete(vars);
+        if(!ok) return SyntaxError(self, "invalid syntax");
+        while(match(TK_IF)) {
+            check(parse_expression(self, PREC_TERNARY + 1, false));
+            Ctx__s_emit_top(ctx());
+            // a false condition continues this loop
+            int jump = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+            Ctx__set_jump(ctx(), jump, start - jump);
+        }
+        first = false;
+    } while(curr()->type == TK_FOR);
+
+    // the element expressions are below everything the clauses pushed and popped
+    if(kind == COMPREHENSION_GENERATOR) {
+        Ctx__s_emit_top(ctx());
+        Ctx__emit_(ctx(), OP_YIELD_VALUE, BC_NOARG, BC_KEEPLINE);
+    } else {
+        int index = c11_smallmap_n2d__get(&ctx()->co->varnames_inv, result, -1);
+        const char* method = kind == COMPREHENSION_LIST  ? "append"
+                             : kind == COMPREHENSION_SET ? "add"
+                                                         : "__setitem__";
+        int argc = kind == COMPREHENSION_DICT ? 2 : 1;
+        Expr* value = kind == COMPREHENSION_DICT ? Ctx__s_popx(ctx()) : NULL;
+        Ctx__emit_(ctx(), OP_LOAD_FAST, index, BC_KEEPLINE);
+        Ctx__emit_(ctx(), OP_LOAD_METHOD, Ctx__add_name(ctx(), py_name(method)), BC_KEEPLINE);
+        Ctx__s_emit_top(ctx());
+        if(value) {
+            vtemit_(value, ctx());
+            vtdelete(value);
+        }
+        Ctx__emit_(ctx(), OP_CALL, argc, BC_KEEPLINE);
+        Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
+    }
+    for(int i = starts->length - 1; i >= 0; i--) {
+        Ctx__emit_jump(ctx(), c11__getitem(int, starts, i), BC_KEEPLINE);
+        Ctx__exit_block(ctx());
+    }
+    if(kind != COMPREHENSION_GENERATOR) {
+        int index = c11_smallmap_n2d__get(&ctx()->co->varnames_inv, result, -1);
+        Ctx__emit_(ctx(), OP_LOAD_FAST, index, BC_KEEPLINE);
+        Ctx__emit_(ctx(), OP_RETURN_VALUE, BC_NOARG, BC_KEEPLINE);
+    }
+    return NULL;
+}
+
+// Compile the comprehension that starts at the current token into a function called with the
+// iterator of its first iterable, as CPython does, and push that call. The first iterable is
+// evaluated in the enclosing scope; everything else runs in the function's own scope.
+static Error* compile_comprehension_function(Compiler* self, ComprehensionKind kind) {
+    Error* err;
+    int line = curr()->line;
+    int level = prev()->brackets_level;
+    int element = self->i;
+    int j = element;
+    while(!(tk(j)->type == TK_FOR && tk(j)->brackets_level == level))
+        j++;
+    while(!(tk(j)->type == TK_IN && tk(j)->brackets_level == level)) {
+        if(tk(j)->type == TK_EOF || tk(j)->brackets_level < level) {
+            self->i = j;
+            return SyntaxError(self, "expected 'in'");
+        }
+        j++;
+    }
+    self->i = j + 1;
+    check(parse_expression(self, PREC_TERNARY + 1, false));  // stays on this context's stack
+    int iter_end = self->i;
+
+    static const char* names[] = {"<genexpr>", "<listcomp>", "<setcomp>", "<dictcomp>"};
+    int decl_index;
+    FuncDecl_ decl = push_f_context(self, (c11_sv){names[kind], (int)strlen(names[kind])}, &decl_index);
+    FuncDecl__add_arg(decl, py_name(".0"));
+    py_Name result = py_name(".r");
+    if(kind != COMPREHENSION_GENERATOR) {
+        int index = Ctx__add_varname(ctx(), result);
+        Opcode build = kind == COMPREHENSION_LIST  ? OP_BUILD_LIST
+                       : kind == COMPREHENSION_SET ? OP_BUILD_SET
+                                                   : OP_BUILD_DICT;
+        Ctx__emit_(ctx(), build, 0, line);
+        Ctx__emit_(ctx(), OP_STORE_FAST, index, BC_KEEPLINE);
+    }
+    self->i = element;
+    check(EXPR(self));
+    if(kind == COMPREHENSION_DICT) {
+        consume(TK_COLON);
+        check(EXPR(self));
+    }
+    c11_vector starts;
+    c11_vector__ctor(&starts, sizeof(int));
+    err = compile_comprehension_clauses(self, kind, iter_end, result, &starts);
+    c11_vector__dtor(&starts);
+    if(err) return err;
+    check(pop_context(self));
+
+    Expr* iterable = Ctx__s_popx(ctx());
+    CallExpr* call = CallExpr__new(line, (Expr*)LambdaExpr__new(line, decl_index));
+    Expr* iterator = (Expr*)UnaryExpr__new(line, iterable, OP_GET_ITER);
+    c11_vector__push(Expr*, &call->args, iterator);
+    Ctx__s_push(ctx(), (Expr*)call);
+    return NULL;
+}
+
 static Error* exprGroup(Compiler* self) {
     Error* err;
     int line = prev()->line;
     if(match(TK_RPAREN)) {
         // empty tuple
         Ctx__s_push(ctx(), (Expr*)TupleExpr__new(line, 0));
+        return NULL;
+    }
+    // kipferl patch: (<expr> for ...) is a generator expression
+    if(count_comprehension_fors(self, true, NULL) > 0) {
+        check(compile_comprehension_function(self, COMPREHENSION_GENERATOR));
+        consume(TK_RPAREN);
         return NULL;
     }
     check(EXPR_TUPLE(self));  // () is just for change precedence
@@ -14826,6 +15320,12 @@ static Error* exprList(Compiler* self) {
     Error* err;
     int line = prev()->line;
     int count = 0;
+    // kipferl patch: comprehensions with several for clauses
+    if(count_comprehension_fors(self, false, NULL) > 1) {
+        check(compile_comprehension_function(self, COMPREHENSION_LIST));
+        consume(TK_RBRACKET);
+        return NULL;
+    }
     do {
         if(curr()->type == TK_RBRACKET) break;
         check(EXPR(self));
@@ -14850,11 +15350,28 @@ static Error* exprMap(Compiler* self) {
     int line = prev()->line;
     bool parsing_dict = false;  // {...} may be dict or set
     int count = 0;
+    // kipferl patch: comprehensions with several for clauses
+    bool has_colon;
+    if(count_comprehension_fors(self, false, &has_colon) > 1) {
+        check(compile_comprehension_function(self,
+                                             has_colon ? COMPREHENSION_DICT : COMPREHENSION_SET));
+        consume(TK_RBRACE);
+        return NULL;
+    }
     do {
         if(curr()->type == TK_RBRACE) break;
         check(EXPR(self));  // [key]
         if(curr()->type == TK_COLON) { parsing_dict = true; }
-        if(parsing_dict) {
+        // kipferl patch: `**mapping` in a dict display merges the mapping
+        Expr* top = Ctx__s_top(ctx());
+        if(top->vt->is_starred && ((StarredExpr*)top)->level == 2) {
+            if(count > 0 && !parsing_dict) return SyntaxError(self, "invalid syntax");
+            parsing_dict = true;
+            DictItemExpr* item = DictItemExpr__new(prev()->line);
+            item->value = (Expr*)Literal0Expr__new(prev()->line, TK_NONE);
+            item->key = Ctx__s_popx(ctx());
+            Ctx__s_push(ctx(), (Expr*)item);
+        } else if(parsing_dict) {
             consume(TK_COLON);
             check(EXPR(self));  // [key, value] -> [item]
             DictItemExpr* item = DictItemExpr__new(prev()->line);
@@ -14897,6 +15414,13 @@ static Error* exprCall(Compiler* self) {
 
     CallExpr* e = CallExpr__new(line, callable);
     Ctx__s_push(ctx(), (Expr*)e);  // push onto the stack in advance
+    // kipferl patch: a generator expression may be the sole argument without parentheses
+    if(count_comprehension_fors(self, true, NULL) > 0) {
+        check(compile_comprehension_function(self, COMPREHENSION_GENERATOR));
+        c11_vector__push(Expr*, &e->args, Ctx__s_popx(ctx()));
+        consume(TK_RPAREN);
+        return NULL;
+    }
     do {
         if(curr()->type == TK_RPAREN) break;
         if(curr()->type == TK_ID && next()->type == TK_ASSIGN) {
@@ -15025,6 +15549,165 @@ static Error* compile_block_body(Compiler* self) {
     }
     consume(TK_DEDENT);
     return NULL;
+}
+
+// kipferl patch: a finally clause is compiled once per way out of its try statement, so
+// clauses nested inside clauses multiply; refuse nesting that would explode the code
+#define PK_MAX_FINALLY_DEPTH 10
+
+static Error* compile_finally_body(Compiler* self) {
+    if(ctx()->finally_depth >= PK_MAX_FINALLY_DEPTH) {
+        return SyntaxError(self, "too deeply nested try/finally");
+    }
+    ctx()->finally_depth++;
+    Error* err = compile_block_body(self);
+    ctx()->finally_depth--;
+    return err;
+}
+
+static bool Ctx__has_cleanup(Ctx* self) {
+    for(int index = self->curr_iblock; index >= 0;) {
+        CodeBlock* block = c11__at(CodeBlock, &self->co->blocks, index);
+        if(block->type == CodeBlockType_WITH || Ctx__finally_token(self, index) >= 0) return true;
+        index = block->parent;
+    }
+    return false;
+}
+
+typedef enum DivertKind { DIVERT_BREAK, DIVERT_CONTINUE, DIVERT_RETURN } DivertKind;
+
+// kipferl patch: break, continue and return run the finally clauses and __exit__ methods they leave
+// kipferl patch: an exit from a finally clause compiled for a return supersedes that return;
+// discard the values of the clauses the exit leaves before it unwinds the block at `index`
+static void Ctx__discard_pending(Ctx* self, int index, int* pending, DivertKind kind, int line) {
+    while(*pending > 0) {
+        CtxPending* it = c11__at(CtxPending, &self->pending_returns, *pending - 1);
+        if(index >= it->first_block) return;
+        if(it->live) {
+            // a return keeps its own value on top
+            if(kind == DIVERT_RETURN) Ctx__emit_(self, OP_ROT_TWO, BC_NOARG, line);
+            Ctx__emit_(self, OP_POP_TOP, BC_NOARG, line);
+            it->live = false;
+        }
+        (*pending)--;
+    }
+}
+
+static Error* compile_divert_blocks(Compiler* self, int line, DivertKind kind, int* out_loop,
+                                    int* pending);
+
+static Error* compile_divert(Compiler* self, int line, DivertKind kind, int* out_loop) {
+    *out_loop = -1;
+    // a return only needs to unwind when it leaves cleanup code; the frame discards the rest
+    if(kind == DIVERT_RETURN && !Ctx__has_cleanup(ctx())) return NULL;
+    int start = ctx()->pending_returns.length;
+    int pending = start;
+    // other exits from the same clauses still see their values, but not the values that an
+    // enclosing exit has already discarded: restore the flags as they were before this exit
+    c11_vector live;
+    c11_vector__ctor(&live, sizeof(bool));
+    for(int i = 0; i < start; i++) {
+        c11_vector__push(bool, &live, c11__at(CtxPending, &ctx()->pending_returns, i)->live);
+    }
+    Error* err = compile_divert_blocks(self, line, kind, out_loop, &pending);
+    for(int i = 0; i < start; i++) {
+        c11__at(CtxPending, &ctx()->pending_returns, i)->live = c11__getitem(bool, &live, i);
+    }
+    c11_vector__dtor(&live);
+    return err;
+}
+
+static Error* compile_divert_blocks(Compiler* self, int line, DivertKind kind, int* out_loop,
+                                    int* pending) {
+    Error* err;
+    int index = ctx()->curr_iblock;
+    while(index >= 0) {
+        Ctx__discard_pending(ctx(), index, pending, kind, line);
+        // copy the block: compiling a finally clause may grow the block vector
+        CodeBlock block = *c11__at(CodeBlock, &ctx()->co->blocks, index);
+        switch(block.type) {
+            case CodeBlockType_WHILE_LOOP:
+                if(kind != DIVERT_RETURN) {
+                    *out_loop = index;
+                    return NULL;
+                }
+                break;
+            case CodeBlockType_FOR_LOOP:
+                if(kind == DIVERT_BREAK) Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, line);
+                if(kind != DIVERT_RETURN) {
+                    *out_loop = index;
+                    return NULL;
+                }
+                // [iter, value] -> [value]
+                Ctx__emit_(ctx(), OP_ROT_TWO, BC_NOARG, line);
+                Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, line);
+                break;
+            case CodeBlockType_WITH:
+                // [manager, value] -> [value]; OP_WITH_EXIT pops the manager
+                if(kind == DIVERT_RETURN) Ctx__emit_(ctx(), OP_ROT_TWO, BC_NOARG, line);
+                Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, line);
+                break;
+            case CodeBlockType_TRY: {
+                Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, line);
+                int token = Ctx__finally_token(ctx(), index);
+                if(token >= 0) {
+                    // the clause runs outside the block it protects
+                    int saved_token = self->i;
+                    int saved_block = ctx()->curr_iblock;
+                    self->i = token;
+                    ctx()->curr_iblock = block.parent;
+                    if(kind == DIVERT_RETURN) {
+                        CtxPending value = {ctx()->co->blocks.length, true};
+                        c11_vector__push(CtxPending, &ctx()->pending_returns, value);
+                    }
+                    err = compile_finally_body(self);
+                    if(kind == DIVERT_RETURN) c11_vector__pop(&ctx()->pending_returns);
+                    self->i = saved_token;
+                    ctx()->curr_iblock = saved_block;
+                    if(err) return err;
+                }
+                break;
+            }
+            case CodeBlockType_EXCEPT: Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, line); break;
+            default: break;
+        }
+        index = block.parent;
+    }
+    Ctx__discard_pending(ctx(), index, pending, kind, line);
+    return NULL;
+}
+
+// kipferl patch: find the finally clause of the try statement whose header ends at `colon`
+static int find_finally_clause(Compiler* self, int colon) {
+    int j = colon;
+    while(true) {
+        // skip the clause body
+        j++;
+        if(tk(j)->type != TK_EOL) {
+            while(j < self->tokens_length - 1 && tk(j)->type != TK_EOL && tk(j)->type != TK_EOF)
+                j++;
+        } else {
+            while(tk(j)->type == TK_EOL)
+                j++;
+            if(tk(j)->type != TK_INDENT) return -1;
+            int depth = 0;
+            do {
+                if(tk(j)->type == TK_INDENT) depth++;
+                if(tk(j)->type == TK_DEDENT) depth--;
+                if(tk(j)->type == TK_EOF) return -1;
+                j++;
+            } while(depth > 0);
+        }
+        while(tk(j)->type == TK_EOL)
+            j++;
+        if(tk(j)->type == TK_FINALLY) return j + 1;
+        if(tk(j)->type != TK_EXCEPT && tk(j)->type != TK_ELSE) return -1;
+        // skip the next clause header
+        while(!(tk(j)->type == TK_COLON && tk(j)->brackets_level == 0)) {
+            if(tk(j)->type == TK_EOL || tk(j)->type == TK_EOF) return -1;
+            j++;
+        }
+    }
 }
 
 static Error* compile_if_stmt(Compiler* self) {
@@ -15321,6 +16004,8 @@ static Error* read_literal(Compiler* self, py_Ref out) {
 
 static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
     int state = 0;  // 0 for args, 1 for *args, 2 for k=v, 3 for **kwargs
+    bool seen_star = false;
+    bool seen_slash = false;
     Error* err;
     do {
         // allow trailing comma
@@ -15328,11 +16013,29 @@ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
         if(curr()->type == (is_lambda ? TK_COLON : TK_RPAREN)) break;
 
         if(state >= 3) return SyntaxError(self, "**kwargs should be the last argument");
+        // kipferl patch: `/` ends the positional-only parameters
+        if(match(TK_DIV)) {
+            if(seen_star) return SyntaxError(self, "/ must be ahead of *");
+            if(seen_slash) return SyntaxError(self, "/ may appear only once");
+            decl->posonly = decl->args.length + decl->kwargs.length;
+            if(decl->posonly == 0) {
+                return SyntaxError(self, "at least one argument must precede /");
+            }
+            seen_slash = true;
+            continue;
+        }
         if(match(TK_MUL)) {
-            if(state < 1)
-                state = 1;
-            else
-                return SyntaxError(self, "*args should be placed before **kwargs");
+            // kipferl patch: `*` may follow parameters with defaults, but only once
+            if(seen_star) return SyntaxError(self, "* argument may appear only once");
+            seen_star = true;
+            // the parameters after it are keyword-only
+            decl->kwonly = decl->kwargs.length;
+            state = 1;
+            // kipferl patch: a bare `*` starts keyword-only parameters
+            if(curr()->type == TK_COMMA) {
+                state = 2;
+                continue;
+            }
         } else if(match(TK_POW)) {
             state = 3;
         }
@@ -15354,9 +16057,18 @@ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
                 state += 1;
                 break;
             case 2: {
-                consume(TK_ASSIGN);
                 py_TValue value;
-                check(read_literal(self, &value));
+                // kipferl patch: a keyword-only parameter without a default starts unbound
+                if(!match(TK_ASSIGN)) {
+                    if(!seen_star) {
+                        return SyntaxError(
+                            self,
+                            "parameter without a default follows parameter with a default");
+                    }
+                    py_newnil(&value);
+                } else {
+                    check(read_literal(self, &value));
+                }
                 FuncDecl__add_kwarg(decl, name, &value);
             } break;
             case 3:
@@ -15647,6 +16359,16 @@ static Error* compile_try_except(Compiler* self) {
     int patches[8];
     int patches_length = 0;
 
+    // kipferl patch: try statements accept else and finally clauses
+    int finally_token = find_finally_clause(self, self->i);
+    if(finally_token >= 0) {
+        // the finally clause protects the whole statement, including except and else clauses
+        int block = Ctx__enter_block(ctx(), CodeBlockType_TRY);
+        CtxFinally clause = {block, finally_token};
+        c11_vector__push(CtxFinally, &ctx()->finally_clauses, clause);
+        Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
+    }
+
     Ctx__enter_block(ctx(), CodeBlockType_TRY);
     Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
     check(compile_block_body(self));
@@ -15662,59 +16384,138 @@ static Error* compile_try_except(Compiler* self) {
      * discarded.
      */
 
-    // known issue:
-    // A return, break, continue in try/except block will make the finally block not executed
-
-    bool has_finally = curr()->type == TK_FINALLY;
-    if(has_finally) return SyntaxError(self, "finally clause is not supported yet");
-
-    patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+    int else_patch = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
     Ctx__exit_block(ctx());
 
-    do {
-        if(patches_length == 8) {
-            return SyntaxError(self, "maximum number of except clauses reached");
-        }
-        py_Name as_name = 0;
-        consume(TK_EXCEPT);
-        if(is_expression(self, false)) {
-            // except <expr>:
-            check(EXPR(self));
-            Ctx__s_emit_top(ctx());
-            Ctx__emit_(ctx(), OP_EXCEPTION_MATCH, BC_NOARG, prev()->line);
-            if(match(TK_AS)) {
-                // except <expr> as <name>:
-                consume(TK_ID);
-                as_name = py_namev(Token__sv(prev()));
+    if(curr()->type != TK_EXCEPT) {
+        if(finally_token < 0) return SyntaxError(self, "expected 'except' or 'finally' block");
+        // no handler: pass the exception on to the finally clause
+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+        Ctx__patch_jump(ctx(), else_patch);
+        if(curr()->type == TK_ELSE) return SyntaxError(self, "expected 'finally' block");
+    } else {
+        do {
+            if(patches_length == 8) {
+                return SyntaxError(self, "maximum number of except clauses reached");
             }
-        } else {
-            // except:
-            Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
-        }
-        int patch = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-        // on match
-        Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
-        if(as_name) {
-            Ctx__emit_(ctx(), OP_PUSH_EXCEPTION, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_store_name(ctx(), name_scope(self), as_name, BC_KEEPLINE);
-        }
-        Ctx__enter_block(ctx(), CodeBlockType_EXCEPT);
-        check(compile_block_body(self));
-        Ctx__exit_block(ctx());
-        Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
-        patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
-        Ctx__patch_jump(ctx(), patch);
-    } while(curr()->type == TK_EXCEPT);
+            py_Name as_name = 0;
+            consume(TK_EXCEPT);
+            if(is_expression(self, false)) {
+                // except <expr>:
+                check(EXPR(self));
+                Ctx__s_emit_top(ctx());
+                Ctx__emit_(ctx(), OP_EXCEPTION_MATCH, BC_NOARG, prev()->line);
+                if(match(TK_AS)) {
+                    // except <expr> as <name>:
+                    consume(TK_ID);
+                    as_name = py_namev(Token__sv(prev()));
+                }
+            } else {
+                // except:
+                Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
+            }
+            int patch = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+            // on match
+            Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+            if(as_name) {
+                Ctx__emit_(ctx(), OP_PUSH_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+                Ctx__emit_store_name(ctx(), name_scope(self), as_name, BC_KEEPLINE);
+            }
+            Ctx__enter_block(ctx(), CodeBlockType_EXCEPT);
+            check(compile_block_body(self));
+            Ctx__exit_block(ctx());
+            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+            patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+            Ctx__patch_jump(ctx(), patch);
+        } while(curr()->type == TK_EXCEPT);
 
-    // no match, re-raise
-    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+        // no match, re-raise
+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
 
-    // match one & handled, jump to the end
-    for(int i = 0; i < patches_length; i++) {
-        Ctx__patch_jump(ctx(), patches[i]);
+        // no exception: run the else clause outside the handlers
+        Ctx__patch_jump(ctx(), else_patch);
+        if(match(TK_ELSE)) check(compile_block_body(self));
+
+        // match one & handled, jump to the end
+        for(int i = 0; i < patches_length; i++) {
+            Ctx__patch_jump(ctx(), patches[i]);
+        }
     }
 
-    if(match(TK_FINALLY)) return SyntaxError(self, "finally clause is not supported yet");
+    if(finally_token >= 0) {
+        Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+        int normal_patch = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+        Ctx__exit_block(ctx());
+        // an exception left the statement: run the clause, then re-raise it
+        consume(TK_FINALLY);
+        Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, prev()->line);
+        Ctx__enter_block(ctx(), CodeBlockType_EXCEPT);
+        check(compile_finally_body(self));
+        Ctx__exit_block(ctx());
+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+        // the statement completed: compile the clause again for the normal path
+        Ctx__patch_jump(ctx(), normal_patch);
+        int end_token = self->i;
+        self->i = finally_token;
+        check(compile_finally_body(self));
+        self->i = end_token;
+    }
+    return NULL;
+}
+
+// kipferl patch: one `with` item; the items after it are nested inside its block
+static Error* compile_with_items(Compiler* self) {
+    Error* err;
+    check(EXPR(self));  // [ <expr> ]
+    Ctx__s_emit_top(ctx());
+    Ctx__enter_block(ctx(), CodeBlockType_WITH);
+    NameExpr* as_name = NULL;
+    if(match(TK_AS)) {
+        consume(TK_ID);
+        py_Name name = py_namev(Token__sv(prev()));
+        as_name = NameExpr__new(prev()->line, name, name_scope(self));
+    }
+    Ctx__emit_(ctx(), OP_WITH_ENTER, BC_NOARG, prev()->line);
+    // [ <expr> <expr>.__enter__() ]
+    if(as_name) {
+        bool ok = vtemit_store((Expr*)as_name, ctx());
+        vtdelete((Expr*)as_name);
+        if(!ok) return SyntaxError(self, "invalid syntax");
+    } else {
+        // discard `__enter__()`'s return value
+        Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
+    }
+    // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
+    Ctx__enter_block(ctx(), CodeBlockType_TRY);
+    Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
+    // kipferl patch: `with a, b:` nests the remaining items
+    if(match(TK_COMMA)) {
+        check(compile_with_items(self));
+    } else {
+        check(compile_block_body(self));
+    }
+    Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, prev()->line);
+    int patch_normal = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+    Ctx__exit_block(ctx());
+
+    // except:
+    Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
+    int patch_no_match = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_WITH_EXIT_EXC, BC_NOARG, BC_KEEPLINE);
+    int patch_reraise = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+    int patch_handled = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+
+    // re-raise
+    Ctx__patch_jump(ctx(), patch_reraise);
+    Ctx__patch_jump(ctx(), patch_no_match);
+    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+
+    Ctx__patch_jump(ctx(), patch_normal);
+    Ctx__patch_jump(ctx(), patch_handled);
+    Ctx__exit_block(ctx());
     return NULL;
 }
 
@@ -15728,14 +16529,16 @@ static Error* compile_stmt(Compiler* self) {
     int kw_line = prev()->line;  // backup line number
     switch(prev()->type) {
         case TK_BREAK: {
-            int curr_loop_block = Ctx__prepare_loop_divert(ctx(), kw_line, true);
+            int curr_loop_block;
+            check(compile_divert(self, kw_line, DIVERT_BREAK, &curr_loop_block));
             if(curr_loop_block < 0) return SyntaxError(self, "'break' outside loop");
             Ctx__emit_(ctx(), OP_LOOP_BREAK, curr_loop_block, kw_line);
             consume_end_stmt();
             break;
         }
         case TK_CONTINUE: {
-            int curr_loop_block = Ctx__prepare_loop_divert(ctx(), kw_line, false);
+            int curr_loop_block;
+            check(compile_divert(self, kw_line, DIVERT_CONTINUE, &curr_loop_block));
             if(curr_loop_block < 0) return SyntaxError(self, "'continue' not properly in loop");
             Ctx__emit_(ctx(), OP_LOOP_CONTINUE, curr_loop_block, kw_line);
             consume_end_stmt();
@@ -15760,13 +16563,19 @@ static Error* compile_stmt(Compiler* self) {
         case TK_RETURN:
             if(self->contexts.length <= 1) return SyntaxError(self, "'return' outside function");
             if(match_end_stmt(self)) {
-                Ctx__emit_(ctx(), OP_RETURN_VALUE, 1, kw_line);
+                if(!Ctx__has_cleanup(ctx())) {
+                    Ctx__emit_(ctx(), OP_RETURN_VALUE, 1, kw_line);
+                    break;
+                }
+                Ctx__emit_(ctx(), OP_LOAD_NONE, BC_NOARG, kw_line);
             } else {
                 check(EXPR_TUPLE(self));
                 Ctx__s_emit_top(ctx());
                 consume_end_stmt();
-                Ctx__emit_(ctx(), OP_RETURN_VALUE, BC_NOARG, kw_line);
             }
+            int unused_loop;
+            check(compile_divert(self, kw_line, DIVERT_RETURN, &unused_loop));
+            Ctx__emit_(ctx(), OP_RETURN_VALUE, BC_NOARG, kw_line);
             break;
         /*************************************************/
         case TK_IF: check(compile_if_stmt(self)); break;
@@ -15827,15 +16636,25 @@ static Error* compile_stmt(Compiler* self) {
             if(is_expression(self, false)) {
                 check(EXPR(self));
                 Ctx__s_emit_top(ctx());
-                Ctx__emit_(ctx(), OP_RAISE, BC_NOARG, kw_line);
+                // kipferl patch: `raise exc from cause`
+                if(match(TK_FROM)) {
+                    check(EXPR(self));
+                    Ctx__s_emit_top(ctx());
+                    Ctx__emit_(ctx(), OP_RAISE, 1, kw_line);
+                } else {
+                    Ctx__emit_(ctx(), OP_RAISE, BC_NOARG, kw_line);
+                }
             } else {
                 int iblock = ctx()->curr_iblock;
                 CodeBlock* blocks = (CodeBlock*)ctx()->co->blocks.data;
                 if(blocks[iblock].type != CodeBlockType_EXCEPT) {
-                    return SyntaxError(self,
-                                       "raise without exception is only allowed in except block");
+                    // kipferl patch: outside the handler's own block (in a nested block, or a
+                    // finally clause compiled for normal completion) the exception to re-raise
+                    // is looked up when the statement runs, as CPython does
+                    Ctx__emit_(ctx(), OP_RE_RAISE, 1, kw_line);
+                } else {
+                    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
                 }
-                Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
             }
             consume_end_stmt();
         } break;
@@ -15846,53 +16665,7 @@ static Error* compile_stmt(Compiler* self) {
             Ctx__s_pop(ctx());
             consume_end_stmt();
         } break;
-        case TK_WITH: {
-            check(EXPR(self));  // [ <expr> ]
-            Ctx__s_emit_top(ctx());
-            Ctx__enter_block(ctx(), CodeBlockType_WITH);
-            NameExpr* as_name = NULL;
-            if(match(TK_AS)) {
-                consume(TK_ID);
-                py_Name name = py_namev(Token__sv(prev()));
-                as_name = NameExpr__new(prev()->line, name, name_scope(self));
-            }
-            Ctx__emit_(ctx(), OP_WITH_ENTER, BC_NOARG, prev()->line);
-            // [ <expr> <expr>.__enter__() ]
-            if(as_name) {
-                bool ok = vtemit_store((Expr*)as_name, ctx());
-                vtdelete((Expr*)as_name);
-                if(!ok) return SyntaxError(self, "invalid syntax");
-            } else {
-                // discard `__enter__()`'s return value
-                Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
-            }
-            // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
-            Ctx__enter_block(ctx(), CodeBlockType_TRY);
-            Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
-            check(compile_block_body(self));
-            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, prev()->line);
-            int patch_normal = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
-            Ctx__exit_block(ctx());
-
-            // except:
-            Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
-            int patch_no_match = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_WITH_EXIT_EXC, BC_NOARG, BC_KEEPLINE);
-            int patch_reraise = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
-            int patch_handled = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
-
-            // re-raise
-            Ctx__patch_jump(ctx(), patch_reraise);
-            Ctx__patch_jump(ctx(), patch_no_match);
-            Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
-
-            Ctx__patch_jump(ctx(), patch_normal);
-            Ctx__patch_jump(ctx(), patch_handled);
-            Ctx__exit_block(ctx());
-        } break;
+        case TK_WITH: check(compile_with_items(self)); break;
         /*************************************************/
         // handle dangling expression or assignment
         default: {
@@ -16262,6 +17035,7 @@ static bool is_possible_number_char(char c) {
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
         case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
         case '.': case 'x': case 'o': case 'j':
+        case '_':  // kipferl patch: digit separators
         return true;
         default: return false;
             // clang-format on
@@ -16480,13 +17254,29 @@ static Error* eat_number(Lexer* self) {
     bool is_scientific_notation = false;
     if(*(i - 1) == 'e' && (*i == '+' || *i == '-')) {
         i++;
-        while(isdigit(*i) || *i == 'j')
+        while(isdigit(*i) || *i == 'j' || *i == '_')
             i++;
         is_scientific_notation = true;
     }
 
-    c11_sv text = {self->token_start, i - self->token_start};
+    c11_sv raw = {self->token_start, i - self->token_start};
     self->curr_char = i;
+    // kipferl patch: a single underscore may separate digits, as in 1_000_000 or 0x_ff
+    char digits[128];
+    int length = 0;
+    for(int k = 0; k < raw.size; k++) {
+        char c = raw.data[k];
+        if(c == '_') {
+            bool after_digit = k > 0 && isalnum((unsigned char)raw.data[k - 1]);
+            bool before_digit = k + 1 < raw.size && isxdigit((unsigned char)raw.data[k + 1]);
+            if(!after_digit || !before_digit) return LexerError(self, "invalid decimal literal");
+            continue;
+        }
+        if(length == (int)sizeof(digits) - 1) return LexerError(self, "invalid number literal");
+        digits[length++] = c;
+    }
+    digits[length] = '\0';
+    c11_sv text = {digits, length};
 
     if(text.data[0] != '.' && !is_scientific_notation) {
         // try integer
@@ -16638,6 +17428,8 @@ static Error* lex_one_token(Lexer* self, bool* eof, bool is_fstring) {
             case '!':
                 if(is_fstring) {
                     if(matchchar(self, 'r')) { return eat_fstring_spec(self, eof); }
+                    // kipferl patch: f-strings accept the !s conversion
+                    if(matchchar(self, 's')) { return eat_fstring_spec(self, eof); }
                 }
                 if(matchchar(self, '=')) {
                     add_token(self, TK_NE);
@@ -18514,6 +19306,20 @@ __NEXT_STEP:
             DISPATCH();
         }
         case OP_BUILD_TUPLE: {
+            // kipferl patch: expand starred items
+            if(pk_has_starred(SP() - byte.arg, byte.arg)) {
+                py_TValue* begin = SP() - byte.arg;
+                py_StackRef items = py_pushtmp();
+                if(!pk_expand_starred(begin, byte.arg, items)) goto __ERROR;
+                int length = py_list_len(items);
+                py_TValue tuple;
+                py_Ref p = py_newtuple(&tuple, length);
+                for(int i = 0; i < length; i++)
+                    p[i] = *py_list_getitem(items, i);
+                SP() = begin;
+                PUSH(&tuple);
+                DISPATCH();
+            }
             bool need_track = false;
             py_TValue tmp;
             py_Ref p = py_newtuple(&tmp, byte.arg);
@@ -18528,6 +19334,16 @@ __NEXT_STEP:
             DISPATCH();
         }
         case OP_BUILD_LIST: {
+            // kipferl patch: expand starred items
+            if(pk_has_starred(SP() - byte.arg, byte.arg)) {
+                py_TValue* begin = SP() - byte.arg;
+                py_StackRef items = py_pushtmp();
+                if(!pk_expand_starred(begin, byte.arg, items)) goto __ERROR;
+                py_TValue list = *items;
+                SP() = begin;
+                PUSH(&list);
+                DISPATCH();
+            }
             py_TValue tmp;
             py_newlistn(&tmp, byte.arg);
             py_TValue* begin = SP() - byte.arg;
@@ -18543,6 +19359,11 @@ __NEXT_STEP:
             py_Ref tmp = py_pushtmp();
             py_newdict(tmp);
             for(int i = 0; i < byte.arg * 2; i += 2) {
+                // kipferl patch: a `**mapping` item merges the mapping
+                if(begin[i].type == tp_star_wrapper) {
+                    if(!pk_dict_update_from(tmp, py_getslot(begin + i, 0))) goto __ERROR;
+                    continue;
+                }
                 bool ok = py_dict_setitem(tmp, begin + i, begin + i + 1);
                 if(!ok) goto __ERROR;
             }
@@ -18551,6 +19372,18 @@ __NEXT_STEP:
             DISPATCH();
         }
         case OP_BUILD_SET: {
+            // kipferl patch: expand starred items into a list, then build the set from it
+            if(pk_has_starred(SP() - byte.arg, byte.arg)) {
+                py_TValue* begin = SP() - byte.arg;
+                py_StackRef items = py_pushtmp();
+                if(!pk_expand_starred(begin, byte.arg, items)) goto __ERROR;
+                py_Ref typeobject_set = py_getdict(self->builtins, py_name("set"));
+                if(!py_call(typeobject_set, 1, items)) goto __ERROR;
+                py_TValue result = *py_retval();
+                SP() = begin;
+                PUSH(&result);
+                DISPATCH();
+            }
             py_TValue* begin = SP() - byte.arg;
             py_Ref typeobject_set = py_getdict(self->builtins, py_name("set"));
             assert(typeobject_set != NULL);
@@ -18598,7 +19431,9 @@ __NEXT_STEP:
         /*****************************/
 #define CASE_BINARY_OP(label, op, rop)                                                             \
     case label: {                                                                                  \
-        if(!pk_stack_binaryop(self, op, rop)) goto __ERROR;                                        \
+        int inplace = byte.arg == 1 ? pk_stack_inplaceop(self, op) : 0;                            \
+        if(inplace == -1) goto __ERROR;                                                            \
+        if(inplace == 0 && !pk_stack_binaryop(self, op, rop)) goto __ERROR;                        \
         POP();                                                                                     \
         *TOP() = self->last_retval;                                                                \
         DISPATCH();                                                                                \
@@ -18986,12 +19821,41 @@ __NEXT_STEP:
                     DISPATCH();
                 }
                 default: {
-                    TypeError("expected list or tuple to unpack, got %t", TOP()->type);
-                    goto __ERROR;
+                    // kipferl patch: any iterable unpacks, as in `a, b = map(int, line.split())`;
+                    // reading stops at the first excess item, so an endless iterator fails too
+                    py_TValue* base = SP() - 1;
+                    if(!py_iter(base)) goto __ERROR;
+                    *base = *py_retval();
+                    int count = 0;
+                    while(true) {
+                        int res = py_next(base);
+                        if(res == -1) goto __ERROR;
+                        if(res == 0) break;
+                        if(count == byte.arg) {
+                            ValueError("too many values to unpack (expected %d)", byte.arg);
+                            goto __ERROR;
+                        }
+                        PUSH(py_retval());
+                        count++;
+                    }
+                    if(count < byte.arg) {
+                        ValueError("not enough values to unpack (expected %d, got %d)",
+                                   byte.arg,
+                                   count);
+                        goto __ERROR;
+                    }
+                    // the values replace the iterator
+                    memmove(base, base + 1, count * sizeof(py_TValue));
+                    SP()--;
+                    DISPATCH();
                 }
             }
-            if(length != byte.arg) {
-                ValueError("expected %d values to unpack, got %d", byte.arg, length);
+            if(length > byte.arg) {
+                ValueError("too many values to unpack (expected %d)", byte.arg);
+                goto __ERROR;
+            }
+            if(length < byte.arg) {
+                ValueError("not enough values to unpack (expected %d, got %d)", byte.arg, length);
                 goto __ERROR;
             }
             POP();
@@ -19001,25 +19865,40 @@ __NEXT_STEP:
             DISPATCH();
         }
         case OP_UNPACK_EX: {
+            // kipferl patch: [before | after << 8] targets around the starred one, from any iterable
+            int before = byte.arg & 0xFF;
+            int after = byte.arg >> 8;
             py_TValue* p;
             int length = pk_arrayview(TOP(), &p);
             if(length == -1) {
-                TypeError("expected list or tuple to unpack, got %t", TOP()->type);
-                goto __ERROR;
+                if(!py_tpcall(tp_list, 1, TOP())) goto __ERROR;
+                *TOP() = *py_retval();
+                length = pk_arrayview(TOP(), &p);
             }
-            int exceed = length - byte.arg;
+            int exceed = length - before - after;
             if(exceed < 0) {
-                ValueError("not enough values to unpack");
+                ValueError("not enough values to unpack (expected at least %d, got %d)",
+                           before + after,
+                           length);
                 goto __ERROR;
             }
-            POP();
-            for(int i = 0; i < byte.arg; i++) {
+            // the sequence stays rooted below the targets until they are in place
+            py_TValue sequence = *TOP();
+            for(int i = 0; i < before; i++) {
                 PUSH(p + i);
             }
             py_newlistn(SP()++, exceed);
             for(int i = 0; i < exceed; i++) {
-                py_list_setitem(TOP(), i, p + byte.arg + i);
+                py_list_setitem(TOP(), i, p + before + i);
             }
+            for(int i = 0; i < after; i++) {
+                PUSH(p + before + exceed + i);
+            }
+            // [sequence, targets...] -> [targets...]
+            py_TValue* base = SP() - (before + 1 + after) - 1;
+            assert(py_isidentical(base, &sequence));
+            memmove(base, base + 1, (before + 1 + after) * sizeof(py_TValue));
+            SP()--;
             DISPATCH();
         }
         ///////////
@@ -19067,8 +19946,10 @@ __NEXT_STEP:
                 py_TValue* slot_eq = py_getdict(&ti->self, __eq__);
                 py_TValue* slot_ne = py_getdict(&ti->self, __ne__);
                 if(slot_eq && !slot_ne) {
-                    TypeError("'%n' implements '__eq__' but not '__ne__'", ti->name);
-                    goto __ERROR;
+                    // kipferl patch: like CPython, != defaults to the negation of __eq__
+                    py_TValue ne;
+                    py_newnativefunc(&ne, pk_default__ne__);
+                    py_setdict(&ti->self, __ne__, &ne);
                 }
             }
             // class with decorator is unsafe currently
@@ -19114,7 +19995,11 @@ __NEXT_STEP:
                 TypeError("'%t' object does not support the context manager protocol", TOP()->type);
                 goto __ERROR;
             }
-            if(!py_vectorcall(0, 0)) goto __ERROR;
+            // kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython
+            py_newnone(SP()++);
+            py_newnone(SP()++);
+            py_newnone(SP()++);
+            if(!py_vectorcall(3, 0)) goto __ERROR;
             POP();
             DISPATCH();
         }
@@ -19128,8 +20013,11 @@ __NEXT_STEP:
                 TypeError("'%t' object does not support the context manager protocol", TOP()->type);
                 goto __ERROR;
             }
+            // kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython
+            py_push(py_tpobject(info->exc.type));
             py_push(&info->exc);
-            if(!py_vectorcall(1, 0)) goto __ERROR;
+            py_newnone(SP()++);
+            if(!py_vectorcall(3, 0)) goto __ERROR;
             int suppress = py_bool(py_retval());
             if(suppress < 0) goto __ERROR;
             POP();
@@ -19188,6 +20076,28 @@ __NEXT_STEP:
             DISPATCH();
         }
         case OP_RAISE: {
+            // kipferl patch: [exception, cause] sets the cause, as `raise exc from cause` does
+            if(byte.arg == 1) {
+                if(py_istype(TOP(), tp_type)) {
+                    if(!py_tpcall(py_totype(TOP()), 0, NULL)) goto __ERROR;
+                    py_assign(TOP(), py_retval());
+                }
+                if(!py_isnone(TOP()) && !py_isinstance(TOP(), tp_BaseException)) {
+                    TypeError("exception causes must derive from BaseException");
+                    goto __ERROR;
+                }
+                if(py_istype(SECOND(), tp_type)) {
+                    if(!py_tpcall(py_totype(SECOND()), 0, NULL)) goto __ERROR;
+                    py_assign(SECOND(), py_retval());
+                }
+                if(!py_isinstance(SECOND(), tp_BaseException)) {
+                    TypeError("exceptions must derive from BaseException");
+                    goto __ERROR;
+                }
+                py_setdict(SECOND(), py_name("__cause__"), TOP());
+                py_setdict(SECOND(), py_name("__suppress_context__"), py_True());
+                POP();
+            }
             // [exception]
             if(py_istype(TOP(), tp_type)) {
                 if(!py_tpcall(py_totype(TOP()), 0, NULL)) goto __ERROR;
@@ -19211,6 +20121,32 @@ __NEXT_STEP:
             goto __ERROR;
         }
         case OP_RE_RAISE: {
+            // kipferl patch: argument 1 re-raises the innermost exception being handled, which
+            // lies below the try statements entered since; they may still catch it
+            if(byte.arg == 1 && py_isnil(&self->unhandled_exc)) {
+                FrameExcInfo* base = frame->exc_stack.data;
+                int i = frame->exc_stack.length - 1;
+                while(i >= 0 && py_isnil(&base[i].exc))
+                    i--;
+                if(i < 0) {
+                    // kipferl patch: like CPython's thread-wide handled exception, a bare
+                    // raise in a called function re-raises what its callers are handling
+                    for(py_Frame* f = frame->f_back; f != NULL && i < 0; f = f->f_back) {
+                        FrameExcInfo* outer = f->exc_stack.data;
+                        for(i = f->exc_stack.length - 1; i >= 0 && py_isnil(&outer[i].exc); i--) {}
+                        if(i >= 0) self->unhandled_exc = outer[i].exc;
+                    }
+                    if(i < 0) {
+                        RuntimeError("No active exception to reraise");
+                        goto __ERROR;
+                    }
+                    goto __ERROR_RE_RAISE;
+                }
+                if(i != frame->exc_stack.length - 1) {
+                    self->unhandled_exc = base[i].exc;
+                    goto __ERROR_RE_RAISE;
+                }
+            }
             if(py_isnil(&self->unhandled_exc)) {
                 FrameExcInfo* info = Frame__top_exc_info(frame);
                 assert(info != NULL && !py_isnil(&info->exc));
@@ -19228,7 +20164,7 @@ __NEXT_STEP:
         //////////////////
         case OP_FORMAT_STRING: {
             py_Ref spec = c11__at(py_TValue, &frame->co->consts, byte.arg);
-            bool ok = pk_format_object(self, TOP(), py_tosv(spec));
+            bool ok = pk_format_fstring_field(self, TOP(), py_tosv(spec));
             if(!ok) goto __ERROR;
             py_assign(TOP(), py_retval());
             DISPATCH();
@@ -19271,6 +20207,52 @@ __ERROR_RE_RAISE:
     c11__unreachable();
 }
 
+// kipferl patch: [*a, *b], (*a,) and {*a} expand starred items; `out` must be rooted
+static bool pk_expand_starred(py_TValue* begin, int count, py_Ref out) {
+    py_newlist(out);
+    for(int i = 0; i < count; i++) {
+        if(begin[i].type != tp_star_wrapper) {
+            py_list_append(out, &begin[i]);
+            continue;
+        }
+        py_Ref iterable = py_getslot(&begin[i], 0);
+        py_StackRef iterator = py_pushtmp();
+        if(!py_iter(iterable)) return false;
+        *iterator = *py_retval();
+        while(true) {
+            int res = py_next(iterator);
+            if(res == -1) return false;
+            if(res == 0) break;
+            py_list_append(out, py_retval());
+        }
+        py_pop();
+    }
+    return true;
+}
+
+static bool pk_has_starred(py_TValue* begin, int count) {
+    for(int i = 0; i < count; i++) {
+        if(begin[i].type == tp_star_wrapper) return true;
+    }
+    return false;
+}
+
+// kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented
+static bool pk_default__ne__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    py_Ref eq = py_tpfindmagic(argv[0].type, __eq__);
+    if(eq == NULL) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    if(!py_call(eq, 2, argv)) return false;
+    if(py_retval()->type == tp_NotImplementedType) return true;
+    int truth = py_bool(py_retval());
+    if(truth < 0) return false;
+    py_newbool(py_retval(), !truth);
+    return true;
+}
+
 const char* pk_op2str(py_Name op) {
     if(__eq__ == op) return "==";
     if(__ne__ == op) return "!=";
@@ -19294,6 +20276,41 @@ const char* pk_op2str(py_Name op) {
     if(__invert__ == op) return "~";
     if(__matmul__ == op) return "@";
     return py_name2str(op);
+}
+
+// kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.
+// Returns 1 when it produced the result, 0 to fall back to the binary operator, -1 on error.
+int pk_stack_inplaceop(VM* self, py_Name op) {
+    // [a, b]
+    switch(SECOND()->type) {
+        // immutable builtins have no in-place methods
+        case tp_int:
+        case tp_float:
+        case tp_bool:
+        case tp_str:
+        case tp_tuple:
+        case tp_NoneType: return 0;
+        default: break;
+    }
+    const char* name;
+    if(op == __add__) name = "__iadd__";
+    else if(op == __sub__) name = "__isub__";
+    else if(op == __mul__) name = "__imul__";
+    else if(op == __truediv__) name = "__itruediv__";
+    else if(op == __floordiv__) name = "__ifloordiv__";
+    else if(op == __mod__) name = "__imod__";
+    else if(op == __pow__) name = "__ipow__";
+    else if(op == __lshift__) name = "__ilshift__";
+    else if(op == __rshift__) name = "__irshift__";
+    else if(op == __and__) name = "__iand__";
+    else if(op == __or__) name = "__ior__";
+    else if(op == __xor__) name = "__ixor__";
+    else if(op == __matmul__) name = "__imatmul__";
+    else return 0;
+    py_Ref magic = py_tpfindname(SECOND()->type, py_name(name));
+    if(!magic) return 0;
+    if(!py_call(magic, 2, SECOND())) return -1;
+    return self->last_retval.type != tp_NotImplementedType;
 }
 
 bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop) {
@@ -19336,149 +20353,397 @@ bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop) {
                      rhs_t);
 }
 
-bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
-    // format TOS via `spec` inplace
-    // spec: '!r:.2f', ':.2f', '.2f'
-    if(spec.size == 0) return py_str(val);
+// kipferl patch: the format specification mini-language of str, int and float, as in CPython
+typedef struct FormatSpec {
+    c11_sv fill;        // one UTF-8 character; empty when not given
+    char align;         // '<', '>', '^', '=' or 0
+    char sign;          // '+', '-', ' ' or 0
+    bool alternate;     // '#'
+    bool zero;          // '0' before the width
+    int64_t width;      // -1 when not given
+    char grouping;      // ',', '_' or 0
+    int64_t precision;  // -1 when not given
+    char type;          // 0 when not given
+} FormatSpec;
 
-    if(spec.data[0] == '!') {
-        if(c11_sv__startswith(spec, (c11_sv){"!r", 2})) {
-            spec.data += 2;
-            spec.size -= 2;
-            if(!py_repr(val)) return false;
-            py_assign(val, py_retval());
-            if(spec.size == 0) return true;
-        } else {
-            return ValueError("invalid conversion specifier (only !r is supported)");
+static bool pk_parse_format_digits(const char** p, const char* end, int64_t* out) {
+    *out = 0;
+    while(*p < end && isdigit((unsigned char)**p)) {
+        *out = *out * 10 + (**p - '0');
+        if(*out > INT32_MAX) return ValueError("Too many decimal digits in format string");
+        (*p)++;
+    }
+    return true;
+}
+
+static bool pk_parse_format_spec(c11_sv spec, FormatSpec* out, py_Type type) {
+    const char* p = spec.data;
+    const char* end = spec.data + spec.size;
+    *out = (FormatSpec){{NULL, 0}, 0, 0, false, false, -1, 0, -1, 0};
+    if(p < end) {
+        int n = c11__u8_header((unsigned char)*p, true);
+        if(n <= 0) n = 1;
+        if(p + n < end && p[n] != '\0' && strchr("<>^=", p[n])) {
+            out->fill = (c11_sv){p, n};
+            out->align = p[n];
+            p += n + 1;
+        } else if(*p != '\0' && strchr("<>^=", *p)) {
+            out->align = *p++;
         }
     }
+    if(p < end && (*p == '+' || *p == '-' || *p == ' ')) out->sign = *p++;
+    if(p < end && *p == '#') {
+        out->alternate = true;
+        p++;
+    }
+    if(p < end && *p == '0') {
+        out->zero = true;
+        p++;
+    }
+    if(p < end && isdigit((unsigned char)*p)) {
+        if(!pk_parse_format_digits(&p, end, &out->width)) return false;
+    }
+    if(p < end && (*p == ',' || *p == '_')) out->grouping = *p++;
+    if(p < end && *p == '.') {
+        p++;
+        if(p == end || !isdigit((unsigned char)*p)) {
+            return ValueError("Format specifier missing precision");
+        }
+        if(!pk_parse_format_digits(&p, end, &out->precision)) return false;
+    }
+    if(p < end) out->type = *p++;
+    if(p != end) {
+        return ValueError("Invalid format specifier '%v' for object of type '%t'", spec, type);
+    }
+    return true;
+}
 
-    assert(spec.size > 0);
+static void pk_write_format_fill(c11_sbuf* buf, c11_sv fill, int64_t count) {
+    for(int64_t i = 0; i < count; i++)
+        c11_sbuf__write_sv(buf, fill);
+}
 
-    if(spec.data[0] == ':') {
+// Insert the grouping separator into the leading run of digits of `digits`.
+static void pk_write_grouped(c11_sbuf* buf, c11_sv digits, char grouping, int interval) {
+    int run = 0;
+    // interval 4 groups binary, octal and hexadecimal digits
+    while(run < digits.size && (interval == 4 ? isxdigit((unsigned char)digits.data[run])
+                                              : isdigit((unsigned char)digits.data[run])))
+        run++;
+    for(int i = 0; i < run; i++) {
+        if(i > 0 && grouping && (run - i) % interval == 0) c11_sbuf__write_char(buf, grouping);
+        c11_sbuf__write_char(buf, digits.data[i]);
+    }
+    c11_sbuf__write_cstrn(buf, digits.data + run, digits.size - run);
+}
+
+// Pad `prefix` (sign and base prefix) and `body` (digits) to the requested width.
+static void pk_write_formatted(c11_sbuf* out,
+                               const FormatSpec* spec,
+                               c11_sv prefix,
+                               c11_sv body,
+                               bool numeric,
+                               char grouping,
+                               int interval) {
+    c11_sv fill = spec->fill.size ? spec->fill : (c11_sv){spec->zero ? "0" : " ", 1};
+    char align = spec->align;
+    if(!align) align = spec->zero && numeric ? '=' : (numeric ? '>' : '<');
+
+    c11_sbuf grouped;
+    c11_sbuf__ctor(&grouped);
+    int run = 0;
+    while(run < body.size && (interval == 4 ? isxdigit((unsigned char)body.data[run])
+                                            : isdigit((unsigned char)body.data[run])))
+        run++;
+    if(numeric && grouping && run > 0 && spec->zero && !spec->fill.size && align == '=') {
+        // zero padding is part of the number, so it is grouped as well: use the fewest digits
+        // whose grouped form fills the width, which never starts with a separator
+        int64_t needed = spec->width - c11_sv__u8_length(prefix) - (body.size - run);
+        int64_t digits = run;
+        while(digits + (digits - 1) / interval < needed)
+            digits++;
+        c11_sbuf padded;
+        c11_sbuf__ctor(&padded);
+        c11_sbuf__write_pad(&padded, (int)(digits - run), '0');
+        c11_sbuf__write_sv(&padded, body);
+        c11_string* text = c11_sbuf__submit(&padded);
+        pk_write_grouped(&grouped, c11_string__sv(text), grouping, interval);
+        c11_string__delete(text);
+    } else if(numeric && grouping) {
+        pk_write_grouped(&grouped, body, grouping, interval);
+    } else {
+        c11_sbuf__write_sv(&grouped, body);
+    }
+    c11_string* text = c11_sbuf__submit(&grouped);
+    c11_sv text_sv = c11_string__sv(text);
+    int64_t length = c11_sv__u8_length(prefix) + c11_sv__u8_length(text_sv);
+    int64_t padding = spec->width > length ? spec->width - length : 0;
+    switch(align) {
+        case '<':
+            c11_sbuf__write_sv(out, prefix);
+            c11_sbuf__write_sv(out, text_sv);
+            pk_write_format_fill(out, fill, padding);
+            break;
+        case '^':
+            pk_write_format_fill(out, fill, padding / 2);
+            c11_sbuf__write_sv(out, prefix);
+            c11_sbuf__write_sv(out, text_sv);
+            pk_write_format_fill(out, fill, padding - padding / 2);
+            break;
+        case '=':
+            c11_sbuf__write_sv(out, prefix);
+            pk_write_format_fill(out, fill, padding);
+            c11_sbuf__write_sv(out, text_sv);
+            break;
+        default:
+            pk_write_format_fill(out, fill, padding);
+            c11_sbuf__write_sv(out, prefix);
+            c11_sbuf__write_sv(out, text_sv);
+            break;
+    }
+    c11_string__delete(text);
+}
+
+static bool pk_format_float(c11_sbuf* out, double x, const FormatSpec* spec, py_Type type);
+
+static bool pk_format_int(c11_sbuf* out, py_i64 value, const FormatSpec* spec, py_Type type) {
+    char kind = spec->type ? spec->type : 'd';
+    if(strchr("eEfFgG%", kind)) return pk_format_float(out, (double)value, spec, type);
+    if(!strchr("bcdoxXn", kind)) {
+        return ValueError("Unknown format code '%c' for object of type '%t'", kind, type);
+    }
+    if(spec->precision >= 0) return ValueError("Precision not allowed in integer format specifier");
+    if(spec->grouping == ',' && kind != 'd') {
+        return ValueError("Cannot specify ',' with '%c'.", kind);
+    }
+    if(spec->grouping && (kind == 'c' || kind == 'n')) {
+        return ValueError("Cannot specify '%c' with '%c'.", spec->grouping, kind);
+    }
+    if(kind == 'c') {
+        if(spec->sign) return ValueError("Sign not allowed with integer format specifier 'c'");
+        if(spec->alternate) {
+            return ValueError("Alternate form (#) not allowed with integer format specifier 'c'");
+        }
+        if(value < 0 || value > 0x10FFFF) return ValueError("%%c arg not in range(0x110000)");
+        char utf8[8];
+        int n = c11__u32_to_u8((uint32_t)value, utf8);
+        FormatSpec chars = *spec;
+        return pk_write_formatted(out, &chars, (c11_sv){NULL, 0}, (c11_sv){utf8, n}, false, 0, 0),
+               true;
+    }
+    bool negative = value < 0;
+    uint64_t magnitude = negative ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;
+    int base = kind == 'b' ? 2 : kind == 'o' ? 8 : (kind == 'x' || kind == 'X') ? 16 : 10;
+    const char* digits = kind == 'X' ? "0123456789ABCDEF" : "0123456789abcdef";
+    char buffer[72];
+    int start = sizeof(buffer);
+    do {
+        buffer[--start] = digits[magnitude % base];
+        magnitude /= base;
+    } while(magnitude > 0);
+
+    char prefix[4];
+    int prefix_size = 0;
+    if(negative) {
+        prefix[prefix_size++] = '-';
+    } else if(spec->sign == '+' || spec->sign == ' ') {
+        prefix[prefix_size++] = spec->sign;
+    }
+    if(spec->alternate && base != 10) {
+        prefix[prefix_size++] = '0';
+        prefix[prefix_size++] = kind;
+    }
+    pk_write_formatted(out,
+                       spec,
+                       (c11_sv){prefix, prefix_size},
+                       (c11_sv){buffer + start, (int)sizeof(buffer) - start},
+                       true,
+                       spec->grouping,
+                       base == 10 ? 3 : 4);
+    return true;
+}
+
+static bool pk_format_float(c11_sbuf* out, double x, const FormatSpec* spec, py_Type type) {
+    char kind = spec->type;
+    if(kind && !strchr("eEfFgGn%", kind)) {
+        return ValueError("Unknown format code '%c' for object of type '%t'", kind, type);
+    }
+    if(spec->grouping && kind == 'n') {
+        return ValueError("Cannot specify '%c' with 'n'.", spec->grouping);
+    }
+    bool negative = signbit(x);
+    double magnitude = fabs(x);
+    bool upper = kind == 'E' || kind == 'F' || kind == 'G';
+    int precision = spec->precision >= 0 ? (int)spec->precision : 6;
+    // room for the digits, a 309-digit integer part, the exponent and a '%' or ".0" suffix
+    size_t cap = (size_t)precision + 400;
+    if(cap > INT32_MAX) return ValueError("precision too big");
+    char small[512];
+    char* body = cap <= sizeof(small) ? small : PK_MALLOC(cap);
+    if(body == small) cap = sizeof(small);
+    const char* alternate = spec->alternate ? "#" : "";
+    char fmt[16];
+    if(isnan(magnitude) || isinf(magnitude)) {
+        snprintf(body, cap, "%s", isnan(magnitude) ? "nan" : "inf");
+        if(kind == '%') strcat(body, "%");
+    } else if(kind == 'f' || kind == 'F' || kind == '%') {
+        snprintf(fmt, sizeof(fmt), "%%%s.*f", alternate);
+        snprintf(body, cap, fmt, precision, kind == '%' ? magnitude * 100 : magnitude);
+        if(kind == '%') strcat(body, "%");
+    } else if(kind == 'e' || kind == 'E') {
+        snprintf(fmt, sizeof(fmt), "%%%s.*e", alternate);
+        snprintf(body, cap, fmt, precision, magnitude);
+    } else if(kind == 'g' || kind == 'G' || kind == 'n') {
+        snprintf(fmt, sizeof(fmt), "%%%s.*g", alternate);
+        snprintf(body, cap, fmt, precision == 0 ? 1 : precision, magnitude);
+    } else if(spec->precision < 0) {
+        // no type: the shortest representation, as repr() prints it
+        c11_sbuf repr;
+        c11_sbuf__ctor(&repr);
+        c11_sbuf__write_f64(&repr, magnitude, -1);
+        c11_string* text = c11_sbuf__submit(&repr);
+        snprintf(body, cap, "%s", text->data);
+        c11_string__delete(text);
+        // the alternate form always has a decimal point: 1e+16 becomes 1.e+16
+        char* e = strchr(body, 'e');
+        if(spec->alternate && !strchr(body, '.') && e) {
+            memmove(e + 1, e, strlen(e) + 1);
+            *e = '.';
+        }
+    } else if(spec->alternate) {
+        // no type with a precision: like '#g', but fixed-point keeps a fractional digit
+        int digits = precision == 0 ? 1 : precision;
+        snprintf(body, cap, "%#.*g", digits, magnitude);
+        size_t length = strlen(body);
+        if(!strchr(body, 'e') && body[length - 1] == '.') {
+            snprintf(body, cap, "%#.*e", digits - 1, magnitude);
+        }
+    } else {
+        // no type with a precision: like 'g', but fixed-point keeps a fractional digit
+        int digits = precision == 0 ? 1 : precision;
+        snprintf(body, cap, "%.*g", digits, magnitude);
+        if(!strpbrk(body, ".e")) {
+            if((int)strlen(body) < digits) {
+                strcat(body, ".0");
+            } else {
+                snprintf(body, cap, "%.*e", digits - 1, magnitude);
+                // drop trailing zeros of the mantissa, as 'g' does
+                char* e = strchr(body, 'e');
+                if(memchr(body, '.', e - body)) {
+                    char* m = e;
+                    while(m[-1] == '0')
+                        m--;
+                    if(m[-1] == '.') m--;
+                    memmove(m, e, strlen(e) + 1);
+                }
+            }
+        }
+    }
+    if(upper) {
+        for(char* c = body; *c; c++)
+            *c = (char)toupper((unsigned char)*c);
+    }
+    char prefix[2];
+    int prefix_size = 0;
+    if(negative) {
+        prefix[prefix_size++] = '-';
+    } else if(spec->sign == '+' || spec->sign == ' ') {
+        prefix[prefix_size++] = spec->sign;
+    }
+    pk_write_formatted(out,
+                       spec,
+                       (c11_sv){prefix, prefix_size},
+                       (c11_sv){body, (int)strlen(body)},
+                       true,
+                       spec->grouping,
+                       3);
+    if(body != small) PK_FREE(body);
+    return true;
+}
+
+static bool pk_format_str(c11_sbuf* out, c11_sv text, const FormatSpec* spec, py_Type type) {
+    if(spec->type && spec->type != 's') {
+        return ValueError("Unknown format code '%c' for object of type '%t'", spec->type, type);
+    }
+    if(spec->sign) return ValueError("Sign not allowed in string format specifier");
+    if(spec->alternate) return ValueError("Alternate form (#) not allowed in string format specifier");
+    if(spec->grouping) return ValueError("Cannot specify '%c' with 's'.", spec->grouping);
+    if(spec->align == '=') return ValueError("'=' alignment not allowed in string format specifier");
+    if(spec->precision >= 0 && spec->precision < c11_sv__u8_length(text)) {
+        int bytes = c11__unicode_index_to_byte(text.data, (int)spec->precision);
+        text.size = bytes;
+    }
+    pk_write_formatted(out, spec, (c11_sv){NULL, 0}, text, false, 0, 0);
+    return true;
+}
+
+// kipferl patch: an f-string field's `!conv` and `:` prefix are split off here; the rest is a
+// plain format specification, so `{:!<5}` and `{::<5}` fill with '!' and ':'
+bool pk_format_fstring_field(VM* self, py_Ref val, c11_sv spec) {
+    // spec: '!r:.2f', '!r', ':.2f'
+    if(spec.size > 0 && spec.data[0] == '!') {
+        if(c11_sv__startswith(spec, (c11_sv){"!r", 2})) {
+            if(!py_repr(val)) return false;
+        } else if(c11_sv__startswith(spec, (c11_sv){"!s", 2})) {
+            if(!py_str(val)) return false;
+        } else {
+            return ValueError("invalid conversion specifier (only !r and !s are supported)");
+        }
+        spec.data += 2;
+        spec.size -= 2;
+        py_assign(val, py_retval());
+        if(spec.size == 0) return true;
+    }
+    if(spec.size > 0 && spec.data[0] == ':') {
         spec.data++;
         spec.size--;
     }
+    return pk_format_object(self, val, spec);
+}
 
-    char type;
-    switch(spec.data[spec.size - 1]) {
-        case 'f':
-        case 'd':
-        case 's':
-            type = spec.data[spec.size - 1];
-            spec.size--;  // remove last char
-            break;
-        default: type = ' '; break;
-    }
-
-    char pad_c = ' ';
-    if(strchr("0-=*#@!~", spec.data[0])) {
-        pad_c = spec.data[0];
-        spec = c11_sv__slice(spec, 1);
-    }
-
-    char align;
-    if(spec.data[0] == '^') {
-        align = '^';
-        spec = c11_sv__slice(spec, 1);
-    } else if(spec.data[0] == '>') {
-        align = '>';
-        spec = c11_sv__slice(spec, 1);
-    } else if(spec.data[0] == '<') {
-        align = '<';
-        spec = c11_sv__slice(spec, 1);
-    } else {
-        align = (py_isint(val) || py_isfloat(val)) ? '>' : '<';
-    }
-
-    int dot = c11_sv__index(spec, '.');
-    py_i64 width, precision;
-
-    if(dot >= 0) {
-        if(dot == 0) {
-            // {.2f}
-            width = -1;
-        } else {
-            // {10.2f}
-            IntParsingResult res = c11__parse_uint(c11_sv__slice2(spec, 0, dot), &width, 10);
-            if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
+bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
+    // format `val` with the plain format specification `spec`
+    // a class may define its own formatting
+    if(val->type != tp_int && val->type != tp_float && val->type != tp_str &&
+       val->type != tp_bool) {
+        py_Ref method = py_tpfindname(val->type, py_name("__format__"));
+        if(method != NULL) {
+            py_TValue args[2];
+            args[0] = *val;
+            py_newstrv(&args[1], spec);
+            if(!py_call(method, 2, args)) return false;
+            if(!py_isstr(py_retval())) {
+                return TypeError("__format__ must return a str, not %t", py_retval()->type);
+            }
+            return true;
         }
-        IntParsingResult res = c11__parse_uint(c11_sv__slice(spec, dot + 1), &precision, 10);
-        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
-    } else {
-        // {10s}
-        IntParsingResult res = c11__parse_uint(spec, &width, 10);
-        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
-        precision = -1;
     }
+    if(spec.size == 0) return py_str(val);
 
-    if(type != 'f' && dot >= 0) {
-        return ValueError("precision not allowed in the format specifier");
-    }
-
+    FormatSpec parsed;
+    if(!pk_parse_format_spec(spec, &parsed, val->type)) return false;
     c11_sbuf buf;
     c11_sbuf__ctor(&buf);
-
-    if(type == 'f') {
-        py_f64 x;
-        if(!py_castfloat(val, &x)) {
-            c11_sbuf__dtor(&buf);
-            return false;
-        }
-        if(precision < 0) precision = 6;
-        c11_sbuf__write_f64(&buf, x, precision);
-    } else if(type == 'd') {
-        if(!py_checkint(val)) {
-            c11_sbuf__dtor(&buf);
-            return false;
-        }
-        c11_sbuf__write_i64(&buf, py_toint(val));
-    } else if(type == 's') {
-        if(!py_checkstr(val)) {
-            c11_sbuf__dtor(&buf);
-            return false;
-        }
-        c11_sbuf__write_sv(&buf, py_tosv(val));
+    bool ok;
+    if(val->type == tp_int || val->type == tp_bool) {
+        py_i64 number = val->type == tp_bool ? (py_i64)py_tobool(val) : py_toint(val);
+        ok = pk_format_int(&buf, number, &parsed, val->type);
+    } else if(val->type == tp_float) {
+        ok = pk_format_float(&buf, py_tofloat(val), &parsed, val->type);
+    } else if(val->type == tp_str) {
+        ok = pk_format_str(&buf, py_tosv(val), &parsed, val->type);
     } else {
-        if(!py_str(val)) {
-            c11_sbuf__dtor(&buf);
-            return false;
+        // Kipferl formats other objects through str(), as PocketPy always did
+        ok = py_str(val);
+        if(ok) {
+            py_TValue text = *py_retval();
+            ok = pk_format_str(&buf, py_tosv(&text), &parsed, tp_str);
         }
-        c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
     }
-
-    c11_string* body = c11_sbuf__submit(&buf);
-    int length = c11_sv__u8_length(c11_string__sv(body));
-    c11_sbuf__ctor(&buf);  // reinit sbuf
-
-    if(width != -1 && width > length) {
-        switch(align) {
-            case '>': {
-                c11_sbuf__write_pad(&buf, width - length, pad_c);
-                c11_sbuf__write_sv(&buf, c11_string__sv(body));
-                break;
-            }
-            case '<': {
-                c11_sbuf__write_sv(&buf, c11_string__sv(body));
-                c11_sbuf__write_pad(&buf, width - length, pad_c);
-                break;
-            }
-            case '^': {
-                int pad_left = (width - length) / 2;
-                int pad_right = (width - length) - pad_left;
-                c11_sbuf__write_pad(&buf, pad_left, pad_c);
-                c11_sbuf__write_sv(&buf, c11_string__sv(body));
-                c11_sbuf__write_pad(&buf, pad_right, pad_c);
-                break;
-            }
-            default: c11__unreachable();
-        }
-    } else {
-        c11_sbuf__write_sv(&buf, c11_string__sv(body));
+    if(!ok) {
+        c11_sbuf__dtor(&buf);
+        return false;
     }
-
-    c11_string__delete(body);
-    // inplace update
     c11_sbuf__py_submit(&buf, py_retval());
     return true;
 }
@@ -19634,7 +20899,10 @@ void Frame__delete(py_Frame* self) {
 int Frame__goto_exception_handler(py_Frame* self, ValueStack* value_stack, py_Ref exc) {
     FrameExcInfo* p = self->exc_stack.data;
     for(int i = self->exc_stack.length - 1; i >= 0; i--) {
-        if(py_isnil(&p[i].exc)) {
+        // kipferl patch: an error while evaluating an except clause leaves the try statement;
+        // re-entering its handlers evaluated the clause again forever
+        if(py_isnil(&p[i].exc) && !p[i].matching) {
+            p[i].matching = true;
             value_stack->sp = (self->p0 + p[i].offset);  // unwind the stack
             return c11__at(CodeBlock, &self->co->blocks, p[i].iblock)->end;
         } else {
@@ -19651,6 +20919,7 @@ void Frame__begin_try(py_Frame* self, py_TValue* sp) {
     info->iblock = iblock;
     info->offset = (int)(sp - self->p0);
     py_newnil(&info->exc);
+    info->matching = false;
 }
 
 FrameExcInfo* Frame__top_exc_info(py_Frame* self) {
@@ -20842,6 +22111,31 @@ void VM__ctor(VM* self) {
     pk__add_module_pkpy();
     pk__add_module_picoterm();
 
+    // kipferl patch: integers are 64-bit, so results beyond that raise OverflowError
+    self->tp_OverflowError =
+        pk_newtype("OverflowError", tp_Exception, self->builtins, NULL, false, true);
+    py_setdict(self->builtins, py_name("OverflowError"), py_tpobject(self->tp_OverflowError));
+    // ArithmeticError is created last to keep the builtin type indices: rebase the others onto it
+    py_Type arithmetic_error =
+        pk_newtype("ArithmeticError", tp_Exception, self->builtins, NULL, false, true);
+    py_setdict(self->builtins, py_name("ArithmeticError"), py_tpobject(arithmetic_error));
+    py_Type arithmetic_errors[] = {self->tp_OverflowError, tp_ZeroDivisionError};
+    for(int i = 0; i < 2; i++) {
+        py_TypeInfo* ti = pk_typeinfo(arithmetic_errors[i]);
+        ti->base = arithmetic_error;
+        ti->base_ti = pk_typeinfo(arithmetic_error);
+    }
+
+    // kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready
+    void pk_dict__bind_signatures();
+    pk_dict__bind_signatures();
+    // kipferl patch: exception subclasses may take keyword arguments in __init__
+    void pk_BaseException__bind_signatures();
+    pk_BaseException__bind_signatures();
+    // kipferl patch: str.format accepts keyword arguments
+    void pk_str__bind_signatures();
+    pk_str__bind_signatures();
+
     // add python builtins
     do {
         bool ok;
@@ -20979,68 +22273,151 @@ bool pk__normalize_index(int* index, int length) {
     return true;
 }
 
+// kipferl patch: bind arguments as CPython does. Parameters are numbered in declaration
+// order, args before kwargs; the first FuncDecl__positional of them take positional arguments,
+// and all but the first `posonly` take keywords.
+static int FuncDecl__positional(const FuncDecl* decl) {
+    return decl->args.length + (decl->kwonly < 0 ? decl->kwargs.length : decl->kwonly);
+}
+
+static int FuncDecl__param_at(const FuncDecl* decl, int ordinal) {
+    if(ordinal < decl->args.length) return c11__getitem(int32_t, &decl->args, ordinal);
+    return c11__at(FuncDeclKwArg, &decl->kwargs, ordinal - decl->args.length)->index;
+}
+
+static int FuncDecl__ordinal(const FuncDecl* decl, int index) {
+    int count = decl->args.length + decl->kwargs.length;
+    for(int i = 0; i < count; i++) {
+        if(FuncDecl__param_at(decl, i) == index) return i;
+    }
+    return -1;
+}
+
+// "'a'", "'a' and 'b'", "'a', 'b', and 'c'", as CPython lists missing arguments
+static bool pk_missing_arguments(const FuncDecl* decl, py_TValue* buffer, int first, int end,
+                                 const char* kind) {
+    const CodeObject* co = &decl->code;
+    int missing = 0;
+    for(int i = first; i < end; i++) {
+        missing += py_isnil(&buffer[FuncDecl__param_at(decl, i)]);
+    }
+    if(missing == 0) return true;
+    c11_sbuf names;
+    c11_sbuf__ctor(&names);
+    int written = 0;
+    for(int i = first; i < end; i++) {
+        int index = FuncDecl__param_at(decl, i);
+        if(!py_isnil(&buffer[index])) continue;
+        if(written > 0) {
+            if(missing > 2) c11_sbuf__write_char(&names, ',');
+            c11_sbuf__write_cstr(&names, written == missing - 1 ? " and " : " ");
+        }
+        c11_sbuf__write_char(&names, '\'');
+        c11_sbuf__write_cstr(&names, py_name2str(c11__getitem(py_Name, &co->varnames, index)));
+        c11_sbuf__write_char(&names, '\'');
+        written++;
+    }
+    c11_string* text = c11_sbuf__submit(&names);
+    TypeError("%s() missing %d required %s argument%s: %s",
+              co->name->data,
+              missing,
+              kind,
+              missing == 1 ? "" : "s",
+              text->data);
+    c11_string__delete(text);
+    return false;
+}
+
+static bool pk_posonly_as_keyword(const FuncDecl* decl, py_Ref p1, int kwargc) {
+    c11_sbuf names;
+    c11_sbuf__ctor(&names);
+    int written = 0;
+    for(int j = 0; j < kwargc; j++) {
+        py_Name key = (py_Name)py_toint(&p1[2 * j]);
+        int index = c11_smallmap_n2d__get(&decl->kw_to_index, key, -1);
+        if(index < 0 || FuncDecl__ordinal(decl, index) >= decl->posonly) continue;
+        if(written++ > 0) c11_sbuf__write_cstr(&names, ", ");
+        c11_sbuf__write_cstr(&names, py_name2str(key));
+    }
+    c11_string* text = c11_sbuf__submit(&names);
+    TypeError("%s() got some positional-only arguments passed as keyword arguments: '%s'",
+              decl->code.name->data,
+              text->data);
+    c11_string__delete(text);
+    return false;
+}
+
 static bool
     prepare_py_call(py_TValue* buffer, py_Ref argv, py_Ref p1, int kwargc, const FuncDecl* decl) {
     const CodeObject* co = &decl->code;
-    int decl_argc = decl->args.length;
+    int given = p1 - argv;
+    int positional = FuncDecl__positional(decl);
+    int bound = given < positional ? given : positional;
 
-    if(p1 - argv < decl_argc) {
-        return TypeError("%s() takes %d positional arguments but %d were given",
-                         co->name->data,
-                         decl_argc,
-                         (int)(p1 - argv));
-    }
-
-    py_TValue* t = argv;
-    // prepare args
     memset(buffer, 0, co->nlocals * sizeof(py_TValue));
-    c11__foreach(int, &decl->args, index) buffer[*index] = *t++;
-    // prepare kwdefaults
+    // defaults; a required keyword-only parameter has a nil one
     c11__foreach(FuncDeclKwArg, &decl->kwargs, kv) buffer[kv->index] = kv->value;
-
-    // handle *args
-    if(decl->starred_arg != -1) {
-        int exceed_argc = p1 - t;
-        py_Ref vargs = &buffer[decl->starred_arg];
-        py_Ref data = py_newtuple(vargs, exceed_argc);
-        for(int j = 0; j < exceed_argc; j++) {
-            data[j] = *t++;
-        }
-    } else {
-        // kwdefaults override
-        // def f(a, b, c=None)
-        // f(1, 2, 3) -> c=3
-        c11__foreach(FuncDeclKwArg, &decl->kwargs, kv) {
-            if(t >= p1) break;
-            buffer[kv->index] = *t++;
-        }
-        // not able to consume all args
-        if(t < p1) return TypeError("too many arguments (%s)", co->name->data);
+    for(int i = 0; i < bound; i++) {
+        buffer[FuncDecl__param_at(decl, i)] = argv[i];
     }
-
+    if(decl->starred_arg != -1) {
+        int extra = given - bound;
+        py_Ref data = py_newtuple(&buffer[decl->starred_arg], extra);
+        for(int j = 0; j < extra; j++) {
+            data[j] = argv[bound + j];
+        }
+    }
     if(decl->starred_kwarg != -1) py_newdict(&buffer[decl->starred_kwarg]);
 
     for(int j = 0; j < kwargc; j++) {
         py_Name key = (py_Name)py_toint(&p1[2 * j]);
-        int index = c11_smallmap_n2d__get(&decl->kw_to_index, key, -1);
-        // if key is an explicit key, set as local variable
-        if(index >= 0) {
-            buffer[index] = p1[2 * j + 1];
-        } else {
-            // otherwise, set as **kwargs if possible
-            if(decl->starred_kwarg == -1) {
-                return TypeError("'%n' is an invalid keyword argument for %s()",
-                                 key,
-                                 co->name->data);
-            } else {
-                // add to **kwargs
-                bool ok =
-                    py_dict_setitem(&buffer[decl->starred_kwarg], py_name2ref(key), &p1[2 * j + 1]);
-                if(!ok) return false;
+        // `f(a=1, **{'a': 2})` passes the keyword twice
+        for(int k = 0; k < j; k++) {
+            if((py_Name)py_toint(&p1[2 * k]) == key) {
+                return TypeError("%s() got multiple values for keyword argument '%n'",
+                                 co->name->data,
+                                 key);
             }
         }
+        int index = c11_smallmap_n2d__get(&decl->kw_to_index, key, -1);
+        int ordinal = index >= 0 ? FuncDecl__ordinal(decl, index) : -1;
+        if(ordinal >= decl->posonly) {
+            if(ordinal < bound) {
+                return TypeError("%s() got multiple values for argument '%n'", co->name->data, key);
+            }
+            buffer[index] = p1[2 * j + 1];
+        } else if(decl->starred_kwarg != -1) {
+            // a positional-only name passed by keyword lands in **kwargs
+            bool ok =
+                py_dict_setitem(&buffer[decl->starred_kwarg], py_name2ref(key), &p1[2 * j + 1]);
+            if(!ok) return false;
+        } else if(index >= 0) {
+            return pk_posonly_as_keyword(decl, p1, kwargc);
+        } else {
+            return TypeError("'%n' is an invalid keyword argument for %s()", key, co->name->data);
+        }
     }
-    return true;
+
+    if(given > positional && decl->starred_arg == -1) {
+        const char* verb = given == 1 ? "was" : "were";
+        if(positional > decl->args.length) {
+            return TypeError("%s() takes from %d to %d positional arguments but %d %s given",
+                             co->name->data,
+                             decl->args.length,
+                             positional,
+                             given,
+                             verb);
+        }
+        return TypeError("%s() takes %d positional argument%s but %d %s given",
+                         co->name->data,
+                         positional,
+                         positional == 1 ? "" : "s",
+                         given,
+                         verb);
+    }
+    if(!pk_missing_arguments(decl, buffer, 0, positional, "positional")) return false;
+    int total = decl->args.length + decl->kwargs.length;
+    return pk_missing_arguments(decl, buffer, positional, total, "keyword-only");
 }
 
 // kipferl patch: C methods read their receiver's userdata without checking its type
@@ -21094,7 +22471,8 @@ FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall
         const CodeObject* co = &fn->decl->code;
 
         switch(fn->decl->type) {
-            case FuncType_NORMAL: {
+            case FuncType_NORMAL:
+            __NORMAL_CALL: {
                 bool ok = prepare_py_call(self->vectorcall_buffer, argv, p1, kwargc, fn->decl);
                 if(!ok) return RES_ERROR;
                 // copy buffer back to stack
@@ -21114,15 +22492,8 @@ FrameResult VM__vectorcall(VM* self, uint16_t argc, uint16_t kwargc, bool opcall
                 }
             }
             case FuncType_SIMPLE:
-                if(p1 - argv != fn->decl->args.length) {
-                    const char* fmt = "%s() takes %d positional arguments but %d were given";
-                    TypeError(fmt, co->name->data, fn->decl->args.length, (int)(p1 - argv));
-                    return RES_ERROR;
-                }
-                if(kwargc) {
-                    TypeError("%s() takes no keyword arguments", co->name->data);
-                    return RES_ERROR;
-                }
+                // kipferl patch: keywords and argument errors take the general path
+                if(p1 - argv != fn->decl->args.length || kwargc) goto __NORMAL_CALL;
                 // [callable, <self>, args..., local_vars...]
                 //      ^p0                    ^p1      ^_sp
                 self->stack.sp = argv + co->nlocals;
@@ -23502,15 +24873,16 @@ static bool builtins_round(int argc, py_Ref argv) {
 }
 
 static bool builtins_print(int argc, py_Ref argv) {
-    // print(*args, sep=' ', end='\n', flush=False)
+    // print(*args, sep=' ', end='\n', flush=False, file=None)
     py_TValue* args = py_tuple_data(argv);
     int length = py_tuple_len(argv);
-    PY_CHECK_ARG_TYPE(1, tp_str);
-    PY_CHECK_ARG_TYPE(2, tp_str);
-    PY_CHECK_ARG_TYPE(3, tp_bool);
-    c11_sv sep = py_tosv(py_arg(1));
-    c11_sv end = py_tosv(py_arg(2));
-    bool flush = py_tobool(py_arg(3));
+    // kipferl patch: sep and end may be None, and file= writes to any object with write()
+    if(!py_isnone(py_arg(1))) PY_CHECK_ARG_TYPE(1, tp_str);
+    if(!py_isnone(py_arg(2))) PY_CHECK_ARG_TYPE(2, tp_str);
+    c11_sv sep = py_isnone(py_arg(1)) ? (c11_sv){" ", 1} : py_tosv(py_arg(1));
+    c11_sv end = py_isnone(py_arg(2)) ? (c11_sv){"\n", 1} : py_tosv(py_arg(2));
+    int flush = py_bool(py_arg(3));
+    if(flush < 0) return false;
     c11_sbuf buf;
     c11_sbuf__ctor(&buf);
     for(int i = 0; i < length; i++) {
@@ -23522,12 +24894,44 @@ static bool builtins_print(int argc, py_Ref argv) {
         c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
     }
     c11_sbuf__write_sv(&buf, end);
+    if(!py_isnone(py_arg(4))) {
+        // file.write(text), then file.flush() when asked
+        py_StackRef text = py_pushtmp();
+        c11_sbuf__py_submit(&buf, text);
+        // attribute lookup also finds methods assigned to the instance
+        if(!py_getattr(py_arg(4), py_name("write"))) return false;
+        py_push(py_retval());
+        py_pushnil();
+        py_push(text);
+        if(!py_vectorcall(1, 0)) return false;
+        if(flush) {
+            if(!py_getattr(py_arg(4), py_name("flush"))) return false;
+            py_push(py_retval());
+            py_pushnil();
+            if(!py_vectorcall(0, 0)) return false;
+        }
+        py_shrink(1);
+        py_newnone(py_retval());
+        return true;
+    }
     c11_string* res = c11_sbuf__submit(&buf);
     py_callbacks()->print(res->data);
     if(flush) py_callbacks()->flush();
     c11_string__delete(res);
     py_newnone(py_retval());
     return true;
+}
+
+// kipferl patch: format(value, format_spec='') applies the format specification mini-language
+static bool builtins_format(int argc, py_Ref argv) {
+    if(argc < 1 || argc > 2) return TypeError("format() takes 1 or 2 arguments (%d given)", argc);
+    c11_sv spec = {"", 0};
+    if(argc == 2) {
+        if(!py_checkstr(py_arg(1))) return false;
+        spec = py_tosv(py_arg(1));
+    }
+    py_TValue value = *py_arg(0);
+    return pk_format_object(pk_current_vm, &value, spec);
 }
 
 static bool builtins_isinstance(int argc, py_Ref argv) {
@@ -23884,6 +25288,7 @@ py_GlobalRef pk_builtins__register() {
     py_bindfunc(builtins, "exit", builtins_exit);
     py_bindfunc(builtins, "input", builtins_input);
     py_bindfunc(builtins, "repr", builtins_repr);
+    py_bindfunc(builtins, "format", builtins_format);
     py_bindfunc(builtins, "len", builtins_len);
     py_bindfunc(builtins, "hex", builtins_hex);
     py_bindfunc(builtins, "bin", builtins_bin);
@@ -23894,7 +25299,7 @@ py_GlobalRef pk_builtins__register() {
     py_bindfunc(builtins, "divmod", builtins_divmod);
     py_bindfunc(builtins, "round", builtins_round);
 
-    py_bind(builtins, "print(*args, sep=' ', end='\\n', flush=False)", builtins_print);
+    py_bind(builtins, "print(*args, sep=' ', end='\\n', flush=False, file=None)", builtins_print);
 
     py_bindfunc(builtins, "isinstance", builtins_isinstance);
     py_bindfunc(builtins, "issubclass", builtins_issubclass);
@@ -23919,11 +25324,19 @@ py_GlobalRef pk_builtins__register() {
 
     // some patches
     py_bindmagic(tp_NoneType, __repr__, NoneType__repr__);
-    py_setdict(py_tpobject(tp_NoneType), __hash__, py_None());
+    // kipferl patch: None, ... and NotImplemented are hashable, so they can be dict keys;
+    // py_hash uses the __hash__ of the first type that defines __eq__
+    py_bindmagic(tp_NoneType, __hash__, singleton__hash__);
+    py_bindmagic(tp_NoneType, __eq__, object__eq__);
+    py_bindmagic(tp_NoneType, __ne__, object__ne__);
     py_bindmagic(tp_ellipsis, __repr__, ellipsis__repr__);
-    py_setdict(py_tpobject(tp_ellipsis), __hash__, py_None());
+    py_bindmagic(tp_ellipsis, __hash__, singleton__hash__);
+    py_bindmagic(tp_ellipsis, __eq__, object__eq__);
+    py_bindmagic(tp_ellipsis, __ne__, object__ne__);
     py_bindmagic(tp_NotImplementedType, __repr__, NotImplementedType__repr__);
-    py_setdict(py_tpobject(tp_NotImplementedType), __hash__, py_None());
+    py_bindmagic(tp_NotImplementedType, __hash__, singleton__hash__);
+    py_bindmagic(tp_NotImplementedType, __eq__, object__eq__);
+    py_bindmagic(tp_NotImplementedType, __ne__, object__ne__);
     return builtins;
 }
 
@@ -25071,31 +26484,35 @@ static bool inspect__signature_data(int argc, py_Ref argv) {
 
     bool has_starred_arg = decl->starred_arg != -1;
     bool has_starred_kwarg = decl->starred_kwarg != -1;
-    int total = decl->args.length + decl->kwargs.length + (int)has_starred_arg +
-                (int)has_starred_kwarg;
+    int params = decl->args.length + decl->kwargs.length;
+    int total = params + (int)has_starred_arg + (int)has_starred_kwarg;
 
     py_TValue* items = py_newtuple(py_retval(), total);
     int j = 0;
-    for(int i = 0; i < decl->args.length; i++) {
-        int32_t index = c11__getitem(int32_t, &decl->args, i);
+    // kipferl patch: parameters in declaration order with their positional-only and
+    // keyword-only kinds; *args sits between the positional and keyword-only ones
+    int positional = FuncDecl__positional(decl);
+    for(int i = 0; i <= params; i++) {
+        if(i == positional && has_starred_arg) {
+            py_Name name = c11__getitem(py_Name, &co->varnames, decl->starred_arg);
+            py_TValue* entry = py_newtuple(&items[j++], 2);
+            py_newstr(&entry[0], py_name2str(name));
+            py_newint(&entry[1], 2);
+        }
+        if(i == params) break;
+        int index = FuncDecl__param_at(decl, i);
         py_Name name = c11__getitem(py_Name, &co->varnames, index);
-        py_TValue* entry = py_newtuple(&items[j++], 2);
+        int kind = i < decl->posonly ? 0 : i < positional ? 1 : 3;
+        const py_TValue* value = NULL;
+        if(i >= decl->args.length) {
+            value = &c11__at(FuncDeclKwArg, &decl->kwargs, i - decl->args.length)->value;
+            // a required keyword-only parameter has no default
+            if(py_isnil(value)) value = NULL;
+        }
+        py_TValue* entry = py_newtuple(&items[j++], value ? 3 : 2);
         py_newstr(&entry[0], py_name2str(name));
-        py_newint(&entry[1], 1);
-    }
-    if(has_starred_arg) {
-        py_Name name = c11__getitem(py_Name, &co->varnames, decl->starred_arg);
-        py_TValue* entry = py_newtuple(&items[j++], 2);
-        py_newstr(&entry[0], py_name2str(name));
-        py_newint(&entry[1], 2);
-    }
-    for(int i = 0; i < decl->kwargs.length; i++) {
-        FuncDeclKwArg kv = c11__getitem(FuncDeclKwArg, &decl->kwargs, i);
-        py_TValue* entry = py_newtuple(&items[j++], 3);
-        py_newstr(&entry[0], py_name2str(kv.key));
-        // defaults after *args can only be passed by keyword
-        py_newint(&entry[1], has_starred_arg ? 3 : 1);
-        entry[2] = kv.value;
+        py_newint(&entry[1], kind);
+        if(value) entry[2] = *value;
     }
     if(has_starred_kwarg) {
         py_Name name = c11__getitem(py_Name, &co->varnames, decl->starred_kwarg);
@@ -25373,9 +26790,12 @@ void pk__add_module_lz4() {}
         /* kipferl patch: integral math results never use an undefined float conversion */       \
         double r = func(x);                                                                        \
         if(dmath_isnan(r)) return ValueError("cannot convert float NaN to integer");              \
-        if(dmath_isinf(r)) return ValueError("cannot convert float infinity to integer");        \
-        if(r < -9223372036854775808.0 || r >= 9223372036854775808.0)                               \
-            return ValueError("float too large to convert to int64");                             \
+        /* kipferl patch: infinite and out-of-range results overflow as in CPython */            \
+        if(dmath_isinf(r)) {                                                                       \
+            return py_exception(pk_current_vm->tp_OverflowError,                                   \
+                                "cannot convert float infinity to integer");                       \
+        }                                                                                          \
+        if(r < -9223372036854775808.0 || r >= 9223372036854775808.0) return pk_int_overflow();     \
         py_newint(py_retval(), (py_i64)r);                                                         \
         return true;                                                                               \
     }
@@ -25427,16 +26847,18 @@ static bool math_gcd(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     PY_CHECK_ARG_TYPE(0, tp_int);
     PY_CHECK_ARG_TYPE(1, tp_int);
-    py_i64 a = py_toint(py_arg(0));
-    py_i64 b = py_toint(py_arg(1));
-    if(a < 0) a = -a;
-    if(b < 0) b = -b;
+    py_i64 x = py_toint(py_arg(0));
+    py_i64 y = py_toint(py_arg(1));
+    // kipferl patch: work on unsigned magnitudes; only gcd(-2**63, 0 or -2**63) does not fit
+    uint64_t a = x < 0 ? (uint64_t)0 - (uint64_t)x : (uint64_t)x;
+    uint64_t b = y < 0 ? (uint64_t)0 - (uint64_t)y : (uint64_t)y;
     while(b != 0) {
-        py_i64 t = b;
+        uint64_t t = b;
         b = a % b;
         a = t;
     }
-    py_newint(py_retval(), a);
+    if(a > INT64_MAX) return pk_int_overflow();
+    py_newint(py_retval(), (py_i64)a);
     return true;
 }
 
@@ -25525,8 +26947,10 @@ static bool math_factorial(int argc, py_Ref argv) {
     py_i64 n = py_toint(py_arg(0));
     if(n < 0) return ValueError("factorial() not defined for negative values");
     py_i64 r = 1;
-    for(py_i64 i = 2; i <= n; i++)
-        r *= i;
+    for(py_i64 i = 2; i <= n; i++) {
+        // kipferl patch: 21! does not fit 64 bits
+        if(__builtin_mul_overflow(r, i, &r)) return pk_int_overflow();
+    }
     py_newint(py_retval(), r);
     return true;
 }
@@ -31018,6 +32442,8 @@ FuncDecl_ FuncDecl__rcnew(SourceData_ src, c11_sv name) {
     self->type = FuncType_UNSET;
 
     c11_smallmap_n2d__ctor(&self->kw_to_index);
+    self->posonly = 0;
+    self->kwonly = -1;
     return self;
 }
 
@@ -31045,6 +32471,8 @@ bool FuncDecl__is_duplicated_arg(const FuncDecl* decl, py_Name name) {
 void FuncDecl__add_arg(FuncDecl* self, py_Name name) {
     int32_t index = CodeObject__add_varname(&self->code, name);
     c11_vector__push(int32_t, &self->args, index);
+    // kipferl patch: positional parameters can be passed by keyword too
+    c11_smallmap_n2d__set(&self->kw_to_index, name, index);
 }
 
 void FuncDecl__add_kwarg(FuncDecl* self, py_Name name, const py_TValue* value) {
@@ -31156,8 +32584,9 @@ void Function__dtor(Function* self) {
 // Magic number for CodeObject serialization: "CO" = 0x434F
 #define CODEOBJECT_MAGIC 0x434F
 #define CODEOBJECT_VER_MAJOR 1
-#define CODEOBJECT_VER_MINOR 1
-#define CODEOBJECT_VER_MINOR_MIN 1
+// kipferl patch: function declarations record positional-only and keyword-only parameters
+#define CODEOBJECT_VER_MINOR 2
+#define CODEOBJECT_VER_MINOR_MIN 2
 
 // Forward declarations
 static void FuncDecl__serialize(c11_serializer* s,
@@ -31190,6 +32619,7 @@ static void TValue__serialize(c11_serializer* s, py_Ref val) {
         }
         case tp_NoneType: break;
         case tp_ellipsis: break;
+        case tp_nil: break;  // kipferl patch: a required keyword-only parameter
         case tp_tuple: {
             int len = py_tuple_len(val);
             c11_serializer__write_i32(s, len);
@@ -31231,6 +32661,11 @@ static void TValue__deserialize(c11_deserializer* d, py_OutRef out) {
         }
         case tp_NoneType: {
             py_newnone(out);
+            break;
+        }
+        case tp_nil: {
+            // kipferl patch: a required keyword-only parameter
+            py_newnil(out);
             break;
         }
         case tp_ellipsis: {
@@ -31468,6 +32903,10 @@ static void FuncDecl__serialize(c11_serializer* s,
 
     // type
     c11_serializer__write_i8(s, (int8_t)decl->type);
+
+    // kipferl patch: positional-only and keyword-only parameters
+    c11_serializer__write_i32(s, decl->posonly);
+    c11_serializer__write_i32(s, decl->kwonly);
 }
 
 // Deserialize FuncDecl
@@ -31492,6 +32931,11 @@ static FuncDecl_ FuncDecl__deserialize(c11_deserializer* d, SourceData_ embedded
                        c11_deserializer__read_bytes(d, args_len * sizeof(int32_t)),
                        args_len);
     c11_deserializer__consume_mark(d, ']');
+    // kipferl patch: positional parameters can be passed by keyword too
+    c11__foreach(int32_t, &self->args, index) {
+        py_Name name = c11__getitem(py_Name, &self->code.varnames, *index);
+        c11_smallmap_n2d__set(&self->kw_to_index, name, *index);
+    }
 
     // kwargs
     int kwargs_len = c11_deserializer__read_i32(d);
@@ -31525,6 +32969,10 @@ static FuncDecl_ FuncDecl__deserialize(c11_deserializer* d, SourceData_ embedded
 
     // type
     self->type = (FuncType)c11_deserializer__read_i8(d);
+
+    // kipferl patch: positional-only and keyword-only parameters
+    self->posonly = c11_deserializer__read_i32(d);
+    self->kwonly = c11_deserializer__read_i32(d);
     return self;
 }
 
@@ -33164,27 +34612,93 @@ void py_newdict(py_OutRef out) {
     Dict__ctor(ud, 17, 4);
 }
 
-static bool dict__init__(int argc, py_Ref argv) {
-    if(argc > 2) return TypeError("dict.__init__() takes at most 2 arguments (%d given)", argc);
-    if(argc == 1) {
-        py_newnone(py_retval());
-        return true;
-    }
-    assert(argc == 2);
-    py_TValue* p;
-    int length = pk_arrayview(py_arg(1), &p);
-    if(length == -1) { return TypeError("dict.__init__() expects a list or tuple"); }
-
-    Dict* self = py_touserdata(argv);
-    for(int i = 0; i < length; i++) {
-        py_Ref tuple = &p[i];
-        if(!py_istuple(tuple) || py_tuple_len(tuple) != 2) {
-            return ValueError("dict.__init__() argument must be a list of tuple-2");
+// kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords
+bool pk_dict_update_from(py_Ref self, py_Ref source) {
+    Dict* ud = py_touserdata(self);
+    // Dict__set calls __hash__ and __eq__, which may change the source or overwrite py_retval():
+    // it only ever sees rooted copies of the key and value
+    py_StackRef rooted = py_pushtmp();
+    py_StackRef iterator = py_pushtmp();
+    py_StackRef item = py_pushtmp();
+    py_StackRef key = py_pushtmp();
+    py_StackRef value = py_pushtmp();
+    *rooted = *source;
+    bool ok = false;
+    if(rooted->type == tp_dict) {
+        Dict* other = py_touserdata(rooted);
+        // the entry vector may move or shrink during Dict__set: index it again every time
+        for(int i = 0; i < other->entries.length; i++) {
+            DictEntry* entry = c11__at(DictEntry, &other->entries, i);
+            if(py_isnil(&entry->key)) continue;
+            *key = entry->key;
+            *value = entry->val;
+            if(!Dict__set(ud, key, value)) goto __OUT;
         }
-        py_Ref key = py_tuple_getitem(tuple, 0);
-        py_Ref val = py_tuple_getitem(tuple, 1);
-        if(!Dict__set(self, key, val)) return false;
+        ok = true;
+        goto __OUT;
     }
+    // a mapping provides keys() and __getitem__; keys may also be an instance attribute
+    bool is_mapping = py_getattr(rooted, py_name("keys"));
+    if(!is_mapping) {
+        if(!py_matchexc(tp_AttributeError)) goto __OUT;
+        py_clearexc(NULL);
+    }
+    if(is_mapping) {
+        *item = *py_retval();
+        if(!py_call(item, 0, NULL)) goto __OUT;
+        *item = *py_retval();
+        if(!py_iter(item)) goto __OUT;
+    } else {
+        if(!py_iter(rooted)) goto __OUT;
+    }
+    *iterator = *py_retval();
+    for(int index = 0;; index++) {
+        int res = py_next(iterator);
+        if(res == -1) goto __OUT;
+        if(res == 0) break;
+        *item = *py_retval();
+        if(is_mapping) {
+            if(!py_getitem(rooted, item)) goto __OUT;
+            *value = *py_retval();
+            if(!Dict__set(ud, item, value)) goto __OUT;
+            continue;
+        }
+        py_TValue* pair;
+        int length = pk_arrayview(item, &pair);
+        if(length == -1) {
+            if(!py_tpcall(tp_tuple, 1, item)) {
+                py_clearexc(NULL);
+                TypeError("cannot convert dictionary update sequence element #%d to a sequence",
+                          index);
+                goto __OUT;
+            }
+            *item = *py_retval();
+            length = pk_arrayview(item, &pair);
+        }
+        if(length != 2) {
+            ValueError("dictionary update sequence element #%d has length %d; 2 is required",
+                       index,
+                       length);
+            goto __OUT;
+        }
+        *key = pair[0];
+        *value = pair[1];
+        if(!Dict__set(ud, key, value)) goto __OUT;
+    }
+    ok = true;
+__OUT:
+    py_shrink(5);
+    return ok;
+}
+
+static bool dict__init__(int argc, py_Ref argv) {
+    // __init__(self, *args, **kwargs)
+    int length = py_tuple_len(py_arg(1));
+    if(length > 1) return TypeError("dict expected at most 1 argument, got %d", length);
+    if(length == 1 && !pk_dict_update_from(py_arg(0), py_tuple_getitem(py_arg(1), 0))) {
+        return false;
+    }
+    if(!pk_dict_update_from(py_arg(0), py_arg(2))) return false;
     py_newnone(py_retval());
     return true;
 }
@@ -33338,17 +34852,67 @@ static bool dict_copy(int argc, py_Ref argv) {
 }
 
 static bool dict_update(int argc, py_Ref argv) {
-    PY_CHECK_ARGC(2);
-    PY_CHECK_ARG_TYPE(1, tp_dict);
-    Dict* self = py_touserdata(argv);
-    Dict* other = py_touserdata(py_arg(1));
-    for(int i = 0; i < other->entries.length; i++) {
-        DictEntry* entry = c11__at(DictEntry, &other->entries, i);
-        if(py_isnil(&entry->key)) continue;
-        if(!Dict__set(self, &entry->key, &entry->val)) return false;
+    // update(self, *args, **kwargs)
+    int length = py_tuple_len(py_arg(1));
+    if(length > 1) return TypeError("update expected at most 1 argument, got %d", length);
+    if(length == 1 && !pk_dict_update_from(py_arg(0), py_tuple_getitem(py_arg(1), 0))) {
+        return false;
     }
+    if(!pk_dict_update_from(py_arg(0), py_arg(2))) return false;
     py_newnone(py_retval());
     return true;
+}
+
+static bool dict_setdefault(int argc, py_Ref argv) {
+    // setdefault(self, key, default=None)
+    Dict* self = py_touserdata(argv);
+    DictEntry* entry;
+    if(!Dict__try_get(self, py_arg(1), &entry)) return false;
+    if(entry) {
+        *py_retval() = entry->val;
+        return true;
+    }
+    if(!Dict__set(self, py_arg(1), py_arg(2))) return false;
+    *py_retval() = *py_arg(2);
+    return true;
+}
+
+static bool dict_fromkeys(int argc, py_Ref argv) {
+    if(argc < 1 || argc > 2) return TypeError("fromkeys expected 1 or 2 arguments, got %d", argc);
+    py_StackRef result = py_pushtmp();
+    py_StackRef iterator = py_pushtmp();
+    py_StackRef key = py_pushtmp();
+    py_newdict(result);
+    bool ok = false;
+    if(!py_iter(py_arg(0))) goto __OUT;
+    *iterator = *py_retval();
+    while(true) {
+        int res = py_next(iterator);
+        if(res == -1) goto __OUT;
+        if(res == 0) break;
+        // hashing the key overwrites py_retval()
+        *key = *py_retval();
+        if(!Dict__set(py_touserdata(result), key, argc == 2 ? py_arg(1) : py_None())) goto __OUT;
+    }
+    *py_retval() = *result;
+    ok = true;
+__OUT:
+    py_shrink(3);
+    return ok;
+}
+
+static bool dict__or__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(2);
+    if(!py_isinstance(py_arg(1), tp_dict)) {
+        py_newnotimplemented(py_retval());
+        return true;
+    }
+    py_StackRef result = py_pushtmp();
+    py_newdict(result);
+    bool ok = pk_dict_update_from(result, py_arg(0)) && pk_dict_update_from(result, py_arg(1));
+    if(ok) *py_retval() = *result;
+    py_pop();
+    return ok;
 }
 
 static bool dict_get(int argc, py_Ref argv) {
@@ -33416,6 +34980,17 @@ static bool dict_items(int argc, py_Ref argv) {
     return true;
 }
 
+// kipferl patch: signatures with keywords need the compiler and static methods need their type,
+// so bind them once the VM is ready
+void pk_dict__bind_signatures() {
+    py_Ref type = py_tpobject(tp_dict);
+    py_bind(type, "__new__(cls, *args, **kwargs)", dict__new__);
+    py_bind(type, "__init__(self, *args, **kwargs)", dict__init__);
+    py_bind(type, "update(self, *args, **kwargs)", dict_update);
+    py_bind(type, "setdefault(self, key, default=None)", dict_setdefault);
+    py_bindstaticmethod(tp_dict, "fromkeys", dict_fromkeys);
+}
+
 py_Type pk_dict__register() {
     py_Type type = pk_newtype("dict", tp_object, NULL, (void (*)(void*))Dict__dtor, false, false);
 
@@ -33434,6 +35009,7 @@ py_Type pk_dict__register() {
     py_bindmethod(type, "clear", dict_clear);
     py_bindmethod(type, "copy", dict_copy);
     py_bindmethod(type, "update", dict_update);
+    py_bindmagic(type, __or__, dict__or__);
     py_bindmethod(type, "get", dict_get);
     py_bindmethod(type, "pop", dict_pop);
     py_bindmethod(type, "popitem", dict_popitem);
@@ -33613,7 +35189,9 @@ static void BaseException__dtor(void* ud) {
 
 static bool _py_BaseException__new__(int argc, py_Ref argv) {
     py_Type cls = py_totype(argv);
-    BaseException* ud = py_newobject(py_retval(), cls, 0, sizeof(BaseException));
+    // kipferl patch: exceptions have an instance __dict__, so subclasses can store attributes
+    BaseException* ud = py_newobject(py_retval(), cls, -1, sizeof(BaseException));
+    ud->args_is_tuple = false;
     py_newnil(&ud->args);
     py_newnil(&ud->inner_exc);
     c11_vector__ctor(&ud->stacktrace, sizeof(BaseExceptionFrame));
@@ -33626,9 +35204,15 @@ static bool _py_BaseException__init__(int argc, py_Ref argv) {
     if(argc == 1 + 0) return true;
     if(argc == 1 + 1) {
         py_assign(&ud->args, &argv[1]);
+        ud->args_is_tuple = false;
         return true;
     }
-    return TypeError("__init__() takes at most 1 arguments but %d were given", argc - 1);
+    // kipferl patch: several arguments are kept as a tuple, as in CPython
+    py_Ref args = py_newtuple(&ud->args, argc - 1);
+    for(int i = 1; i < argc; i++)
+        args[i - 1] = argv[i];
+    ud->args_is_tuple = true;
+    return true;
 }
 
 static bool _py_BaseException__repr__(int argc, py_Ref argv) {
@@ -33636,8 +35220,16 @@ static bool _py_BaseException__repr__(int argc, py_Ref argv) {
     BaseException* ud = py_touserdata(argv);
     c11_sbuf ss;
     c11_sbuf__ctor(&ss);
-    pk_sprintf(&ss, "%t(", argv->type);
     py_Ref args = &ud->args;
+    if(ud->args_is_tuple) {
+        // the tuple's own parentheses close the call
+        pk_sprintf(&ss, "%t", argv->type);
+        if(!py_repr(args)) return false;
+        c11_sbuf__write_sv(&ss, py_tosv(py_retval()));
+        c11_sbuf__py_submit(&ss, py_retval());
+        return true;
+    }
+    pk_sprintf(&ss, "%t(", argv->type);
     if(!py_isnil(args)) {
         if(!py_repr(args)) return false;
         c11_sbuf__write_sv(&ss, py_tosv(py_retval()));
@@ -33669,7 +35261,9 @@ static bool BaseException_args(int argc, py_Ref argv) {
     BaseException* ud = py_touserdata(argv);
     PY_CHECK_ARGC(1);
     py_Ref args = &ud->args;
-    if(!py_isnil(args)) {
+    if(ud->args_is_tuple) {
+        *py_retval() = *args;
+    } else if(!py_isnil(args)) {
         py_Ref p = py_newtuple(py_retval(), 1);
         p[0] = *args;
     } else {
@@ -33690,6 +35284,10 @@ static bool StopIteration_value(int argc, py_Ref argv) {
     return true;
 }
 
+void pk_BaseException__bind_signatures() {
+    py_bind(py_tpobject(tp_BaseException), "__new__(cls, *args, **kwargs)", _py_BaseException__new__);
+}
+
 py_Type pk_BaseException__register() {
     py_Type type = pk_newtype("BaseException", tp_object, NULL, BaseException__dtor, false, false);
 
@@ -33698,6 +35296,10 @@ py_Type pk_BaseException__register() {
     py_bindmagic(type, __repr__, _py_BaseException__repr__);
     py_bindmagic(type, __str__, _py_BaseException__str__);
     py_bindproperty(type, "args", BaseException_args, NULL);
+    // kipferl patch: `raise ... from ...` sets __cause__; read as None when unset
+    py_setdict(py_tpobject(type), py_name("__cause__"), py_None());
+    py_setdict(py_tpobject(type), py_name("__context__"), py_None());
+    py_setdict(py_tpobject(type), py_name("__suppress_context__"), py_False());
     return type;
 }
 

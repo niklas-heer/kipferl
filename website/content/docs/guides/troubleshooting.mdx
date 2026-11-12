@@ -62,9 +62,11 @@ CPython API is implemented. The [tested recipes](/docs/guides/recipes) provide
 working starting points using the supported surface.
 
 Check the [runtime limits](/docs/modules#compatibility-and-limits) before
-assuming CPython return types or unbounded buffers. PocketPy does not support
-`finally`; use a context manager for cleanup, as in the
-[terminal examples](/docs/modules/term#raw-mode).
+assuming CPython return types or unbounded buffers. Integers are 64-bit: a
+result beyond that raises `OverflowError` rather than growing as in CPython.
+`try` statements support `except`, `else` and `finally` (unreleased; 0.8 and
+earlier rejected `finally`, so older scripts use a context manager for cleanup,
+as in the [terminal examples](/docs/modules/term#raw-mode)).
 
 For example, scripts should open files with an explicit mode (`open(path,
 "r")`), and diagnostics can use `sys.stderr.write(message + "\n")`. The CSV

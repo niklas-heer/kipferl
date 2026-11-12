@@ -1,0 +1,145 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -6886,6 +6886,8 @@
+     py_TValue args;
+     py_TValue inner_exc;
+     c11_vector /*T=BaseExceptionFrame*/ stacktrace;
++    // kipferl patch: `args` holds the tuple of several arguments instead of the single one
++    bool args_is_tuple;
+ } BaseException;
+ 
+ char* safe_stringify_exception(py_Ref exc);
+@@ -16163,7 +16165,14 @@
+             if(is_expression(self, false)) {
+                 check(EXPR(self));
+                 Ctx__s_emit_top(ctx());
+-                Ctx__emit_(ctx(), OP_RAISE, BC_NOARG, kw_line);
++                // kipferl patch: `raise exc from cause`
++                if(match(TK_FROM)) {
++                    check(EXPR(self));
++                    Ctx__s_emit_top(ctx());
++                    Ctx__emit_(ctx(), OP_RAISE, 1, kw_line);
++                } else {
++                    Ctx__emit_(ctx(), OP_RAISE, BC_NOARG, kw_line);
++                }
+             } else {
+                 int iblock = ctx()->curr_iblock;
+                 CodeBlock* blocks = (CodeBlock*)ctx()->co->blocks.data;
+@@ -19556,6 +19565,28 @@
+             DISPATCH();
+         }
+         case OP_RAISE: {
++            // kipferl patch: [exception, cause] sets the cause, as `raise exc from cause` does
++            if(byte.arg == 1) {
++                if(py_istype(TOP(), tp_type)) {
++                    if(!py_tpcall(py_totype(TOP()), 0, NULL)) goto __ERROR;
++                    py_assign(TOP(), py_retval());
++                }
++                if(!py_isnone(TOP()) && !py_isinstance(TOP(), tp_BaseException)) {
++                    TypeError("exception causes must derive from BaseException");
++                    goto __ERROR;
++                }
++                if(py_istype(SECOND(), tp_type)) {
++                    if(!py_tpcall(py_totype(SECOND()), 0, NULL)) goto __ERROR;
++                    py_assign(SECOND(), py_retval());
++                }
++                if(!py_isinstance(SECOND(), tp_BaseException)) {
++                    TypeError("exceptions must derive from BaseException");
++                    goto __ERROR;
++                }
++                py_setdict(SECOND(), py_name("__cause__"), TOP());
++                py_setdict(SECOND(), py_name("__suppress_context__"), py_True());
++                POP();
++            }
+             // [exception]
+             if(py_istype(TOP(), tp_type)) {
+                 if(!py_tpcall(py_totype(TOP()), 0, NULL)) goto __ERROR;
+@@ -21449,6 +21480,9 @@
+     // kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready
+     void pk_dict__bind_signatures();
+     pk_dict__bind_signatures();
++    // kipferl patch: exception subclasses may take keyword arguments in __init__
++    void pk_BaseException__bind_signatures();
++    pk_BaseException__bind_signatures();
+ 
+     // add python builtins
+     do {
+@@ -34356,7 +34390,9 @@
+ 
+ static bool _py_BaseException__new__(int argc, py_Ref argv) {
+     py_Type cls = py_totype(argv);
+-    BaseException* ud = py_newobject(py_retval(), cls, 0, sizeof(BaseException));
++    // kipferl patch: exceptions have an instance __dict__, so subclasses can store attributes
++    BaseException* ud = py_newobject(py_retval(), cls, -1, sizeof(BaseException));
++    ud->args_is_tuple = false;
+     py_newnil(&ud->args);
+     py_newnil(&ud->inner_exc);
+     c11_vector__ctor(&ud->stacktrace, sizeof(BaseExceptionFrame));
+@@ -34369,9 +34405,15 @@
+     if(argc == 1 + 0) return true;
+     if(argc == 1 + 1) {
+         py_assign(&ud->args, &argv[1]);
++        ud->args_is_tuple = false;
+         return true;
+     }
+-    return TypeError("__init__() takes at most 1 arguments but %d were given", argc - 1);
++    // kipferl patch: several arguments are kept as a tuple, as in CPython
++    py_Ref args = py_newtuple(&ud->args, argc - 1);
++    for(int i = 1; i < argc; i++)
++        args[i - 1] = argv[i];
++    ud->args_is_tuple = true;
++    return true;
+ }
+ 
+ static bool _py_BaseException__repr__(int argc, py_Ref argv) {
+@@ -34379,8 +34421,16 @@
+     BaseException* ud = py_touserdata(argv);
+     c11_sbuf ss;
+     c11_sbuf__ctor(&ss);
+-    pk_sprintf(&ss, "%t(", argv->type);
+     py_Ref args = &ud->args;
++    if(ud->args_is_tuple) {
++        // the tuple's own parentheses close the call
++        pk_sprintf(&ss, "%t", argv->type);
++        if(!py_repr(args)) return false;
++        c11_sbuf__write_sv(&ss, py_tosv(py_retval()));
++        c11_sbuf__py_submit(&ss, py_retval());
++        return true;
++    }
++    pk_sprintf(&ss, "%t(", argv->type);
+     if(!py_isnil(args)) {
+         if(!py_repr(args)) return false;
+         c11_sbuf__write_sv(&ss, py_tosv(py_retval()));
+@@ -34412,7 +34462,9 @@
+     BaseException* ud = py_touserdata(argv);
+     PY_CHECK_ARGC(1);
+     py_Ref args = &ud->args;
+-    if(!py_isnil(args)) {
++    if(ud->args_is_tuple) {
++        *py_retval() = *args;
++    } else if(!py_isnil(args)) {
+         py_Ref p = py_newtuple(py_retval(), 1);
+         p[0] = *args;
+     } else {
+@@ -34431,6 +34483,10 @@
+         py_assign(py_retval(), args);
+     }
+     return true;
++}
++
++void pk_BaseException__bind_signatures() {
++    py_bind(py_tpobject(tp_BaseException), "__new__(cls, *args, **kwargs)", _py_BaseException__new__);
+ }
+ 
+ py_Type pk_BaseException__register() {
+@@ -34441,6 +34497,10 @@
+     py_bindmagic(type, __repr__, _py_BaseException__repr__);
+     py_bindmagic(type, __str__, _py_BaseException__str__);
+     py_bindproperty(type, "args", BaseException_args, NULL);
++    // kipferl patch: `raise ... from ...` sets __cause__; read as None when unset
++    py_setdict(py_tpobject(type), py_name("__cause__"), py_None());
++    py_setdict(py_tpobject(type), py_name("__context__"), py_None());
++    py_setdict(py_tpobject(type), py_name("__suppress_context__"), py_False());
+     return type;
+ }
+ 

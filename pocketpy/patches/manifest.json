@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 7,
+  "patchset_version": 23,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -53,7 +53,81 @@
         "kipferl patch: a malformed header raises instead of reading past the data",
         "kipferl patch: the module name comes from the pickle and must fit the buffer",
         "kipferl patch: a raw value from the pickle becomes a value only for plain data types;",
-        "kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices"
+        "kipferl patch: check every operand: the stack depth, nil values, sizes and memo indices",
+        "kipferl patch: the token of each try block's finally clause, compiled again on every exit",
+        "kipferl patch: break, continue and return run the finally clauses and __exit__ methods they leave",
+        "kipferl patch: find the finally clause of the try statement whose header ends at `colon`",
+        "kipferl patch: try statements accept else and finally clauses",
+        "kipferl patch: __exit__ receives (exc_type, exc_value, traceback) as in CPython",
+        "kipferl patch: generator expressions and nested comprehensions compile to a nested function",
+        "kipferl patch: (<expr> for ...) is a generator expression",
+        "kipferl patch: comprehensions with several for clauses",
+        "kipferl patch: a generator expression may be the sole argument without parentheses",
+        "kipferl patch: the format specification mini-language of str, int and float, as in CPython",
+        "kipferl patch: f-strings accept the !s conversion",
+        "kipferl patch: format(value, format_spec='') applies the format specification mini-language",
+        "kipferl patch: an exception is being matched against the except clauses",
+        "kipferl patch: an error while evaluating an except clause leaves the try statement;",
+        "kipferl patch: integers are 64-bit, so results beyond that raise OverflowError",
+        "kipferl patch: an integer result that does not fit 64 bits raises instead of wrapping",
+        "kipferl patch: checked integer arithmetic",
+        "kipferl patch: magnitudes are unsigned, so INT64_MIN divides correctly",
+        "kipferl patch: a shift that loses bits overflows",
+        "kipferl patch: infinite and out-of-range floats overflow as in CPython",
+        "kipferl patch: a literal beyond 64 bits overflows instead of wrapping",
+        "kipferl patch: detect overflow from the value, not the digit count, so leading zeros parse",
+        "kipferl patch: infinite and out-of-range results overflow as in CPython",
+        "kipferl patch: 21! does not fit 64 bits",
+        "kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords",
+        "kipferl patch: signatures with keywords need the compiler and static methods need their type,",
+        "kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready",
+        "kipferl patch: loop targets may nest, as in `for i, (key, value) in ...`",
+        "kipferl patch: the starred target may be anywhere, as in `first, *middle, last = items`",
+        "kipferl patch: any iterable unpacks, as in `a, b = map(int, line.split())`",
+        "kipferl patch: [before | after << 8] targets around the starred one, from any iterable",
+        "kipferl patch: `args` holds the tuple of several arguments instead of the single one",
+        "kipferl patch: exceptions have an instance __dict__, so subclasses can store attributes",
+        "kipferl patch: several arguments are kept as a tuple, as in CPython",
+        "kipferl patch: `raise ... from ...` sets __cause__; read as None when unset",
+        "kipferl patch: `raise exc from cause`",
+        "kipferl patch: [exception, cause] sets the cause, as `raise exc from cause` does",
+        "kipferl patch: exception subclasses may take keyword arguments in __init__",
+        "kipferl patch: sep and end may be None, and file= writes to any object with write()",
+        "kipferl patch: like CPython, != defaults to the negation of __eq__",
+        "kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented",
+        "kipferl patch: `/` ends the positional-only parameters",
+        "kipferl patch: `*` may follow parameters with defaults, but only once",
+        "kipferl patch: a bare `*` starts keyword-only parameters",
+        "kipferl patch: a keyword-only parameter without a default starts unbound",
+        "kipferl patch: one `with` item; the items after it are nested inside its block",
+        "kipferl patch: `with a, b:` nests the remaining items",
+        "kipferl patch: digit separators",
+        "kipferl patch: a single underscore may separate digits, as in 1_000_000 or 0x_ff",
+        "kipferl patch: int() ignores surrounding whitespace and accepts digit separators",
+        "kipferl patch: a required keyword-only parameter",
+        "kipferl patch: None, ... and NotImplemented are hashable, so they can be dict keys;",
+        "kipferl patch: each singleton type has one instance, so its type identifies it",
+        "kipferl patch: printf-style formatting with mapping keys, flags, width, precision and every",
+        "kipferl patch: like CPython, use double quotes for text with ' but no \"",
+        "kipferl patch: str.format fields may be named, use attributes and indexes, convert with",
+        "kipferl patch: keyword signatures need the compiler, so bind them once the VM is ready",
+        "kipferl patch: str.format accepts keyword arguments",
+        "kipferl patch: `**mapping` in a dict display merges the mapping",
+        "kipferl patch: [*a, *b], (*a,) and {*a} expand starred items; `out` must be rooted",
+        "kipferl patch: expand starred items",
+        "kipferl patch: a `**mapping` item merges the mapping",
+        "kipferl patch: expand starred items into a list, then build the set from it",
+        "kipferl patch: an exit from a finally clause compiled for a return supersedes that return",
+        "kipferl patch: a finally clause is compiled once per way out of its try statement",
+        "kipferl patch: a jump too long for its offset fails the compilation instead of the process",
+        "kipferl patch: bools are ints, so their arithmetic is checked as well",
+        "kipferl patch: a step past the 64-bit range ends the iteration",
+        "kipferl patch: bind arguments as CPython does",
+        "kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.",
+        "kipferl patch: argument 1 re-raises the innermost exception being handled, which",
+        "kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it",
+        "kipferl patch: an f-string field's `!conv` and `:` prefix are split off here; the rest is a",
+        "kipferl patch: like CPython's thread-wide handled exception, a bare"
       ]
     }
   ],
@@ -109,6 +183,66 @@
     {
       "id": "0013-pickle-loads-validation",
       "file": "pocketpy/patches/0013-pickle-loads-validation.patch"
+    },
+    {
+      "id": "0014-try-else-finally",
+      "file": "pocketpy/patches/0014-try-else-finally.patch"
+    },
+    {
+      "id": "0015-with-exit-arguments",
+      "file": "pocketpy/patches/0015-with-exit-arguments.patch"
+    },
+    {
+      "id": "0016-generator-expressions",
+      "file": "pocketpy/patches/0016-generator-expressions.patch"
+    },
+    {
+      "id": "0017-format-spec",
+      "file": "pocketpy/patches/0017-format-spec.patch"
+    },
+    {
+      "id": "0018-except-clause-errors",
+      "file": "pocketpy/patches/0018-except-clause-errors.patch"
+    },
+    {
+      "id": "0019-integer-overflow",
+      "file": "pocketpy/patches/0019-integer-overflow.patch"
+    },
+    {
+      "id": "0020-dict-constructor",
+      "file": "pocketpy/patches/0020-dict-constructor.patch"
+    },
+    {
+      "id": "0021-unpacking",
+      "file": "pocketpy/patches/0021-unpacking.patch"
+    },
+    {
+      "id": "0022-exception-attributes",
+      "file": "pocketpy/patches/0022-exception-attributes.patch"
+    },
+    {
+      "id": "0023-print-file-and-default-ne",
+      "file": "pocketpy/patches/0023-print-file-and-default-ne.patch"
+    },
+    {
+      "id": "0024-syntax",
+      "file": "pocketpy/patches/0024-syntax.patch"
+    },
+    {
+      "id": "0025-hashable-none",
+      "file": "pocketpy/patches/0025-hashable-none.patch"
+    },
+    {
+      "id": "0026-string-formatting",
+      "file": "pocketpy/patches/0026-string-formatting.patch"
+    },
+    {
+      "id": "0027-display-unpacking",
+      "file": "pocketpy/patches/0027-display-unpacking.patch"
+    },
+    {
+      "id": "0028-self-extend",
+      "file": "pocketpy/patches/0028-self-extend.patch"
     }
   ]
 }
