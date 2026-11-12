@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -8356,112 +8356,214 @@
+@@ -8357,112 +8357,216 @@
      return true;
  }
  
@@ -45,7 +45,7 @@
 +    } while(0)
 +#define PERCENT_NEXT_ARG()                                                                         \
 +    do {                                                                                           \
-+        if(arg_index >= args_count)                                                                \
++        if(used_mapping || arg_index >= args_count)                                                \
 +            PERCENT_FAIL(TypeError("not enough arguments for format string"));                     \
 +        *value = args[arg_index++];                                                                \
 +    } while(0)
@@ -96,8 +96,9 @@
 +        int64_t width = -1, precision = -1;
 +        if(p < p_end && *p == '*') {
 +            p++;
-+            if(arg_index >= args_count || !py_isint(&args[arg_index]))
-+                PERCENT_FAIL(TypeError("* wants int"));
++            if(used_mapping || arg_index >= args_count)
++                PERCENT_FAIL(TypeError("not enough arguments for format string"));
++            if(!py_isint(&args[arg_index])) PERCENT_FAIL(TypeError("* wants int"));
 +            width = py_toint(&args[arg_index++]);
 +            if(width < -INT32_MAX || width > INT32_MAX) PERCENT_FAIL(ValueError("width too big"));
 +            if(width < 0) {
@@ -149,8 +150,9 @@
 +            precision = 0;
 +            if(p < p_end && *p == '*') {
 +                p++;
-+                if(arg_index >= args_count || !py_isint(&args[arg_index]))
-+                    PERCENT_FAIL(TypeError("* wants int"));
++                if(used_mapping || arg_index >= args_count)
++                    PERCENT_FAIL(TypeError("not enough arguments for format string"));
++                if(!py_isint(&args[arg_index])) PERCENT_FAIL(TypeError("* wants int"));
 +                precision = py_toint(&args[arg_index++]);
 +                if(precision > INT32_MAX) PERCENT_FAIL(ValueError("precision too big"));
 +                if(precision < 0) precision = 0;
@@ -287,7 +289,7 @@
      c11_sbuf__py_submit(&buf, py_retval());
      return true;
  }
-@@ -8527,7 +8629,11 @@
+@@ -8528,7 +8632,11 @@
      PY_CHECK_ARGC(1);
      c11_sbuf buf;
      c11_sbuf__ctor(&buf);
@@ -300,7 +302,7 @@
      c11_sbuf__py_submit(&buf, py_retval());
      return true;
  }
-@@ -8852,106 +8958,227 @@
+@@ -8853,106 +8961,227 @@
      return true;
  }
  
@@ -613,7 +615,7 @@
  py_Type pk_str__register() {
      py_Type type = pk_newtype("str", tp_object, NULL, NULL, false, true);
      // no need to dtor because the memory is controlled by the object
-@@ -8994,7 +9221,6 @@
+@@ -8995,7 +9224,6 @@
      py_bindmethod(tp_str, "find", str_find);
      py_bindmethod(tp_str, "index", str_index);
      py_bindmethod(tp_str, "encode", str_encode);
@@ -621,7 +623,7 @@
      return type;
  }
  
-@@ -21801,6 +22027,9 @@
+@@ -21815,6 +22043,9 @@
      // kipferl patch: exception subclasses may take keyword arguments in __init__
      void pk_BaseException__bind_signatures();
      pk_BaseException__bind_signatures();

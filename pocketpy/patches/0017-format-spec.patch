@@ -1,6 +1,14 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -17030,6 +17030,8 @@
+@@ -6642,6 +6642,7 @@
+ void pk_print_stack(VM* self, py_Frame* frame, Bytecode byte);
+ 
+ bool pk_format_object(VM* self, py_Ref val, c11_sv spec);
++bool pk_format_fstring_field(VM* self, py_Ref val, c11_sv spec);
+ 
+ // type registration
+ void pk_object__register();
+@@ -17030,6 +17031,8 @@
              case '!':
                  if(is_fstring) {
                      if(matchchar(self, 'r')) { return eat_fstring_spec(self, eof); }
@@ -9,7 +17,16 @@
                  }
                  if(matchchar(self, '=')) {
                      add_token(self, TK_NE);
-@@ -19751,149 +19753,394 @@
+@@ -19653,7 +19656,7 @@
+         //////////////////
+         case OP_FORMAT_STRING: {
+             py_Ref spec = c11__at(py_TValue, &frame->co->consts, byte.arg);
+-            bool ok = pk_format_object(self, TOP(), py_tosv(spec));
++            bool ok = pk_format_fstring_field(self, TOP(), py_tosv(spec));
+             if(!ok) goto __ERROR;
+             py_assign(TOP(), py_retval());
+             DISPATCH();
+@@ -19761,149 +19764,397 @@
                       rhs_t);
  }
  
@@ -83,31 +100,13 @@
 -        case 's':
 -            type = spec.data[spec.size - 1];
 -            spec.size--;  // remove last char
--            break;
--        default: type = ' '; break;
 +    if(p < end && *p == '0') {
 +        out->zero = true;
 +        p++;
-     }
--
--    char pad_c = ' ';
--    if(strchr("0-=*#@!~", spec.data[0])) {
--        pad_c = spec.data[0];
--        spec = c11_sv__slice(spec, 1);
++    }
 +    if(p < end && isdigit((unsigned char)*p)) {
 +        if(!pk_parse_format_digits(&p, end, &out->width)) return false;
-     }
--
--    char align;
--    if(spec.data[0] == '^') {
--        align = '^';
--        spec = c11_sv__slice(spec, 1);
--    } else if(spec.data[0] == '>') {
--        align = '>';
--        spec = c11_sv__slice(spec, 1);
--    } else if(spec.data[0] == '<') {
--        align = '<';
--        spec = c11_sv__slice(spec, 1);
++    }
 +    if(p < end && (*p == ',' || *p == '_')) out->grouping = *p++;
 +    if(p < end && *p == '.') {
 +        p++;
@@ -176,8 +175,7 @@
 +        c11_string__delete(text);
 +    } else if(numeric && grouping) {
 +        pk_write_grouped(&grouped, body, grouping, interval);
-     } else {
--        align = (py_isint(val) || py_isfloat(val)) ? '>' : '<';
++    } else {
 +        c11_sbuf__write_sv(&grouped, body);
 +    }
 +    c11_string* text = c11_sbuf__submit(&grouped);
@@ -205,23 +203,29 @@
 +            pk_write_format_fill(out, fill, padding);
 +            c11_sbuf__write_sv(out, prefix);
 +            c11_sbuf__write_sv(out, text_sv);
-+            break;
+             break;
+-        default: type = ' '; break;
      }
 +    c11_string__delete(text);
 +}
  
--    int dot = c11_sv__index(spec, '.');
--    py_i64 width, precision;
+-    char pad_c = ' ';
+-    if(strchr("0-=*#@!~", spec.data[0])) {
+-        pad_c = spec.data[0];
+-        spec = c11_sv__slice(spec, 1);
+-    }
 +static bool pk_format_float(c11_sbuf* out, double x, const FormatSpec* spec, py_Type type);
  
--    if(dot >= 0) {
--        if(dot == 0) {
--            // {.2f}
--            width = -1;
--        } else {
--            // {10.2f}
--            IntParsingResult res = c11__parse_uint(c11_sv__slice2(spec, 0, dot), &width, 10);
--            if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
+-    char align;
+-    if(spec.data[0] == '^') {
+-        align = '^';
+-        spec = c11_sv__slice(spec, 1);
+-    } else if(spec.data[0] == '>') {
+-        align = '>';
+-        spec = c11_sv__slice(spec, 1);
+-    } else if(spec.data[0] == '<') {
+-        align = '<';
+-        spec = c11_sv__slice(spec, 1);
 +static bool pk_format_int(c11_sbuf* out, py_i64 value, const FormatSpec* spec, py_Type type) {
 +    char kind = spec->type ? spec->type : 'd';
 +    if(strchr("eEfFgG%", kind)) return pk_format_float(out, (double)value, spec, type);
@@ -333,14 +337,9 @@
 +        size_t length = strlen(body);
 +        if(!strchr(body, 'e') && body[length - 1] == '.') {
 +            snprintf(body, cap, "%#.*e", digits - 1, magnitude);
-         }
--        IntParsingResult res = c11__parse_uint(c11_sv__slice(spec, dot + 1), &precision, 10);
--        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
++        }
      } else {
--        // {10s}
--        IntParsingResult res = c11__parse_uint(spec, &width, 10);
--        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
--        precision = -1;
+-        align = (py_isint(val) || py_isfloat(val)) ? '>' : '<';
 +        // no type with a precision: like 'g', but fixed-point keeps a fractional digit
 +        int digits = precision == 0 ? 1 : precision;
 +        snprintf(body, cap, "%.*g", digits, magnitude);
@@ -364,14 +363,14 @@
 +    if(upper) {
 +        for(char* c = body; *c; c++)
 +            *c = (char)toupper((unsigned char)*c);
-     }
++    }
 +    char prefix[2];
 +    int prefix_size = 0;
 +    if(negative) {
 +        prefix[prefix_size++] = '-';
 +    } else if(spec->sign == '+' || spec->sign == ' ') {
 +        prefix[prefix_size++] = spec->sign;
-+    }
+     }
 +    pk_write_formatted(out,
 +                       spec,
 +                       (c11_sv){prefix, prefix_size},
@@ -383,12 +382,12 @@
 +    return true;
 +}
  
--    if(type != 'f' && dot >= 0) {
--        return ValueError("precision not allowed in the format specifier");
+-    int dot = c11_sv__index(spec, '.');
+-    py_i64 width, precision;
 +static bool pk_format_str(c11_sbuf* out, c11_sv text, const FormatSpec* spec, py_Type type) {
 +    if(spec->type && spec->type != 's') {
 +        return ValueError("Unknown format code '%c' for object of type '%t'", spec->type, type);
-     }
++    }
 +    if(spec->sign) return ValueError("Sign not allowed in string format specifier");
 +    if(spec->alternate) return ValueError("Alternate form (#) not allowed in string format specifier");
 +    if(spec->grouping) return ValueError("Cannot specify '%c' with 's'.", spec->grouping);
@@ -401,12 +400,70 @@
 +    return true;
 +}
  
--    c11_sbuf buf;
--    c11_sbuf__ctor(&buf);
-+bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
-+    // format TOS via `spec` inplace
-+    // spec: '!r:.2f', ':.2f', '.2f'
+-    if(dot >= 0) {
+-        if(dot == 0) {
+-            // {.2f}
+-            width = -1;
++// kipferl patch: an f-string field's `!conv` and `:` prefix are split off here; the rest is a
++// plain format specification, so `{:!<5}` and `{::<5}` fill with '!' and ':'
++bool pk_format_fstring_field(VM* self, py_Ref val, c11_sv spec) {
++    // spec: '!r:.2f', '!r', ':.2f'
++    if(spec.size > 0 && spec.data[0] == '!') {
++        if(c11_sv__startswith(spec, (c11_sv){"!r", 2})) {
++            if(!py_repr(val)) return false;
++        } else if(c11_sv__startswith(spec, (c11_sv){"!s", 2})) {
++            if(!py_str(val)) return false;
+         } else {
+-            // {10.2f}
+-            IntParsingResult res = c11__parse_uint(c11_sv__slice2(spec, 0, dot), &width, 10);
+-            if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
++            return ValueError("invalid conversion specifier (only !r and !s are supported)");
+         }
+-        IntParsingResult res = c11__parse_uint(c11_sv__slice(spec, dot + 1), &precision, 10);
+-        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
+-    } else {
+-        // {10s}
+-        IntParsingResult res = c11__parse_uint(spec, &width, 10);
+-        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
+-        precision = -1;
++        spec.data += 2;
++        spec.size -= 2;
++        py_assign(val, py_retval());
++        if(spec.size == 0) return true;
++    }
++    if(spec.size > 0 && spec.data[0] == ':') {
++        spec.data++;
++        spec.size--;
+     }
++    return pk_format_object(self, val, spec);
++}
  
+-    if(type != 'f' && dot >= 0) {
+-        return ValueError("precision not allowed in the format specifier");
++bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
++    // format `val` with the plain format specification `spec`
++    // a class may define its own formatting
++    if(val->type != tp_int && val->type != tp_float && val->type != tp_str &&
++       val->type != tp_bool) {
++        py_Ref method = py_tpfindname(val->type, py_name("__format__"));
++        if(method != NULL) {
++            py_TValue args[2];
++            args[0] = *val;
++            py_newstrv(&args[1], spec);
++            if(!py_call(method, 2, args)) return false;
++            if(!py_isstr(py_retval())) {
++                return TypeError("__format__ must return a str, not %t", py_retval()->type);
++            }
++            return true;
++        }
+     }
++    if(spec.size == 0) return py_str(val);
+ 
++    FormatSpec parsed;
++    if(!pk_parse_format_spec(spec, &parsed, val->type)) return false;
+     c11_sbuf buf;
+     c11_sbuf__ctor(&buf);
+-
 -    if(type == 'f') {
 -        py_f64 x;
 -        if(!py_castfloat(val, &x)) {
@@ -427,33 +484,31 @@
 -            return false;
 -        }
 -        c11_sbuf__write_sv(&buf, py_tosv(val));
--    } else {
++    bool ok;
++    if(val->type == tp_int || val->type == tp_bool) {
++        py_i64 number = val->type == tp_bool ? (py_i64)py_tobool(val) : py_toint(val);
++        ok = pk_format_int(&buf, number, &parsed, val->type);
++    } else if(val->type == tp_float) {
++        ok = pk_format_float(&buf, py_tofloat(val), &parsed, val->type);
++    } else if(val->type == tp_str) {
++        ok = pk_format_str(&buf, py_tosv(val), &parsed, val->type);
+     } else {
 -        if(!py_str(val)) {
 -            c11_sbuf__dtor(&buf);
 -            return false;
-+    if(spec.size > 0 && spec.data[0] == '!') {
-+        if(c11_sv__startswith(spec, (c11_sv){"!r", 2})) {
-+            if(!py_repr(val)) return false;
-+        } else if(c11_sv__startswith(spec, (c11_sv){"!s", 2})) {
-+            if(!py_str(val)) return false;
-+        } else {
-+            return ValueError("invalid conversion specifier (only !r and !s are supported)");
++        // Kipferl formats other objects through str(), as PocketPy always did
++        ok = py_str(val);
++        if(ok) {
++            py_TValue text = *py_retval();
++            ok = pk_format_str(&buf, py_tosv(&text), &parsed, tp_str);
          }
 -        c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
-+        spec.data += 2;
-+        spec.size -= 2;
-+        py_assign(val, py_retval());
-+        if(spec.size == 0) return true;
      }
- 
+-
 -    c11_string* body = c11_sbuf__submit(&buf);
 -    int length = c11_sv__u8_length(c11_string__sv(body));
 -    c11_sbuf__ctor(&buf);  // reinit sbuf
-+    if(spec.size > 0 && spec.data[0] == ':') {
-+        spec.data++;
-+        spec.size--;
-+    }
- 
+-
 -    if(width != -1 && width > length) {
 -        switch(align) {
 -            case '>': {
@@ -473,56 +528,22 @@
 -                c11_sbuf__write_sv(&buf, c11_string__sv(body));
 -                c11_sbuf__write_pad(&buf, pad_right, pad_c);
 -                break;
-+    // a class may define its own formatting
-+    if(val->type != tp_int && val->type != tp_float && val->type != tp_str &&
-+       val->type != tp_bool) {
-+        py_Ref method = py_tpfindname(val->type, py_name("__format__"));
-+        if(method != NULL) {
-+            py_TValue args[2];
-+            args[0] = *val;
-+            py_newstrv(&args[1], spec);
-+            if(!py_call(method, 2, args)) return false;
-+            if(!py_isstr(py_retval())) {
-+                return TypeError("__format__ must return a str, not %t", py_retval()->type);
-             }
+-            }
 -            default: c11__unreachable();
-+            return true;
-         }
+-        }
 -    } else {
 -        c11_sbuf__write_sv(&buf, c11_string__sv(body));
-     }
-+    if(spec.size == 0) return py_str(val);
- 
--    c11_string__delete(body);
--    // inplace update
-+    FormatSpec parsed;
-+    if(!pk_parse_format_spec(spec, &parsed, val->type)) return false;
-+    c11_sbuf buf;
-+    c11_sbuf__ctor(&buf);
-+    bool ok;
-+    if(val->type == tp_int || val->type == tp_bool) {
-+        py_i64 number = val->type == tp_bool ? (py_i64)py_tobool(val) : py_toint(val);
-+        ok = pk_format_int(&buf, number, &parsed, val->type);
-+    } else if(val->type == tp_float) {
-+        ok = pk_format_float(&buf, py_tofloat(val), &parsed, val->type);
-+    } else if(val->type == tp_str) {
-+        ok = pk_format_str(&buf, py_tosv(val), &parsed, val->type);
-+    } else {
-+        // Kipferl formats other objects through str(), as PocketPy always did
-+        ok = py_str(val);
-+        if(ok) {
-+            py_TValue text = *py_retval();
-+            ok = pk_format_str(&buf, py_tosv(&text), &parsed, tp_str);
-+        }
-+    }
 +    if(!ok) {
 +        c11_sbuf__dtor(&buf);
 +        return false;
-+    }
+     }
+-
+-    c11_string__delete(body);
+-    // inplace update
      c11_sbuf__py_submit(&buf, py_retval());
      return true;
  }
-@@ -23945,6 +24192,22 @@
+@@ -23955,6 +24206,18 @@
      return true;
  }
  
@@ -535,17 +556,13 @@
 +        spec = py_tosv(py_arg(1));
 +    }
 +    py_TValue value = *py_arg(0);
-+    // a conversion is not part of a format specification
-+    if(spec.size > 0 && spec.data[0] == '!') {
-+        return ValueError("Invalid format specifier '%v' for object of type '%t'", spec, value.type);
-+    }
 +    return pk_format_object(pk_current_vm, &value, spec);
 +}
 +
  static bool builtins_isinstance(int argc, py_Ref argv) {
      PY_CHECK_ARGC(2);
      if(py_istuple(py_arg(1))) {
-@@ -24299,6 +24562,7 @@
+@@ -24309,6 +24572,7 @@
      py_bindfunc(builtins, "exit", builtins_exit);
      py_bindfunc(builtins, "input", builtins_input);
      py_bindfunc(builtins, "repr", builtins_repr);

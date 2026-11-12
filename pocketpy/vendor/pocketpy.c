@@ -6655,6 +6655,7 @@ int pk_stack_inplaceop(VM* self, py_Name op);  // kipferl patch
 void pk_print_stack(VM* self, py_Frame* frame, Bytecode byte);
 
 bool pk_format_object(VM* self, py_Ref val, c11_sv spec);
+bool pk_format_fstring_field(VM* self, py_Ref val, c11_sv spec);
 
 // type registration
 void pk_object__register();
@@ -8395,7 +8396,7 @@ static bool str__mod__(int argc, py_Ref argv) {
     } while(0)
 #define PERCENT_NEXT_ARG()                                                                         \
     do {                                                                                           \
-        if(arg_index >= args_count)                                                                \
+        if(used_mapping || arg_index >= args_count)                                                \
             PERCENT_FAIL(TypeError("not enough arguments for format string"));                     \
         *value = args[arg_index++];                                                                \
     } while(0)
@@ -8443,8 +8444,9 @@ static bool str__mod__(int argc, py_Ref argv) {
         int64_t width = -1, precision = -1;
         if(p < p_end && *p == '*') {
             p++;
-            if(arg_index >= args_count || !py_isint(&args[arg_index]))
-                PERCENT_FAIL(TypeError("* wants int"));
+            if(used_mapping || arg_index >= args_count)
+                PERCENT_FAIL(TypeError("not enough arguments for format string"));
+            if(!py_isint(&args[arg_index])) PERCENT_FAIL(TypeError("* wants int"));
             width = py_toint(&args[arg_index++]);
             if(width < -INT32_MAX || width > INT32_MAX) PERCENT_FAIL(ValueError("width too big"));
             if(width < 0) {
@@ -8462,8 +8464,9 @@ static bool str__mod__(int argc, py_Ref argv) {
             precision = 0;
             if(p < p_end && *p == '*') {
                 p++;
-                if(arg_index >= args_count || !py_isint(&args[arg_index]))
-                    PERCENT_FAIL(TypeError("* wants int"));
+                if(used_mapping || arg_index >= args_count)
+                    PERCENT_FAIL(TypeError("not enough arguments for format string"));
+                if(!py_isint(&args[arg_index])) PERCENT_FAIL(TypeError("* wants int"));
                 precision = py_toint(&args[arg_index++]);
                 if(precision > INT32_MAX) PERCENT_FAIL(ValueError("precision too big"));
                 if(precision < 0) precision = 0;
@@ -20126,8 +20129,18 @@ __NEXT_STEP:
                 while(i >= 0 && py_isnil(&base[i].exc))
                     i--;
                 if(i < 0) {
-                    RuntimeError("No active exception to reraise");
-                    goto __ERROR;
+                    // kipferl patch: like CPython's thread-wide handled exception, a bare
+                    // raise in a called function re-raises what its callers are handling
+                    for(py_Frame* f = frame->f_back; f != NULL && i < 0; f = f->f_back) {
+                        FrameExcInfo* outer = f->exc_stack.data;
+                        for(i = f->exc_stack.length - 1; i >= 0 && py_isnil(&outer[i].exc); i--) {}
+                        if(i >= 0) self->unhandled_exc = outer[i].exc;
+                    }
+                    if(i < 0) {
+                        RuntimeError("No active exception to reraise");
+                        goto __ERROR;
+                    }
+                    goto __ERROR_RE_RAISE;
                 }
                 if(i != frame->exc_stack.length - 1) {
                     self->unhandled_exc = base[i].exc;
@@ -20151,7 +20164,7 @@ __NEXT_STEP:
         //////////////////
         case OP_FORMAT_STRING: {
             py_Ref spec = c11__at(py_TValue, &frame->co->consts, byte.arg);
-            bool ok = pk_format_object(self, TOP(), py_tosv(spec));
+            bool ok = pk_format_fstring_field(self, TOP(), py_tosv(spec));
             if(!ok) goto __ERROR;
             py_assign(TOP(), py_retval());
             DISPATCH();
@@ -20664,10 +20677,10 @@ static bool pk_format_str(c11_sbuf* out, c11_sv text, const FormatSpec* spec, py
     return true;
 }
 
-bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
-    // format TOS via `spec` inplace
-    // spec: '!r:.2f', ':.2f', '.2f'
-
+// kipferl patch: an f-string field's `!conv` and `:` prefix are split off here; the rest is a
+// plain format specification, so `{:!<5}` and `{::<5}` fill with '!' and ':'
+bool pk_format_fstring_field(VM* self, py_Ref val, c11_sv spec) {
+    // spec: '!r:.2f', '!r', ':.2f'
     if(spec.size > 0 && spec.data[0] == '!') {
         if(c11_sv__startswith(spec, (c11_sv){"!r", 2})) {
             if(!py_repr(val)) return false;
@@ -20681,12 +20694,15 @@ bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
         py_assign(val, py_retval());
         if(spec.size == 0) return true;
     }
-
     if(spec.size > 0 && spec.data[0] == ':') {
         spec.data++;
         spec.size--;
     }
+    return pk_format_object(self, val, spec);
+}
 
+bool pk_format_object(VM* self, py_Ref val, c11_sv spec) {
+    // format `val` with the plain format specification `spec`
     // a class may define its own formatting
     if(val->type != tp_int && val->type != tp_float && val->type != tp_str &&
        val->type != tp_bool) {
@@ -24915,10 +24931,6 @@ static bool builtins_format(int argc, py_Ref argv) {
         spec = py_tosv(py_arg(1));
     }
     py_TValue value = *py_arg(0);
-    // a conversion is not part of a format specification
-    if(spec.size > 0 && spec.data[0] == '!') {
-        return ValueError("Invalid format specifier '%v' for object of type '%t'", spec, value.type);
-    }
     return pk_format_object(pk_current_vm, &value, spec);
 }
 

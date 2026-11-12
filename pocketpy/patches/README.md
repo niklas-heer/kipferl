@@ -267,8 +267,12 @@ is handling. Outside the handler's own block (in a block nested in a handler
 or a clause, or in the copy of a clause compiled for normal completion) it
 finds the innermost exception being handled when it runs, below any `try`
 statements entered since, which may still catch it, and raises `RuntimeError:
-No active exception to reraise` when there is none. Upstream rejected such a
-`raise` at compile time.
+No active exception to reraise` when there is none. A function called while
+an exception is being handled sees it too, like CPython's thread-wide handled
+exception: when its own frame handles none, the search continues through the
+calling frames, innermost first, so `def reraiser(): raise` called from an
+`except` block or a `finally` clause re-raises that exception. Upstream
+rejected such a `raise` at compile time.
 
 Not covered: a generator that is never exhausted does not run its pending
 `finally` clauses (PocketPy generators have no `close()`), and an exception
@@ -326,7 +330,11 @@ A class that defines `__format__` is formatted through it, by f-strings with a
 specification, `str.format` and the new `format(value, spec='')` builtin.
 Other objects still format their `str()` as a string, a Kipferl leniency where
 CPython raises `TypeError`; an f-string field without a specification still
-uses `str()` directly. f-strings also accept the `!s` conversion.
+uses `str()` directly. f-strings also accept the `!s` conversion. Only an
+f-string field's own text carries its `!conv` and `:` prefix, which the
+`OP_FORMAT_STRING` handler splits off; `str.format` and `format()` pass a plain
+specification, so `'{:!<5}'.format(1)` and `format(1, ':<5')` use `!` and `:`
+as fill characters.
 
 ### Errors in except clauses
 
@@ -478,7 +486,9 @@ top of `0017`'s mini-language:
   precision (including `*`), and every conversion type, and formats each field
   through the mini-language. Fields align right unless `-` is given, as in C.
   Booleans format as the integers 0 and 1 for every numeric conversion and
-  `%c`, and a `*` width or precision beyond 32 bits raises `ValueError`.
+  `%c`, and a `*` width or precision beyond 32 bits raises `ValueError`. Once a
+  `%(key)` field has been used, a positional field (`'%(a)s %s' % {'a': 1}`)
+  raises CPython's `TypeError: not enough arguments for format string`.
 - `str.format` accepted only positional fields and no keyword arguments. It
   now resolves named fields from keyword arguments, attribute (`{0.name}`) and
   index (`{0[key]}`, whose key may contain braces) accessors, `!r`, `!s` and

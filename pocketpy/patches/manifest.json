@@ -125,7 +125,9 @@
         "kipferl patch: bind arguments as CPython does",
         "kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.",
         "kipferl patch: argument 1 re-raises the innermost exception being handled, which",
-        "kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it"
+        "kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it",
+        "kipferl patch: an f-string field's `!conv` and `:` prefix are split off here; the rest is a",
+        "kipferl patch: like CPython's thread-wide handled exception, a bare"
       ]
     }
   ],

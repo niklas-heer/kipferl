@@ -1535,3 +1535,88 @@ for call in (lambda: f(a=1, **{"a": 2}), lambda: f(1, **{"b": 1}, **{"b": 2})):
 "##,
     )
 }
+
+/// A format specification starting with `!` or `:` is a fill character, not a
+/// conversion; f-string conversions keep working.
+#[test]
+fn format_specs_fill_with_bang_and_colon() -> io::Result<()> {
+    matches_cpython(
+        r#"
+# templates are joined so Clippy does not read them as Rust format strings
+o = "{"
+print(repr((o + ":!<5}").format(1)), repr((o + "::<5}").format(1)), repr((o + "0:!^7}").format("ab")))
+print(repr(format(1, "!<5")), repr(format(1, ":<5")), repr(format("x", "!>3")))
+print(repr(f"{(1):!<5}"), repr(f"{(1)::<5}"), repr(f"{'a'!r::>6}"), repr(f"{'a'!r}"), repr(f"{(2.5):.2f}"))
+print(repr((o + "!r:>5}").format("a")), repr((o + "0!s::^5}").format(1)))
+"#,
+    )
+}
+
+/// A bare `raise` in a called function re-raises the exception its callers
+/// are handling, as with the reference interpreter's thread-wide handled
+/// exception.
+#[test]
+fn bare_raise_in_called_function_reraises_callers_exception() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def reraiser():
+    raise
+
+def finally_reraiser():
+    try:
+        pass
+    finally:
+        raise
+
+def deep():
+    reraiser()
+
+for helper in (reraiser, finally_reraiser, deep):
+    try:
+        try:
+            raise ValueError("inner")
+        except ValueError:
+            helper()
+    except ValueError as e:
+        print(helper.__name__, "ValueError", e)
+
+def from_finally():
+    try:
+        raise KeyError("k")
+    finally:
+        finally_reraiser()
+
+try:
+    from_finally()
+except KeyError as e:
+    print("finally", "KeyError", e)
+
+def nested_handler():
+    try:
+        raise TypeError("own")
+    except TypeError:
+        reraiser()
+
+try:
+    try:
+        raise ValueError("outer")
+    except ValueError:
+        nested_handler()
+except Exception as e:
+    print("innermost first", type(e).__name__, e)
+
+try:
+    reraiser()
+except RuntimeError as e:
+    print("RuntimeError", e)
+"#,
+    )
+}
+
+/// Positional fields cannot follow a mapping key in printf-style formatting.
+#[test]
+fn percent_format_rejects_positional_after_mapping_key() -> io::Result<()> {
+    raises_like_cpython("'%(a)s %s' % {'a': 1}")?;
+    raises_like_cpython("'%(a)s %*d' % {'a': 1}")?;
+    matches_cpython("print('%s %(a)s' % {'a': 1}, '%(a)s %%' % {'a': 1})")
+}

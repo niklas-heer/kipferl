@@ -100,7 +100,9 @@ All notable user-facing changes are documented here.
 - A bare `raise` re-raises the exception being handled from any block inside
   the handler or a `finally` clause (`except E: with lock: raise`), and
   outside a handler raises `RuntimeError: No active exception to reraise`
-  when it runs, as in CPython; both were a `SyntaxError`.
+  when it runs, as in CPython; both were a `SyntaxError`. A function called
+  from a handler or `finally` clause (`def reraiser(): raise`) re-raises the
+  exception its callers are handling.
 - A function or module whose jumps exceed PocketPy's 16-bit offsets, such as
   an `if` around tens of thousands of statements, raises `SyntaxError` ("code
   is too large to compile") instead of aborting the process.
