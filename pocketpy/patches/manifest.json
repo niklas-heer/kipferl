@@ -119,7 +119,9 @@
         "kipferl patch: expand starred items into a list, then build the set from it",
         "kipferl patch: an exit from a finally clause compiled for a return supersedes that return",
         "kipferl patch: a finally clause is compiled once per way out of its try statement",
-        "kipferl patch: a jump too long for its offset fails the compilation instead of the process"
+        "kipferl patch: a jump too long for its offset fails the compilation instead of the process",
+        "kipferl patch: bools are ints, so their arithmetic is checked as well",
+        "kipferl patch: a step past the 64-bit range ends the iteration"
       ]
     }
   ],

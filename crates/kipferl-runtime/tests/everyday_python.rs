@@ -1085,3 +1085,48 @@ print(float(True), "{:f}".format(True), format(True, ".1f"), format(True, "d"), 
 "#,
     )
 }
+
+/// Ranges, bit lengths, gcd and bool arithmetic stay exact up to the 64-bit limits.
+#[test]
+fn integer_edges_stay_exact_at_the_64_bit_limits() -> io::Result<()> {
+    matches_cpython(
+        r#"
+import sys, math
+M = sys.maxsize
+N = -M - 1
+print(list(range(M - 1, M, 2)), list(range(N + 1, N, -2)), list(range(M - 2, M, 1)))
+print(list(range(N, N + 3)), list(range(M, M - 3, -1)), list(range(M - 5, M, 4)))
+print(N.bit_length(), M.bit_length(), (-1).bit_length(), (0).bit_length())
+print(math.gcd(N, M), math.gcd(N, 2), math.gcd(-12, 18), math.gcd(0, 0), math.gcd(N, 6))
+print(True + 1, True - M, True * M, False * N, M - True, N + True, sum([M - 1, True]))
+print(issubclass(OverflowError, ArithmeticError), issubclass(ZeroDivisionError, ArithmeticError))
+print(issubclass(ArithmeticError, Exception), ArithmeticError.__name__)
+for f in (lambda: 1 // 0, lambda: 1 % 0, lambda: 1.0 / 0):
+    try:
+        f()
+    except ArithmeticError as e:
+        print("arithmetic", type(e).__name__)
+try:
+    raise ArithmeticError("x")
+except Exception as e:
+    print(type(e).__name__, e)
+print(M == 2**62 - 1 + 2**62, N == -2**62 - 2**62)
+"#,
+    )
+}
+
+/// Modular `pow` and `round` with negative digits stay exact when only intermediates exceed 64 bits.
+#[test]
+fn modular_pow_and_negative_rounding_avoid_intermediate_overflow() -> io::Result<()> {
+    matches_cpython(
+        r"
+import sys
+M = sys.maxsize
+print(pow(2**32, 1, 2**40), pow(2**32, 2, 2**40), pow(3, 10**18, M), pow(M - 1, M - 1, M))
+print(pow(2**62, 3, M), pow(-7, 5, 2**61 - 1), pow(5, 3, -7), pow(5, 0, -7), pow(6, 2, -4))
+print(pow(7, 0, 1), pow(0, 0, 5), pow(12345678901, 98765, 10**18 + 9), pow(-3, 3, 10))
+print(round(1, -20), round(-M, -20), round(M // 2, -19), round(5 * 10**18, -19), round(-5 * 10**18, -19))
+print(round(-M - 1, -25), round(4_999_999_999_999_999_999, -19), round(1234, -2), round(1250, -2))
+",
+    )
+}

@@ -7509,8 +7509,9 @@ static bool int__invert__(int argc, py_Ref argv) {
 
 static bool int_bit_length(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
-    py_i64 x = py_toint(py_arg(0));
-    if(x < 0) x = -x;
+    py_i64 value = py_toint(py_arg(0));
+    // kipferl patch: the magnitude of the smallest int only fits unsigned
+    uint64_t x = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;
     int bits = 0;
     while(x) {
         x >>= 1;
@@ -7866,7 +7867,10 @@ static bool bool__add__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), lhs + rhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_add_overflow(lhs, rhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7878,7 +7882,10 @@ static bool bool__sub__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), lhs - rhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_sub_overflow(lhs, rhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7890,7 +7897,10 @@ static bool bool__rsub__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), rhs - lhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_sub_overflow(rhs, lhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -7902,7 +7912,10 @@ static bool bool__mul__(int argc, py_Ref argv) {
     py_i64 lhs = py_tobool(py_arg(0));
     py_i64 rhs;
     if (bool_try_cast_i64(py_arg(1), &rhs)) {
-        py_newint(py_retval(), lhs * rhs);
+        // kipferl patch: bools are ints, so their arithmetic is checked as well
+        py_i64 out;
+        if(__builtin_mul_overflow(lhs, rhs, &out)) return pk_int_overflow();
+        py_newint(py_retval(), out);
     } else {
         py_newnotimplemented(py_retval());
     }
@@ -8289,7 +8302,10 @@ bool range_iterator__next__(int argc, py_Ref argv) {
         if(ud->current <= ud->range.stop) return StopIteration();
     }
     py_newint(py_retval(), ud->current);
-    ud->current += ud->range.step;
+    // kipferl patch: a step past the 64-bit range ends the iteration
+    if(__builtin_add_overflow(ud->current, ud->range.step, &ud->current)) {
+        ud->current = ud->range.stop;
+    }
     return true;
 }
 
@@ -21950,6 +21966,16 @@ void VM__ctor(VM* self) {
     self->tp_OverflowError =
         pk_newtype("OverflowError", tp_Exception, self->builtins, NULL, false, true);
     py_setdict(self->builtins, py_name("OverflowError"), py_tpobject(self->tp_OverflowError));
+    // ArithmeticError is created last to keep the builtin type indices: rebase the others onto it
+    py_Type arithmetic_error =
+        pk_newtype("ArithmeticError", tp_Exception, self->builtins, NULL, false, true);
+    py_setdict(self->builtins, py_name("ArithmeticError"), py_tpobject(arithmetic_error));
+    py_Type arithmetic_errors[] = {self->tp_OverflowError, tp_ZeroDivisionError};
+    for(int i = 0; i < 2; i++) {
+        py_TypeInfo* ti = pk_typeinfo(arithmetic_errors[i]);
+        ti->base = arithmetic_error;
+        ti->base_ti = pk_typeinfo(arithmetic_error);
+    }
 
     // kipferl patch: signatures with keywords need the compiler, so bind them once the VM is ready
     void pk_dict__bind_signatures();
@@ -26601,16 +26627,18 @@ static bool math_gcd(int argc, py_Ref argv) {
     PY_CHECK_ARGC(2);
     PY_CHECK_ARG_TYPE(0, tp_int);
     PY_CHECK_ARG_TYPE(1, tp_int);
-    py_i64 a = py_toint(py_arg(0));
-    py_i64 b = py_toint(py_arg(1));
-    if(a < 0) a = -a;
-    if(b < 0) b = -b;
+    py_i64 x = py_toint(py_arg(0));
+    py_i64 y = py_toint(py_arg(1));
+    // kipferl patch: work on unsigned magnitudes; only gcd(-2**63, 0 or -2**63) does not fit
+    uint64_t a = x < 0 ? (uint64_t)0 - (uint64_t)x : (uint64_t)x;
+    uint64_t b = y < 0 ? (uint64_t)0 - (uint64_t)y : (uint64_t)y;
     while(b != 0) {
-        py_i64 t = b;
+        uint64_t t = b;
         b = a % b;
         a = t;
     }
-    py_newint(py_retval(), a);
+    if(a > INT64_MAX) return pk_int_overflow();
+    py_newint(py_retval(), (py_i64)a);
     return true;
 }
 

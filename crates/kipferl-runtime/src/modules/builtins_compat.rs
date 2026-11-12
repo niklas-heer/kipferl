@@ -3,6 +3,27 @@
 use crate::native::{NativeModule, NativeModuleKind, Value, execute_module};
 
 const SOURCE: &str = r#"
+def _kipferl_addmod(a, b, mod):
+    # a and b lie in range(mod), so neither the sum nor this difference overflows
+    return a - (mod - b) if a >= mod - b else a + b
+
+
+def _kipferl_mulmod(a, b, mod):
+    try:
+        return a * b % mod
+    except OverflowError:
+        pass
+    # the product does not fit in 64 bits: multiply by doubling and adding
+    result = 0
+    while b:
+        if b & 1:
+            result = _kipferl_addmod(result, a, mod)
+        b >>= 1
+        if b:
+            a = _kipferl_addmod(a, a, mod)
+    return result
+
+
 def pow(base, exp, mod=None):
     if mod is None:
         return base ** exp
@@ -12,13 +33,18 @@ def pow(base, exp, mod=None):
         raise ValueError("pow() 3rd argument cannot be 0")
     if exp < 0:
         raise ValueError("pow() negative exponent is not supported with a modulus")
+    if mod < 0:
+        # the result takes the sign of the modulus, as % does
+        result = pow(base, exp, -mod)
+        return result + mod if result else 0
     result = 1 % mod
     base = base % mod
     while exp:
         if exp & 1:
-            result = result * base % mod
+            result = _kipferl_mulmod(result, base, mod)
         exp >>= 1
-        base = base * base % mod
+        if exp:
+            base = _kipferl_mulmod(base, base, mod)
     return result
 
 
@@ -116,6 +142,11 @@ def round(number, ndigits=None):
     if isinstance(number, int):
         if ndigits is None or ndigits >= 0:
             return number
+        if ndigits <= -19:
+            # 10**19 exceeds 64 bits: only a magnitude above half of it rounds away from zero
+            if ndigits == -19 and (number > 5 * 10**18 or number < -5 * 10**18):
+                raise OverflowError("integer overflow: the result does not fit in a 64-bit int")
+            return 0
         scale = 10 ** -ndigits
         quotient, remainder = divmod(number, scale)
         if remainder * 2 > scale or (remainder * 2 == scale and quotient % 2 == 1):

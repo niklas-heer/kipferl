@@ -22,7 +22,7 @@
  static bool try_castfloat(py_Ref self, double* out) {
      switch(self->type) {
          case tp_int: *out = (double)self->_i64; return true;
-@@ -7190,10 +7198,39 @@
+@@ -7190,9 +7198,38 @@
          return true;                                                                               \
      }
  
@@ -57,14 +57,13 @@
 +        }                                                                                          \
 +        return true;                                                                               \
 +    }
- 
++
 +DEF_NUM_CHECKED_OP(__add__, +, __builtin_add_overflow)
 +DEF_NUM_CHECKED_OP(__sub__, -, __builtin_sub_overflow)
 +DEF_NUM_CHECKED_OP(__mul__, *, __builtin_mul_overflow)
-+
+ 
  DEF_NUM_BINARY_OP(__eq__, ==, py_newbool, py_newbool)
  DEF_NUM_BINARY_OP(__ne__, !=, py_newbool, py_newbool)
- DEF_NUM_BINARY_OP(__lt__, <, py_newbool, py_newbool)
 @@ -7204,6 +7241,7 @@
  static bool int__neg__(int argc, py_Ref argv) {
      PY_CHECK_ARGC(1);
@@ -141,7 +140,19 @@
      py_Ref p = py_newtuple(py_retval(), 2);
      py_newint(&p[0], cpy312__int_floordiv(lhs, rhs));
      py_newint(&p[1], cpy312__int_mod(lhs, rhs));
-@@ -7497,7 +7540,15 @@
+@@ -7460,8 +7503,9 @@
+ 
+ static bool int_bit_length(int argc, py_Ref argv) {
+     PY_CHECK_ARGC(1);
+-    py_i64 x = py_toint(py_arg(0));
+-    if(x < 0) x = -x;
++    py_i64 value = py_toint(py_arg(0));
++    // kipferl patch: the magnitude of the smallest int only fits unsigned
++    uint64_t x = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;
+     int bits = 0;
+     while(x) {
+         x >>= 1;
+@@ -7497,7 +7541,15 @@
      }
      py_i64 rhs = py_toint(&argv[1]);
      if(rhs < 0) return ValueError("negative shift count");
@@ -158,7 +169,7 @@
      return true;
  }
  
-@@ -7551,6 +7602,7 @@
+@@ -7551,6 +7603,7 @@
  static bool int__abs__(int argc, py_Ref argv) {
      PY_CHECK_ARGC(1);
      py_i64 val = py_toint(&argv[0]);
@@ -166,7 +177,7 @@
      py_newint(py_retval(), val < 0 ? -val : val);
      return true;
  }
-@@ -7565,9 +7617,12 @@
+@@ -7565,9 +7618,12 @@
  // kipferl patch: int() and round() never use an undefined float conversion
  static bool pk_float_to_i64(py_f64 x, py_i64* out) {
      if(dmath_isnan(x)) return ValueError("cannot convert float NaN to integer");
@@ -182,7 +193,7 @@
      *out = (py_i64)x;
      return true;
  }
-@@ -7621,7 +7676,17 @@
+@@ -7621,7 +7677,17 @@
          sv.size--;
      }
      py_i64 val;
@@ -201,7 +212,67 @@
          return ValueError("invalid literal for int() with base %d: %q", base, sv);
      }
      py_newint(py_retval(), negative ? -val : val);
-@@ -11918,6 +11983,8 @@
+@@ -7770,7 +7836,10 @@
+     py_i64 lhs = py_tobool(py_arg(0));
+     py_i64 rhs;
+     if (bool_try_cast_i64(py_arg(1), &rhs)) {
+-        py_newint(py_retval(), lhs + rhs);
++        // kipferl patch: bools are ints, so their arithmetic is checked as well
++        py_i64 out;
++        if(__builtin_add_overflow(lhs, rhs, &out)) return pk_int_overflow();
++        py_newint(py_retval(), out);
+     } else {
+         py_newnotimplemented(py_retval());
+     }
+@@ -7782,7 +7851,10 @@
+     py_i64 lhs = py_tobool(py_arg(0));
+     py_i64 rhs;
+     if (bool_try_cast_i64(py_arg(1), &rhs)) {
+-        py_newint(py_retval(), lhs - rhs);
++        // kipferl patch: bools are ints, so their arithmetic is checked as well
++        py_i64 out;
++        if(__builtin_sub_overflow(lhs, rhs, &out)) return pk_int_overflow();
++        py_newint(py_retval(), out);
+     } else {
+         py_newnotimplemented(py_retval());
+     }
+@@ -7794,7 +7866,10 @@
+     py_i64 lhs = py_tobool(py_arg(0));
+     py_i64 rhs;
+     if (bool_try_cast_i64(py_arg(1), &rhs)) {
+-        py_newint(py_retval(), rhs - lhs);
++        // kipferl patch: bools are ints, so their arithmetic is checked as well
++        py_i64 out;
++        if(__builtin_sub_overflow(rhs, lhs, &out)) return pk_int_overflow();
++        py_newint(py_retval(), out);
+     } else {
+         py_newnotimplemented(py_retval());
+     }
+@@ -7806,7 +7881,10 @@
+     py_i64 lhs = py_tobool(py_arg(0));
+     py_i64 rhs;
+     if (bool_try_cast_i64(py_arg(1), &rhs)) {
+-        py_newint(py_retval(), lhs * rhs);
++        // kipferl patch: bools are ints, so their arithmetic is checked as well
++        py_i64 out;
++        if(__builtin_mul_overflow(lhs, rhs, &out)) return pk_int_overflow();
++        py_newint(py_retval(), out);
+     } else {
+         py_newnotimplemented(py_retval());
+     }
+@@ -8186,7 +8264,10 @@
+         if(ud->current <= ud->range.stop) return StopIteration();
+     }
+     py_newint(py_retval(), ud->current);
+-    ud->current += ud->range.step;
++    // kipferl patch: a step past the 64-bit range ends the iteration
++    if(__builtin_add_overflow(ud->current, ud->range.step, &ud->current)) {
++        ud->current = ud->range.stop;
++    }
+     return true;
+ }
+ 
+@@ -11918,6 +11999,8 @@
      return dst;
  }
  
@@ -210,16 +281,11 @@
  IntParsingResult c11__parse_uint(c11_sv text, int64_t* out, int base) {
      *out = 0;
  
-@@ -11932,81 +11999,33 @@
+@@ -11932,81 +12015,33 @@
          else
              base = 10;
      }
-+    if(base == 2 && c11__sveq2(prefix, "0b")) text = (c11_sv){text.data + 2, text.size - 2};
-+    if(base == 8 && c11__sveq2(prefix, "0o")) text = (c11_sv){text.data + 2, text.size - 2};
-+    if(base == 16 && c11__sveq2(prefix, "0x")) text = (c11_sv){text.data + 2, text.size - 2};
-+    if(base != 2 && base != 8 && base != 10 && base != 16) return IntParsing_FAILURE;
-+    if(text.size == 0) return IntParsing_FAILURE;
- 
+-
 -    if(base == 10) {
 -        // 10-base  12334
 -        if(text.size == 0) return IntParsing_FAILURE;
@@ -275,6 +341,25 @@
 -        if(c11__sveq2(prefix, "0x")) {
 -            // text.remove_prefix(2);
 -            text = (c11_sv){text.data + 2, text.size - 2};
+-        }
+-        if(text.size == 0) return IntParsing_FAILURE;
+-        for(int i = 0; i < text.size; i++) {
+-            char c = text.data[i];
+-            if(c >= '0' && c <= '9') {
+-                *out = (*out << 4) | (c - '0');
+-            } else if(c >= 'a' && c <= 'f') {
+-                *out = (*out << 4) | (c - 'a' + 10);
+-            } else if(c >= 'A' && c <= 'F') {
+-                *out = (*out << 4) | (c - 'A' + 10);
+-            } else {
+-                return IntParsing_FAILURE;
+-            }
++    if(base == 2 && c11__sveq2(prefix, "0b")) text = (c11_sv){text.data + 2, text.size - 2};
++    if(base == 8 && c11__sveq2(prefix, "0o")) text = (c11_sv){text.data + 2, text.size - 2};
++    if(base == 16 && c11__sveq2(prefix, "0x")) text = (c11_sv){text.data + 2, text.size - 2};
++    if(base != 2 && base != 8 && base != 10 && base != 16) return IntParsing_FAILURE;
++    if(text.size == 0) return IntParsing_FAILURE;
++
 +    uint64_t value = 0;
 +    bool overflow = false;
 +    for(int i = 0; i < text.size; i++) {
@@ -289,19 +374,6 @@
 +        } else {
 +            return IntParsing_FAILURE;
          }
--        if(text.size == 0) return IntParsing_FAILURE;
--        for(int i = 0; i < text.size; i++) {
--            char c = text.data[i];
--            if(c >= '0' && c <= '9') {
--                *out = (*out << 4) | (c - '0');
--            } else if(c >= 'a' && c <= 'f') {
--                *out = (*out << 4) | (c - 'a' + 10);
--            } else if(c >= 'A' && c <= 'F') {
--                *out = (*out << 4) | (c - 'A' + 10);
--            } else {
--                return IntParsing_FAILURE;
--            }
--        }
 -        // "7fffffffffffffff".__len__() == 16
 -        if(text.size > 16) return IntParsing_OVERFLOW;
 -        return IntParsing_SUCCESS;
@@ -316,19 +388,29 @@
  }
  
  const char* c11__search_u32_ranges(int c, const c11_u32_range* p, int n_ranges) {
-@@ -21389,6 +21408,11 @@
-     py__add_module_periphery();  // optional
+@@ -21470,6 +21505,21 @@
      pk__add_module_pkpy();
      pk__add_module_picoterm();
-+
+ 
 +    // kipferl patch: integers are 64-bit, so results beyond that raise OverflowError
 +    self->tp_OverflowError =
 +        pk_newtype("OverflowError", tp_Exception, self->builtins, NULL, false, true);
 +    py_setdict(self->builtins, py_name("OverflowError"), py_tpobject(self->tp_OverflowError));
- 
++    // ArithmeticError is created last to keep the builtin type indices: rebase the others onto it
++    py_Type arithmetic_error =
++        pk_newtype("ArithmeticError", tp_Exception, self->builtins, NULL, false, true);
++    py_setdict(self->builtins, py_name("ArithmeticError"), py_tpobject(arithmetic_error));
++    py_Type arithmetic_errors[] = {self->tp_OverflowError, tp_ZeroDivisionError};
++    for(int i = 0; i < 2; i++) {
++        py_TypeInfo* ti = pk_typeinfo(arithmetic_errors[i]);
++        ti->base = arithmetic_error;
++        ti->base_ti = pk_typeinfo(arithmetic_error);
++    }
++
      // add python builtins
      do {
-@@ -25938,9 +25962,12 @@
+         bool ok;
+@@ -26018,9 +26068,12 @@
          /* kipferl patch: integral math results never use an undefined float conversion */       \
          double r = func(x);                                                                        \
          if(dmath_isnan(r)) return ValueError("cannot convert float NaN to integer");              \
@@ -344,7 +426,32 @@
          py_newint(py_retval(), (py_i64)r);                                                         \
          return true;                                                                               \
      }
-@@ -26090,8 +26117,10 @@
+@@ -26072,16 +26125,18 @@
+     PY_CHECK_ARGC(2);
+     PY_CHECK_ARG_TYPE(0, tp_int);
+     PY_CHECK_ARG_TYPE(1, tp_int);
+-    py_i64 a = py_toint(py_arg(0));
+-    py_i64 b = py_toint(py_arg(1));
+-    if(a < 0) a = -a;
+-    if(b < 0) b = -b;
++    py_i64 x = py_toint(py_arg(0));
++    py_i64 y = py_toint(py_arg(1));
++    // kipferl patch: work on unsigned magnitudes; only gcd(-2**63, 0 or -2**63) does not fit
++    uint64_t a = x < 0 ? (uint64_t)0 - (uint64_t)x : (uint64_t)x;
++    uint64_t b = y < 0 ? (uint64_t)0 - (uint64_t)y : (uint64_t)y;
+     while(b != 0) {
+-        py_i64 t = b;
++        uint64_t t = b;
+         b = a % b;
+         a = t;
+     }
+-    py_newint(py_retval(), a);
++    if(a > INT64_MAX) return pk_int_overflow();
++    py_newint(py_retval(), (py_i64)a);
+     return true;
+ }
+ 
+@@ -26170,8 +26225,10 @@
      py_i64 n = py_toint(py_arg(0));
      if(n < 0) return ValueError("factorial() not defined for negative values");
      py_i64 r = 1;

@@ -334,11 +334,15 @@ array2d() dimensions are too large\narray2d() dimensions are too large\nsizes ch
 #[test]
 fn integer_overflow_raises_and_shifts_are_defined() {
     let output = run(r"
+import math
 big = 2**62
 m = -2**62 * 2
 for expression in ['big * 4', 'big + big', '-big - big - 2', '2**63', '-m', 'abs(m)',
                    'm // -1', 'divmod(m, -1)', '1 << 63', '1 << 64', '3 << 100',
-                   'int(\'9223372036854775808\')', 'sum([2**62, 2**62])']:
+                   'int(\'9223372036854775808\')', 'sum([2**62, 2**62])',
+                   'True + (big - 1 + big)', '(big - 1 + big) + True', 'm - True',
+                   'True - m', 'sum([big - 1 + big, True])', 'math.gcd(m, m)', 'math.gcd(m, 0)',
+                   'round(big - 1 + big, -19)']:
     try:
         eval(expression)
         print(expression, 'did not overflow')
@@ -346,6 +350,7 @@ for expression in ['big * 4', 'big + big', '-big - big - 2', '2**63', '-m', 'abs
         pass
 print(-big - big, m % -1, m // 2, divmod(m, 7), -1 << 63, 0 << 100)
 print(-1 >> 100, 5 >> 64, -8 >> 1, 1 << 0, 1 << 62)
+print(m.bit_length(), math.gcd(m, 6), True * (big - 1 + big), issubclass(OverflowError, ArithmeticError))
 for expression in ['1 << -1', '1 >> -1']:
     try:
         eval(expression)
@@ -358,6 +363,7 @@ for expression in ['1 << -1', '1 >> -1']:
         "-9223372036854775808 0 -4611686018427387904 (-1317624576693539402, 6) \
 -9223372036854775808 0\n\
 -1 0 -4 1 4611686018427387904\n\
+64 2 9223372036854775807 True\n\
 negative shift count\nnegative shift count\n"
     );
     assert!(output.stderr.is_empty(), "{output:?}");
