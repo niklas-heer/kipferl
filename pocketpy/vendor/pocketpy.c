@@ -8426,6 +8426,7 @@ static bool str__mod__(int argc, py_Ref argv) {
             if(arg_index >= args_count || !py_isint(&args[arg_index]))
                 PERCENT_FAIL(TypeError("* wants int"));
             width = py_toint(&args[arg_index++]);
+            if(width < -INT32_MAX || width > INT32_MAX) PERCENT_FAIL(ValueError("width too big"));
             if(width < 0) {
                 left = true;
                 width = -width;
@@ -8444,6 +8445,7 @@ static bool str__mod__(int argc, py_Ref argv) {
                 if(arg_index >= args_count || !py_isint(&args[arg_index]))
                     PERCENT_FAIL(TypeError("* wants int"));
                 precision = py_toint(&args[arg_index++]);
+                if(precision > INT32_MAX) PERCENT_FAIL(ValueError("precision too big"));
                 if(precision < 0) precision = 0;
             } else {
                 while(p < p_end && isdigit((unsigned char)*p)) {
@@ -8489,6 +8491,8 @@ static bool str__mod__(int argc, py_Ref argv) {
                 if(!py_isint(value) && !py_isfloat(value) && !py_isbool(value)) {
                     PERCENT_FAIL(TypeError("must be real number, not %t", value->type));
                 }
+                // bool is an int subclass with its own representation
+                if(py_isbool(value)) py_newfloat(value, py_tobool(value) ? 1.0 : 0.0);
                 if(!py_isfloat(value)) py_newfloat(value, (py_f64)py_toint(value));
                 break;
             case 'c':
@@ -8496,6 +8500,8 @@ static bool str__mod__(int argc, py_Ref argv) {
                     if(c11_sv__u8_length(py_tosv(value)) != 1)
                         PERCENT_FAIL(TypeError("%%c requires an int or a unicode character"));
                     type = 's';
+                } else if(py_isbool(value)) {
+                    py_newint(value, py_tobool(value));
                 } else if(!py_isint(value)) {
                     PERCENT_FAIL(TypeError("%%c requires an int or a unicode character"));
                 }
@@ -20421,41 +20427,44 @@ static bool pk_format_float(c11_sbuf* out, double x, const FormatSpec* spec, py_
     double magnitude = fabs(x);
     bool upper = kind == 'E' || kind == 'F' || kind == 'G';
     int precision = spec->precision >= 0 ? (int)spec->precision : 6;
-    // at most 17 significant digits and the 308-digit integer part fit in this buffer
-    char body[512];
+    // room for the digits, a 309-digit integer part, the exponent and a '%' or ".0" suffix
+    size_t cap = (size_t)precision + 400;
+    if(cap > INT32_MAX) return ValueError("precision too big");
+    char small[512];
+    char* body = cap <= sizeof(small) ? small : PK_MALLOC(cap);
+    if(body == small) cap = sizeof(small);
     const char* alternate = spec->alternate ? "#" : "";
     char fmt[16];
-    if(precision > 200) precision = 200;
     if(isnan(magnitude) || isinf(magnitude)) {
-        snprintf(body, sizeof(body), "%s", isnan(magnitude) ? "nan" : "inf");
+        snprintf(body, cap, "%s", isnan(magnitude) ? "nan" : "inf");
         if(kind == '%') strcat(body, "%");
     } else if(kind == 'f' || kind == 'F' || kind == '%') {
         snprintf(fmt, sizeof(fmt), "%%%s.*f", alternate);
-        snprintf(body, sizeof(body), fmt, precision, kind == '%' ? magnitude * 100 : magnitude);
+        snprintf(body, cap, fmt, precision, kind == '%' ? magnitude * 100 : magnitude);
         if(kind == '%') strcat(body, "%");
     } else if(kind == 'e' || kind == 'E') {
         snprintf(fmt, sizeof(fmt), "%%%s.*e", alternate);
-        snprintf(body, sizeof(body), fmt, precision, magnitude);
+        snprintf(body, cap, fmt, precision, magnitude);
     } else if(kind == 'g' || kind == 'G' || kind == 'n') {
         snprintf(fmt, sizeof(fmt), "%%%s.*g", alternate);
-        snprintf(body, sizeof(body), fmt, precision == 0 ? 1 : precision, magnitude);
+        snprintf(body, cap, fmt, precision == 0 ? 1 : precision, magnitude);
     } else if(spec->precision < 0) {
         // no type: the shortest representation, as repr() prints it
         c11_sbuf repr;
         c11_sbuf__ctor(&repr);
         c11_sbuf__write_f64(&repr, magnitude, -1);
         c11_string* text = c11_sbuf__submit(&repr);
-        snprintf(body, sizeof(body), "%s", text->data);
+        snprintf(body, cap, "%s", text->data);
         c11_string__delete(text);
     } else {
         // no type with a precision: like 'g', but fixed-point keeps a fractional digit
         int digits = precision == 0 ? 1 : precision;
-        snprintf(body, sizeof(body), "%.*g", digits, magnitude);
+        snprintf(body, cap, "%.*g", digits, magnitude);
         if(!strpbrk(body, ".e")) {
             if((int)strlen(body) < digits) {
                 strcat(body, ".0");
             } else {
-                snprintf(body, sizeof(body), "%.*e", digits - 1, magnitude);
+                snprintf(body, cap, "%.*e", digits - 1, magnitude);
                 // drop trailing zeros of the mantissa, as 'g' does
                 char* e = strchr(body, 'e');
                 if(memchr(body, '.', e - body)) {
@@ -20486,6 +20495,7 @@ static bool pk_format_float(c11_sbuf* out, double x, const FormatSpec* spec, py_
                        true,
                        spec->grouping,
                        3);
+    if(body != small) PK_FREE(body);
     return true;
 }
 

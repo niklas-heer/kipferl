@@ -1063,3 +1063,25 @@ print(len(src2 | {}) >= 0, len({**src2}) >= 0)
 "#,
     )
 }
+
+/// Booleans format as the integers they are, and precision is not capped.
+#[test]
+fn percent_and_format_handle_bools_and_long_precisions() -> io::Result<()> {
+    matches_cpython(
+        r#"
+print(format(1.0, '.201f'))
+print(format(1e300, '.300f'))
+print(format(-2.5, '.250e'))
+print(format(2.5, '.250g'), format(2.5, '.250'), format(1/3, '.300'))
+print(format(0.125, '.400%'))
+print(f"{1e308:,.220f}")
+print(len(format(1.5, '.100000f')))
+print("%.300f" % 0.1)
+print("%f %.1f %c %e" % (True, False, True, True))
+print("%5.2f|%-6.1e|%c" % (True, True, False) == "%5.2f|%-6.1e|%c" % (1, 1, 0))
+print("%f %d %x %e %g %s %r %i %o %X %c" % (True, True, True, False, True, True, False, True, True, True, True))
+print("%.2f" % False, "%5.1e" % True)
+print(float(True), "{:f}".format(True), format(True, ".1f"), format(True, "d"), format(True, "x"))
+"#,
+    )
+}
