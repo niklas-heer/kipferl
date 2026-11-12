@@ -40,7 +40,7 @@ assert textwrap.fill('a bb', 'invalid') == 'a bb'");
     for (source, expected) in [
         (
             "import textwrap; textwrap.wrap()",
-            "TypeError: wrap() takes 1 positional arguments but 0 were given",
+            "TypeError: wrap() missing 1 required positional argument: 'text'",
         ),
         (
             "import textwrap; textwrap.wrap(1)",

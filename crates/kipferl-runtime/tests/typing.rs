@@ -44,7 +44,7 @@ fn preserves_typing_argument_and_alias_errors() {
     for (source, expected) in [
         (
             "import typing; typing.TypeVar()",
-            "TypeError: __new__() takes 2 positional arguments but 1 were given",
+            "TypeError: __new__() missing 1 required positional argument: 'name'",
         ),
         (
             "import typing; typing.cast(int)",

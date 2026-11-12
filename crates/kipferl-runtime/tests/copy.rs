@@ -94,11 +94,11 @@ fn calls_custom_deepcopy_and_copy_hooks_and_propagates_errors() {
     for (source, expected) in [
         (
             "import copy; copy.copy()",
-            "TypeError: copy() takes 1 positional arguments but 0 were given",
+            "TypeError: copy() missing 1 required positional argument: 'x'",
         ),
         (
             "import copy; copy.deepcopy()",
-            "TypeError: deepcopy() takes 1 positional arguments but 0 were given",
+            "TypeError: deepcopy() missing 1 required positional argument: 'x'",
         ),
         (
             concat!(

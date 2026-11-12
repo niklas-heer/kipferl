@@ -275,7 +275,7 @@ fn preserves_binding_and_argument_errors() {
     for (source, expected) in [
         (
             "import input; input.select('x')",
-            "TypeError: select() takes 2 positional arguments but 1 were given",
+            "TypeError: select() missing 1 required positional argument: 'choices'",
         ),
         (
             "import input; input.select(1, [])",
@@ -283,7 +283,7 @@ fn preserves_binding_and_argument_errors() {
         ),
         (
             "import input; input.select('x', [], 0, 1)",
-            "TypeError: too many arguments (select)",
+            "TypeError: select() takes from 2 to 3 positional arguments but 4 were given",
         ),
         (
             "import input; input.select('x', [], nope=1)",

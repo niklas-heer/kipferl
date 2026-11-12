@@ -1130,3 +1130,65 @@ print(round(-M - 1, -25), round(4_999_999_999_999_999_999, -19), round(1234, -2)
 ",
     )
 }
+
+/// Positional parameters take keywords, `/` and `*` restrict them, and binding errors match the reference interpreter.
+#[test]
+fn arguments_bind_by_position_and_keyword_like_cpython() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def f(a, b): return (a, b)
+def g(a, b=1): return (a, b)
+def h(a, /, b, *, c, d=4): return (a, b, c, d)
+def k(*, c): return c
+def m(a): return a
+def n(a, b, c, /): return (a, b, c)
+def q(a, b=2, /, c=3, *args, d, e=5, **kw): return (a, b, c, args, d, e, kw)
+def r(a, b=2, *args): return (a, b, args)
+calls = ["f(1,2,3)", "g(1,2,3)", "m(1,2)", "k(1)", "h(1, 2)", "h(a=1, b=2, c=3)", "f(1, a=2)",
+         "f()", "n(1)", "h(1)", "h(1, b=2)", "n(a=1,b=2,c=3)", "g()", "k()", "m(1, a=1)",
+         "f(1, b=2)", "f(b=2, a=1)", "g(a=5)", "h(1, b=2, c=3)", "h(1, 2, c=3, d=0)", "k(c=9)",
+         "n(1, 2, 3)", "q(1, d=4)", "q(1, 2, 3, 4, 5, d=6, z=7)", "q(1, a=2, b=3, d=4)",
+         "r(1)", "r(1, 2, 3, 4)", "r(1, b=5)", "m(a=3)", "q(1, 2, c=3, d=4, e=6)",
+         "(lambda x, /, y=2, *, z: (x, y, z))(1, z=3)", "(lambda *, z: z)(z=1)", "f(*[1, 2])",
+         "f(**{'a': 1, 'b': 2})", "g(1, **{'b': 7})", "q(1, *[2, 3, 4], d=1)"]
+for call in calls:
+    try:
+        print(call, "=", eval(call))
+    except TypeError as e:
+        print(call, "->", e)
+def p(a, /, **kw): return a, kw
+print(p(1, a=2))
+class C:
+    def method(self, a, *, key=None): return (a, key)
+    @staticmethod
+    def st(x, /): return x
+c = C()
+print(c.method(1, key=2), c.method(a=3), C.st(4))
+def gen(a, *, b):
+    yield a
+    yield b
+print(list(gen(1, b=2)))
+try:
+    list(gen(1, 2))
+except TypeError as e:
+    print(e)
+import inspect
+for fn in (f, g, h, k, n, q, r, p):
+    print(fn.__name__, inspect.signature(fn))
+"#,
+    )
+}
+
+/// Misplaced `/` markers are rejected with the reference interpreter's messages.
+#[test]
+fn misplaced_parameter_markers_are_syntax_errors() -> io::Result<()> {
+    for source in [
+        "def f(a, /, /, b): pass",
+        "def f(*, a, /): pass",
+        "def f(/, a): pass",
+        "def f(a, *, b=1, /): pass",
+    ] {
+        raises_like_cpython(source)?;
+    }
+    Ok(())
+}

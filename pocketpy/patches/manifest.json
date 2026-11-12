@@ -95,7 +95,7 @@
         "kipferl patch: sep and end may be None, and file= writes to any object with write()",
         "kipferl patch: like CPython, != defaults to the negation of __eq__",
         "kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented",
-        "kipferl patch: `/` ends positional-only parameters, which Kipferl also accepts by keyword",
+        "kipferl patch: `/` ends the positional-only parameters",
         "kipferl patch: `*` may follow parameters with defaults, but only once",
         "kipferl patch: a bare `*` starts keyword-only parameters",
         "kipferl patch: a keyword-only parameter without a default starts unbound",
@@ -121,7 +121,8 @@
         "kipferl patch: a finally clause is compiled once per way out of its try statement",
         "kipferl patch: a jump too long for its offset fails the compilation instead of the process",
         "kipferl patch: bools are ints, so their arithmetic is checked as well",
-        "kipferl patch: a step past the 64-bit range ends the iteration"
+        "kipferl patch: a step past the 64-bit range ends the iteration",
+        "kipferl patch: bind arguments as CPython does"
       ]
     }
   ],
