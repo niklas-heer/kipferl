@@ -867,3 +867,18 @@ print([*(x * 2 for x in a)], (*[],))
 "#,
     )
 }
+
+#[test]
+fn json_dumps_indents_with_sorted_keys_and_any_indent() -> io::Result<()> {
+    matches_cpython(
+        r#"
+import json
+data = {"b": [1, 2.5, None, True], "a": {"nested": {"x": []}}, "c": {}, "d": "e"}
+print(json.dumps(data, indent=2))
+print(json.dumps(data, indent=2, sort_keys=True))
+print(json.dumps(data, indent="\t", sort_keys=True))
+print(json.dumps(data, sort_keys=True), json.dumps(data, separators=(",", ":")))
+print(json.dumps({1: 2, "x": {"y": 1}, None: 0}), json.dumps([1, {"k": [2]}], indent=0))
+"#,
+    )
+}

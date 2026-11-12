@@ -65,6 +65,8 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- `json.dumps` indents when combined with `sort_keys=True` or `separators`,
+  accepts a string or zero `indent`, and quotes non-string keys as CPython does.
 - `{**a, **b}` and `{**a, 'key': value}` merge dicts instead of crashing the
   process, and `[*a, *b]`, `(*a,)` and `{*a}` unpack instead of storing
   internal `star_wrapper` objects.
