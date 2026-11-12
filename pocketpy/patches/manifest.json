@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 16,
+  "patchset_version": 17,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -91,7 +91,10 @@
         "kipferl patch: `raise ... from ...` sets __cause__; read as None when unset",
         "kipferl patch: `raise exc from cause`",
         "kipferl patch: [exception, cause] sets the cause, as `raise exc from cause` does",
-        "kipferl patch: exception subclasses may take keyword arguments in __init__"
+        "kipferl patch: exception subclasses may take keyword arguments in __init__",
+        "kipferl patch: sep and end may be None, and file= writes to any object with write()",
+        "kipferl patch: like CPython, != defaults to the negation of __eq__",
+        "kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented"
       ]
     }
   ],
@@ -183,6 +186,10 @@
     {
       "id": "0022-exception-attributes",
       "file": "pocketpy/patches/0022-exception-attributes.patch"
+    },
+    {
+      "id": "0023-print-file-and-default-ne",
+      "file": "pocketpy/patches/0023-print-file-and-default-ne.patch"
     }
   ]
 }

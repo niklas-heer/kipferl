@@ -1,0 +1,105 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -6614,6 +6614,7 @@
+ bool pk_wrapper__self(int argc, py_Ref argv);
+ 
+ const char* pk_op2str(py_Name op);
++static bool pk_default__ne__(int argc, py_Ref argv);  // kipferl patch: see its definition
+ 
+ typedef enum FrameResult {
+     RES_ERROR = 0,
+@@ -19437,8 +19438,10 @@
+                 py_TValue* slot_eq = py_getdict(&ti->self, __eq__);
+                 py_TValue* slot_ne = py_getdict(&ti->self, __ne__);
+                 if(slot_eq && !slot_ne) {
+-                    TypeError("'%n' implements '__eq__' but not '__ne__'", ti->name);
+-                    goto __ERROR;
++                    // kipferl patch: like CPython, != defaults to the negation of __eq__
++                    py_TValue ne;
++                    py_newnativefunc(&ne, pk_default__ne__);
++                    py_setdict(&ti->self, __ne__, &ne);
+                 }
+             }
+             // class with decorator is unsafe currently
+@@ -19670,6 +19673,22 @@
+     c11__unreachable();
+ }
+ 
++// kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented
++static bool pk_default__ne__(int argc, py_Ref argv) {
++    PY_CHECK_ARGC(2);
++    py_Ref eq = py_tpfindmagic(argv[0].type, __eq__);
++    if(eq == NULL) {
++        py_newnotimplemented(py_retval());
++        return true;
++    }
++    if(!py_call(eq, 2, argv)) return false;
++    if(py_retval()->type == tp_NotImplementedType) return true;
++    int truth = py_bool(py_retval());
++    if(truth < 0) return false;
++    py_newbool(py_retval(), !truth);
++    return true;
++}
++
+ const char* pk_op2str(py_Name op) {
+     if(__eq__ == op) return "==";
+     if(__ne__ == op) return "!=";
+@@ -24144,15 +24163,16 @@
+ }
+ 
+ static bool builtins_print(int argc, py_Ref argv) {
+-    // print(*args, sep=' ', end='\n', flush=False)
++    // print(*args, sep=' ', end='\n', flush=False, file=None)
+     py_TValue* args = py_tuple_data(argv);
+     int length = py_tuple_len(argv);
+-    PY_CHECK_ARG_TYPE(1, tp_str);
+-    PY_CHECK_ARG_TYPE(2, tp_str);
+-    PY_CHECK_ARG_TYPE(3, tp_bool);
+-    c11_sv sep = py_tosv(py_arg(1));
+-    c11_sv end = py_tosv(py_arg(2));
+-    bool flush = py_tobool(py_arg(3));
++    // kipferl patch: sep and end may be None, and file= writes to any object with write()
++    if(!py_isnone(py_arg(1))) PY_CHECK_ARG_TYPE(1, tp_str);
++    if(!py_isnone(py_arg(2))) PY_CHECK_ARG_TYPE(2, tp_str);
++    c11_sv sep = py_isnone(py_arg(1)) ? (c11_sv){" ", 1} : py_tosv(py_arg(1));
++    c11_sv end = py_isnone(py_arg(2)) ? (c11_sv){"\n", 1} : py_tosv(py_arg(2));
++    int flush = py_bool(py_arg(3));
++    if(flush < 0) return false;
+     c11_sbuf buf;
+     c11_sbuf__ctor(&buf);
+     for(int i = 0; i < length; i++) {
+@@ -24164,6 +24184,25 @@
+         c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
+     }
+     c11_sbuf__write_sv(&buf, end);
++    if(!py_isnone(py_arg(4))) {
++        // file.write(text), then file.flush() when asked
++        py_StackRef text = py_pushtmp();
++        c11_sbuf__py_submit(&buf, text);
++        py_push(py_arg(4));
++        if(!py_pushmethod(py_name("write"))) {
++            py_shrink(2);
++            return AttributeError(py_arg(4), py_name("write"));
++        }
++        py_push(text);
++        if(!py_vectorcall(1, 0)) return false;
++        if(flush) {
++            py_push(py_arg(4));
++            if(py_pushmethod(py_name("flush")) && !py_vectorcall(0, 0)) return false;
++        }
++        py_shrink(1);
++        py_newnone(py_retval());
++        return true;
++    }
+     c11_string* res = c11_sbuf__submit(&buf);
+     py_callbacks()->print(res->data);
+     if(flush) py_callbacks()->flush();
+@@ -24553,7 +24592,7 @@
+     py_bindfunc(builtins, "divmod", builtins_divmod);
+     py_bindfunc(builtins, "round", builtins_round);
+ 
+-    py_bind(builtins, "print(*args, sep=' ', end='\\n', flush=False)", builtins_print);
++    py_bind(builtins, "print(*args, sep=' ', end='\\n', flush=False, file=None)", builtins_print);
+ 
+     py_bindfunc(builtins, "isinstance", builtins_isinstance);
+     py_bindfunc(builtins, "issubclass", builtins_issubclass);

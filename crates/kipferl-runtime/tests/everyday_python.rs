@@ -658,3 +658,42 @@ print(w.args, str(w))
 "#,
     )
 }
+
+#[test]
+fn print_writes_to_files_and_ne_defaults_to_not_eq() -> io::Result<()> {
+    matches_cpython(
+        r#"
+import sys, io
+print("to stdout", file=sys.stdout)
+print("a", "b", sep=None, end=None)
+buffer = io.StringIO()
+print("x", 1, sep="-", file=buffer)
+print("y", file=buffer, end="")
+print(repr(buffer.getvalue()))
+print("flushed", file=sys.stdout, flush=True)
+class P:
+    def __init__(self, x):
+        self.x = x
+    def __eq__(self, other):
+        if not isinstance(other, P):
+            return NotImplemented
+        return self.x == other.x
+    def __hash__(self):
+        return hash(self.x)
+print(P(1) == P(1), P(1) != P(1), P(1) != P(2), P(1) != 5, len({P(1), P(1)}))
+class Q(P):
+    def __eq__(self, other):
+        return True
+print(Q(1) != Q(2))
+print("a"); sys.stdout.write("b\n"); print("c", end=""); sys.stdout.write("-d\n"); print("e")
+"#,
+    )?;
+    let output = run(
+        env!("CARGO_BIN_EXE_pocketpy-kipferl"),
+        "import sys\nprint('out')\nprint('err', 'line', sep='-', file=sys.stderr)\n",
+    )?;
+    check(
+        output.stdout == b"out\n" && output.stderr == b"err-line\n",
+        format!("print(file=sys.stderr) wrote {output:?}"),
+    )
+}

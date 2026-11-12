@@ -375,3 +375,17 @@ define keyword parameters, and compiles `raise exc from cause`, which sets
 `__cause__` and `__suppress_context__`. `BaseException` provides `__cause__`,
 `__context__` (always `None`) and `__suppress_context__` defaults. Tracebacks
 do not print the cause chain.
+
+### print(file=...) and a default `!=`
+
+`0023-print-file-and-default-ne.patch` adds `print()`'s `file` argument,
+which writes the joined text with `file.write()` (and calls `file.flush()` for
+`flush=True`), so `print(message, file=sys.stderr)` and printing into an
+`io.StringIO` work; `sep=None` and `end=None` select the defaults as in
+CPython. Kipferl's `sys.stdout.write()` flushes C stdio before writing and its
+own buffer after, so it and `print()` keep program order when piped.
+
+A class that defined `__eq__` without `__ne__` failed at its definition with
+`TypeError: 'C' implements '__eq__' but not '__ne__'`. The patch instead gives
+such a class CPython's default `__ne__`: the negation of `type(self).__eq__`,
+passing `NotImplemented` through.

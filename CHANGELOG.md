@@ -30,6 +30,8 @@ All notable user-facing changes are documented here.
   targets nest (`for i, (key, value) in enumerate(pairs)`).
 - `raise NewError(...) from err` sets `__cause__`, and exceptions accept several
   arguments (`ValueError('a', 1).args`).
+- `print()` accepts `file=` (`print(message, file=sys.stderr)`), and `sep` and
+  `end` accept `None`.
 
 ### Changed
 
@@ -43,6 +45,9 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- A class that defines `__eq__` without `__ne__` no longer fails with `TypeError`;
+  `!=` negates `__eq__` as in CPython.
+- `print()` and `sys.stdout.write()` output keep program order when piped.
 - Custom exceptions can store attributes (`self.code = code` in `__init__`)
   and take keyword arguments; both raised `TypeError`.
 - An exception raised while evaluating an `except` clause, such as a misspelled
