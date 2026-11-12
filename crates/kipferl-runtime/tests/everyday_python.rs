@@ -223,6 +223,136 @@ print(list(gen()))
     )
 }
 
+/// An exit from a finally clause supersedes a pending return, even inside loops and `with`.
+#[test]
+fn exits_from_finally_override_a_pending_return() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def a():
+    for x in [1,2]:
+        try:
+            return 1
+        finally:
+            break
+    return "after"
+print(a())
+class M:
+    def __enter__(self): return self
+    def __exit__(self, *a): print("exit"); return False
+def b():
+    with M():
+        try:
+            return 1
+        finally:
+            return 2
+print(b())
+def c():
+    for i in range(3):
+        try:
+            return i
+        finally:
+            continue
+    return "c-end"
+print(c())
+def d():
+    for i in range(3):
+        with M():
+            try:
+                try:
+                    return "inner"
+                finally:
+                    for j in range(2):
+                        try:
+                            return "x"
+                        finally:
+                            if j == 0:
+                                continue
+                            break
+            finally:
+                print("outer finally", i)
+                if i < 2:
+                    continue
+    return "d-end"
+print(d())
+def e():
+    while True:
+        try:
+            try:
+                return 1
+            finally:
+                return 2
+        finally:
+            break
+    return 3
+print(e())
+def g():
+    total = 0
+    for i in range(100000):
+        try:
+            return i
+        finally:
+            total += 1
+            continue
+    return total
+print(g())
+def h():
+    with M():
+        with M():
+            try:
+                return 1
+            finally:
+                with M():
+                    return 5
+print(h())
+def gen():
+    for i in range(3):
+        try:
+            yield i
+            return i
+        finally:
+            continue
+print(list(gen()))
+"#,
+    )
+}
+
+/// A pending return that an exception or an exit from finally discards leaves no value behind.
+#[test]
+fn superseded_returns_do_not_accumulate_on_the_stack() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def a():
+    for i in range(50000):
+        try:
+            try:
+                return 1
+            finally:
+                raise ValueError
+        except ValueError:
+            pass
+    return "ok"
+print(a())
+def b():
+    for i in range(3):
+        try:
+            raise KeyError
+        finally:
+            break
+    return "b"
+print(b())
+def c():
+    for k in range(20000):
+        for i in range(2):
+            try:
+                return i
+            finally:
+                break
+    return "c"
+print(c())
+"#,
+    )
+}
+
 #[test]
 fn leaving_a_with_block_early_calls_exit() -> io::Result<()> {
     matches_cpython(

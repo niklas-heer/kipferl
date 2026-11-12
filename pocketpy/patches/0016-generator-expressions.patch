@@ -1,11 +1,9 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -14737,14 +14737,172 @@
-         default: assert(false);
-     }
+@@ -14763,6 +14763,158 @@
      return NULL;
-+}
-+
+ }
+ 
 +// kipferl patch: generator expressions and nested comprehensions compile to a nested function
 +typedef enum ComprehensionKind {
 +    COMPREHENSION_GENERATOR,
@@ -29,8 +27,8 @@
 +        if(count == 0 && t->type == TK_COLON && has_colon) *has_colon = true;
 +    }
 +    return count;
- }
- 
++}
++
 +static Error* compile_comprehension_clauses(Compiler* self,
 +                                            ComprehensionKind kind,
 +                                            int iter_end,
@@ -64,7 +62,7 @@
 +            Ctx__s_emit_top(ctx());
 +            // a false condition continues this loop
 +            int jump = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-+            Bytecode__set_signed_arg(c11__at(Bytecode, &ctx()->co->codes, jump), start - jump);
++            Ctx__set_jump(ctx(), jump, start - jump);
 +        }
 +        first = false;
 +    } while(curr()->type == TK_FOR);
@@ -161,19 +159,20 @@
  static Error* exprGroup(Compiler* self) {
      Error* err;
      int line = prev()->line;
-     if(match(TK_RPAREN)) {
-         // empty tuple
+@@ -14771,6 +14923,12 @@
          Ctx__s_push(ctx(), (Expr*)TupleExpr__new(line, 0));
-+        return NULL;
-+    }
+         return NULL;
+     }
 +    // kipferl patch: (<expr> for ...) is a generator expression
 +    if(count_comprehension_fors(self, true, NULL) > 0) {
 +        check(compile_comprehension_function(self, COMPREHENSION_GENERATOR));
 +        consume(TK_RPAREN);
-         return NULL;
-     }
++        return NULL;
++    }
      check(EXPR_TUPLE(self));  // () is just for change precedence
-@@ -14812,6 +14970,12 @@
+     consume(TK_RPAREN);
+     if(Ctx__s_top(ctx())->vt->is_tuple) return NULL;
+@@ -14836,6 +14994,12 @@
      Error* err;
      int line = prev()->line;
      int count = 0;
@@ -186,7 +185,7 @@
      do {
          if(curr()->type == TK_RBRACKET) break;
          check(EXPR(self));
-@@ -14836,6 +15000,14 @@
+@@ -14860,6 +15024,14 @@
      int line = prev()->line;
      bool parsing_dict = false;  // {...} may be dict or set
      int count = 0;
@@ -201,7 +200,7 @@
      do {
          if(curr()->type == TK_RBRACE) break;
          check(EXPR(self));  // [key]
-@@ -14883,6 +15055,13 @@
+@@ -14907,6 +15079,13 @@
  
      CallExpr* e = CallExpr__new(line, callable);
      Ctx__s_push(ctx(), (Expr*)e);  // push onto the stack in advance

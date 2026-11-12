@@ -13223,12 +13223,25 @@ typedef struct Ctx {
     c11_smallmap_v2d co_consts_string_dedup_map;  // this stores 0-based index instead of pointer
     // kipferl patch: the token of each try block's finally clause, compiled again on every exit
     c11_vector /*T=CtxFinally*/ finally_clauses;
+    // return values waiting below finally clauses that are being compiled inline
+    c11_vector /*T=CtxPending*/ pending_returns;
+    // finally clauses being compiled inside each other; every level doubles the code
+    int finally_depth;
+    // a jump did not fit its 16-bit offset
+    bool jump_overflow;
 } Ctx;
 
 typedef struct CtxFinally {
     int iblock;
     int token;
 } CtxFinally;
+
+// a finally clause compiled for a return: its value waits on the stack below the clause, which
+// opens blocks from `first_block` on; `live` is cleared while a later exit has discarded it
+typedef struct CtxPending {
+    int first_block;
+    bool live;
+} CtxPending;
 
 typedef struct Expr Expr;
 
@@ -14319,6 +14332,9 @@ static void Ctx__ctor(Ctx* self, CodeObject* co, FuncDecl* func, int level, py_N
     c11_smallmap_n2d__ctor(&self->global_names);
     c11_smallmap_v2d__ctor(&self->co_consts_string_dedup_map);
     c11_vector__ctor(&self->finally_clauses, sizeof(CtxFinally));
+    c11_vector__ctor(&self->pending_returns, sizeof(CtxPending));
+    self->finally_depth = 0;
+    self->jump_overflow = false;
 }
 
 static void Ctx__dtor(Ctx* self) {
@@ -14335,6 +14351,7 @@ static void Ctx__dtor(Ctx* self) {
     }
     c11_smallmap_v2d__dtor(&self->co_consts_string_dedup_map);
     c11_vector__dtor(&self->finally_clauses);
+    c11_vector__dtor(&self->pending_returns);
 }
 
 static int Ctx__finally_token(Ctx* self, int iblock) {
@@ -14400,17 +14417,22 @@ static int Ctx__emit_name(Ctx* self, py_Name name, int line) {
     return Ctx__emit_(self, OP_LOAD_NAME_AS_INT, (uint16_t)index, line);
 }
 
+// kipferl patch: a jump too long for its offset fails the compilation instead of the process
+static void Ctx__set_jump(Ctx* self, int index, int offset) {
+    if(offset < INT16_MIN || offset > INT16_MAX) {
+        self->jump_overflow = true;
+        offset = 0;
+    }
+    Bytecode__set_signed_arg(c11__at(Bytecode, &self->co->codes, index), offset);
+}
+
 static void Ctx__patch_jump(Ctx* self, int index) {
-    Bytecode* co_codes = (Bytecode*)self->co->codes.data;
-    int target = self->co->codes.length;
-    Bytecode__set_signed_arg(&co_codes[index], target - index);
+    Ctx__set_jump(self, index, self->co->codes.length - index);
 }
 
 static void Ctx__emit_jump(Ctx* self, int target, int line) {
     int index = Ctx__emit_(self, OP_JUMP_FORWARD, BC_NOARG, line);
-    // should place after Ctx__emit_ because of realloc
-    Bytecode* co_codes = (Bytecode*)self->co->codes.data;
-    Bytecode__set_signed_arg(&co_codes[index], target - index);
+    Ctx__set_jump(self, index, target - index);
 }
 
 static int Ctx__add_varname(Ctx* self, py_Name name) {
@@ -14737,15 +14759,17 @@ static Error* pop_context(Compiler* self) {
         Bytecode* bc = c11__at(Bytecode, codes, i);
         if(bc->op == OP_LOOP_CONTINUE) {
             CodeBlock* block = c11__at(CodeBlock, &ctx()->co->blocks, bc->arg);
-            Bytecode__set_signed_arg(bc, block->start - i);
+            Ctx__set_jump(ctx(), i, block->start - i);
         } else if(bc->op == OP_LOOP_BREAK) {
             CodeBlock* block = c11__at(CodeBlock, &ctx()->co->blocks, bc->arg);
-            Bytecode__set_signed_arg(bc, (block->end2 != -1 ? block->end2 : block->end) - i);
+            Ctx__set_jump(ctx(), i, (block->end2 != -1 ? block->end2 : block->end) - i);
         } else if(bc->op == OP_FOR_ITER || bc->op == OP_FOR_ITER_YIELD_VALUE) {
             CodeBlock* block = c11__at(CodeBlock, &ctx()->co->blocks, bc->arg);
-            Bytecode__set_signed_arg(bc, block->end - i);
+            Ctx__set_jump(ctx(), i, block->end - i);
         }
     }
+    // kipferl patch: report a jump that did not fit instead of aborting
+    if(ctx()->jump_overflow) return SyntaxError(self, "code is too large to compile");
     // pre-compute func->is_simple
     FuncDecl* func = ctx()->func;
     if(func) {
@@ -15075,7 +15099,7 @@ static Error* compile_comprehension_clauses(Compiler* self,
             Ctx__s_emit_top(ctx());
             // a false condition continues this loop
             int jump = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-            Bytecode__set_signed_arg(c11__at(Bytecode, &ctx()->co->codes, jump), start - jump);
+            Ctx__set_jump(ctx(), jump, start - jump);
         }
         first = false;
     } while(curr()->type == TK_FOR);
@@ -15479,6 +15503,20 @@ static Error* compile_block_body(Compiler* self) {
     return NULL;
 }
 
+// kipferl patch: a finally clause is compiled once per way out of its try statement, so
+// clauses nested inside clauses multiply; refuse nesting that would explode the code
+#define PK_MAX_FINALLY_DEPTH 10
+
+static Error* compile_finally_body(Compiler* self) {
+    if(ctx()->finally_depth >= PK_MAX_FINALLY_DEPTH) {
+        return SyntaxError(self, "too deeply nested try/finally");
+    }
+    ctx()->finally_depth++;
+    Error* err = compile_block_body(self);
+    ctx()->finally_depth--;
+    return err;
+}
+
 static bool Ctx__has_cleanup(Ctx* self) {
     for(int index = self->curr_iblock; index >= 0;) {
         CodeBlock* block = c11__at(CodeBlock, &self->co->blocks, index);
@@ -15491,13 +15529,45 @@ static bool Ctx__has_cleanup(Ctx* self) {
 typedef enum DivertKind { DIVERT_BREAK, DIVERT_CONTINUE, DIVERT_RETURN } DivertKind;
 
 // kipferl patch: break, continue and return run the finally clauses and __exit__ methods they leave
+// kipferl patch: an exit from a finally clause compiled for a return supersedes that return;
+// discard the values of the clauses the exit leaves before it unwinds the block at `index`
+static void Ctx__discard_pending(Ctx* self, int index, int* pending, DivertKind kind, int line) {
+    while(*pending > 0) {
+        CtxPending* it = c11__at(CtxPending, &self->pending_returns, *pending - 1);
+        if(index >= it->first_block) return;
+        if(it->live) {
+            // a return keeps its own value on top
+            if(kind == DIVERT_RETURN) Ctx__emit_(self, OP_ROT_TWO, BC_NOARG, line);
+            Ctx__emit_(self, OP_POP_TOP, BC_NOARG, line);
+            it->live = false;
+        }
+        (*pending)--;
+    }
+}
+
+static Error* compile_divert_blocks(Compiler* self, int line, DivertKind kind, int* out_loop,
+                                    int* pending);
+
 static Error* compile_divert(Compiler* self, int line, DivertKind kind, int* out_loop) {
-    Error* err;
     *out_loop = -1;
     // a return only needs to unwind when it leaves cleanup code; the frame discards the rest
     if(kind == DIVERT_RETURN && !Ctx__has_cleanup(ctx())) return NULL;
+    int start = ctx()->pending_returns.length;
+    int pending = start;
+    Error* err = compile_divert_blocks(self, line, kind, out_loop, &pending);
+    // other exits from the same clauses still see their values
+    for(int i = pending; i < start; i++) {
+        c11__at(CtxPending, &ctx()->pending_returns, i)->live = true;
+    }
+    return err;
+}
+
+static Error* compile_divert_blocks(Compiler* self, int line, DivertKind kind, int* out_loop,
+                                    int* pending) {
+    Error* err;
     int index = ctx()->curr_iblock;
     while(index >= 0) {
+        Ctx__discard_pending(ctx(), index, pending, kind, line);
         // copy the block: compiling a finally clause may grow the block vector
         CodeBlock block = *c11__at(CodeBlock, &ctx()->co->blocks, index);
         switch(block.type) {
@@ -15531,7 +15601,12 @@ static Error* compile_divert(Compiler* self, int line, DivertKind kind, int* out
                     int saved_block = ctx()->curr_iblock;
                     self->i = token;
                     ctx()->curr_iblock = block.parent;
-                    err = compile_block_body(self);
+                    if(kind == DIVERT_RETURN) {
+                        CtxPending value = {ctx()->co->blocks.length, true};
+                        c11_vector__push(CtxPending, &ctx()->pending_returns, value);
+                    }
+                    err = compile_finally_body(self);
+                    if(kind == DIVERT_RETURN) c11_vector__pop(&ctx()->pending_returns);
                     self->i = saved_token;
                     ctx()->curr_iblock = saved_block;
                     if(err) return err;
@@ -15543,6 +15618,7 @@ static Error* compile_divert(Compiler* self, int line, DivertKind kind, int* out
         }
         index = block.parent;
     }
+    Ctx__discard_pending(ctx(), index, pending, kind, line);
     return NULL;
 }
 
@@ -16307,14 +16383,14 @@ static Error* compile_try_except(Compiler* self) {
         consume(TK_FINALLY);
         Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, prev()->line);
         Ctx__enter_block(ctx(), CodeBlockType_EXCEPT);
-        check(compile_block_body(self));
+        check(compile_finally_body(self));
         Ctx__exit_block(ctx());
         Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
         // the statement completed: compile the clause again for the normal path
         Ctx__patch_jump(ctx(), normal_patch);
         int end_token = self->i;
         self->i = finally_token;
-        check(compile_block_body(self));
+        check(compile_finally_body(self));
         self->i = end_token;
     }
     return NULL;

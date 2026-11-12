@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 21,
+  "patchset_version": 22,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -116,7 +116,10 @@
         "kipferl patch: [*a, *b], (*a,) and {*a} expand starred items; `out` must be rooted",
         "kipferl patch: expand starred items",
         "kipferl patch: a `**mapping` item merges the mapping",
-        "kipferl patch: expand starred items into a list, then build the set from it"
+        "kipferl patch: expand starred items into a list, then build the set from it",
+        "kipferl patch: an exit from a finally clause compiled for a return supersedes that return",
+        "kipferl patch: a finally clause is compiled once per way out of its try statement",
+        "kipferl patch: a jump too long for its offset fails the compilation instead of the process"
       ]
     }
   ],

@@ -1,14 +1,14 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -7629,6 +7629,8 @@
-     *out = (py_i64)x;
+@@ -7630,6 +7630,8 @@
      return true;
  }
-+
-+#include <ctype.h>  // kipferl patch: int() parsing below
  
++#include <ctype.h>  // kipferl patch: int() parsing below
++
  static bool int__new__(int argc, py_Ref argv) {
      if(argc == 1 + 0) {
+         // int() == 0
 @@ -7672,12 +7674,35 @@
      PY_CHECK_ARG_TYPE(1, tp_str);
  
@@ -54,7 +54,7 @@
      }
      py_newint(py_retval(), negative ? -val : val);
      return true;
-@@ -15619,6 +15644,7 @@
+@@ -15695,6 +15720,7 @@
  
  static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
      int state = 0;  // 0 for args, 1 for *args, 2 for k=v, 3 for **kwargs
@@ -62,7 +62,7 @@
      Error* err;
      do {
          // allow trailing comma
-@@ -15626,11 +15652,18 @@
+@@ -15702,11 +15728,18 @@
          if(curr()->type == (is_lambda ? TK_COLON : TK_RPAREN)) break;
  
          if(state >= 3) return SyntaxError(self, "**kwargs should be the last argument");
@@ -85,7 +85,7 @@
          } else if(match(TK_POW)) {
              state = 3;
          }
-@@ -15652,9 +15685,18 @@
+@@ -15728,9 +15761,18 @@
                  state += 1;
                  break;
              case 2: {
@@ -106,14 +106,10 @@
                  FuncDecl__add_kwarg(decl, name, &value);
              } break;
              case 3:
-@@ -16045,7 +16087,63 @@
-         self->i = finally_token;
-         check(compile_block_body(self));
-         self->i = end_token;
-+    }
-+    return NULL;
-+}
-+
+@@ -16125,6 +16167,62 @@
+     return NULL;
+ }
+ 
 +// kipferl patch: one `with` item; the items after it are nested inside its block
 +static Error* compile_with_items(Compiler* self) {
 +    Error* err;
@@ -135,7 +131,7 @@
 +    } else {
 +        // discard `__enter__()`'s return value
 +        Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
-     }
++    }
 +    // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
 +    Ctx__enter_block(ctx(), CodeBlockType_TRY);
 +    Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
@@ -167,10 +163,13 @@
 +    Ctx__patch_jump(ctx(), patch_normal);
 +    Ctx__patch_jump(ctx(), patch_handled);
 +    Ctx__exit_block(ctx());
-     return NULL;
- }
- 
-@@ -16192,53 +16290,7 @@
++    return NULL;
++}
++
+ static Error* compile_stmt(Compiler* self) {
+     Error* err;
+     if(match(TK_CLASS)) {
+@@ -16268,53 +16366,7 @@
              Ctx__s_pop(ctx());
              consume_end_stmt();
          } break;
@@ -225,7 +224,7 @@
          /*************************************************/
          // handle dangling expression or assignment
          default: {
-@@ -16608,6 +16660,7 @@
+@@ -16684,6 +16736,7 @@
          case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
          case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
          case '.': case 'x': case 'o': case 'j':
@@ -233,7 +232,7 @@
          return true;
          default: return false;
              // clang-format on
-@@ -16826,13 +16879,29 @@
+@@ -16902,13 +16955,29 @@
      bool is_scientific_notation = false;
      if(*(i - 1) == 'e' && (*i == '+' || *i == '-')) {
          i++;
@@ -265,7 +264,7 @@
  
      if(text.data[0] != '.' && !is_scientific_notation) {
          // try integer
-@@ -25789,6 +25858,13 @@
+@@ -25865,6 +25934,13 @@
      }
      for(int i = 0; i < decl->kwargs.length; i++) {
          FuncDeclKwArg kv = c11__getitem(FuncDeclKwArg, &decl->kwargs, i);
@@ -279,7 +278,7 @@
          py_TValue* entry = py_newtuple(&items[j++], 3);
          py_newstr(&entry[0], py_name2str(kv.key));
          // defaults after *args can only be passed by keyword
-@@ -31893,6 +31969,7 @@
+@@ -31969,6 +32045,7 @@
          }
          case tp_NoneType: break;
          case tp_ellipsis: break;
@@ -287,7 +286,7 @@
          case tp_tuple: {
              int len = py_tuple_len(val);
              c11_serializer__write_i32(s, len);
-@@ -31936,6 +32013,11 @@
+@@ -32012,6 +32089,11 @@
              py_newnone(out);
              break;
          }

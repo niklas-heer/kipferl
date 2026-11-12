@@ -362,3 +362,38 @@ negative shift count\nnegative shift count\n"
     );
     assert!(output.stderr.is_empty(), "{output:?}");
 }
+
+// Each way out of a try statement compiles its finally clause again, so clauses
+// nested inside clauses double the code per level, and long jumps did not fit
+// their 16-bit offsets: both aborted the process instead of raising SyntaxError.
+#[test]
+fn oversized_code_raises_syntax_errors_instead_of_aborting() {
+    let output = run(r"
+def nested(depth):
+    lines = ['def f():', '    x = 0']
+    for level in range(depth):
+        lines.append('    ' * (level + 1) + 'try:')
+        lines.append('    ' * (level + 2) + 'x += 1')
+        lines.append('    ' * (level + 1) + 'finally:')
+    lines.append('    ' * (depth + 1) + 'return x')
+    return '\n'.join(lines)
+for depth in [10, 11, 18]:
+    scope = {}
+    try:
+        exec(nested(depth), scope)
+        print(depth, scope['f']())
+    except SyntaxError as error:
+        print(depth, 'too deeply nested try/finally' in str(error))
+scope = {}
+try:
+    exec('def g(x):\n    if x:\n' + '        x = x + 1\n' * 20000 + '    return x\n', scope)
+    print(scope['g'](1))
+except SyntaxError as error:
+    print('code is too large to compile' in str(error))
+exec('total = 0\n' + 'total = total + 1\n' * 40000, scope)
+print(scope['total'])
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"10 10\n11 True\n18 True\nTrue\n40000\n");
+    assert!(output.stderr.is_empty(), "{output:?}");
+}
