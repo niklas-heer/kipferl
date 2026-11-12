@@ -1266,3 +1266,89 @@ except TypeError as e:
 "#,
     )
 }
+
+/// A bare `raise` in `finally`, unpacking that stops at the first excess item, and a missing `flush`.
+#[test]
+fn bare_raise_unpacking_and_print_flush_follow_cpython() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def f():
+    try:
+        raise ValueError("x")
+    finally:
+        raise
+try:
+    f()
+except ValueError as e:
+    print("ValueError", e)
+import itertools
+try:
+    a, b = itertools.count()
+except ValueError as e:
+    print(e)
+class W:
+    def write(self, s): pass
+try:
+    print("x", file=W(), flush=True)
+except AttributeError as e:
+    print("AttributeError")
+def g():
+    try:
+        pass
+    finally:
+        raise
+try:
+    g()
+except RuntimeError as e:
+    print("RuntimeError", e)
+def h():
+    try:
+        raise KeyError("k")
+    except KeyError:
+        try:
+            pass
+        finally:
+            raise
+try:
+    h()
+except KeyError as e:
+    print("KeyError", e)
+def loop_in_finally():
+    try:
+        raise IndexError("i")
+    finally:
+        for _ in range(1):
+            raise
+try:
+    loop_in_finally()
+except IndexError as e:
+    print("IndexError", e)
+a, b = (x for x in [1, 2])
+c, = iter([3])
+print(a, b, c)
+try:
+    a, b, c = map(int, "12")
+except ValueError as e:
+    print(e)
+def gen():
+    n = 0
+    while True:
+        n += 1
+        yield n
+try:
+    x, y, z = gen()
+except ValueError as e:
+    print(e)
+k = [10, 20]
+p, q = reversed(k)
+print(p, q)
+class F:
+    def __init__(self): self.log = []
+    def write(self, s): self.log.append(s)
+    def flush(self): self.log.append("flushed")
+f = F()
+print("y", file=f, flush=True)
+print("".join(f.log))
+"#,
+    )
+}

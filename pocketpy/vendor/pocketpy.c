@@ -16622,10 +16622,17 @@ static Error* compile_stmt(Compiler* self) {
                 int iblock = ctx()->curr_iblock;
                 CodeBlock* blocks = (CodeBlock*)ctx()->co->blocks.data;
                 if(blocks[iblock].type != CodeBlockType_EXCEPT) {
-                    return SyntaxError(self,
-                                       "raise without exception is only allowed in except block");
+                    // kipferl patch: a finally clause also compiles outside the handler, where
+                    // the exception it re-raises is checked when the statement runs
+                    if(ctx()->finally_depth == 0) {
+                        return SyntaxError(
+                            self,
+                            "raise without exception is only allowed in except block");
+                    }
+                    Ctx__emit_(ctx(), OP_RE_RAISE, 1, kw_line);
+                } else {
+                    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
                 }
-                Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
             }
             consume_end_stmt();
         } break;
@@ -19792,12 +19799,33 @@ __NEXT_STEP:
                     DISPATCH();
                 }
                 default: {
-                    // kipferl patch: any iterable unpacks, as in `a, b = map(int, line.split())`
-                    if(!py_tpcall(tp_list, 1, TOP())) goto __ERROR;
-                    *TOP() = *py_retval();
-                    length = py_list_len(TOP());
-                    p = py_list_data(TOP());
-                    break;
+                    // kipferl patch: any iterable unpacks, as in `a, b = map(int, line.split())`;
+                    // reading stops at the first excess item, so an endless iterator fails too
+                    py_TValue* base = SP() - 1;
+                    if(!py_iter(base)) goto __ERROR;
+                    *base = *py_retval();
+                    int count = 0;
+                    while(true) {
+                        int res = py_next(base);
+                        if(res == -1) goto __ERROR;
+                        if(res == 0) break;
+                        if(count == byte.arg) {
+                            ValueError("too many values to unpack (expected %d)", byte.arg);
+                            goto __ERROR;
+                        }
+                        PUSH(py_retval());
+                        count++;
+                    }
+                    if(count < byte.arg) {
+                        ValueError("not enough values to unpack (expected %d, got %d)",
+                                   byte.arg,
+                                   count);
+                        goto __ERROR;
+                    }
+                    // the values replace the iterator
+                    memmove(base, base + 1, count * sizeof(py_TValue));
+                    SP()--;
+                    DISPATCH();
                 }
             }
             if(length > byte.arg) {
@@ -20071,6 +20099,14 @@ __NEXT_STEP:
             goto __ERROR;
         }
         case OP_RE_RAISE: {
+            // kipferl patch: argument 1 checks for an exception to re-raise
+            if(byte.arg == 1 && py_isnil(&self->unhandled_exc)) {
+                FrameExcInfo* info = Frame__top_exc_info(frame);
+                if(info == NULL || py_isnil(&info->exc)) {
+                    RuntimeError("No active exception to reraise");
+                    goto __ERROR;
+                }
+            }
             if(py_isnil(&self->unhandled_exc)) {
                 FrameExcInfo* info = Frame__top_exc_info(frame);
                 assert(info != NULL && !py_isnil(&info->exc));
@@ -24806,7 +24842,11 @@ static bool builtins_print(int argc, py_Ref argv) {
         if(!py_vectorcall(1, 0)) return false;
         if(flush) {
             py_push(py_arg(4));
-            if(py_pushmethod(py_name("flush")) && !py_vectorcall(0, 0)) return false;
+            if(!py_pushmethod(py_name("flush"))) {
+                py_shrink(2);
+                return AttributeError(py_arg(4), py_name("flush"));
+            }
+            if(!py_vectorcall(0, 0)) return false;
         }
         py_shrink(1);
         py_newnone(py_retval());

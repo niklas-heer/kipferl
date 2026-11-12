@@ -401,19 +401,19 @@
 +            patches[patches_length++] = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
 +            Ctx__patch_jump(ctx(), patch);
 +        } while(curr()->type == TK_EXCEPT);
-+
-+        // no match, re-raise
-+        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
  
 -    // no match, re-raise
 -    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
-+        // no exception: run the else clause outside the handlers
-+        Ctx__patch_jump(ctx(), else_patch);
-+        if(match(TK_ELSE)) check(compile_block_body(self));
++        // no match, re-raise
++        Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
  
 -    // match one & handled, jump to the end
 -    for(int i = 0; i < patches_length; i++) {
 -        Ctx__patch_jump(ctx(), patches[i]);
++        // no exception: run the else clause outside the handlers
++        Ctx__patch_jump(ctx(), else_patch);
++        if(match(TK_ELSE)) check(compile_block_body(self));
++
 +        // match one & handled, jump to the end
 +        for(int i = 0; i < patches_length; i++) {
 +            Ctx__patch_jump(ctx(), patches[i]);
@@ -483,3 +483,39 @@
              break;
          /*************************************************/
          case TK_IF: check(compile_if_stmt(self)); break;
+@@ -15832,10 +16035,17 @@
+                 int iblock = ctx()->curr_iblock;
+                 CodeBlock* blocks = (CodeBlock*)ctx()->co->blocks.data;
+                 if(blocks[iblock].type != CodeBlockType_EXCEPT) {
+-                    return SyntaxError(self,
+-                                       "raise without exception is only allowed in except block");
++                    // kipferl patch: a finally clause also compiles outside the handler, where
++                    // the exception it re-raises is checked when the statement runs
++                    if(ctx()->finally_depth == 0) {
++                        return SyntaxError(
++                            self,
++                            "raise without exception is only allowed in except block");
++                    }
++                    Ctx__emit_(ctx(), OP_RE_RAISE, 1, kw_line);
++                } else {
++                    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
+                 }
+-                Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
+             }
+             consume_end_stmt();
+         } break;
+@@ -19211,6 +19421,14 @@
+             goto __ERROR;
+         }
+         case OP_RE_RAISE: {
++            // kipferl patch: argument 1 checks for an exception to re-raise
++            if(byte.arg == 1 && py_isnil(&self->unhandled_exc)) {
++                FrameExcInfo* info = Frame__top_exc_info(frame);
++                if(info == NULL || py_isnil(&info->exc)) {
++                    RuntimeError("No active exception to reraise");
++                    goto __ERROR;
++                }
++            }
+             if(py_isnil(&self->unhandled_exc)) {
+                 FrameExcInfo* info = Frame__top_exc_info(frame);
+                 assert(info != NULL && !py_isnil(&info->exc));

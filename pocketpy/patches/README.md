@@ -260,6 +260,10 @@ deeply nested try/finally`. A jump whose offset no longer fits PocketPy's
 16 bits, which such code or any very long function reaches, raises
 `SyntaxError: code is too large to compile` instead of aborting the process.
 
+A bare `raise` inside a `finally` clause re-raises the exception the clause
+is handling; in the copy compiled for normal completion it checks at run time
+and raises `RuntimeError: No active exception to reraise` when there is none.
+
 Not covered: a generator that is never exhausted does not run its pending
 `finally` clauses (PocketPy generators have no `close()`), and an exception
 raised inside a `finally` clause does not record the original as `__context__`.
@@ -386,8 +390,9 @@ module defines `list.__iadd__`, `dict.__ior__` and the in-place set operators.
 
 PocketPy unpacked only lists and tuples, so `a, b = map(int, line.split())`
 or unpacking a generator raised `TypeError`, a starred target had to come
-last, and `for` targets could not nest. `0021-unpacking.patch` converts any
-other iterable to a list before unpacking, lets the starred target appear
+last, and `for` targets could not nest. `0021-unpacking.patch` unpacks any
+other iterable by reading at most one item more than there are targets, so an
+endless iterator raises "too many values" instead of exhausting memory; it lets the starred target appear
 anywhere (`first, *middle, last = items`; `OP_UNPACK_EX` now carries the
 target counts before and after it), accepts parenthesized targets in `for`
 loops and comprehensions (`for i, (key, value) in ...`), and uses CPython's
@@ -411,7 +416,7 @@ do not print the cause chain.
 
 `0023-print-file-and-default-ne.patch` adds `print()`'s `file` argument,
 which writes the joined text with `file.write()` (and calls `file.flush()` for
-`flush=True`), so `print(message, file=sys.stderr)` and printing into an
+`flush=True`, raising `AttributeError` when the object has none), so `print(message, file=sys.stderr)` and printing into an
 `io.StringIO` work; `sep=None` and `end=None` select the defaults as in
 CPython. Kipferl's `sys.stdout.write()` flushes C stdio before writing and its
 own buffer after, so it and `print()` keep program order when piped.

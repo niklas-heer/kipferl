@@ -8,7 +8,7 @@
  
  typedef enum FrameResult {
      RES_ERROR = 0,
-@@ -19437,8 +19438,10 @@
+@@ -19562,8 +19563,10 @@
                  py_TValue* slot_eq = py_getdict(&ti->self, __eq__);
                  py_TValue* slot_ne = py_getdict(&ti->self, __ne__);
                  if(slot_eq && !slot_ne) {
@@ -21,7 +21,7 @@
                  }
              }
              // class with decorator is unsafe currently
-@@ -19670,6 +19673,22 @@
+@@ -19803,6 +19806,22 @@
      c11__unreachable();
  }
  
@@ -44,7 +44,7 @@
  const char* pk_op2str(py_Name op) {
      if(__eq__ == op) return "==";
      if(__ne__ == op) return "!=";
-@@ -24144,15 +24163,16 @@
+@@ -24326,15 +24345,16 @@
  }
  
  static bool builtins_print(int argc, py_Ref argv) {
@@ -68,7 +68,7 @@
      c11_sbuf buf;
      c11_sbuf__ctor(&buf);
      for(int i = 0; i < length; i++) {
-@@ -24164,6 +24184,25 @@
+@@ -24346,6 +24366,29 @@
          c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
      }
      c11_sbuf__write_sv(&buf, end);
@@ -85,7 +85,11 @@
 +        if(!py_vectorcall(1, 0)) return false;
 +        if(flush) {
 +            py_push(py_arg(4));
-+            if(py_pushmethod(py_name("flush")) && !py_vectorcall(0, 0)) return false;
++            if(!py_pushmethod(py_name("flush"))) {
++                py_shrink(2);
++                return AttributeError(py_arg(4), py_name("flush"));
++            }
++            if(!py_vectorcall(0, 0)) return false;
 +        }
 +        py_shrink(1);
 +        py_newnone(py_retval());
@@ -94,7 +98,7 @@
      c11_string* res = c11_sbuf__submit(&buf);
      py_callbacks()->print(res->data);
      if(flush) py_callbacks()->flush();
-@@ -24553,7 +24592,7 @@
+@@ -24735,7 +24778,7 @@
      py_bindfunc(builtins, "divmod", builtins_divmod);
      py_bindfunc(builtins, "round", builtins_round);
  
