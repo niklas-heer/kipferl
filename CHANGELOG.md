@@ -35,9 +35,19 @@ All notable user-facing changes are documented here.
 - `with a() as x, b() as y:`, keyword-only (`*`) and positional-only (`/`)
   parameter markers, `*args` after parameters with defaults, and digit
   separators in literals and `int()` (`1_000_000`, `int('1_000')`, `int(' 42 ')`).
+- Everyday builtins and methods: `pow(base, exp, mod)`, `sum(..., start)`,
+  `min`/`max` with `default=`, `zip(..., strict=True)`, `str.split` and
+  `str.rsplit` with `maxsplit` (and `sep=None`), `str.replace` with a count,
+  `str.removeprefix`/`removesuffix`/`partition`/`rpartition`/`title`/
+  `capitalize`/`swapcase`/`casefold`/`center`/`expandtabs`, set comparisons
+  (`<=`, `<`, `>=`, `>`) and in-place updates, `set.pop`, `float.is_integer`,
+  `int.to_bytes`/`from_bytes`/`bit_count` and `bytes.hex`.
 
 ### Changed
 
+- `round()` rounds halves to even as CPython does: `round(2.5)` is `2` and
+  `round(2.675, 2)` is `2.67` (correctly rounded from the binary value);
+  negative `ndigits` work for ints and floats.
 - **Integer overflow raises `OverflowError` instead of wrapping.** Kipferl's
   integers are 64-bit; CPython's are unbounded. `2**63`, `2**62 * 2`,
   `int('9223372036854775808')`, `1 << 64` and `math.factorial(21)` used to

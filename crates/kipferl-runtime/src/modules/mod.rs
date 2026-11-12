@@ -5,6 +5,7 @@ mod args;
 mod array;
 mod base64;
 mod binascii;
+mod builtins_compat;
 mod bytearray;
 mod bytes_methods;
 mod collections;
@@ -91,6 +92,7 @@ mod zipfile;
 use crate::native::{NativeModule, register_modules};
 
 const MODULES: &[NativeModule] = &[
+    builtins_compat::MODULE,
     ansi::MODULE,
     argparse::MODULE,
     struct_module::MODULE,

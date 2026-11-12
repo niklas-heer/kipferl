@@ -775,3 +775,36 @@ print(NotImplemented in {NotImplemented: 1})
 "#,
     )
 }
+
+#[test]
+fn everyday_builtins_and_methods_match_cpython() -> io::Result<()> {
+    matches_cpython(
+        r#"
+print(pow(2, 10), pow(2, 10, 1000), pow(3, 200, 1000000007), pow(2.0, 0.5), pow(7, 0, 1))
+print(sum([1, 2, 3]), sum([[1], [2]], []), sum([0.5, 0.25], 1), sum(x for x in range(4)))
+print(min([3, 1, 2]), max(3, 1, 2), min([], default=None), max([], default=-1), max("apple", "fig", key=len), min([(2, "b"), (1, "z")]))
+print(max([1, 3, 2], key=lambda v: -v), min("cab"), max(range(5), default=9))
+print(list(zip([1, 2], "ab")), list(zip()), list(zip([1, 2, 3], "ab")), list(zip([1, 2], [3, 4], strict=True)))
+for args in [([1, 2, 3], "ab"), ([1], "ab"), ([1, 2], [3, 4], [5])]:
+    try:
+        list(zip(*args, strict=True))
+        print("ok")
+    except ValueError as e:
+        print("ValueError", e)
+print(round(0.5), round(1.5), round(2.5), round(-2.5), round(-0.5), round(3.7), round(-3.2))
+print(round(2.675, 2), round(1.005, 2), round(0.125, 2), round(3.14159, 3), round(1234.5, -2), round(1250, -2), round(1350, -2), round(17, 0), round(-1250, -2))
+print("foobar".removeprefix("foo"), "foobar".removesuffix("bar"), "foo".removeprefix(""), "a,b,c".partition(","), "a,b,c".rpartition(","), "abc".partition("x"), "abc".rpartition("x"))
+print("hello world".title(), "they're bill's".title(), "aBc".swapcase(), "x".center(5, "*"), "ab".center(5), "abc".center(6), "hELLO wORLD".capitalize(), "a\tb".expandtabs(4))
+print("a b  c ".split(), " a b c ".split(None, 1), "a,b,,c".split(","), "a,b,c".split(",", 1), "a b c".rsplit(None, 1), "  a  b  ".rsplit(), "a,b,c".rsplit(",", 1), "".split(","), "".split())
+print("aaa".replace("a", "b", 2), "aaa".replace("a", "b"), "ab".replace("", "-"), "ab".replace("", "-", 2))
+print({1} <= {1, 2}, {1, 2} < {1, 2}, {1, 2} >= {1}, {1, 2} > {1, 2}, {1} <= {2})
+s = {1, 2, 3}
+s.difference_update({1})
+s.intersection_update({2, 3, 4})
+s.symmetric_difference_update({3, 5})
+print(sorted(s), len({7}), {8}.pop())
+print((2.0).is_integer(), (2.5).is_integer(), (5).to_bytes(2, "big"), (5).to_bytes(2, "little"), (-1).to_bytes(2, "big", signed=True), int.from_bytes(b"\x01\x00", "big"), int.from_bytes(b"\xff\xfe", "big", signed=True), (255).bit_count())
+print(b"\x00\xffab".hex(), b"\x01\x02".hex(":"))
+"#,
+    )
+}
