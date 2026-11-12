@@ -739,11 +739,14 @@ MicroPython excels at microcontrollers. PocketPy excels at embedding Python in a
 <details>
 <summary>What Python features are supported?</summary>
 
-The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals.
+The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals. Unreleased changes add `try`/`except`/`else`/`finally`, generator expressions, CPython's format-specification mini-language (`f'{n:,.2f}'`), `raise ... from ...`, unpacking of any iterable, and subscriptable `typing` forms such as `Optional[int]`.
+
+Integers are 64-bit. A result that does not fit raises `OverflowError` instead of growing as in CPython (unreleased; earlier versions wrapped silently).
 
 Not supported:
 - `async`/`await` (limited support)
-- Adjacent f-string combinations
+- Adjacent f-string combinations, nested replacement fields in f-string format specifications (`f'{x:{width}}'`) and the `f'{x=}'` form
+- `nonlocal`, and default parameter values that are not literals
 - Some metaclass features
 - C extension packages (numpy, etc.)
 
