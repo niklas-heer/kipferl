@@ -432,3 +432,13 @@ top of `0017`'s mini-language:
   CPython's error messages. `str.format_map()` is added.
 - `repr()` of a string uses double quotes when the text contains a single
   quote but no double quote, as CPython does, so `repr("it's")` is `"it's"`.
+
+### Unpacking in displays
+
+PocketPy compiled `[*a, *b]`, `(*a,)` and `{*a}` but stored the internal
+`star_wrapper` objects as elements instead of the unpacked items, and
+`{**a, 'b': 2}` crashed the process with a segmentation fault.
+`0027-display-unpacking.patch` expands starred items when list, tuple and set
+displays are built (only displays that contain one take the slower path), and
+compiles `**mapping` items in dict displays, which `BUILD_DICT` merges with
+the same logic as `dict.update()`.

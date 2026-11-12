@@ -1,0 +1,145 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -6615,6 +6615,9 @@
+ 
+ const char* pk_op2str(py_Name op);
+ static bool pk_default__ne__(int argc, py_Ref argv);  // kipferl patch: see its definition
++static bool pk_expand_starred(py_TValue* begin, int count, py_Ref out);  // kipferl patch
++static bool pk_has_starred(py_TValue* begin, int count);  // kipferl patch
++bool pk_dict_update_from(py_Ref self, py_Ref source);  // kipferl patch: see dict
+ 
+ typedef enum FrameResult {
+     RES_ERROR = 0,
+@@ -15287,7 +15290,16 @@
+         if(curr()->type == TK_RBRACE) break;
+         check(EXPR(self));  // [key]
+         if(curr()->type == TK_COLON) { parsing_dict = true; }
+-        if(parsing_dict) {
++        // kipferl patch: `**mapping` in a dict display merges the mapping
++        Expr* top = Ctx__s_top(ctx());
++        if(top->vt->is_starred && ((StarredExpr*)top)->level == 2) {
++            if(count > 0 && !parsing_dict) return SyntaxError(self, "invalid syntax");
++            parsing_dict = true;
++            DictItemExpr* item = DictItemExpr__new(prev()->line);
++            item->value = (Expr*)Literal0Expr__new(prev()->line, TK_NONE);
++            item->key = Ctx__s_popx(ctx());
++            Ctx__s_push(ctx(), (Expr*)item);
++        } else if(parsing_dict) {
+             consume(TK_COLON);
+             check(EXPR(self));  // [key, value] -> [item]
+             DictItemExpr* item = DictItemExpr__new(prev()->line);
+@@ -19148,6 +19160,20 @@
+             DISPATCH();
+         }
+         case OP_BUILD_TUPLE: {
++            // kipferl patch: expand starred items
++            if(pk_has_starred(SP() - byte.arg, byte.arg)) {
++                py_TValue* begin = SP() - byte.arg;
++                py_StackRef items = py_pushtmp();
++                if(!pk_expand_starred(begin, byte.arg, items)) goto __ERROR;
++                int length = py_list_len(items);
++                py_TValue tuple;
++                py_Ref p = py_newtuple(&tuple, length);
++                for(int i = 0; i < length; i++)
++                    p[i] = *py_list_getitem(items, i);
++                SP() = begin;
++                PUSH(&tuple);
++                DISPATCH();
++            }
+             bool need_track = false;
+             py_TValue tmp;
+             py_Ref p = py_newtuple(&tmp, byte.arg);
+@@ -19162,6 +19188,16 @@
+             DISPATCH();
+         }
+         case OP_BUILD_LIST: {
++            // kipferl patch: expand starred items
++            if(pk_has_starred(SP() - byte.arg, byte.arg)) {
++                py_TValue* begin = SP() - byte.arg;
++                py_StackRef items = py_pushtmp();
++                if(!pk_expand_starred(begin, byte.arg, items)) goto __ERROR;
++                py_TValue list = *items;
++                SP() = begin;
++                PUSH(&list);
++                DISPATCH();
++            }
+             py_TValue tmp;
+             py_newlistn(&tmp, byte.arg);
+             py_TValue* begin = SP() - byte.arg;
+@@ -19177,6 +19213,11 @@
+             py_Ref tmp = py_pushtmp();
+             py_newdict(tmp);
+             for(int i = 0; i < byte.arg * 2; i += 2) {
++                // kipferl patch: a `**mapping` item merges the mapping
++                if(begin[i].type == tp_star_wrapper) {
++                    if(!pk_dict_update_from(tmp, py_getslot(begin + i, 0))) goto __ERROR;
++                    continue;
++                }
+                 bool ok = py_dict_setitem(tmp, begin + i, begin + i + 1);
+                 if(!ok) goto __ERROR;
+             }
+@@ -19185,6 +19226,18 @@
+             DISPATCH();
+         }
+         case OP_BUILD_SET: {
++            // kipferl patch: expand starred items into a list, then build the set from it
++            if(pk_has_starred(SP() - byte.arg, byte.arg)) {
++                py_TValue* begin = SP() - byte.arg;
++                py_StackRef items = py_pushtmp();
++                if(!pk_expand_starred(begin, byte.arg, items)) goto __ERROR;
++                py_Ref typeobject_set = py_getdict(self->builtins, py_name("set"));
++                if(!py_call(typeobject_set, 1, items)) goto __ERROR;
++                py_TValue result = *py_retval();
++                SP() = begin;
++                PUSH(&result);
++                DISPATCH();
++            }
+             py_TValue* begin = SP() - byte.arg;
+             py_Ref typeobject_set = py_getdict(self->builtins, py_name("set"));
+             assert(typeobject_set != NULL);
+@@ -19959,6 +20012,36 @@
+     c11__unreachable();
+ }
+ 
++// kipferl patch: [*a, *b], (*a,) and {*a} expand starred items; `out` must be rooted
++static bool pk_expand_starred(py_TValue* begin, int count, py_Ref out) {
++    py_newlist(out);
++    for(int i = 0; i < count; i++) {
++        if(begin[i].type != tp_star_wrapper) {
++            py_list_append(out, &begin[i]);
++            continue;
++        }
++        py_Ref iterable = py_getslot(&begin[i], 0);
++        py_StackRef iterator = py_pushtmp();
++        if(!py_iter(iterable)) return false;
++        *iterator = *py_retval();
++        while(true) {
++            int res = py_next(iterator);
++            if(res == -1) return false;
++            if(res == 0) break;
++            py_list_append(out, py_retval());
++        }
++        py_pop();
++    }
++    return true;
++}
++
++static bool pk_has_starred(py_TValue* begin, int count) {
++    for(int i = 0; i < count; i++) {
++        if(begin[i].type == tp_star_wrapper) return true;
++    }
++    return false;
++}
++
+ // kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented
+ static bool pk_default__ne__(int argc, py_Ref argv) {
+     PY_CHECK_ARGC(2);
+@@ -34178,7 +34261,7 @@
+ }
+ 
+ // kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords
+-static bool pk_dict_update_from(py_Ref self, py_Ref source) {
++bool pk_dict_update_from(py_Ref self, py_Ref source) {
+     Dict* ud = py_touserdata(self);
+     if(source->type == tp_dict) {
+         Dict* other = py_touserdata(source);

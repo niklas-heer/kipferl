@@ -847,3 +847,23 @@ print(repr("it's"), repr('a"b'), ["x", "y'"])
 "#,
     )
 }
+
+#[test]
+fn displays_unpack_starred_items_and_mappings() -> io::Result<()> {
+    matches_cpython(
+        r#"
+a = [1, 2]
+b = (3,)
+print([*a, *b, 4], (*a, 5), {*a, *b}, [*range(3)], [*"ab", *{"k": 1}])
+d1 = {"a": 1, "b": 2}
+d2 = {"b": 3}
+print({**d1, **d2}, {**d1, "c": 4}, {"z": 0, **d2}, {**{}}, {**dict(x=1)})
+def f(*args, **kwargs):
+    return args, kwargs
+print(f(*a, *b), f(**d1, c=5))
+first, *rest = [*a, *b]
+print(first, rest)
+print([*(x * 2 for x in a)], (*[],))
+"#,
+    )
+}

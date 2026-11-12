@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 20,
+  "patchset_version": 21,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -111,7 +111,12 @@
         "kipferl patch: like CPython, use double quotes for text with ' but no \"",
         "kipferl patch: str.format fields may be named, use attributes and indexes, convert with",
         "kipferl patch: keyword signatures need the compiler, so bind them once the VM is ready",
-        "kipferl patch: str.format accepts keyword arguments"
+        "kipferl patch: str.format accepts keyword arguments",
+        "kipferl patch: `**mapping` in a dict display merges the mapping",
+        "kipferl patch: [*a, *b], (*a,) and {*a} expand starred items; `out` must be rooted",
+        "kipferl patch: expand starred items",
+        "kipferl patch: a `**mapping` item merges the mapping",
+        "kipferl patch: expand starred items into a list, then build the set from it"
       ]
     }
   ],
@@ -219,6 +224,10 @@
     {
       "id": "0026-string-formatting",
       "file": "pocketpy/patches/0026-string-formatting.patch"
+    },
+    {
+      "id": "0027-display-unpacking",
+      "file": "pocketpy/patches/0027-display-unpacking.patch"
     }
   ]
 }

@@ -65,6 +65,9 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- `{**a, **b}` and `{**a, 'key': value}` merge dicts instead of crashing the
+  process, and `[*a, *b]`, `(*a,)` and `{*a}` unpack instead of storing
+  internal `star_wrapper` objects.
 - `None` is hashable, so `{None: ...}`, `set([None])` and grouping by an
   optional key work.
 - A class that defines `__eq__` without `__ne__` no longer fails with `TypeError`;
