@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 18,
+  "patchset_version": 19,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -104,7 +104,9 @@
         "kipferl patch: digit separators",
         "kipferl patch: a single underscore may separate digits, as in 1_000_000 or 0x_ff",
         "kipferl patch: int() ignores surrounding whitespace and accepts digit separators",
-        "kipferl patch: a required keyword-only parameter"
+        "kipferl patch: a required keyword-only parameter",
+        "kipferl patch: None, ... and NotImplemented are hashable, so they can be dict keys;",
+        "kipferl patch: each singleton type has one instance, so its type identifies it"
       ]
     }
   ],
@@ -204,6 +206,10 @@
     {
       "id": "0024-syntax",
       "file": "pocketpy/patches/0024-syntax.patch"
+    },
+    {
+      "id": "0025-hashable-none",
+      "file": "pocketpy/patches/0025-hashable-none.patch"
     }
   ]
 }

@@ -8013,6 +8013,13 @@ bool pk__object_new(int argc, py_Ref argv) {
     return true;
 }
 
+// kipferl patch: each singleton type has one instance, so its type identifies it
+static bool singleton__hash__(int argc, py_Ref argv) {
+    PY_CHECK_ARGC(1);
+    py_newint(py_retval(), 0x5f3759df + argv->type);
+    return true;
+}
+
 static bool object__hash__(int argc, py_Ref argv) {
     PY_CHECK_ARGC(1);
     assert(argv->is_ptr);
@@ -24686,11 +24693,19 @@ py_GlobalRef pk_builtins__register() {
 
     // some patches
     py_bindmagic(tp_NoneType, __repr__, NoneType__repr__);
-    py_setdict(py_tpobject(tp_NoneType), __hash__, py_None());
+    // kipferl patch: None, ... and NotImplemented are hashable, so they can be dict keys;
+    // py_hash uses the __hash__ of the first type that defines __eq__
+    py_bindmagic(tp_NoneType, __hash__, singleton__hash__);
+    py_bindmagic(tp_NoneType, __eq__, object__eq__);
+    py_bindmagic(tp_NoneType, __ne__, object__ne__);
     py_bindmagic(tp_ellipsis, __repr__, ellipsis__repr__);
-    py_setdict(py_tpobject(tp_ellipsis), __hash__, py_None());
+    py_bindmagic(tp_ellipsis, __hash__, singleton__hash__);
+    py_bindmagic(tp_ellipsis, __eq__, object__eq__);
+    py_bindmagic(tp_ellipsis, __ne__, object__ne__);
     py_bindmagic(tp_NotImplementedType, __repr__, NotImplementedType__repr__);
-    py_setdict(py_tpobject(tp_NotImplementedType), __hash__, py_None());
+    py_bindmagic(tp_NotImplementedType, __hash__, singleton__hash__);
+    py_bindmagic(tp_NotImplementedType, __eq__, object__eq__);
+    py_bindmagic(tp_NotImplementedType, __ne__, object__ne__);
     return builtins;
 }
 

@@ -48,6 +48,8 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- `None` is hashable, so `{None: ...}`, `set([None])` and grouping by an
+  optional key work.
 - A class that defines `__eq__` without `__ne__` no longer fails with `TypeError`;
   `!=` negates `__eq__` as in CPython.
 - `print()` and `sys.stdout.write()` output keep program order when piped.

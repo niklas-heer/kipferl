@@ -761,3 +761,17 @@ print(star_then(1, 2, flag=True))
     }
     Ok(())
 }
+
+#[test]
+fn none_is_hashable_and_usable_as_a_key() -> io::Result<()> {
+    matches_cpython(
+        r#"
+groups = {}
+for name, team in [("a", None), ("b", "red"), ("c", None)]:
+    groups.setdefault(team, []).append(name)
+print(groups, groups[None], None in {None}, len({None, None}), {(None, 1): 3})
+print(hash(None) == hash(None), None == None, None != None, None == 0)
+print(NotImplemented in {NotImplemented: 1})
+"#,
+    )
+}

@@ -405,3 +405,12 @@ passing `NotImplemented` through.
   callers pass by keyword.
 - Numeric literals and `int()` accept single underscores between digits
   (`1_000_000`, `0x_ff`), and `int()` ignores surrounding whitespace.
+
+### Hashable None
+
+PocketPy set `__hash__ = None` on `NoneType`, `ellipsis` and
+`NotImplementedType`, so `{None: 1}`, `set([None])` and grouping by an
+optional key raised `TypeError: unhashable type: 'NoneType'`.
+`0025-hashable-none.patch` gives the three singletons a constant hash and an
+identity `__eq__` (`py_hash` uses the hash of the first type in the MRO that
+defines `__eq__`).
