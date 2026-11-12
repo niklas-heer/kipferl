@@ -397,3 +397,80 @@ print(scope['total'])
     assert_eq!(output.stdout, b"10 10\n11 True\n18 True\nTrue\n40000\n");
     assert!(output.stderr.is_empty(), "{output:?}");
 }
+
+// Superseded returns used to stay on the value stack, and building a dict kept
+// pointers into containers that a key's __hash__ could free or overwrite.
+#[test]
+fn finally_overrides_and_hostile_dict_keys_keep_memory_intact() {
+    let output = run(r"
+# break/continue/return overrides repeated many times: a leak would overflow the value stack
+def spin(n):
+    total = 0
+    for i in range(n):
+        for j in range(3):
+            try:
+                try:
+                    return j
+                finally:
+                    if j == 0:
+                        continue
+                    break
+            finally:
+                total += 1
+    return total
+print(spin(20000))
+class M:
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+def nested_with(n):
+    count = 0
+    for i in range(n):
+        with M():
+            with M():
+                try:
+                    return 1
+                finally:
+                    count += 1
+                    continue
+    return count
+print(nested_with(20000))
+# dict hostile keys mutating the source repeatedly
+class Evil:
+    def __init__(self, src, n): self.src = src; self.n = n
+    def __hash__(self):
+        self.src.clear()
+        for i in range(64):
+            self.src[('f', self.n, i)] = [i] * 8
+        return self.n
+    def __eq__(self, other): return self is other
+for round_ in range(10):
+    src = {}
+    for i in range(40):
+        src[Evil(src, i)] = list(range(i))
+    a = dict(src); b = src | {}; c = {**src}; d = {}; d.update(src)
+print('dicts survived')
+class PairMutator:
+    def __init__(self, pair): self.pair = pair
+    def __hash__(self):
+        self.pair.clear()
+        self.pair.extend([object() for _ in range(200)])
+        return 1
+    def __eq__(self, other): return self is other
+for _ in range(100):
+    pair = []
+    pair.extend([PairMutator(pair), 'v'])
+    dict([pair])
+class MapMut:
+    def __init__(self): self.d = {i: i for i in range(50)}
+    def keys(self): return list(self.d.keys())
+    def __getitem__(self, k):
+        self.d.clear()
+        return (k, k)
+for _ in range(100):
+    dict(MapMut()); {**MapMut()}
+print(dict.fromkeys([(i, i) for i in range(1000)]) == {(i, i): None for i in range(1000)})
+");
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"40000\n20000\ndicts survived\nTrue\n");
+    assert!(output.stderr.is_empty(), "{output:?}");
+}

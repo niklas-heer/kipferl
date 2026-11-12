@@ -34339,22 +34339,30 @@ void py_newdict(py_OutRef out) {
 // kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords
 bool pk_dict_update_from(py_Ref self, py_Ref source) {
     Dict* ud = py_touserdata(self);
-    if(source->type == tp_dict) {
-        Dict* other = py_touserdata(source);
-        for(int i = 0; i < other->entries.length; i++) {
-            DictEntry* entry = c11__at(DictEntry, &other->entries, i);
-            if(py_isnil(&entry->key)) continue;
-            if(!Dict__set(ud, &entry->key, &entry->val)) return false;
-        }
-        return true;
-    }
-    // a mapping provides keys() and __getitem__
-    bool is_mapping = py_tpfindname(source->type, py_name("keys")) != NULL;
+    // Dict__set calls __hash__ and __eq__, which may change the source or overwrite py_retval():
+    // it only ever sees rooted copies of the key and value
     py_StackRef rooted = py_pushtmp();
     py_StackRef iterator = py_pushtmp();
     py_StackRef item = py_pushtmp();
+    py_StackRef key = py_pushtmp();
+    py_StackRef value = py_pushtmp();
     *rooted = *source;
     bool ok = false;
+    if(rooted->type == tp_dict) {
+        Dict* other = py_touserdata(rooted);
+        // the entry vector may move or shrink during Dict__set: index it again every time
+        for(int i = 0; i < other->entries.length; i++) {
+            DictEntry* entry = c11__at(DictEntry, &other->entries, i);
+            if(py_isnil(&entry->key)) continue;
+            *key = entry->key;
+            *value = entry->val;
+            if(!Dict__set(ud, key, value)) goto __OUT;
+        }
+        ok = true;
+        goto __OUT;
+    }
+    // a mapping provides keys() and __getitem__
+    bool is_mapping = py_tpfindname(rooted->type, py_name("keys")) != NULL;
     if(is_mapping) {
         if(!py_getattr(rooted, py_name("keys"))) goto __OUT;
         *item = *py_retval();
@@ -34372,7 +34380,8 @@ bool pk_dict_update_from(py_Ref self, py_Ref source) {
         *item = *py_retval();
         if(is_mapping) {
             if(!py_getitem(rooted, item)) goto __OUT;
-            if(!Dict__set(ud, item, py_retval())) goto __OUT;
+            *value = *py_retval();
+            if(!Dict__set(ud, item, value)) goto __OUT;
             continue;
         }
         py_TValue* pair;
@@ -34393,11 +34402,13 @@ bool pk_dict_update_from(py_Ref self, py_Ref source) {
                        length);
             goto __OUT;
         }
-        if(!Dict__set(ud, &pair[0], &pair[1])) goto __OUT;
+        *key = pair[0];
+        *value = pair[1];
+        if(!Dict__set(ud, key, value)) goto __OUT;
     }
     ok = true;
 __OUT:
-    py_shrink(3);
+    py_shrink(5);
     return ok;
 }
 
@@ -34591,6 +34602,7 @@ static bool dict_fromkeys(int argc, py_Ref argv) {
     if(argc < 1 || argc > 2) return TypeError("fromkeys expected 1 or 2 arguments, got %d", argc);
     py_StackRef result = py_pushtmp();
     py_StackRef iterator = py_pushtmp();
+    py_StackRef key = py_pushtmp();
     py_newdict(result);
     bool ok = false;
     if(!py_iter(py_arg(0))) goto __OUT;
@@ -34599,14 +34611,14 @@ static bool dict_fromkeys(int argc, py_Ref argv) {
         int res = py_next(iterator);
         if(res == -1) goto __OUT;
         if(res == 0) break;
-        if(!Dict__set(py_touserdata(result), py_retval(), argc == 2 ? py_arg(1) : py_None())) {
-            goto __OUT;
-        }
+        // hashing the key overwrites py_retval()
+        *key = *py_retval();
+        if(!Dict__set(py_touserdata(result), key, argc == 2 ? py_arg(1) : py_None())) goto __OUT;
     }
     *py_retval() = *result;
     ok = true;
 __OUT:
-    py_shrink(2);
+    py_shrink(3);
     return ok;
 }
 

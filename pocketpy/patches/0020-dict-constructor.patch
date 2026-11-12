@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -21414,6 +21414,10 @@
+@@ -21490,6 +21490,10 @@
          pk_newtype("OverflowError", tp_Exception, self->builtins, NULL, false, true);
      py_setdict(self->builtins, py_name("OverflowError"), py_tpobject(self->tp_OverflowError));
  
@@ -11,7 +11,7 @@
      // add python builtins
      do {
          bool ok;
-@@ -33758,27 +33762,79 @@
+@@ -33834,27 +33838,90 @@
      Dict__ctor(ud, 17, 4);
  }
  
@@ -19,17 +19,42 @@
 -    if(argc > 2) return TypeError("dict.__init__() takes at most 2 arguments (%d given)", argc);
 -    if(argc == 1) {
 -        py_newnone(py_retval());
+-        return true;
 +// kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords
-+static bool pk_dict_update_from(py_Ref self, py_Ref source) {
++bool pk_dict_update_from(py_Ref self, py_Ref source) {
 +    Dict* ud = py_touserdata(self);
-+    if(source->type == tp_dict) {
-+        Dict* other = py_touserdata(source);
++    // Dict__set calls __hash__ and __eq__, which may change the source or overwrite py_retval():
++    // it only ever sees rooted copies of the key and value
++    py_StackRef rooted = py_pushtmp();
++    py_StackRef iterator = py_pushtmp();
++    py_StackRef item = py_pushtmp();
++    py_StackRef key = py_pushtmp();
++    py_StackRef value = py_pushtmp();
++    *rooted = *source;
++    bool ok = false;
++    if(rooted->type == tp_dict) {
++        Dict* other = py_touserdata(rooted);
++        // the entry vector may move or shrink during Dict__set: index it again every time
 +        for(int i = 0; i < other->entries.length; i++) {
 +            DictEntry* entry = c11__at(DictEntry, &other->entries, i);
 +            if(py_isnil(&entry->key)) continue;
-+            if(!Dict__set(ud, &entry->key, &entry->val)) return false;
++            *key = entry->key;
++            *value = entry->val;
++            if(!Dict__set(ud, key, value)) goto __OUT;
 +        }
-         return true;
++        ok = true;
++        goto __OUT;
++    }
++    // a mapping provides keys() and __getitem__
++    bool is_mapping = py_tpfindname(rooted->type, py_name("keys")) != NULL;
++    if(is_mapping) {
++        if(!py_getattr(rooted, py_name("keys"))) goto __OUT;
++        *item = *py_retval();
++        if(!py_call(item, 0, NULL)) goto __OUT;
++        *item = *py_retval();
++        if(!py_iter(item)) goto __OUT;
++    } else {
++        if(!py_iter(rooted)) goto __OUT;
      }
 -    assert(argc == 2);
 -    py_TValue* p;
@@ -41,26 +66,6 @@
 -        py_Ref tuple = &p[i];
 -        if(!py_istuple(tuple) || py_tuple_len(tuple) != 2) {
 -            return ValueError("dict.__init__() argument must be a list of tuple-2");
--        }
--        py_Ref key = py_tuple_getitem(tuple, 0);
--        py_Ref val = py_tuple_getitem(tuple, 1);
--        if(!Dict__set(self, key, val)) return false;
-+    // a mapping provides keys() and __getitem__
-+    bool is_mapping = py_tpfindname(source->type, py_name("keys")) != NULL;
-+    py_StackRef rooted = py_pushtmp();
-+    py_StackRef iterator = py_pushtmp();
-+    py_StackRef item = py_pushtmp();
-+    *rooted = *source;
-+    bool ok = false;
-+    if(is_mapping) {
-+        if(!py_getattr(rooted, py_name("keys"))) goto __OUT;
-+        *item = *py_retval();
-+        if(!py_call(item, 0, NULL)) goto __OUT;
-+        *item = *py_retval();
-+        if(!py_iter(item)) goto __OUT;
-+    } else {
-+        if(!py_iter(rooted)) goto __OUT;
-     }
 +    *iterator = *py_retval();
 +    for(int index = 0;; index++) {
 +        int res = py_next(iterator);
@@ -69,9 +74,13 @@
 +        *item = *py_retval();
 +        if(is_mapping) {
 +            if(!py_getitem(rooted, item)) goto __OUT;
-+            if(!Dict__set(ud, item, py_retval())) goto __OUT;
++            *value = *py_retval();
++            if(!Dict__set(ud, item, value)) goto __OUT;
 +            continue;
-+        }
+         }
+-        py_Ref key = py_tuple_getitem(tuple, 0);
+-        py_Ref val = py_tuple_getitem(tuple, 1);
+-        if(!Dict__set(self, key, val)) return false;
 +        py_TValue* pair;
 +        int length = pk_arrayview(item, &pair);
 +        if(length == -1) {
@@ -90,11 +99,13 @@
 +                       length);
 +            goto __OUT;
 +        }
-+        if(!Dict__set(ud, &pair[0], &pair[1])) goto __OUT;
++        *key = pair[0];
++        *value = pair[1];
++        if(!Dict__set(ud, key, value)) goto __OUT;
 +    }
 +    ok = true;
 +__OUT:
-+    py_shrink(3);
++    py_shrink(5);
 +    return ok;
 +}
 +
@@ -104,12 +115,12 @@
 +    if(length > 1) return TypeError("dict expected at most 1 argument, got %d", length);
 +    if(length == 1 && !pk_dict_update_from(py_arg(0), py_tuple_getitem(py_arg(1), 0))) {
 +        return false;
-+    }
+     }
 +    if(!pk_dict_update_from(py_arg(0), py_arg(2))) return false;
      py_newnone(py_retval());
      return true;
  }
-@@ -33932,19 +33988,68 @@
+@@ -34008,19 +34075,69 @@
  }
  
  static bool dict_update(int argc, py_Ref argv) {
@@ -150,6 +161,7 @@
 +    if(argc < 1 || argc > 2) return TypeError("fromkeys expected 1 or 2 arguments, got %d", argc);
 +    py_StackRef result = py_pushtmp();
 +    py_StackRef iterator = py_pushtmp();
++    py_StackRef key = py_pushtmp();
 +    py_newdict(result);
 +    bool ok = false;
 +    if(!py_iter(py_arg(0))) goto __OUT;
@@ -158,14 +170,14 @@
 +        int res = py_next(iterator);
 +        if(res == -1) goto __OUT;
 +        if(res == 0) break;
-+        if(!Dict__set(py_touserdata(result), py_retval(), argc == 2 ? py_arg(1) : py_None())) {
-+            goto __OUT;
-+        }
++        // hashing the key overwrites py_retval()
++        *key = *py_retval();
++        if(!Dict__set(py_touserdata(result), key, argc == 2 ? py_arg(1) : py_None())) goto __OUT;
 +    }
 +    *py_retval() = *result;
 +    ok = true;
 +__OUT:
-+    py_shrink(2);
++    py_shrink(3);
 +    return ok;
 +}
 +
@@ -186,7 +198,7 @@
  static bool dict_get(int argc, py_Ref argv) {
      Dict* self = py_touserdata(argv);
      if(argc > 3) return TypeError("get() takes at most 3 arguments (%d given)", argc);
-@@ -34010,6 +34115,17 @@
+@@ -34086,6 +34203,17 @@
      return true;
  }
  
@@ -204,7 +216,7 @@
  py_Type pk_dict__register() {
      py_Type type = pk_newtype("dict", tp_object, NULL, (void (*)(void*))Dict__dtor, false, false);
  
-@@ -34028,6 +34144,7 @@
+@@ -34104,6 +34232,7 @@
      py_bindmethod(type, "clear", dict_clear);
      py_bindmethod(type, "copy", dict_copy);
      py_bindmethod(type, "update", dict_update);

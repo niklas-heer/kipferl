@@ -1012,3 +1012,54 @@ print(json.dumps({1: 2, "x": {"y": 1}, None: 0}), json.dumps([1, {"k": [2]}], in
 "#,
     )
 }
+
+/// Building a dict hashes keys whose `__hash__` may change the source or the return register.
+#[test]
+fn dict_construction_copies_keys_and_values_before_hashing() -> io::Result<()> {
+    matches_cpython(
+        r#"
+print(dict.fromkeys([(1, 2), (3, 4)]))
+print(dict.fromkeys(["a", (5, 6)], 0))
+class Box:
+    def __init__(self, d): self.d = d
+    def keys(self): return list(self.d.keys())
+    def __getitem__(self, k): return self.d[k]
+m = Box({(1, 2): "x", "k": (3, 4)})
+print(dict(m))
+print({**m})
+print(dict([((1, 2), (3, 4))]))
+class Evil:
+    def __init__(self, src, n): self.src = src; self.n = n
+    def __hash__(self):
+        self.src.clear()
+        for i in range(100):
+            self.src[("filler", i)] = i
+        return self.n
+    def __eq__(self, other): return self is other
+src = {}
+for i in range(20):
+    src[Evil(src, i)] = list(range(i))
+try:
+    d = dict(src)
+    print("dict len", type(d).__name__)
+except RuntimeError as e:
+    print("RuntimeError")
+class PairMutator:
+    def __init__(self, pair): self.pair = pair
+    def __hash__(self):
+        self.pair.clear()
+        self.pair.extend([object() for _ in range(50)])
+        return 1
+    def __eq__(self, other): return self is other
+pair = []
+k = PairMutator(pair)
+pair.extend([k, "value"])
+d = dict([pair])
+print(list(d.values()))
+src2 = {}
+for i in range(20):
+    src2[Evil(src2, i)] = i
+print(len(src2 | {}) >= 0, len({**src2}) >= 0)
+"#,
+    )
+}

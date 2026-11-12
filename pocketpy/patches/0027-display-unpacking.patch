@@ -10,7 +10,7 @@
  
  typedef enum FrameResult {
      RES_ERROR = 0,
-@@ -15287,7 +15290,16 @@
+@@ -15311,7 +15314,16 @@
          if(curr()->type == TK_RBRACE) break;
          check(EXPR(self));  // [key]
          if(curr()->type == TK_COLON) { parsing_dict = true; }
@@ -28,7 +28,7 @@
              consume(TK_COLON);
              check(EXPR(self));  // [key, value] -> [item]
              DictItemExpr* item = DictItemExpr__new(prev()->line);
-@@ -19148,6 +19160,20 @@
+@@ -19224,6 +19236,20 @@
              DISPATCH();
          }
          case OP_BUILD_TUPLE: {
@@ -49,7 +49,7 @@
              bool need_track = false;
              py_TValue tmp;
              py_Ref p = py_newtuple(&tmp, byte.arg);
-@@ -19162,6 +19188,16 @@
+@@ -19238,6 +19264,16 @@
              DISPATCH();
          }
          case OP_BUILD_LIST: {
@@ -66,7 +66,7 @@
              py_TValue tmp;
              py_newlistn(&tmp, byte.arg);
              py_TValue* begin = SP() - byte.arg;
-@@ -19177,6 +19213,11 @@
+@@ -19253,6 +19289,11 @@
              py_Ref tmp = py_pushtmp();
              py_newdict(tmp);
              for(int i = 0; i < byte.arg * 2; i += 2) {
@@ -78,7 +78,7 @@
                  bool ok = py_dict_setitem(tmp, begin + i, begin + i + 1);
                  if(!ok) goto __ERROR;
              }
-@@ -19185,6 +19226,18 @@
+@@ -19261,6 +19302,18 @@
              DISPATCH();
          }
          case OP_BUILD_SET: {
@@ -97,7 +97,7 @@
              py_TValue* begin = SP() - byte.arg;
              py_Ref typeobject_set = py_getdict(self->builtins, py_name("set"));
              assert(typeobject_set != NULL);
-@@ -19959,6 +20012,36 @@
+@@ -20035,6 +20088,36 @@
      c11__unreachable();
  }
  
@@ -134,12 +134,3 @@
  // kipferl patch: the inverse of type(self).__eq__, unless that is NotImplemented
  static bool pk_default__ne__(int argc, py_Ref argv) {
      PY_CHECK_ARGC(2);
-@@ -34178,7 +34261,7 @@
- }
- 
- // kipferl patch: dict(), update() and | accept mappings, iterables of pairs and keywords
--static bool pk_dict_update_from(py_Ref self, py_Ref source) {
-+bool pk_dict_update_from(py_Ref self, py_Ref source) {
-     Dict* ud = py_touserdata(self);
-     if(source->type == tp_dict) {
-         Dict* other = py_touserdata(source);
