@@ -94,6 +94,10 @@ All notable user-facing changes are documented here.
 - `items.extend(items)` and `items += items` on a list that has to grow read
   the list after growing had freed it, so the copy could contain garbage or
   crash the process.
+- A bare `raise` re-raises the exception being handled from any block inside
+  the handler or a `finally` clause (`except E: with lock: raise`), and
+  outside a handler raises `RuntimeError: No active exception to reraise`
+  when it runs, as in CPython; both were a `SyntaxError`.
 - A function or module whose jumps exceed PocketPy's 16-bit offsets, such as
   an `if` around tens of thousands of statements, raises `SyntaxError` ("code
   is too large to compile") instead of aborting the process.

@@ -249,7 +249,9 @@ stack while the clauses run. A `break`, `continue` or `return` inside such a
 clause supersedes the pending return: the compiler records which blocks each
 inline clause opened and discards the waiting value as the new exit leaves
 the clause, so neither the value stack grows nor `OP_WITH_EXIT` mistakes a
-value for its manager. The same unwinding calls `__exit__` for every `with`
+value for its manager. A sibling exit compiled after such an exit sees the
+waiting values as they were before it, not ones an enclosing exit had already
+discarded, which would pop a loop iterator instead. The same unwinding calls `__exit__` for every `with`
 block that `break`, `continue` or `return` leaves; upstream only discarded the
 manager, so `with open(...) as f: return f.read()` never closed the file.
 A `return` that leaves no `finally` or `with` block compiles exactly as before.
@@ -261,8 +263,12 @@ deeply nested try/finally`. A jump whose offset no longer fits PocketPy's
 `SyntaxError: code is too large to compile` instead of aborting the process.
 
 A bare `raise` inside a `finally` clause re-raises the exception the clause
-is handling; in the copy compiled for normal completion it checks at run time
-and raises `RuntimeError: No active exception to reraise` when there is none.
+is handling. Outside the handler's own block (in a block nested in a handler
+or a clause, or in the copy of a clause compiled for normal completion) it
+finds the innermost exception being handled when it runs, below any `try`
+statements entered since, which may still catch it, and raises `RuntimeError:
+No active exception to reraise` when there is none. Upstream rejected such a
+`raise` at compile time.
 
 Not covered: a generator that is never exhausted does not run its pending
 `finally` clauses (PocketPy generators have no `close()`), and an exception

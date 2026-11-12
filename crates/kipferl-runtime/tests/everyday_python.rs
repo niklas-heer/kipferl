@@ -353,6 +353,57 @@ print(c())
     )
 }
 
+/// An exit compiled after a sibling exit still sees only the pending returns
+/// that no enclosing exit has discarded, so it never pops the loop iterator.
+#[test]
+fn later_exits_do_not_discard_superseded_returns_again() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def f():
+    for i in range(3):
+        try:
+            try:
+                return 3
+            finally:
+                return 4
+        finally:
+            if i == 2:
+                break
+            continue
+    return "end"
+print(f())
+def g():
+    for i in range(3):
+        try:
+            try:
+                return 3
+            finally:
+                if i == 0:
+                    continue
+                return 4
+        finally:
+            if i == 1:
+                continue
+            if i == 5:
+                break
+            return i
+    return "end"
+print(g())
+def h(flag):
+    try:
+        try:
+            return 1
+        finally:
+            return 2
+    finally:
+        if flag:
+            return 3
+        return 4
+print(h(True), h(False), h(0))
+"#,
+    )
+}
+
 #[test]
 fn leaving_a_with_block_early_calls_exit() -> io::Result<()> {
     matches_cpython(
@@ -1263,6 +1314,68 @@ try:
     items += 5
 except TypeError as e:
     print("TypeError", e)
+"#,
+    )
+}
+
+/// A bare `raise` nested in a handler or a `finally` clause re-raises the
+/// exception being handled, which a `try` entered since may still catch.
+#[test]
+fn bare_raise_finds_the_exception_from_nested_blocks() -> io::Result<()> {
+    matches_cpython(
+        r#"
+class CM:
+    def __enter__(self): return self
+    def __exit__(self, *exc): return False
+def with_in_finally():
+    try:
+        raise ValueError(2)
+    finally:
+        with CM():
+            raise
+def finally_in_handler():
+    try:
+        raise KeyError(1)
+    except KeyError:
+        try:
+            raise ValueError(3)
+        finally:
+            raise
+def nested_in_handler(mode):
+    try:
+        raise KeyError(1)
+    except KeyError:
+        try:
+            if mode == 0:
+                for _ in range(2):
+                    raise
+            elif mode == 1:
+                try:
+                    raise ValueError(5)
+                except ValueError:
+                    pass
+                raise
+            elif mode == 2:
+                with CM():
+                    raise
+            else:
+                try:
+                    raise
+                except KeyError as e:
+                    return ("caught inside", e.args)
+        except KeyError as e:
+            return ("caught", e.args)
+for function in (with_in_finally, finally_in_handler):
+    try:
+        function()
+    except Exception as e:
+        print(type(e).__name__, e)
+for mode in range(4):
+    print(nested_in_handler(mode))
+try:
+    raise
+except RuntimeError as e:
+    print("RuntimeError", e)
 "#,
     )
 }

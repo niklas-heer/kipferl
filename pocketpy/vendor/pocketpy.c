@@ -15589,11 +15589,18 @@ static Error* compile_divert(Compiler* self, int line, DivertKind kind, int* out
     if(kind == DIVERT_RETURN && !Ctx__has_cleanup(ctx())) return NULL;
     int start = ctx()->pending_returns.length;
     int pending = start;
-    Error* err = compile_divert_blocks(self, line, kind, out_loop, &pending);
-    // other exits from the same clauses still see their values
-    for(int i = pending; i < start; i++) {
-        c11__at(CtxPending, &ctx()->pending_returns, i)->live = true;
+    // other exits from the same clauses still see their values, but not the values that an
+    // enclosing exit has already discarded: restore the flags as they were before this exit
+    c11_vector live;
+    c11_vector__ctor(&live, sizeof(bool));
+    for(int i = 0; i < start; i++) {
+        c11_vector__push(bool, &live, c11__at(CtxPending, &ctx()->pending_returns, i)->live);
     }
+    Error* err = compile_divert_blocks(self, line, kind, out_loop, &pending);
+    for(int i = 0; i < start; i++) {
+        c11__at(CtxPending, &ctx()->pending_returns, i)->live = c11__getitem(bool, &live, i);
+    }
+    c11_vector__dtor(&live);
     return err;
 }
 
@@ -16628,13 +16635,9 @@ static Error* compile_stmt(Compiler* self) {
                 int iblock = ctx()->curr_iblock;
                 CodeBlock* blocks = (CodeBlock*)ctx()->co->blocks.data;
                 if(blocks[iblock].type != CodeBlockType_EXCEPT) {
-                    // kipferl patch: a finally clause also compiles outside the handler, where
-                    // the exception it re-raises is checked when the statement runs
-                    if(ctx()->finally_depth == 0) {
-                        return SyntaxError(
-                            self,
-                            "raise without exception is only allowed in except block");
-                    }
+                    // kipferl patch: outside the handler's own block (in a nested block, or a
+                    // finally clause compiled for normal completion) the exception to re-raise
+                    // is looked up when the statement runs, as CPython does
                     Ctx__emit_(ctx(), OP_RE_RAISE, 1, kw_line);
                 } else {
                     Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, kw_line);
@@ -20105,12 +20108,20 @@ __NEXT_STEP:
             goto __ERROR;
         }
         case OP_RE_RAISE: {
-            // kipferl patch: argument 1 checks for an exception to re-raise
+            // kipferl patch: argument 1 re-raises the innermost exception being handled, which
+            // lies below the try statements entered since; they may still catch it
             if(byte.arg == 1 && py_isnil(&self->unhandled_exc)) {
-                FrameExcInfo* info = Frame__top_exc_info(frame);
-                if(info == NULL || py_isnil(&info->exc)) {
+                FrameExcInfo* base = frame->exc_stack.data;
+                int i = frame->exc_stack.length - 1;
+                while(i >= 0 && py_isnil(&base[i].exc))
+                    i--;
+                if(i < 0) {
                     RuntimeError("No active exception to reraise");
                     goto __ERROR;
+                }
+                if(i != frame->exc_stack.length - 1) {
+                    self->unhandled_exc = base[i].exc;
+                    goto __ERROR_RE_RAISE;
                 }
             }
             if(py_isnil(&self->unhandled_exc)) {

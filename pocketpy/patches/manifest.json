@@ -124,6 +124,7 @@
         "kipferl patch: a step past the 64-bit range ends the iteration",
         "kipferl patch: bind arguments as CPython does",
         "kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.",
+        "kipferl patch: argument 1 re-raises the innermost exception being handled, which",
         "kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it"
       ]
     }
