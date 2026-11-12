@@ -2,7 +2,7 @@
 
 All notable user-facing changes are documented here.
 
-## [Unreleased]
+## [0.9.0] - 2026-11-12
 
 ### Added
 
@@ -463,3 +463,5 @@ All notable user-facing changes are documented here.
 [0.7.4]: https://github.com/niklas-heer/kipferl/compare/v0.7.3...v0.7.4
 
 [0.8.0]: https://github.com/niklas-heer/kipferl/compare/v0.7.4...v0.8.0
+
+[0.9.0]: https://github.com/niklas-heer/kipferl/compare/v0.8.0...v0.9.0
