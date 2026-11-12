@@ -19,6 +19,11 @@ All notable user-facing changes are documented here.
   any fill character. Zero padding now follows the sign (`f'{-3.5:08.3f}'` is
   `-003.500`). New `format()` builtin, `__format__` support and the `!s`
   conversion in f-strings.
+- `%`-formatting supports flags, width, precision, `%(key)s` mappings and every
+  conversion type (`'%5.1f'`, `'%-10s'`, `'%05d'`, `'%x'`), and `str.format`
+  supports named, attribute and index fields, conversions and nested
+  specifications (`'{name}'.format(name=x)`, `'{:>{w}}'`); `str.format_map()`
+  is new.
 - `dict()` and `dict.update()` accept mappings, any iterable of pairs and keyword
   arguments (`dict(zip(keys, values))`, `dict(a=1)`, `dict(defaultdict)`), and
   dicts gain `setdefault()`, `dict.fromkeys()` and the `|` and `|=` operators.
@@ -45,6 +50,8 @@ All notable user-facing changes are documented here.
 
 ### Changed
 
+- `repr()` of a string containing `'` but no `"` uses double quotes, as in
+  CPython.
 - `round()` rounds halves to even as CPython does: `round(2.5)` is `2` and
   `round(2.675, 2)` is `2.67` (correctly rounded from the binary value);
   negative `ndigits` work for ints and floats.

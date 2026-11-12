@@ -414,3 +414,21 @@ optional key raised `TypeError: unhashable type: 'NoneType'`.
 `0025-hashable-none.patch` gives the three singletons a constant hash and an
 identity `__eq__` (`py_hash` uses the hash of the first type in the MRO that
 defines `__eq__`).
+
+### String formatting
+
+`0026-string-formatting.patch` completes the other two formatting styles on
+top of `0017`'s mini-language:
+
+- `%`-formatting accepted only bare `%s`, `%d`, `%i`, `%f`, `%r` and `%%`, so
+  `'%5.1f'`, `'%-10s'`, `'%05d'` and `'%x'` raised `ValueError`. It now parses
+  `%(key)` mapping lookups, the `-`, `+`, space, `#` and `0` flags, width and
+  precision (including `*`), and every conversion type, and formats each field
+  through the mini-language. Fields align right unless `-` is given, as in C.
+- `str.format` accepted only positional fields and no keyword arguments. It
+  now resolves named fields from keyword arguments, attribute (`{0.name}`) and
+  index (`{0[key]}`) accessors, `!r`, `!s` and `!a` conversions, and
+  replacement fields nested in the specification (`'{:>{width}}'`), with
+  CPython's error messages. `str.format_map()` is added.
+- `repr()` of a string uses double quotes when the text contains a single
+  quote but no double quote, as CPython does, so `repr("it's")` is `"it's"`.

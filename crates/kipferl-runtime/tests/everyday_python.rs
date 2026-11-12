@@ -808,3 +808,42 @@ print(b"\x00\xffab".hex(), b"\x01\x02".hex(":"))
 "#,
     )
 }
+
+#[test]
+fn percent_and_str_format_match_cpython() -> io::Result<()> {
+    matches_cpython(
+        r#"
+print('%5.1f|%-5s|%05d|%x|%+d|%3s|%.2s|%r|%%' % (3.14159, 'ab', 42, 255, 7, 'x', 'abc', 'q'))
+print('%s' % 'one', '%s and %s' % ('a', 'b'), '%d items' % 3, '%i' % 7.9, '%.3f' % 2, '%e' % 12345.678, '%g' % 0.0001)
+print('%(name)s is %(age)d years' % {'name': 'Ann', 'age': 30}, '%s' % {'k': 1}, '%(x)05.1f' % {'x': 2.25})
+print('%*d|%-*d|%.*f' % (5, 42, 4, 7, 2, 3.14159), '%#x %#o %X' % (255, 8, 255), '%c%c' % (72, 'i'), '% d' % 5)
+print('%-8s|%8s|' % ('left', 'right'), '%3d%%' % 50, '%s' % None, '%r' % 'it\'s', '%s %s' % (True, [1, 2]))
+for bad in ["'%d' % 'x'", "'%s %s' % ('a',)", "'%s' % ('a', 'b')", "'%z' % 1", "'%(k)s' % {}"]:
+    try:
+        eval(bad)
+    except (TypeError, ValueError, KeyError) as e:
+        print(type(e).__name__)
+print('%05d|%-6d|%+06.1f|%08.3e|%5x|%-5o|%05s' % (-42, -3, -2.5, -1234.5, 255, 8, 'ab'))
+class P:
+    def __init__(self):
+        self.x = 3
+        self.items = {"k": [10, 20]}
+p = P()
+print("{name}:{0:>4}".format(7, name="n"), "{} {}".format("a", "b"), "{1}{0}".format("x", "y"))
+print("{0.x} {0.items[k][1]} {d[a]} {lst[0]}".format(p, d={"a": 1}, lst=[5]))
+print("{!r} {!s:>5} {x!r}".format("q", "w", x=[1]), "{:{w}.{p}f}|{:>{}}".format(3.14159, "z", 4, w=8, p=2))
+print("{{literal}} {0}".format(1), "{:,}".format(1234567), "{name:*^9}".format(name="mid"))
+print("{a} and {b}".format_map({"a": 1, "b": 2}))
+class Default(dict):
+    def __missing__(self, key):
+        return "?"
+print("{a} {b}".format_map(Default(a=1)))
+for bad in ["'{}{1}'.format(1, 2)", "'{0}{}'.format(1, 2)", "'{x}'.format()", "'{2}'.format(1)", "'{'.format()", "'}'.format()", "'{!z}'.format(1)"]:
+    try:
+        eval(bad)
+    except (ValueError, KeyError, IndexError) as e:
+        print(type(e).__name__, e)
+print(repr("it's"), repr('a"b'), ["x", "y'"])
+"#,
+    )
+}

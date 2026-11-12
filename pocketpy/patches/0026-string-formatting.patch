@@ -1,0 +1,623 @@
+--- a/pocketpy/vendor/pocketpy.c
++++ b/pocketpy/vendor/pocketpy.c
+@@ -8335,112 +8335,209 @@
+     return true;
+ }
+ 
++// kipferl patch: printf-style formatting with mapping keys, flags, width, precision and every
++// conversion type, delegated to the format specification mini-language
+ static bool str__mod__(int argc, py_Ref argv) {
+     PY_CHECK_ARGC(2);
+     c11_string* self = pk_tostr(&argv[0]);
+-    // %s
+-    // %d %i
+-    // %f
+-    // %r
+-    // %%
+     py_TValue* args;
+     int args_count;
++    bool is_mapping = false;
+     if(py_istype(&argv[1], tp_tuple)) {
+         args_count = py_tuple_len(&argv[1]);
+         args = py_tuple_data(&argv[1]);
+     } else {
+         args_count = 1;
+         args = &argv[1];
++        is_mapping = py_isinstance(&argv[1], tp_dict);
+     }
+ 
+     int arg_index = 0;
++    bool used_mapping = false;
+     const char* p = self->data;
+     const char* p_end = self->data + self->size;
+ 
+     c11_sbuf buf;
+     c11_sbuf__ctor(&buf);
++    py_StackRef value = py_pushtmp();
++
++#define PERCENT_FAIL(expr)                                                                         \
++    do {                                                                                           \
++        expr;                                                                                      \
++        c11_sbuf__dtor(&buf);                                                                      \
++        py_pop();                                                                                  \
++        return false;                                                                              \
++    } while(0)
++#define PERCENT_NEXT_ARG()                                                                         \
++    do {                                                                                           \
++        if(arg_index >= args_count)                                                                \
++            PERCENT_FAIL(TypeError("not enough arguments for format string"));                     \
++        *value = args[arg_index++];                                                                \
++    } while(0)
+ 
+     while(p < p_end) {
++        if(*p != '%') {
++            c11_sbuf__write_char(&buf, *p++);
++            continue;
++        }
++        p++;
++        if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format"));
+         if(*p == '%') {
++            c11_sbuf__write_char(&buf, '%');
+             p++;
+-            if(p >= p_end) {
+-                c11_sbuf__dtor(&buf);
+-                return ValueError("incomplete format");
+-            }
+-            char spec = *p;
++            continue;
++        }
++        bool has_value = false;
++        if(*p == '(') {
++            if(!is_mapping) PERCENT_FAIL(TypeError("format requires a mapping"));
++            const char* key_begin = ++p;
++            while(p < p_end && *p != ')')
++                p++;
++            if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format key"));
++            py_newstrv(value, (c11_sv){key_begin, (int)(p - key_begin)});
+             p++;
+-            if(spec == '%') {
+-                // %% -> %
+-                c11_sbuf__write_char(&buf, '%');
+-            } else if(spec == 's') {
+-                // %s -> string
+-                if(arg_index >= args_count) {
+-                    c11_sbuf__dtor(&buf);
+-                    return TypeError("not enough arguments for format string");
+-                }
+-                if(!py_str(&args[arg_index])) {
+-                    c11_sbuf__dtor(&buf);
+-                    return false;
+-                }
+-                c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
+-                arg_index++;
+-            } else if(spec == 'd' || spec == 'i') {
+-                // %d or %i -> integer
+-                if(arg_index >= args_count) {
+-                    c11_sbuf__dtor(&buf);
+-                    return TypeError("not enough arguments for format string");
+-                }
+-                if(!py_checktype(&args[arg_index], tp_int)) {
+-                    c11_sbuf__dtor(&buf);
+-                    return false;
+-                }
+-                py_i64 val = py_toint(&args[arg_index]);
+-                c11_sbuf__write_i64(&buf, val);
+-                arg_index++;
+-            } else if(spec == 'f') {
+-                // %f -> float
+-                if(arg_index >= args_count) {
+-                    c11_sbuf__dtor(&buf);
+-                    return TypeError("not enough arguments for format string");
+-                }
+-                py_f64 val;
+-                if(py_istype(&args[arg_index], tp_float)) {
+-                    val = py_tofloat(&args[arg_index]);
+-                } else if(py_istype(&args[arg_index], tp_int)) {
+-                    val = (py_f64)py_toint(&args[arg_index]);
+-                } else {
+-                    c11_sbuf__dtor(&buf);
+-                    return TypeError("a float is required");
+-                }
+-                c11_sbuf__write_f64(&buf, val, 6);
+-                arg_index++;
+-            } else if(spec == 'r') {
+-                // %r -> repr
+-                if(arg_index >= args_count) {
+-                    c11_sbuf__dtor(&buf);
+-                    return TypeError("not enough arguments for format string");
+-                }
+-                if(!py_repr(&args[arg_index])) {
+-                    c11_sbuf__dtor(&buf);
+-                    return false;
+-                }
+-                c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
+-                arg_index++;
+-            } else {
+-                c11_sbuf__dtor(&buf);
+-                return ValueError("unsupported format character '%c'", spec);
++            int res = py_dict_getitem(&argv[1], value);
++            if(res == -1) PERCENT_FAIL((void)0);
++            if(res == 0) PERCENT_FAIL(KeyError(value));
++            *value = *py_retval();
++            has_value = true;
++            used_mapping = true;
++        }
++        // flags
++        char spec[64];
++        int n = 0;
++        bool left = false, zero = false, alternate = false;
++        char sign = 0;
++        while(p < p_end && strchr("-+ #0", *p)) {
++            if(*p == '-') left = true;
++            if(*p == '0') zero = true;
++            if(*p == '#') alternate = true;
++            if(*p == '+') sign = '+';
++            if(*p == ' ' && sign != '+') sign = ' ';
++            p++;
++        }
++        // width and precision, either of which may come from the arguments
++        int64_t width = -1, precision = -1;
++        if(p < p_end && *p == '*') {
++            p++;
++            if(arg_index >= args_count || !py_isint(&args[arg_index]))
++                PERCENT_FAIL(TypeError("* wants int"));
++            width = py_toint(&args[arg_index++]);
++            if(width < 0) {
++                left = true;
++                width = -width;
+             }
+         } else {
+-            c11_sbuf__write_char(&buf, *p);
++            while(p < p_end && isdigit((unsigned char)*p)) {
++                width = (width < 0 ? 0 : width) * 10 + (*p++ - '0');
++                if(width > INT32_MAX) PERCENT_FAIL(ValueError("width too big"));
++            }
++        }
++        if(p < p_end && *p == '.') {
+             p++;
++            precision = 0;
++            if(p < p_end && *p == '*') {
++                p++;
++                if(arg_index >= args_count || !py_isint(&args[arg_index]))
++                    PERCENT_FAIL(TypeError("* wants int"));
++                precision = py_toint(&args[arg_index++]);
++                if(precision < 0) precision = 0;
++            } else {
++                while(p < p_end && isdigit((unsigned char)*p)) {
++                    precision = precision * 10 + (*p++ - '0');
++                    if(precision > INT32_MAX) PERCENT_FAIL(ValueError("precision too big"));
++                }
++            }
++        }
++        while(p < p_end && strchr("hlL", *p))
++            p++;  // length modifiers are accepted and ignored
++        if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format"));
++        char type = *p++;
++        if(!has_value) PERCENT_NEXT_ARG();
++
++        switch(type) {
++            case 'd':
++            case 'i':
++            case 'u':
++                type = 'd';
++                // fall through
++            case 'x':
++            case 'X':
++            case 'o':
++                if(py_isfloat(value)) {
++                    if(type != 'd') {
++                        PERCENT_FAIL(TypeError("%%%c format: an integer is required, not float",
++                                               type));
++                    }
++                    if(!py_tpcall(tp_int, 1, value)) PERCENT_FAIL((void)0);
++                    *value = *py_retval();
++                } else if(!py_isint(value) && !py_isbool(value)) {
++                    PERCENT_FAIL(TypeError("%%%c format: a real number is required, not %t",
++                                           type,
++                                           value->type));
++                }
++                break;
++            case 'e':
++            case 'E':
++            case 'f':
++            case 'F':
++            case 'g':
++            case 'G':
++                if(!py_isint(value) && !py_isfloat(value) && !py_isbool(value)) {
++                    PERCENT_FAIL(TypeError("must be real number, not %t", value->type));
++                }
++                if(!py_isfloat(value)) py_newfloat(value, (py_f64)py_toint(value));
++                break;
++            case 'c':
++                if(py_isstr(value)) {
++                    if(c11_sv__u8_length(py_tosv(value)) != 1)
++                        PERCENT_FAIL(TypeError("%%c requires an int or a unicode character"));
++                    type = 's';
++                } else if(!py_isint(value)) {
++                    PERCENT_FAIL(TypeError("%%c requires an int or a unicode character"));
++                }
++                zero = false;
++                break;
++            case 's':
++            case 'r':
++            case 'a':
++                if(!(type == 's' ? py_str(value) : py_repr(value))) PERCENT_FAIL((void)0);
++                *value = *py_retval();
++                type = 's';
++                zero = false;
++                sign = 0;
++                alternate = false;
++                break;
++            default:
++                PERCENT_FAIL(ValueError("unsupported format character '%c' (0x%x) at index %d",
++                                        type,
++                                        (int)(unsigned char)type,
++                                        (int)(p - self->data - 1)));
+         }
++        if(type != 's' && type != 'c' && precision < 0 && strchr("eEfFgG", type)) precision = 6;
++        if(type == 's' || type == 'c') sign = 0;
++        // CPython's %x and %o take precision as a minimum digit count; it rarely appears
++        if(strchr("dxXo", type)) precision = -1;
++        // printf-style fields align right unless the `-` flag is given
++        // (zero padding goes after the sign instead)
++        if(left || !zero || type == 's') spec[n++] = left ? '<' : '>';
++        if(sign) spec[n++] = sign;
++        if(alternate) spec[n++] = '#';
++        if(zero && !left && type != 's') spec[n++] = '0';
++        if(width >= 0) n += snprintf(spec + n, sizeof(spec) - n, "%lld", (long long)width);
++        if(precision >= 0) n += snprintf(spec + n, sizeof(spec) - n, ".%lld", (long long)precision);
++        spec[n++] = type;
++        if(!pk_format_object(pk_current_vm, value, (c11_sv){spec, n})) PERCENT_FAIL((void)0);
++        c11_sbuf__write_sv(&buf, py_tosv(py_retval()));
+     }
++#undef PERCENT_NEXT_ARG
++#undef PERCENT_FAIL
+ 
+-    if(arg_index != args_count) {
++    py_pop();
++    if(!used_mapping && arg_index != args_count && !is_mapping) {
+         c11_sbuf__dtor(&buf);
+         return TypeError("not all arguments converted during string formatting");
+     }
+-
+     c11_sbuf__py_submit(&buf, py_retval());
+     return true;
+ }
+@@ -8506,7 +8603,11 @@
+     PY_CHECK_ARGC(1);
+     c11_sbuf buf;
+     c11_sbuf__ctor(&buf);
+-    c11_sbuf__write_quoted(&buf, py_tosv(&argv[0]), '\'');
++    // kipferl patch: like CPython, use double quotes for text with ' but no "
++    c11_sv text = py_tosv(&argv[0]);
++    bool has_single = memchr(text.data, '\'', text.size) != NULL;
++    bool has_double = memchr(text.data, '"', text.size) != NULL;
++    c11_sbuf__write_quoted(&buf, text, has_single && !has_double ? '"' : '\'');
+     c11_sbuf__py_submit(&buf, py_retval());
+     return true;
+ }
+@@ -8831,106 +8932,216 @@
+     return true;
+ }
+ 
+-static bool str_format(int argc, py_Ref argv) {
+-    c11_sv self = py_tosv(argv);
+-    py_Ref args = argv + 1;
+-    int64_t auto_field_index = -1;
+-    bool manual_field_used = false;
+-    const char* p_begin = self.data;
+-    const char* p_end = self.data + self.size;
+-    const char* p = p_begin;
+-    c11_sbuf buf;
+-    c11_sbuf__ctor(&buf);
+-    while(p < p_end) {
+-        if(*p == '{') {
+-            if((p + 1) < p_end && p[1] == '{') {
+-                // '{{' -> '{'
+-                c11_sbuf__write_char(&buf, '{');
+-                p += 2;
+-            } else {
+-                if((p + 1) >= p_end) {
+-                    c11_sbuf__dtor(&buf);
+-                    return ValueError("single '{' encountered in format string");
+-                }
+-                p++;
+-                // parse field
+-                c11_sv field = {p, 0};
+-                while(p < p_end && *p != '}' && *p != ':') {
+-                    p++;
+-                }
+-                if(p < p_end) field.size = p - field.data;
+-                // parse spec
+-                c11_sv spec = {p, 0};
+-                if(*p == ':') {
+-                    while(p < p_end && *p != '}') {
+-                        p++;
+-                    }
+-                    if(p < p_end) spec.size = p - spec.data;
+-                }
+-                if(p < p_end) {
+-                    c11__rtassert(*p == '}');
+-                } else {
+-                    c11_sbuf__dtor(&buf);
+-                    return ValueError("expected '}' before end of string");
+-                }
+-                // parse auto field
+-                int64_t arg_index;
+-                if(field.size > 0) {  // {0}
+-                    if(auto_field_index >= 0) {
+-                        c11_sbuf__dtor(&buf);
+-                        return ValueError(
+-                            "cannot switch from automatic field numbering to manual field specification");
+-                    }
+-                    IntParsingResult res = c11__parse_uint(field, &arg_index, 10);
+-                    if(res != IntParsing_SUCCESS) {
+-                        c11_sbuf__dtor(&buf);
+-                        return ValueError("only integer field name is supported");
+-                    }
+-                    manual_field_used = true;
+-                } else {  // {}
+-                    if(manual_field_used) {
+-                        c11_sbuf__dtor(&buf);
+-                        return ValueError(
+-                            "cannot switch from manual field specification to automatic field numbering");
+-                    }
+-                    auto_field_index++;
+-                    arg_index = auto_field_index;
+-                }
+-                // do format
+-                if(arg_index < 0 || arg_index >= (argc - 1)) {
+-                    c11_sbuf__dtor(&buf);
+-                    return IndexError("replacement index %i out of range for positional args tuple",
+-                                      arg_index);
+-                }
+-                bool ok = pk_format_object(pk_current_vm, &args[arg_index], spec);
+-                if(!ok) {
+-                    c11_sbuf__dtor(&buf);
+-                    return false;
+-                }
+-                // append to buf
+-                c11__rtassert(py_isstr(py_retval()));
+-                c11_sv formatted = py_tosv(py_retval());
+-                c11_sbuf__write_sv(&buf, formatted);
+-                p++;  // skip '}'
++// kipferl patch: str.format fields may be named, use attributes and indexes, convert with
++// !r, !s or !a, and nest replacement fields in their format specification
++typedef struct StrFormatState {
++    py_Ref args;      // tuple
++    py_Ref mapping;   // dict, mapping or NULL
++    int auto_index;   // next automatic field number
++    bool manual;      // a field was numbered explicitly
++} StrFormatState;
++
++static bool pk_str_format_into(c11_sbuf* out, c11_sv tmpl, StrFormatState* st, int depth);
++
++static bool pk_str_format_field(c11_sbuf* out, c11_sv field, StrFormatState* st, int depth) {
++    // field: name[.attr|[key]]*[!conv][:spec]
++    const char* p = field.data;
++    const char* end = field.data + field.size;
++    const char* name_end = p;
++    while(name_end < end && !strchr(".[!:", *name_end))
++        name_end++;
++    c11_sv name = {p, (int)(name_end - p)};
++    py_StackRef value = py_pushtmp();
++    py_StackRef key = py_pushtmp();
++    bool ok = false;
++    if(name.size == 0) {
++        if(st->manual) {
++            ValueError("cannot switch from manual field specification to automatic field numbering");
++            goto __OUT;
++        }
++        if(st->auto_index >= py_tuple_len(st->args)) {
++            IndexError("Replacement index %d out of range for positional args tuple", st->auto_index);
++            goto __OUT;
++        }
++        *value = *py_tuple_getitem(st->args, st->auto_index++);
++    } else if(isdigit((unsigned char)name.data[0])) {
++        if(st->auto_index > 0) {
++            ValueError("cannot switch from automatic field numbering to manual field specification");
++            goto __OUT;
++        }
++        st->manual = true;
++        int64_t index;
++        if(c11__parse_uint(name, &index, 10) != IntParsing_SUCCESS) {
++            ValueError("invalid field name %q", name);
++            goto __OUT;
++        }
++        if(index >= py_tuple_len(st->args)) {
++            IndexError("Replacement index %d out of range for positional args tuple", (int)index);
++            goto __OUT;
++        }
++        *value = *py_tuple_getitem(st->args, (int)index);
++    } else {
++        py_newstrv(key, name);
++        if(st->mapping == NULL || !py_getitem(st->mapping, key)) {
++            if(st->mapping == NULL || py_matchexc(tp_KeyError)) {
++                py_clearexc(NULL);
++                KeyError(key);
+             }
+-        } else if(*p == '}') {
+-            if((p + 1) < p_end && p[1] == '}') {
+-                // '}}' -> '}'
+-                c11_sbuf__write_char(&buf, '}');
+-                p += 2;
+-            } else {
+-                c11_sbuf__dtor(&buf);
+-                return ValueError("single '}' encountered in format string");
++            goto __OUT;
++        }
++        *value = *py_retval();
++    }
++    p = name_end;
++    // attribute and index accessors
++    while(p < end && (*p == '.' || *p == '[')) {
++        if(*p == '.') {
++            const char* attr = ++p;
++            while(p < end && !strchr(".[!:", *p))
++                p++;
++            py_newstrv(key, (c11_sv){attr, (int)(p - attr)});
++            if(!py_getattr(value, py_namev(py_tosv(key)))) goto __OUT;
++        } else {
++            const char* item = ++p;
++            while(p < end && *p != ']')
++                p++;
++            if(p >= end) {
++                ValueError("Missing ']' in format string");
++                goto __OUT;
+             }
++            c11_sv text = {item, (int)(p - item)};
++            int64_t index;
++            if(text.size > 0 && c11__parse_uint(text, &index, 10) == IntParsing_SUCCESS) {
++                py_newint(key, index);
++            } else {
++                py_newstrv(key, text);
++            }
++            p++;
++            if(!py_getitem(value, key)) goto __OUT;
++        }
++        *value = *py_retval();
++    }
++    // conversion
++    if(p < end && *p == '!') {
++        if(p + 1 >= end || !strchr("rsa", p[1])) {
++            if(p + 1 < end) {
++                ValueError("Unknown conversion specifier %c", p[1]);
++            } else {
++                ValueError("end of string while looking for conversion specifier");
++            }
++            goto __OUT;
++        }
++        if(!(p[1] == 's' ? py_str(value) : py_repr(value))) goto __OUT;
++        *value = *py_retval();
++        p += 2;
++    }
++    c11_sv spec = {"", 0};
++    c11_sbuf nested;
++    c11_sbuf__ctor(&nested);
++    if(p < end) {
++        if(*p != ':') {
++            c11_sbuf__dtor(&nested);
++            ValueError("expected ':' after conversion specifier");
++            goto __OUT;
++        }
++        p++;
++        spec = (c11_sv){p, (int)(end - p)};
++        if(memchr(spec.data, '{', spec.size)) {
++            if(depth >= 1) {
++                c11_sbuf__dtor(&nested);
++                ValueError("Max string recursion exceeded");
++                goto __OUT;
++            }
++            if(!pk_str_format_into(&nested, spec, st, depth + 1)) {
++                c11_sbuf__dtor(&nested);
++                goto __OUT;
++            }
+         } else {
+-            c11_sbuf__write_char(&buf, *p);
++            c11_sbuf__write_sv(&nested, spec);
++        }
++    }
++    c11_string* resolved = c11_sbuf__submit(&nested);
++    ok = pk_format_object(pk_current_vm, value, c11_string__sv(resolved));
++    c11_string__delete(resolved);
++    if(ok) c11_sbuf__write_sv(out, py_tosv(py_retval()));
++__OUT:
++    py_shrink(2);
++    return ok;
++}
++
++static bool pk_str_format_into(c11_sbuf* out, c11_sv tmpl, StrFormatState* st, int depth) {
++    const char* p = tmpl.data;
++    const char* end = tmpl.data + tmpl.size;
++    while(p < end) {
++        if(*p == '{') {
++            if(p + 1 < end && p[1] == '{') {
++                c11_sbuf__write_char(out, '{');
++                p += 2;
++                continue;
++            }
++            // the field ends at the matching brace; its spec may nest one level
++            const char* begin = ++p;
++            if(begin == end) return ValueError("Single '{' encountered in format string");
++            int level = 1;
++            while(p < end) {
++                if(*p == '{') level++;
++                if(*p == '}' && --level == 0) break;
++                p++;
++            }
++            if(p >= end) return ValueError("expected '}' before end of string");
++            if(!pk_str_format_field(out, (c11_sv){begin, (int)(p - begin)}, st, depth)) {
++                return false;
++            }
+             p++;
++        } else if(*p == '}') {
++            if(p + 1 < end && p[1] == '}') {
++                c11_sbuf__write_char(out, '}');
++                p += 2;
++                continue;
++            }
++            return ValueError("Single '}' encountered in format string");
++        } else {
++            c11_sbuf__write_char(out, *p++);
+         }
++    }
++    return true;
++}
++
++static bool str_format(int argc, py_Ref argv) {
++    // format(self, *args, **kwargs)
++    StrFormatState st = {py_arg(1), py_arg(2), 0, false};
++    c11_sbuf buf;
++    c11_sbuf__ctor(&buf);
++    if(!pk_str_format_into(&buf, py_tosv(argv), &st, 0)) {
++        c11_sbuf__dtor(&buf);
++        return false;
++    }
++    c11_sbuf__py_submit(&buf, py_retval());
++    return true;
++}
++
++static bool str_format_map(int argc, py_Ref argv) {
++    PY_CHECK_ARGC(2);
++    py_StackRef empty = py_pushtmp();
++    py_newtuple(empty, 0);
++    StrFormatState st = {empty, py_arg(1), 0, false};
++    c11_sbuf buf;
++    c11_sbuf__ctor(&buf);
++    bool ok = pk_str_format_into(&buf, py_tosv(argv), &st, 0);
++    py_pop();
++    if(!ok) {
++        c11_sbuf__dtor(&buf);
++        return false;
+     }
+     c11_sbuf__py_submit(&buf, py_retval());
+     return true;
+ }
+ 
++// kipferl patch: keyword signatures need the compiler, so bind them once the VM is ready
++void pk_str__bind_signatures() {
++    py_bind(py_tpobject(tp_str), "format(self, *args, **kwargs)", str_format);
++    py_bindmethod(tp_str, "format_map", str_format_map);
++}
++
+ py_Type pk_str__register() {
+     py_Type type = pk_newtype("str", tp_object, NULL, NULL, false, true);
+     // no need to dtor because the memory is controlled by the object
+@@ -8973,7 +9184,6 @@
+     py_bindmethod(tp_str, "find", str_find);
+     py_bindmethod(tp_str, "index", str_index);
+     py_bindmethod(tp_str, "encode", str_encode);
+-    py_bindmethod(tp_str, "format", str_format);
+     return type;
+ }
+ 
+@@ -21578,6 +21788,9 @@
+     // kipferl patch: exception subclasses may take keyword arguments in __init__
+     void pk_BaseException__bind_signatures();
+     pk_BaseException__bind_signatures();
++    // kipferl patch: str.format accepts keyword arguments
++    void pk_str__bind_signatures();
++    pk_str__bind_signatures();
+ 
+     // add python builtins
+     do {

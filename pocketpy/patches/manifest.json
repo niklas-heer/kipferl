@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 19,
+  "patchset_version": 20,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -106,7 +106,12 @@
         "kipferl patch: int() ignores surrounding whitespace and accepts digit separators",
         "kipferl patch: a required keyword-only parameter",
         "kipferl patch: None, ... and NotImplemented are hashable, so they can be dict keys;",
-        "kipferl patch: each singleton type has one instance, so its type identifies it"
+        "kipferl patch: each singleton type has one instance, so its type identifies it",
+        "kipferl patch: printf-style formatting with mapping keys, flags, width, precision and every",
+        "kipferl patch: like CPython, use double quotes for text with ' but no \"",
+        "kipferl patch: str.format fields may be named, use attributes and indexes, convert with",
+        "kipferl patch: keyword signatures need the compiler, so bind them once the VM is ready",
+        "kipferl patch: str.format accepts keyword arguments"
       ]
     }
   ],
@@ -210,6 +215,10 @@
     {
       "id": "0025-hashable-none",
       "file": "pocketpy/patches/0025-hashable-none.patch"
+    },
+    {
+      "id": "0026-string-formatting",
+      "file": "pocketpy/patches/0026-string-formatting.patch"
     }
   ]
 }
