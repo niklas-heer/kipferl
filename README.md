@@ -40,19 +40,19 @@ scripts, and Kipferl ships them as single-file binaries that start quickly.
 
 ## Quickstart
 
-**[Kipferl v0.8.0](https://github.com/niklas-heer/kipferl/releases/tag/v0.8.0)**
+**[Kipferl v0.9.0](https://github.com/niklas-heer/kipferl/releases/tag/v0.9.0)**
 brings project templates, configuration defaults, completions,
 compatibility-checked PyPI dependencies, and portable packaging with local
 modules and resources. Follow the
 [stable installation guide](https://kipferl.dev/docs/getting-started/installation#stable-release)
 for Homebrew or a platform binary with checksum verification, then try the
 workflow below. Read the [0.7 release story](https://kipferl.dev/blog/kipferl-0-7)
-for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-080)
+for the changes and the [upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-090)
 before moving a project from v0.6 or the release candidate.
 
 Homebrew follows the stable release: use `brew install niklas-heer/tap/kipferl`
 or `brew update && brew upgrade kipferl`, then check `kipferl --version` reports
-`v0.8.0`. The project workflow below requires 0.7; v0.6 still supports explicit
+`v0.9.0`. The project workflow below requires 0.7; v0.6 still supports explicit
 script commands such as `kipferl dev app.py` and `kipferl build app.py -o app`.
 
 ```bash
@@ -364,16 +364,16 @@ gzip (read), zipfile (read-only), tarfile (read-only).
 
 ## Installation
 
-### Stable v0.8.0: Homebrew (macOS/Linux)
+### Stable v0.9.0: Homebrew (macOS/Linux)
 
 ```bash
 brew install niklas-heer/tap/kipferl
 ```
 
 For an existing installation, run `brew update && brew upgrade kipferl` and
-verify `kipferl --version` reports `v0.8.0`. If you added an RC directory to your
+verify `kipferl --version` reports `v0.9.0`. If you added an RC directory to your
 `PATH`, remove that entry so it does not shadow Homebrew. Read the
-[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-080)
+[upgrade guide](https://kipferl.dev/docs/guides/packages#upgrade-to-090)
 for dependency-lock changes. Users with the old μcharm 0.5 formula should replace
 it once:
 
@@ -396,10 +396,10 @@ The flake builds the latest `main` from source, which may be ahead of the
 stable release. Run `nix run github:niklas-heer/kipferl -- --version` to try it
 without installing.
 
-### v0.8.0: direct download
+### v0.9.0: direct download
 
 Download the stable binary explicitly from its
-[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.8.0).
+[GitHub release](https://github.com/niklas-heer/kipferl/releases/tag/v0.9.0).
 Choose the release asset for the machine running Kipferl:
 
 | Platform | Asset |
@@ -414,7 +414,7 @@ matches the filename inside the `.sha256` file. For example, on Apple Silicon:
 
 ```bash
 asset=kipferl-macos-aarch64
-release=https://github.com/niklas-heer/kipferl/releases/download/v0.8.0
+release=https://github.com/niklas-heer/kipferl/releases/download/v0.9.0
 release_dir=$(mktemp -d)
 cd "$release_dir"
 curl -fLO "$release/$asset"
@@ -617,11 +617,11 @@ kipferl/
   tests does not guarantee every API or execution path.
 - See `tests/compat_report_pocketpy.md` for current parity.
 - Uncaught exceptions print their traceback on stderr and exit with status 1,
-  as in CPython (unreleased; 0.7 and earlier used stdout).
+  as in CPython (since 0.8; 0.7 and earlier used stdout).
 - Kipferl's own messages are styled only on a terminal and honour `NO_COLOR`;
   `CLICOLOR_FORCE` or `FORCE_COLOR` force styling. `tui` and `input` drop their
   styling under `NO_COLOR`, while `ansi` always returns the codes requested
-  (unreleased).
+  (since 0.8).
 
 ## Rust architecture and status
 
@@ -739,9 +739,9 @@ MicroPython excels at microcontrollers. PocketPy excels at embedding Python in a
 <details>
 <summary>What Python features are supported?</summary>
 
-The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals. Unreleased changes add `try`/`except`/`else`/`finally`, generator expressions, CPython's format-specification mini-language (`f'{n:,.2f}'`), `raise ... from ...`, unpacking of any iterable, and subscriptable `typing` forms such as `Optional[int]`.
+The runtime supports classes, decorators, generator functions, comprehensions, individual f-strings, `*args`/`**kwargs`, and context managers. Version 0.7 also supports dotted imports, trailing commas in import and parameter lists, and adjacent plain string and bytes literals. Version 0.9 adds `try`/`except`/`else`/`finally`, generator expressions, CPython's format-specification mini-language (`f'{n:,.2f}'`), `raise ... from ...`, unpacking of any iterable, and subscriptable `typing` forms such as `Optional[int]`.
 
-Integers are 64-bit. A result that does not fit raises `OverflowError` instead of growing as in CPython (unreleased; earlier versions wrapped silently). `sys.maxsize` (2**63 - 1) is the largest int; write the limits as `sys.maxsize` and `-sys.maxsize - 1`, because `2**63 - 1` and `-2**63` compute `2**63` first and overflow. Literals beyond 64 bits, such as `0xFFFFFFFFFFFFFFFF`, are a `SyntaxError`.
+Integers are 64-bit. A result that does not fit raises `OverflowError` instead of growing as in CPython (since 0.9; earlier versions wrapped silently). `sys.maxsize` (2**63 - 1) is the largest int; write the limits as `sys.maxsize` and `-sys.maxsize - 1`, because `2**63 - 1` and `-2**63` compute `2**63` first and overflow. Literals beyond 64 bits, such as `0xFFFFFFFFFFFFFFFF`, are a `SyntaxError`.
 
 Not supported:
 - `async`/`await` (limited support)
