@@ -1489,3 +1489,49 @@ print("".join(f.log))
 "#,
     )
 }
+
+/// Alternate float forms, braces in item keys, mapping protocols, methods set
+/// on instances, `s -= s` and a keyword passed twice.
+#[test]
+fn formats_mappings_and_keywords_follow_cpython_edge_cases() -> io::Result<()> {
+    matches_cpython(
+        r##"
+for value, spec in [(1.2, "#.3"), (1.0, "#.0"), (100.0, "#.3"), (1e20, "#.3"), (2.0, "#.1"),
+                    (0.0, "#.2"), (1e-5, "#.2"), (1e16, "#"), (1.5, "#"), (1.2, ".3")]:
+    print(spec, repr(format(value, spec)))
+print("{0[}]}".format({"}": "ok"}), "{0[{]}".format({"{": "x"}), "{0[a]:>{1}}|".format({"a": "y"}, 3))
+from collections import defaultdict
+class Upper:
+    def __getitem__(self, key): return key.upper()
+print("%(a)s" % defaultdict(lambda: "default"), "%(name)s" % Upper(), "%s" % [1, 2])
+try:
+    print("%(a)s" % {})
+except KeyError as e:
+    print("KeyError", e)
+class InstanceKeys:
+    def __init__(self): self.keys = lambda: ["a", "b"]
+    def __getitem__(self, key): return key * 2
+merged = {}
+merged.update(InstanceKeys())
+print(dict(InstanceKeys()), merged)
+values = {1, 2, 3}
+alias = values
+values -= values
+print(values, alias is values)
+class Sink:
+    def __init__(self): self.log = []
+    def write(self, text): self.log.append(text)
+sink = Sink()
+sink.flush = lambda: sink.log.append("flushed")
+print("x", file=sink, flush=True)
+print("".join(sink.log))
+def f(a, **rest): return a
+for call in (lambda: f(a=1, **{"a": 2}), lambda: f(1, **{"b": 1}, **{"b": 2})):
+    try:
+        call()
+    except TypeError as e:
+        # CPython qualifies the name as __main__.f()
+        print("TypeError", str(e).split("() ", 1)[1])
+"##,
+    )
+}

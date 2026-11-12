@@ -75,7 +75,10 @@ All notable user-facing changes are documented here.
   new builtin `OverflowError`. `int()`, `round()` and
   `math.floor`/`ceil`/`trunc` raise `OverflowError` instead of `ValueError` for
   infinities and floats beyond 64 bits. Programs that relied on wrapping, such
-  as hash functions that multiply freely, must mask their intermediate results.
+  as hash functions that multiply freely, must keep every intermediate result
+  within 64 bits, for example by multiplying 32-bit halves: masking afterwards
+  does not help, because the operation that overflows raises first
+  (`(sys.maxsize * 2) & sys.maxsize` raises).
   `sys.maxsize` is the largest int, 2**63 - 1. Write it, and the smallest
   int, as `sys.maxsize` and `-sys.maxsize - 1`: `2**63 - 1` and `-2**63`
   raise `OverflowError` because `2**63` is computed first. Integer literals

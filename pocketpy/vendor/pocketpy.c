@@ -8373,7 +8373,8 @@ static bool str__mod__(int argc, py_Ref argv) {
     } else {
         args_count = 1;
         args = &argv[1];
-        is_mapping = py_isinstance(&argv[1], tp_dict);
+        // any object with __getitem__ but a string is a mapping, as in CPython
+        is_mapping = !py_istype(&argv[1], tp_str) && py_tpfindmagic(argv[1].type, __getitem__);
     }
 
     int arg_index = 0;
@@ -8420,9 +8421,7 @@ static bool str__mod__(int argc, py_Ref argv) {
             if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format key"));
             py_newstrv(value, (c11_sv){key_begin, (int)(p - key_begin)});
             p++;
-            int res = py_dict_getitem(&argv[1], value);
-            if(res == -1) PERCENT_FAIL((void)0);
-            if(res == 0) PERCENT_FAIL(KeyError(value));
+            if(!py_getitem(&argv[1], value)) PERCENT_FAIL((void)0);
             *value = *py_retval();
             has_value = true;
             used_mapping = true;
@@ -9112,9 +9111,20 @@ static bool pk_str_format_into(c11_sbuf* out, c11_sv tmpl, StrFormatState* st, i
             const char* begin = ++p;
             if(begin == end) return ValueError("Single '{' encountered in format string");
             int level = 1;
+            bool in_name = true;
             while(p < end) {
-                if(*p == '{') level++;
-                if(*p == '}' && --level == 0) break;
+                if(in_name && *p == '[') {
+                    // an item key may contain braces: "{0[}]}"
+                    while(p < end && *p != ']')
+                        p++;
+                    if(p >= end) break;
+                } else if(in_name && (*p == '!' || *p == ':')) {
+                    in_name = false;
+                } else if(*p == '{') {
+                    level++;
+                } else if(*p == '}' && --level == 0) {
+                    break;
+                }
                 p++;
             }
             if(p >= end) return ValueError("expected '}' before end of string");
@@ -20581,6 +20591,20 @@ static bool pk_format_float(c11_sbuf* out, double x, const FormatSpec* spec, py_
         c11_string* text = c11_sbuf__submit(&repr);
         snprintf(body, cap, "%s", text->data);
         c11_string__delete(text);
+        // the alternate form always has a decimal point: 1e+16 becomes 1.e+16
+        char* e = strchr(body, 'e');
+        if(spec->alternate && !strchr(body, '.') && e) {
+            memmove(e + 1, e, strlen(e) + 1);
+            *e = '.';
+        }
+    } else if(spec->alternate) {
+        // no type with a precision: like '#g', but fixed-point keeps a fractional digit
+        int digits = precision == 0 ? 1 : precision;
+        snprintf(body, cap, "%#.*g", digits, magnitude);
+        size_t length = strlen(body);
+        if(!strchr(body, 'e') && body[length - 1] == '.') {
+            snprintf(body, cap, "%#.*e", digits - 1, magnitude);
+        }
     } else {
         // no type with a precision: like 'g', but fixed-point keeps a fractional digit
         int digits = precision == 0 ? 1 : precision;
@@ -22331,6 +22355,14 @@ static bool
 
     for(int j = 0; j < kwargc; j++) {
         py_Name key = (py_Name)py_toint(&p1[2 * j]);
+        // `f(a=1, **{'a': 2})` passes the keyword twice
+        for(int k = 0; k < j; k++) {
+            if((py_Name)py_toint(&p1[2 * k]) == key) {
+                return TypeError("%s() got multiple values for keyword argument '%n'",
+                                 co->name->data,
+                                 key);
+            }
+        }
         int index = c11_smallmap_n2d__get(&decl->kw_to_index, key, -1);
         int ordinal = index >= 0 ? FuncDecl__ordinal(decl, index) : -1;
         if(ordinal >= decl->posonly) {
@@ -24850,19 +24882,16 @@ static bool builtins_print(int argc, py_Ref argv) {
         // file.write(text), then file.flush() when asked
         py_StackRef text = py_pushtmp();
         c11_sbuf__py_submit(&buf, text);
-        py_push(py_arg(4));
-        if(!py_pushmethod(py_name("write"))) {
-            py_shrink(2);
-            return AttributeError(py_arg(4), py_name("write"));
-        }
+        // attribute lookup also finds methods assigned to the instance
+        if(!py_getattr(py_arg(4), py_name("write"))) return false;
+        py_push(py_retval());
+        py_pushnil();
         py_push(text);
         if(!py_vectorcall(1, 0)) return false;
         if(flush) {
-            py_push(py_arg(4));
-            if(!py_pushmethod(py_name("flush"))) {
-                py_shrink(2);
-                return AttributeError(py_arg(4), py_name("flush"));
-            }
+            if(!py_getattr(py_arg(4), py_name("flush"))) return false;
+            py_push(py_retval());
+            py_pushnil();
             if(!py_vectorcall(0, 0)) return false;
         }
         py_shrink(1);
@@ -34596,10 +34625,13 @@ bool pk_dict_update_from(py_Ref self, py_Ref source) {
         ok = true;
         goto __OUT;
     }
-    // a mapping provides keys() and __getitem__
-    bool is_mapping = py_tpfindname(rooted->type, py_name("keys")) != NULL;
+    // a mapping provides keys() and __getitem__; keys may also be an instance attribute
+    bool is_mapping = py_getattr(rooted, py_name("keys"));
+    if(!is_mapping) {
+        if(!py_matchexc(tp_AttributeError)) goto __OUT;
+        py_clearexc(NULL);
+    }
     if(is_mapping) {
-        if(!py_getattr(rooted, py_name("keys"))) goto __OUT;
         *item = *py_retval();
         if(!py_call(item, 0, NULL)) goto __OUT;
         *item = *py_retval();

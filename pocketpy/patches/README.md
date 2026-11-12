@@ -375,7 +375,7 @@ PocketPy's `dict()` accepted only a list or tuple of pairs and no keywords, and
 `dict(a=1)`, `dict(mapping)`, `dict(defaultdict)` and `d.update(key=value)`
 raised. `0020-dict-constructor.patch` gives `dict()` and `update()` CPython's
 signature: one optional positional argument that is a dict, a mapping (an
-object with `keys()` and `__getitem__`) or an iterable of key-value pairs,
+object with a `keys` attribute and `__getitem__`) or an iterable of key-value pairs,
 plus keyword arguments. It also adds `setdefault()`, `dict.fromkeys()` and
 `dict | dict`. Keyword signatures need the compiler, so these methods are
 bound once the VM has started rather than while the `dict` type is registered.
@@ -398,9 +398,10 @@ in-place set operators.
 PocketPy unpacked only lists and tuples, so `a, b = map(int, line.split())`
 or unpacking a generator raised `TypeError`, a starred target had to come
 last, and `for` targets could not nest. `0021-unpacking.patch` unpacks any
-other iterable by reading at most one item more than there are targets, so an
-endless iterator raises "too many values" instead of exhausting memory; it lets the starred target appear
-anywhere (`first, *middle, last = items`; `OP_UNPACK_EX` now carries the
+other iterable. Without a starred target it reads at most one item more than
+there are targets, so an endless iterator raises "too many values" instead of
+exhausting memory; a starred target collects the rest, as in CPython. The
+patch lets the starred target appear anywhere (`first, *middle, last = items`; `OP_UNPACK_EX` now carries the
 target counts before and after it), accepts parenthesized targets in `for`
 loops and comprehensions (`for i, (key, value) in ...`), and uses CPython's
 "too many" and "not enough values to unpack" messages.
@@ -423,7 +424,9 @@ do not print the cause chain.
 
 `0023-print-file-and-default-ne.patch` adds `print()`'s `file` argument,
 which writes the joined text with `file.write()` (and calls `file.flush()` for
-`flush=True`, raising `AttributeError` when the object has none), so `print(message, file=sys.stderr)` and printing into an
+`flush=True`, raising `AttributeError` when the object has none). Both are
+looked up as attributes, so methods assigned to the instance work too.
+`print(message, file=sys.stderr)` and printing into an
 `io.StringIO` work; `sep=None` and `end=None` select the defaults as in
 CPython. Kipferl's `sys.stdout.write()` flushes C stdio before writing and its
 own buffer after, so it and `print()` keep program order when piped.
@@ -446,7 +449,8 @@ passing `NotImplemented` through.
   positional parameters also take keywords (`f(1, b=2)`), keyword-only
   parameters take no positional arguments, positional-only parameters take no
   keywords (they go to `**kwargs` when there is one), and missing, duplicated
-  or surplus arguments raise CPython's `TypeError` messages. A call with
+  or surplus arguments raise CPython's `TypeError` messages, including a
+  keyword passed twice (`f(a=1, **{'a': 2})`). A call with
   keywords or a wrong argument count to an otherwise simple function takes the
   general path. `inspect.signature` reports the parameter kinds and prints the
   `/` and `*` markers.
@@ -469,14 +473,16 @@ top of `0017`'s mini-language:
 
 - `%`-formatting accepted only bare `%s`, `%d`, `%i`, `%f`, `%r` and `%%`, so
   `'%5.1f'`, `'%-10s'`, `'%05d'` and `'%x'` raised `ValueError`. It now parses
-  `%(key)` mapping lookups, the `-`, `+`, space, `#` and `0` flags, width and
+  `%(key)` lookups in any object with `__getitem__` (except a string), the
+  `-`, `+`, space, `#` and `0` flags, width and
   precision (including `*`), and every conversion type, and formats each field
   through the mini-language. Fields align right unless `-` is given, as in C.
   Booleans format as the integers 0 and 1 for every numeric conversion and
   `%c`, and a `*` width or precision beyond 32 bits raises `ValueError`.
 - `str.format` accepted only positional fields and no keyword arguments. It
   now resolves named fields from keyword arguments, attribute (`{0.name}`) and
-  index (`{0[key]}`) accessors, `!r`, `!s` and `!a` conversions, and
+  index (`{0[key]}`, whose key may contain braces) accessors, `!r`, `!s` and
+  `!a` conversions, and
   replacement fields nested in the specification (`'{:>{width}}'`), with
   CPython's error messages. `str.format_map()` is added.
 - `repr()` of a string uses double quotes when the text contains a single

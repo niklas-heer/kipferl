@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -8335,112 +8335,215 @@
+@@ -8356,112 +8356,214 @@
      return true;
  }
  
@@ -23,7 +23,8 @@
      } else {
          args_count = 1;
          args = &argv[1];
-+        is_mapping = py_isinstance(&argv[1], tp_dict);
++        // any object with __getitem__ but a string is a mapping, as in CPython
++        is_mapping = !py_istype(&argv[1], tp_str) && py_tpfindmagic(argv[1].type, __getitem__);
      }
  
      int arg_index = 0;
@@ -73,9 +74,7 @@
 +            if(p >= p_end) PERCENT_FAIL(ValueError("incomplete format key"));
 +            py_newstrv(value, (c11_sv){key_begin, (int)(p - key_begin)});
 +            p++;
-+            int res = py_dict_getitem(&argv[1], value);
-+            if(res == -1) PERCENT_FAIL((void)0);
-+            if(res == 0) PERCENT_FAIL(KeyError(value));
++            if(!py_getitem(&argv[1], value)) PERCENT_FAIL((void)0);
 +            *value = *py_retval();
 +            has_value = true;
 +            used_mapping = true;
@@ -288,7 +287,7 @@
      c11_sbuf__py_submit(&buf, py_retval());
      return true;
  }
-@@ -8506,7 +8609,11 @@
+@@ -8527,7 +8629,11 @@
      PY_CHECK_ARGC(1);
      c11_sbuf buf;
      c11_sbuf__ctor(&buf);
@@ -301,7 +300,7 @@
      c11_sbuf__py_submit(&buf, py_retval());
      return true;
  }
-@@ -8831,106 +8938,216 @@
+@@ -8852,106 +8958,227 @@
      return true;
  }
  
@@ -468,16 +467,7 @@
 -                    c11_sbuf__dtor(&buf);
 -                    return ValueError("single '{' encountered in format string");
 -                }
-+                continue;
-+            }
-+            // the field ends at the matching brace; its spec may nest one level
-+            const char* begin = ++p;
-+            if(begin == end) return ValueError("Single '{' encountered in format string");
-+            int level = 1;
-+            while(p < end) {
-+                if(*p == '{') level++;
-+                if(*p == '}' && --level == 0) break;
-                 p++;
+-                p++;
 -                // parse field
 -                c11_sv field = {p, 0};
 -                while(p < p_end && *p != '}' && *p != ':') {
@@ -488,7 +478,18 @@
 -                c11_sv spec = {p, 0};
 -                if(*p == ':') {
 -                    while(p < p_end && *p != '}') {
--                        p++;
++                continue;
++            }
++            // the field ends at the matching brace; its spec may nest one level
++            const char* begin = ++p;
++            if(begin == end) return ValueError("Single '{' encountered in format string");
++            int level = 1;
++            bool in_name = true;
++            while(p < end) {
++                if(in_name && *p == '[') {
++                    // an item key may contain braces: "{0[}]}"
++                    while(p < end && *p != ']')
+                         p++;
 -                    }
 -                    if(p < p_end) spec.size = p - spec.data;
 -                }
@@ -531,12 +532,20 @@
 -                if(!ok) {
 -                    c11_sbuf__dtor(&buf);
 -                    return false;
--                }
++                    if(p >= end) break;
++                } else if(in_name && (*p == '!' || *p == ':')) {
++                    in_name = false;
++                } else if(*p == '{') {
++                    level++;
++                } else if(*p == '}' && --level == 0) {
++                    break;
+                 }
 -                // append to buf
 -                c11__rtassert(py_isstr(py_retval()));
 -                c11_sv formatted = py_tosv(py_retval());
 -                c11_sbuf__write_sv(&buf, formatted);
 -                p++;  // skip '}'
++                p++;
              }
 +            if(p >= end) return ValueError("expected '}' before end of string");
 +            if(!pk_str_format_field(out, (c11_sv){begin, (int)(p - begin)}, st, depth)) {
@@ -604,7 +613,7 @@
  py_Type pk_str__register() {
      py_Type type = pk_newtype("str", tp_object, NULL, NULL, false, true);
      // no need to dtor because the memory is controlled by the object
-@@ -8973,7 +9190,6 @@
+@@ -8994,7 +9221,6 @@
      py_bindmethod(tp_str, "find", str_find);
      py_bindmethod(tp_str, "index", str_index);
      py_bindmethod(tp_str, "encode", str_encode);
@@ -612,7 +621,7 @@
      return type;
  }
  
-@@ -21658,6 +21874,9 @@
+@@ -21801,6 +22027,9 @@
      // kipferl patch: exception subclasses may take keyword arguments in __init__
      void pk_BaseException__bind_signatures();
      pk_BaseException__bind_signatures();

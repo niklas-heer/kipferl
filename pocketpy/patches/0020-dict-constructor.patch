@@ -17,7 +17,7 @@
      Ctx__emit_(ctx, opcode, arg, self->line);
  
      for(int i = 0; i < jmps.length; i++) {
-@@ -19019,7 +19022,9 @@
+@@ -19029,7 +19032,9 @@
          /*****************************/
  #define CASE_BINARY_OP(label, op, rop)                                                             \
      case label: {                                                                                  \
@@ -28,7 +28,7 @@
          POP();                                                                                     \
          *TOP() = self->last_retval;                                                                \
          DISPATCH();                                                                                \
-@@ -19724,6 +19729,41 @@
+@@ -19750,6 +19755,41 @@
      return py_name2str(op);
  }
  
@@ -70,7 +70,7 @@
  bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop) {
      // [a, b]
      py_Ref magic = py_tpfindmagic(SECOND()->type, op);
-@@ -21520,6 +21560,10 @@
+@@ -21560,6 +21600,10 @@
          ti->base_ti = pk_typeinfo(arithmetic_error);
      }
  
@@ -81,7 +81,7 @@
      // add python builtins
      do {
          bool ok;
-@@ -33866,27 +33910,90 @@
+@@ -33906,27 +33950,93 @@
      Dict__ctor(ud, 17, 4);
  }
  
@@ -115,16 +115,11 @@
 +        ok = true;
 +        goto __OUT;
 +    }
-+    // a mapping provides keys() and __getitem__
-+    bool is_mapping = py_tpfindname(rooted->type, py_name("keys")) != NULL;
-+    if(is_mapping) {
-+        if(!py_getattr(rooted, py_name("keys"))) goto __OUT;
-+        *item = *py_retval();
-+        if(!py_call(item, 0, NULL)) goto __OUT;
-+        *item = *py_retval();
-+        if(!py_iter(item)) goto __OUT;
-+    } else {
-+        if(!py_iter(rooted)) goto __OUT;
++    // a mapping provides keys() and __getitem__; keys may also be an instance attribute
++    bool is_mapping = py_getattr(rooted, py_name("keys"));
++    if(!is_mapping) {
++        if(!py_matchexc(tp_AttributeError)) goto __OUT;
++        py_clearexc(NULL);
      }
 -    assert(argc == 2);
 -    py_TValue* p;
@@ -136,6 +131,14 @@
 -        py_Ref tuple = &p[i];
 -        if(!py_istuple(tuple) || py_tuple_len(tuple) != 2) {
 -            return ValueError("dict.__init__() argument must be a list of tuple-2");
++    if(is_mapping) {
++        *item = *py_retval();
++        if(!py_call(item, 0, NULL)) goto __OUT;
++        *item = *py_retval();
++        if(!py_iter(item)) goto __OUT;
++    } else {
++        if(!py_iter(rooted)) goto __OUT;
++    }
 +    *iterator = *py_retval();
 +    for(int index = 0;; index++) {
 +        int res = py_next(iterator);
@@ -190,7 +193,7 @@
      py_newnone(py_retval());
      return true;
  }
-@@ -34040,19 +34147,69 @@
+@@ -34080,19 +34190,69 @@
  }
  
  static bool dict_update(int argc, py_Ref argv) {
@@ -268,7 +271,7 @@
  static bool dict_get(int argc, py_Ref argv) {
      Dict* self = py_touserdata(argv);
      if(argc > 3) return TypeError("get() takes at most 3 arguments (%d given)", argc);
-@@ -34118,6 +34275,17 @@
+@@ -34158,6 +34318,17 @@
      return true;
  }
  
@@ -286,7 +289,7 @@
  py_Type pk_dict__register() {
      py_Type type = pk_newtype("dict", tp_object, NULL, (void (*)(void*))Dict__dtor, false, false);
  
-@@ -34136,6 +34304,7 @@
+@@ -34176,6 +34347,7 @@
      py_bindmethod(type, "clear", dict_clear);
      py_bindmethod(type, "copy", dict_copy);
      py_bindmethod(type, "update", dict_update);

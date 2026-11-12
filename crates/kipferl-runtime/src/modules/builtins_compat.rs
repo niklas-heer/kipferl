@@ -241,7 +241,8 @@ def _kipferl_set_pop(self):
 
 def _kipferl_set_difference_update(self, *others):
     for other in others:
-        for item in other:
+        # a snapshot: `s -= s` removes from the set it iterates
+        for item in list(other):
             self.discard(item)
 
 

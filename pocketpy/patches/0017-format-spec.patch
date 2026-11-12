@@ -1,6 +1,6 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -17020,6 +17020,8 @@
+@@ -17030,6 +17030,8 @@
              case '!':
                  if(is_fstring) {
                      if(matchchar(self, 'r')) { return eat_fstring_spec(self, eof); }
@@ -9,7 +9,7 @@
                  }
                  if(matchchar(self, '=')) {
                      add_token(self, TK_NE);
-@@ -19725,149 +19727,380 @@
+@@ -19751,149 +19753,394 @@
                       rhs_t);
  }
  
@@ -239,9 +239,7 @@
 +        if(spec->sign) return ValueError("Sign not allowed with integer format specifier 'c'");
 +        if(spec->alternate) {
 +            return ValueError("Alternate form (#) not allowed with integer format specifier 'c'");
-         }
--        IntParsingResult res = c11__parse_uint(c11_sv__slice(spec, dot + 1), &precision, 10);
--        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
++        }
 +        if(value < 0 || value > 0x10FFFF) return ValueError("%%c arg not in range(0x110000)");
 +        char utf8[8];
 +        int n = c11__u32_to_u8((uint32_t)value, utf8);
@@ -322,6 +320,22 @@
 +        c11_string* text = c11_sbuf__submit(&repr);
 +        snprintf(body, cap, "%s", text->data);
 +        c11_string__delete(text);
++        // the alternate form always has a decimal point: 1e+16 becomes 1.e+16
++        char* e = strchr(body, 'e');
++        if(spec->alternate && !strchr(body, '.') && e) {
++            memmove(e + 1, e, strlen(e) + 1);
++            *e = '.';
++        }
++    } else if(spec->alternate) {
++        // no type with a precision: like '#g', but fixed-point keeps a fractional digit
++        int digits = precision == 0 ? 1 : precision;
++        snprintf(body, cap, "%#.*g", digits, magnitude);
++        size_t length = strlen(body);
++        if(!strchr(body, 'e') && body[length - 1] == '.') {
++            snprintf(body, cap, "%#.*e", digits - 1, magnitude);
+         }
+-        IntParsingResult res = c11__parse_uint(c11_sv__slice(spec, dot + 1), &precision, 10);
+-        if(res != IntParsing_SUCCESS) return ValueError("invalid format specifier");
      } else {
 -        // {10s}
 -        IntParsingResult res = c11__parse_uint(spec, &width, 10);
@@ -508,7 +522,7 @@
      c11_sbuf__py_submit(&buf, py_retval());
      return true;
  }
-@@ -23919,6 +24152,22 @@
+@@ -23945,6 +24192,22 @@
      return true;
  }
  
@@ -531,7 +545,7 @@
  static bool builtins_isinstance(int argc, py_Ref argv) {
      PY_CHECK_ARGC(2);
      if(py_istuple(py_arg(1))) {
-@@ -24273,6 +24522,7 @@
+@@ -24299,6 +24562,7 @@
      py_bindfunc(builtins, "exit", builtins_exit);
      py_bindfunc(builtins, "input", builtins_input);
      py_bindfunc(builtins, "repr", builtins_repr);
