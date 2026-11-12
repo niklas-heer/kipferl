@@ -389,3 +389,19 @@ A class that defined `__eq__` without `__ne__` failed at its definition with
 `TypeError: 'C' implements '__eq__' but not '__ne__'`. The patch instead gives
 such a class CPython's default `__ne__`: the negation of `type(self).__eq__`,
 passing `NotImplemented` through.
+
+### Statement and literal syntax
+
+`0024-syntax.patch` accepts several everyday forms PocketPy rejected:
+
+- `with a() as x, b() as y:` compiles as nested `with` statements, so the
+  managers exit in reverse order.
+- A bare `*` in a parameter list starts keyword-only parameters, and `*args`
+  may follow parameters with defaults. A keyword-only parameter without a
+  default is accepted; when a call omits it, reading it raises
+  `UnboundLocalError` instead of the call raising `TypeError`.
+  `inspect.signature` reports it without a default.
+- `/` is accepted after positional-only parameters, which Kipferl still lets
+  callers pass by keyword.
+- Numeric literals and `int()` accept single underscores between digits
+  (`1_000_000`, `0x_ff`), and `int()` ignores surrounding whitespace.

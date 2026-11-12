@@ -32,6 +32,9 @@ All notable user-facing changes are documented here.
   arguments (`ValueError('a', 1).args`).
 - `print()` accepts `file=` (`print(message, file=sys.stderr)`), and `sep` and
   `end` accept `None`.
+- `with a() as x, b() as y:`, keyword-only (`*`) and positional-only (`/`)
+  parameter markers, `*args` after parameters with defaults, and digit
+  separators in literals and `int()` (`1_000_000`, `int('1_000')`, `int(' 42 ')`).
 
 ### Changed
 

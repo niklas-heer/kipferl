@@ -697,3 +697,67 @@ print("a"); sys.stdout.write("b\n"); print("c", end=""); sys.stdout.write("-d\n"
         format!("print(file=sys.stderr) wrote {output:?}"),
     )
 }
+
+#[test]
+fn with_items_parameter_markers_and_digit_separators_compile() -> io::Result<()> {
+    matches_cpython(
+        r#"
+print(1_000_000, 0x_ff, 0b1010_1010, 1_000.5, 1e1_0, 1_0j if False else 0, int("1_000"), int(" 42 "), int("\t-7\n"), int("ff_ff", 16))
+for bad in ["int('1__0')", "int('_1')", "int('1_')", "int('')", "int('1 2')"]:
+    try:
+        eval(bad)
+    except ValueError as e:
+        print("ValueError", e)
+class CM:
+    def __init__(self, name):
+        self.name = name
+    def __enter__(self):
+        print("enter", self.name)
+        return self.name
+    def __exit__(self, *exc):
+        print("exit", self.name, exc[0])
+        return False
+with CM("a") as a, CM("b") as b:
+    print(a, b)
+with CM("x"), CM("y"), CM("z") as z:
+    print(z)
+try:
+    with CM("p"), CM("q"):
+        raise ValueError("boom")
+except ValueError:
+    print("caught")
+def kw(a, *, sep=", ", end="."):
+    return sep.join(a) + end
+print(kw(["x", "y"]), kw(["x"], end="!"))
+def required(*, key):
+    return key
+print(required(key=3))
+def pos(a, b, /, c=1):
+    return a + b + c
+print(pos(1, 2), pos(1, 2, c=3))
+def mixed(a, /, b, *, c=0, **rest):
+    return a, b, c, rest
+print(mixed(1, 2, c=3, d=4))
+print((lambda x, /, y=2, *, z=3: x + y + z)(1))
+def star_then(*args, key=None, flag):
+    return args, key, flag
+print(star_then(1, 2, flag=True))
+"#,
+    )?;
+    for source in [
+        "x = 1__0",
+        "x = 1_",
+        "def f(a=1, b): pass",
+        "def f(*a, *b): pass",
+    ] {
+        for program in [env!("CARGO_BIN_EXE_pocketpy-kipferl"), "python3"] {
+            let output = run(program, source)?;
+            check(
+                !output.status.success()
+                    && String::from_utf8_lossy(&output.stderr).contains("SyntaxError"),
+                format!("{program} accepted malformed source {source:?}"),
+            )?;
+        }
+    }
+    Ok(())
+}

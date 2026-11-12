@@ -7630,6 +7630,8 @@ static bool pk_float_to_i64(py_f64 x, py_i64* out) {
     return true;
 }
 
+#include <ctype.h>  // kipferl patch: int() parsing below
+
 static bool int__new__(int argc, py_Ref argv) {
     if(argc == 1 + 0) {
         // int() == 0
@@ -7672,11 +7674,34 @@ static bool int__new__(int argc, py_Ref argv) {
     PY_CHECK_ARG_TYPE(1, tp_str);
 
     c11_sv sv = py_tosv(py_arg(1));
+    // kipferl patch: int() ignores surrounding whitespace and accepts digit separators
+    while(sv.size && isspace((unsigned char)sv.data[0])) {
+        sv.data++;
+        sv.size--;
+    }
+    while(sv.size && isspace((unsigned char)sv.data[sv.size - 1]))
+        sv.size--;
     bool negative = false;
     if(sv.size && (sv.data[0] == '+' || sv.data[0] == '-')) {
         negative = sv.data[0] == '-';
         sv.data++;
         sv.size--;
+    }
+    char digits[128];
+    if(sv.size < (int)sizeof(digits) && memchr(sv.data, '_', sv.size)) {
+        int length = 0;
+        for(int k = 0; k < sv.size; k++) {
+            if(sv.data[k] != '_') {
+                digits[length++] = sv.data[k];
+                continue;
+            }
+            bool after_digit = k > 0 && isalnum((unsigned char)sv.data[k - 1]);
+            bool before_digit = k + 1 < sv.size && isxdigit((unsigned char)sv.data[k + 1]);
+            if(!after_digit || !before_digit) {
+                return ValueError("invalid literal for int() with base %d: %q", base, py_tosv(py_arg(1)));
+            }
+        }
+        sv = (c11_sv){digits, length};
     }
     py_i64 val;
     IntParsingResult parsed = c11__parse_uint(sv, &val, base);
@@ -7690,7 +7715,7 @@ static bool int__new__(int argc, py_Ref argv) {
         return pk_int_overflow();
     }
     if(parsed != IntParsing_SUCCESS) {
-        return ValueError("invalid literal for int() with base %d: %q", base, sv);
+        return ValueError("invalid literal for int() with base %d: %q", base, py_tosv(py_arg(1)));
     }
     py_newint(py_retval(), negative ? -val : val);
     return true;
@@ -15619,6 +15644,7 @@ static Error* read_literal(Compiler* self, py_Ref out) {
 
 static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
     int state = 0;  // 0 for args, 1 for *args, 2 for k=v, 3 for **kwargs
+    bool seen_star = false;
     Error* err;
     do {
         // allow trailing comma
@@ -15626,11 +15652,18 @@ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
         if(curr()->type == (is_lambda ? TK_COLON : TK_RPAREN)) break;
 
         if(state >= 3) return SyntaxError(self, "**kwargs should be the last argument");
+        // kipferl patch: `/` ends positional-only parameters, which Kipferl also accepts by keyword
+        if(state == 0 && match(TK_DIV)) continue;
         if(match(TK_MUL)) {
-            if(state < 1)
-                state = 1;
-            else
-                return SyntaxError(self, "*args should be placed before **kwargs");
+            // kipferl patch: `*` may follow parameters with defaults, but only once
+            if(seen_star) return SyntaxError(self, "* argument may appear only once");
+            seen_star = true;
+            state = 1;
+            // kipferl patch: a bare `*` starts keyword-only parameters
+            if(curr()->type == TK_COMMA) {
+                state = 2;
+                continue;
+            }
         } else if(match(TK_POW)) {
             state = 3;
         }
@@ -15652,9 +15685,18 @@ static Error* _compile_f_args(Compiler* self, FuncDecl* decl, bool is_lambda) {
                 state += 1;
                 break;
             case 2: {
-                consume(TK_ASSIGN);
                 py_TValue value;
-                check(read_literal(self, &value));
+                // kipferl patch: a keyword-only parameter without a default starts unbound
+                if(!match(TK_ASSIGN)) {
+                    if(!seen_star) {
+                        return SyntaxError(
+                            self,
+                            "parameter without a default follows parameter with a default");
+                    }
+                    py_newnil(&value);
+                } else {
+                    check(read_literal(self, &value));
+                }
                 FuncDecl__add_kwarg(decl, name, &value);
             } break;
             case 3:
@@ -16049,6 +16091,62 @@ static Error* compile_try_except(Compiler* self) {
     return NULL;
 }
 
+// kipferl patch: one `with` item; the items after it are nested inside its block
+static Error* compile_with_items(Compiler* self) {
+    Error* err;
+    check(EXPR(self));  // [ <expr> ]
+    Ctx__s_emit_top(ctx());
+    Ctx__enter_block(ctx(), CodeBlockType_WITH);
+    NameExpr* as_name = NULL;
+    if(match(TK_AS)) {
+        consume(TK_ID);
+        py_Name name = py_namev(Token__sv(prev()));
+        as_name = NameExpr__new(prev()->line, name, name_scope(self));
+    }
+    Ctx__emit_(ctx(), OP_WITH_ENTER, BC_NOARG, prev()->line);
+    // [ <expr> <expr>.__enter__() ]
+    if(as_name) {
+        bool ok = vtemit_store((Expr*)as_name, ctx());
+        vtdelete((Expr*)as_name);
+        if(!ok) return SyntaxError(self, "invalid syntax");
+    } else {
+        // discard `__enter__()`'s return value
+        Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
+    }
+    // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
+    Ctx__enter_block(ctx(), CodeBlockType_TRY);
+    Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
+    // kipferl patch: `with a, b:` nests the remaining items
+    if(match(TK_COMMA)) {
+        check(compile_with_items(self));
+    } else {
+        check(compile_block_body(self));
+    }
+    Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, prev()->line);
+    int patch_normal = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+    Ctx__exit_block(ctx());
+
+    // except:
+    Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
+    int patch_no_match = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_WITH_EXIT_EXC, BC_NOARG, BC_KEEPLINE);
+    int patch_reraise = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
+    Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
+    int patch_handled = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
+
+    // re-raise
+    Ctx__patch_jump(ctx(), patch_reraise);
+    Ctx__patch_jump(ctx(), patch_no_match);
+    Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
+
+    Ctx__patch_jump(ctx(), patch_normal);
+    Ctx__patch_jump(ctx(), patch_handled);
+    Ctx__exit_block(ctx());
+    return NULL;
+}
+
 static Error* compile_stmt(Compiler* self) {
     Error* err;
     if(match(TK_CLASS)) {
@@ -16192,53 +16290,7 @@ static Error* compile_stmt(Compiler* self) {
             Ctx__s_pop(ctx());
             consume_end_stmt();
         } break;
-        case TK_WITH: {
-            check(EXPR(self));  // [ <expr> ]
-            Ctx__s_emit_top(ctx());
-            Ctx__enter_block(ctx(), CodeBlockType_WITH);
-            NameExpr* as_name = NULL;
-            if(match(TK_AS)) {
-                consume(TK_ID);
-                py_Name name = py_namev(Token__sv(prev()));
-                as_name = NameExpr__new(prev()->line, name, name_scope(self));
-            }
-            Ctx__emit_(ctx(), OP_WITH_ENTER, BC_NOARG, prev()->line);
-            // [ <expr> <expr>.__enter__() ]
-            if(as_name) {
-                bool ok = vtemit_store((Expr*)as_name, ctx());
-                vtdelete((Expr*)as_name);
-                if(!ok) return SyntaxError(self, "invalid syntax");
-            } else {
-                // discard `__enter__()`'s return value
-                Ctx__emit_(ctx(), OP_POP_TOP, BC_NOARG, BC_KEEPLINE);
-            }
-            // kipferl patch: compile 'with' to call __exit__ on exceptions (and allow suppression)
-            Ctx__enter_block(ctx(), CodeBlockType_TRY);
-            Ctx__emit_(ctx(), OP_BEGIN_TRY, BC_NOARG, prev()->line);
-            check(compile_block_body(self));
-            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_WITH_EXIT, BC_NOARG, prev()->line);
-            int patch_normal = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
-            Ctx__exit_block(ctx());
-
-            // except:
-            Ctx__emit_(ctx(), OP_LOAD_TRUE, BC_NOARG, BC_KEEPLINE);
-            int patch_no_match = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_HANDLE_EXCEPTION, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_WITH_EXIT_EXC, BC_NOARG, BC_KEEPLINE);
-            int patch_reraise = Ctx__emit_(ctx(), OP_POP_JUMP_IF_FALSE, BC_NOARG, BC_KEEPLINE);
-            Ctx__emit_(ctx(), OP_END_TRY, BC_NOARG, BC_KEEPLINE);
-            int patch_handled = Ctx__emit_(ctx(), OP_JUMP_FORWARD, BC_NOARG, BC_KEEPLINE);
-
-            // re-raise
-            Ctx__patch_jump(ctx(), patch_reraise);
-            Ctx__patch_jump(ctx(), patch_no_match);
-            Ctx__emit_(ctx(), OP_RE_RAISE, BC_NOARG, BC_KEEPLINE);
-
-            Ctx__patch_jump(ctx(), patch_normal);
-            Ctx__patch_jump(ctx(), patch_handled);
-            Ctx__exit_block(ctx());
-        } break;
+        case TK_WITH: check(compile_with_items(self)); break;
         /*************************************************/
         // handle dangling expression or assignment
         default: {
@@ -16608,6 +16660,7 @@ static bool is_possible_number_char(char c) {
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
         case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
         case '.': case 'x': case 'o': case 'j':
+        case '_':  // kipferl patch: digit separators
         return true;
         default: return false;
             // clang-format on
@@ -16826,13 +16879,29 @@ static Error* eat_number(Lexer* self) {
     bool is_scientific_notation = false;
     if(*(i - 1) == 'e' && (*i == '+' || *i == '-')) {
         i++;
-        while(isdigit(*i) || *i == 'j')
+        while(isdigit(*i) || *i == 'j' || *i == '_')
             i++;
         is_scientific_notation = true;
     }
 
-    c11_sv text = {self->token_start, i - self->token_start};
+    c11_sv raw = {self->token_start, i - self->token_start};
     self->curr_char = i;
+    // kipferl patch: a single underscore may separate digits, as in 1_000_000 or 0x_ff
+    char digits[128];
+    int length = 0;
+    for(int k = 0; k < raw.size; k++) {
+        char c = raw.data[k];
+        if(c == '_') {
+            bool after_digit = k > 0 && isalnum((unsigned char)raw.data[k - 1]);
+            bool before_digit = k + 1 < raw.size && isxdigit((unsigned char)raw.data[k + 1]);
+            if(!after_digit || !before_digit) return LexerError(self, "invalid decimal literal");
+            continue;
+        }
+        if(length == (int)sizeof(digits) - 1) return LexerError(self, "invalid number literal");
+        digits[length++] = c;
+    }
+    digits[length] = '\0';
+    c11_sv text = {digits, length};
 
     if(text.data[0] != '.' && !is_scientific_notation) {
         // try integer
@@ -25789,6 +25858,13 @@ static bool inspect__signature_data(int argc, py_Ref argv) {
     }
     for(int i = 0; i < decl->kwargs.length; i++) {
         FuncDeclKwArg kv = c11__getitem(FuncDeclKwArg, &decl->kwargs, i);
+        if(py_isnil(&kv.value)) {
+            // kipferl patch: a required keyword-only parameter has no default
+            py_TValue* entry = py_newtuple(&items[j++], 2);
+            py_newstr(&entry[0], py_name2str(kv.key));
+            py_newint(&entry[1], 3);
+            continue;
+        }
         py_TValue* entry = py_newtuple(&items[j++], 3);
         py_newstr(&entry[0], py_name2str(kv.key));
         // defaults after *args can only be passed by keyword
@@ -31893,6 +31969,7 @@ static void TValue__serialize(c11_serializer* s, py_Ref val) {
         }
         case tp_NoneType: break;
         case tp_ellipsis: break;
+        case tp_nil: break;  // kipferl patch: a required keyword-only parameter
         case tp_tuple: {
             int len = py_tuple_len(val);
             c11_serializer__write_i32(s, len);
@@ -31934,6 +32011,11 @@ static void TValue__deserialize(c11_deserializer* d, py_OutRef out) {
         }
         case tp_NoneType: {
             py_newnone(out);
+            break;
+        }
+        case tp_nil: {
+            // kipferl patch: a required keyword-only parameter
+            py_newnil(out);
             break;
         }
         case tp_ellipsis: {
