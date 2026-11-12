@@ -138,3 +138,24 @@ fn empty_bytes_slices_copy_nothing() {
     assert!(output.status.success(), "{}", diagnostic(&output));
     assert_eq!(text(&output.stderr), "");
 }
+
+// Extending a list with itself read the source after growing had freed it;
+// AddressSanitizer in the FFI sanitizer job reports the use after free.
+#[test]
+fn lists_extend_with_themselves_after_growing() {
+    let output = run(
+        concat!(
+            "a = list(range(100))\n",
+            "a += a\n",
+            "assert len(a) == 200 and a[150] == 50 and a[-1] == 99\n",
+            "b = list(range(100))\n",
+            "b.extend(b)\n",
+            "b.extend(b)\n",
+            "assert len(b) == 400 and sum(b) == 4 * 4950\n",
+        ),
+        &[],
+    );
+    assert!(output.status.success(), "{}", diagnostic(&output));
+    assert_eq!(text(&output.stdout), "");
+    assert_eq!(text(&output.stderr), "");
+}

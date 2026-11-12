@@ -1,6 +1,6 @@
 {
   "patchset_id": "kipferl-pocketpy-vendor-patches",
-  "patchset_version": 22,
+  "patchset_version": 23,
   "tracked_files": [
     {
       "path": "pocketpy/vendor/pocketpy.c",
@@ -123,7 +123,8 @@
         "kipferl patch: bools are ints, so their arithmetic is checked as well",
         "kipferl patch: a step past the 64-bit range ends the iteration",
         "kipferl patch: bind arguments as CPython does",
-        "kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does."
+        "kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.",
+        "kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it"
       ]
     }
   ],
@@ -235,6 +236,10 @@
     {
       "id": "0027-display-unpacking",
       "file": "pocketpy/patches/0027-display-unpacking.patch"
+    },
+    {
+      "id": "0028-self-extend",
+      "file": "pocketpy/patches/0028-self-extend.patch"
     }
   ]
 }

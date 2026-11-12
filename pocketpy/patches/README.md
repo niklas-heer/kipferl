@@ -484,3 +484,10 @@ PocketPy compiled `[*a, *b]`, `(*a,)` and `{*a}` but stored the internal
 displays are built (only displays that contain one take the slower path), and
 compiles `**mapping` items in dict displays, which `BUILD_DICT` merges with
 the same logic as `dict.update()` (`pk_dict_update_from`, declared here).
+
+### Extending a list with itself
+
+`c11_vector__extend` copied from its source after growing the vector, so
+`a.extend(a)` and `a += a` read the freed buffer whenever the list had to
+grow. `0028-self-extend.patch` rebases a source that lies inside the vector
+onto the new buffer. The defect is upstream's (reported in kipferl#71).

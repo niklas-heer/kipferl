@@ -13145,8 +13145,14 @@ void c11_vector__extend(c11_vector* self, const void* p, int size) {
     if(size > INT32_MAX - self->length) c11__abort("c11_vector__extend(): too many elements");
     int min_capacity = self->length + size;
     if(self->capacity < min_capacity) {
+        // kipferl patch: the source may lie in this vector (`a.extend(a)`); growing frees it
+        uintptr_t begin = (uintptr_t)self->data;
+        uintptr_t end = begin + (size_t)self->length * (size_t)self->elem_size;
+        bool aliased = begin != 0 && (uintptr_t)p >= begin && (uintptr_t)p < end;
+        size_t offset = aliased ? (uintptr_t)p - begin : 0;
         int nextcap = c11_vector__nextcap(self);
         c11_vector__reserve((self), c11__max(nextcap, min_capacity));
+        if(aliased) p = (char*)self->data + offset;
     }
     void* dst = (char*)self->data + (size_t)self->length * (size_t)self->elem_size;
     memcpy(dst, p, (size_t)size * (size_t)self->elem_size);

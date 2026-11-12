@@ -91,6 +91,9 @@ All notable user-facing changes are documented here.
 
 ### Fixed
 
+- `items.extend(items)` and `items += items` on a list that has to grow read
+  the list after growing had freed it, so the copy could contain garbage or
+  crash the process.
 - A function or module whose jumps exceed PocketPy's 16-bit offsets, such as
   an `if` around tens of thousands of statements, raises `SyntaxError` ("code
   is too large to compile") instead of aborting the process.
