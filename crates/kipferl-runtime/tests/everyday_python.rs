@@ -1192,3 +1192,77 @@ fn misplaced_parameter_markers_are_syntax_errors() -> io::Result<()> {
     }
     Ok(())
 }
+
+/// Augmented assignment calls `__iadd__`/`__ior__` first, so containers change in place.
+#[test]
+fn augmented_assignment_mutates_containers_in_place() -> io::Result<()> {
+    matches_cpython(
+        r#"
+def add(d):
+    d |= {"b": 2}
+def extend(items):
+    items += [3, 4]
+def grow(s):
+    s |= {9}
+    s &= {9, 1}
+    s -= {1}
+    s ^= {5}
+d = {"a": 1}
+add(d)
+items = [1, 2]
+extend(items)
+s = {1, 2, 9}
+grow(s)
+print(d, items, sorted(s))
+alias = items
+items += "xy"
+print(alias is items, alias)
+t = frozen = "ab"
+t += "c"
+print(t, frozen)
+n = 5
+n += 2
+text = "a"
+text += "b"
+print(n, text)
+class Acc:
+    def __init__(self): self.total = 0
+    def __iadd__(self, other):
+        self.total += other
+        return self
+    def __add__(self, other):
+        return "fresh"
+a = Acc()
+b = a
+a += 5
+print(a is b, a.total)
+class OnlyAdd:
+    def __add__(self, other): return "sum"
+o = OnlyAdd()
+o += 1
+print(o)
+class NotImpl:
+    def __iadd__(self, other): return NotImplemented
+    def __add__(self, other): return "fallback"
+x = NotImpl()
+x += 1
+print(x)
+class Holder:
+    def __init__(self): self.items = []
+h = Holder()
+ref = h.items
+h.items += [1]
+grid = {"k": [0]}
+cell = grid["k"]
+grid["k"] += [1]
+print(ref, cell, h.items is ref)
+m = {"x": 1}
+m |= [("y", 2)]
+print(m)
+try:
+    items += 5
+except TypeError as e:
+    print("TypeError", e)
+"#,
+    )
+}

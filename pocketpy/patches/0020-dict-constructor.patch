@@ -1,6 +1,76 @@
 --- a/pocketpy/vendor/pocketpy.c
 +++ b/pocketpy/vendor/pocketpy.c
-@@ -21520,6 +21520,10 @@
+@@ -6642,6 +6642,7 @@
+ /// The result is stored in `self->last_retval`.
+ /// The stack remains unchanged.
+ bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop);
++int pk_stack_inplaceop(VM* self, py_Name op);  // kipferl patch
+ 
+ void pk_print_stack(VM* self, py_Frame* frame, Bytecode byte);
+ 
+@@ -13797,6 +13798,8 @@
+         default: c11__unreachable();
+     }
+ 
++    // kipferl patch: an augmented assignment tries the in-place method first
++    if(self->inplace) arg = 1;
+     Ctx__emit_(ctx, opcode, arg, self->line);
+ 
+     for(int i = 0; i < jmps.length; i++) {
+@@ -19019,7 +19022,9 @@
+         /*****************************/
+ #define CASE_BINARY_OP(label, op, rop)                                                             \
+     case label: {                                                                                  \
+-        if(!pk_stack_binaryop(self, op, rop)) goto __ERROR;                                        \
++        int inplace = byte.arg == 1 ? pk_stack_inplaceop(self, op) : 0;                            \
++        if(inplace == -1) goto __ERROR;                                                            \
++        if(inplace == 0 && !pk_stack_binaryop(self, op, rop)) goto __ERROR;                        \
+         POP();                                                                                     \
+         *TOP() = self->last_retval;                                                                \
+         DISPATCH();                                                                                \
+@@ -19724,6 +19729,41 @@
+     return py_name2str(op);
+ }
+ 
++// kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.
++// Returns 1 when it produced the result, 0 to fall back to the binary operator, -1 on error.
++int pk_stack_inplaceop(VM* self, py_Name op) {
++    // [a, b]
++    switch(SECOND()->type) {
++        // immutable builtins have no in-place methods
++        case tp_int:
++        case tp_float:
++        case tp_bool:
++        case tp_str:
++        case tp_tuple:
++        case tp_NoneType: return 0;
++        default: break;
++    }
++    const char* name;
++    if(op == __add__) name = "__iadd__";
++    else if(op == __sub__) name = "__isub__";
++    else if(op == __mul__) name = "__imul__";
++    else if(op == __truediv__) name = "__itruediv__";
++    else if(op == __floordiv__) name = "__ifloordiv__";
++    else if(op == __mod__) name = "__imod__";
++    else if(op == __pow__) name = "__ipow__";
++    else if(op == __lshift__) name = "__ilshift__";
++    else if(op == __rshift__) name = "__irshift__";
++    else if(op == __and__) name = "__iand__";
++    else if(op == __or__) name = "__ior__";
++    else if(op == __xor__) name = "__ixor__";
++    else if(op == __matmul__) name = "__imatmul__";
++    else return 0;
++    py_Ref magic = py_tpfindname(SECOND()->type, py_name(name));
++    if(!magic) return 0;
++    if(!py_call(magic, 2, SECOND())) return -1;
++    return self->last_retval.type != tp_NotImplementedType;
++}
++
+ bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop) {
+     // [a, b]
+     py_Ref magic = py_tpfindmagic(SECOND()->type, op);
+@@ -21520,6 +21560,10 @@
          ti->base_ti = pk_typeinfo(arithmetic_error);
      }
  
@@ -11,7 +81,7 @@
      // add python builtins
      do {
          bool ok;
-@@ -33866,27 +33870,90 @@
+@@ -33866,27 +33910,90 @@
      Dict__ctor(ud, 17, 4);
  }
  
@@ -120,7 +190,7 @@
      py_newnone(py_retval());
      return true;
  }
-@@ -34040,19 +34107,69 @@
+@@ -34040,19 +34147,69 @@
  }
  
  static bool dict_update(int argc, py_Ref argv) {
@@ -198,7 +268,7 @@
  static bool dict_get(int argc, py_Ref argv) {
      Dict* self = py_touserdata(argv);
      if(argc > 3) return TypeError("get() takes at most 3 arguments (%d given)", argc);
-@@ -34118,6 +34235,17 @@
+@@ -34118,6 +34275,17 @@
      return true;
  }
  
@@ -216,7 +286,7 @@
  py_Type pk_dict__register() {
      py_Type type = pk_newtype("dict", tp_object, NULL, (void (*)(void*))Dict__dtor, false, false);
  
-@@ -34136,6 +34264,7 @@
+@@ -34136,6 +34304,7 @@
      py_bindmethod(type, "clear", dict_clear);
      py_bindmethod(type, "copy", dict_copy);
      py_bindmethod(type, "update", dict_update);

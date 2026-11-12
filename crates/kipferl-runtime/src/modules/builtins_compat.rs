@@ -291,6 +291,34 @@ set.intersection_update = _kipferl_set_intersection_update
 set.symmetric_difference_update = _kipferl_set_symmetric_difference_update
 
 
+# Augmented assignment mutates mutable containers in place, as in CPython.
+def _kipferl_list_iadd(self, other):
+    self.extend(other)
+    return self
+
+
+def _kipferl_dict_ior(self, other):
+    self.update(other)
+    return self
+
+
+def _kipferl_set_inplace(update):
+    def method(self, other):
+        if not isinstance(other, set):
+            return NotImplemented
+        update(self, other)
+        return self
+    return method
+
+
+list.__iadd__ = _kipferl_list_iadd
+dict.__ior__ = _kipferl_dict_ior
+set.__ior__ = _kipferl_set_inplace(set.update)
+set.__iand__ = _kipferl_set_inplace(_kipferl_set_intersection_update)
+set.__isub__ = _kipferl_set_inplace(_kipferl_set_difference_update)
+set.__ixor__ = _kipferl_set_inplace(_kipferl_set_symmetric_difference_update)
+
+
 def _kipferl_float_is_integer(self):
     return self == self and self not in (float("inf"), float("-inf")) and self == self // 1
 

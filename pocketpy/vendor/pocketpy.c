@@ -6650,6 +6650,7 @@ bool pk_execdyn(CodeObject* co, py_Ref module, py_Ref globals, py_Ref locals);
 /// The result is stored in `self->last_retval`.
 /// The stack remains unchanged.
 bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop);
+int pk_stack_inplaceop(VM* self, py_Name op);  // kipferl patch
 
 void pk_print_stack(VM* self, py_Frame* frame, Bytecode byte);
 
@@ -14056,6 +14057,8 @@ static void BinaryExpr__emit_(Expr* self_, Ctx* ctx) {
         default: c11__unreachable();
     }
 
+    // kipferl patch: an augmented assignment tries the in-place method first
+    if(self->inplace) arg = 1;
     Ctx__emit_(ctx, opcode, arg, self->line);
 
     for(int i = 0; i < jmps.length; i++) {
@@ -19399,7 +19402,9 @@ __NEXT_STEP:
         /*****************************/
 #define CASE_BINARY_OP(label, op, rop)                                                             \
     case label: {                                                                                  \
-        if(!pk_stack_binaryop(self, op, rop)) goto __ERROR;                                        \
+        int inplace = byte.arg == 1 ? pk_stack_inplaceop(self, op) : 0;                            \
+        if(inplace == -1) goto __ERROR;                                                            \
+        if(inplace == 0 && !pk_stack_binaryop(self, op, rop)) goto __ERROR;                        \
         POP();                                                                                     \
         *TOP() = self->last_retval;                                                                \
         DISPATCH();                                                                                \
@@ -20195,6 +20200,41 @@ const char* pk_op2str(py_Name op) {
     if(__invert__ == op) return "~";
     if(__matmul__ == op) return "@";
     return py_name2str(op);
+}
+
+// kipferl patch: `a op= b` calls a.__iop__(b) when a defines it, as CPython does.
+// Returns 1 when it produced the result, 0 to fall back to the binary operator, -1 on error.
+int pk_stack_inplaceop(VM* self, py_Name op) {
+    // [a, b]
+    switch(SECOND()->type) {
+        // immutable builtins have no in-place methods
+        case tp_int:
+        case tp_float:
+        case tp_bool:
+        case tp_str:
+        case tp_tuple:
+        case tp_NoneType: return 0;
+        default: break;
+    }
+    const char* name;
+    if(op == __add__) name = "__iadd__";
+    else if(op == __sub__) name = "__isub__";
+    else if(op == __mul__) name = "__imul__";
+    else if(op == __truediv__) name = "__itruediv__";
+    else if(op == __floordiv__) name = "__ifloordiv__";
+    else if(op == __mod__) name = "__imod__";
+    else if(op == __pow__) name = "__ipow__";
+    else if(op == __lshift__) name = "__ilshift__";
+    else if(op == __rshift__) name = "__irshift__";
+    else if(op == __and__) name = "__iand__";
+    else if(op == __or__) name = "__ior__";
+    else if(op == __xor__) name = "__ixor__";
+    else if(op == __matmul__) name = "__imatmul__";
+    else return 0;
+    py_Ref magic = py_tpfindname(SECOND()->type, py_name(name));
+    if(!magic) return 0;
+    if(!py_call(magic, 2, SECOND())) return -1;
+    return self->last_retval.type != tp_NotImplementedType;
 }
 
 bool pk_stack_binaryop(VM* self, py_Name op, py_Name rop) {
