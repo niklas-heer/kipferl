@@ -222,11 +222,10 @@ updater downloads all four binaries and their checksum sidecars, verifies them,
 and replaces the formula only after every artifact matches. After publication,
 verify the public downloads, Homebrew version/checksums, and live documentation.
 
-The Homebrew tap requires pull requests. Its automation pushes a release branch,
-opens or reuses the corresponding PR, and requests a normal squash merge with
-auto-merge for pending checks. It never bypasses review or branch rules. If a
-merge cannot complete, the workflow summary links the pending PR instead of
-claiming the formula is live. The job runs in the `homebrew-tap` environment,
+The Homebrew tap requires pull requests. Its automation pushes a release branch
+and opens or reuses the corresponding PR; a maintainer merges it after the tap's
+review. The workflow never merges its own PR, and its summary links the pending
+PR instead of claiming the formula is live. The job runs in the `homebrew-tap` environment,
 whose `HOMEBREW_APP_PRIVATE_KEY` secret is readable only from `v*` tag runs, and
 mints a short-lived GitHub App token (app client ID in the `HOMEBREW_APP_CLIENT_ID`
 repository variable) with Contents: write and Pull requests: write on the tap only.

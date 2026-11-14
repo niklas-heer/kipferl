@@ -427,6 +427,8 @@ jobs:
     runs-on: ubuntu-latest
     # The app key is an environment secret, readable only from v* tag runs.
     environment: homebrew-tap
+    permissions:
+      contents: read
     env:
       TAP_REPOSITORY: niklas-heer/homebrew-tap
 
@@ -532,14 +534,5 @@ jobs:
               exit 1
             fi
           fi
-          # Never bypass required reviews, checks, or merge queues.
-          if ! gh pr merge "$pr_url" --repo "$TAP_REPOSITORY" --auto --squash \
-            --match-head-commit "$(git rev-parse HEAD)"; then
-            echo "::warning::Homebrew PR remains pending; follow repository requirements at $pr_url"
-          fi
-          pr_state=$(gh pr view "$pr_url" --repo "$TAP_REPOSITORY" --json state --jq '.state')
-          if [[ "$pr_state" == "MERGED" ]]; then
-            echo "Homebrew formula v$RELEASE_VERSION merged: $pr_url" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Homebrew formula v$RELEASE_VERSION is pending ($pr_state): $pr_url. It is not yet available from this PR." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          # A maintainer merges after the tap's review; the workflow never merges its own PR.
+          echo "Homebrew formula v$RELEASE_VERSION awaits review: $pr_url. It is not yet available from this PR." >> "$GITHUB_STEP_SUMMARY"
