@@ -225,10 +225,11 @@ verify the public downloads, Homebrew version/checksums, and live documentation.
 The Homebrew tap requires pull requests. Its automation pushes a release branch
 and opens or reuses the corresponding PR; a maintainer merges it after the tap's
 review. The workflow never merges its own PR, and its summary links the pending
-PR instead of claiming the formula is live. The job runs in the `homebrew-tap` environment,
-whose `HOMEBREW_APP_PRIVATE_KEY` secret is readable only from `v*` tag runs, and
-mints a short-lived GitHub App token (app client ID in the `HOMEBREW_APP_CLIENT_ID`
-repository variable) with Contents: write and Pull requests: write on the tap only.
+PR instead of claiming the formula is live. The job runs in the `homebrew-tap`
+environment, whose `HOMEBREW_APP_PRIVATE_KEY` secret is readable only from `v*`
+tag runs, and mints a short-lived GitHub App token (app client ID in the
+`HOMEBREW_APP_CLIENT_ID` repository variable) with Contents: write and Pull
+requests: write on the tap only.
 
 Each component job generates fresh catalog evidence from the reviewed wheel
 pins against its final full runtime. macOS keeps the behavior hook sandbox;
