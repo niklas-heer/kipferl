@@ -6,10 +6,10 @@ const withMDX = createMDX();
 const config = {
   reactStrictMode: true,
   async redirects() {
-    return ["0.7", "0.7.1"].flatMap((version) =>
+    return ["0.7", "0.7.1", "0.8.0"].flatMap((version) =>
       ["mp4", "webp"].map((extension) => ({
         source: `/demos/kipferl-${version}.${extension}`,
-        destination: `/demos/kipferl-0.8.0.${extension}`,
+        destination: `/demos/kipferl-0.9.0.${extension}`,
         permanent: true,
       })),
     );
