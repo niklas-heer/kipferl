@@ -133,7 +133,12 @@ else:
             result = subprocess.run(['/bin/bash', '-n'], input=step_script(name), text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
         job = WORKFLOW.read_text().split('  update-homebrew:\n', 1)[1]
-        self.assertIn('GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}', job)
+        self.assertIn('environment: homebrew-tap', job)
+        self.assertIn('private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}', job)
+        self.assertIn('permission-contents: write', job)
+        self.assertIn('permission-pull-requests: write', job)
+        self.assertIn('GH_TOKEN: ${{ steps.tap-token.outputs.token }}', job)
+        self.assertNotIn('HOMEBREW_TAP_TOKEN', job)
         self.assertIn('Contents: write and Pull requests: write', job)
         self.assertNotIn('--admin', job)
         self.assertNotIn('git push\n', job)

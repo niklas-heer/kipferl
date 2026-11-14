@@ -425,9 +425,9 @@ jobs:
     needs: release
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
+    # The app key is an environment secret, readable only from v* tag runs.
+    environment: homebrew-tap
     env:
-      # Fine-grained tap token: Contents and Pull requests must both be writable.
-      GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       TAP_REPOSITORY: niklas-heer/homebrew-tap
 
     steps:
@@ -436,20 +436,23 @@ jobs:
         with:
           path: kipferl
 
-      - name: Verify Homebrew tap access
-        run: |
-          # This checks access, not permission to bypass the tap's PR rules.
-          can_push=$(gh api "repos/$TAP_REPOSITORY" --jq '.permissions.push')
-          if [[ "$can_push" != "true" ]]; then
-            echo "HOMEBREW_TAP_TOKEN needs Contents: write and Pull requests: write access to niklas-heer/homebrew-tap" >&2
-            exit 1
-          fi
+      - name: Create Homebrew tap token
+        id: tap-token
+        # A short-lived GitHub App token limited to the tap: Contents and Pull requests write.
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.HOMEBREW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
+          owner: niklas-heer
+          repositories: homebrew-tap
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Checkout homebrew-tap repository
         uses: actions/checkout@v5
         with:
           repository: niklas-heer/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          token: ${{ steps.tap-token.outputs.token }}
           fetch-depth: 0
           path: homebrew-tap
 
@@ -464,6 +467,7 @@ jobs:
         id: tap-branch
         working-directory: homebrew-tap
         env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           release_branch="codex/kipferl-$RELEASE_VERSION"
@@ -489,6 +493,7 @@ jobs:
       - name: Publish Homebrew pull request
         working-directory: homebrew-tap
         env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
           TAP_BRANCH: ${{ steps.tap-branch.outputs.branch }}
           TAP_BASE: ${{ steps.tap-branch.outputs.base }}
@@ -523,7 +528,7 @@ jobs:
             if ! pr_url=$(gh pr create --repo "$TAP_REPOSITORY" --head "$TAP_BRANCH" \
               --base "$TAP_BASE" --title "chore: update kipferl to v$RELEASE_VERSION" \
               --body-file "$body_file"); then
-              echo "HOMEBREW_TAP_TOKEN needs Contents: write and Pull requests: write access to $TAP_REPOSITORY." >&2
+              echo "The Homebrew tap GitHub App needs Contents: write and Pull requests: write on $TAP_REPOSITORY." >&2
               exit 1
             fi
           fi
