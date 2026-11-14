@@ -39,7 +39,8 @@ remaining sections preserve the v0.6.0 preparation and publication evidence.
 - [x] Keep the long-form release post outside routed website content until the
   published artifacts can be verified.
 - [x] Make Homebrew checksum downloads fail on HTTP errors.
-- [x] Confirm `HOMEBREW_TAP_TOKEN` and `OPENROUTER_API_KEY` are configured.
+- [x] Confirm `OPENROUTER_API_KEY`, the `HOMEBREW_APP_CLIENT_ID` variable, and the
+  `homebrew-tap` environment's `HOMEBREW_APP_PRIVATE_KEY` are configured.
 
 ## Pre-tag gate
 
@@ -68,9 +69,8 @@ The tag workflow must:
 - [x] Update `niklas-heer/homebrew-tap` only after the stable release exists.
   The workflow token lacked tap write permission, so release commit `ecd46b0`
   was published with the authenticated maintainer session after verifying the
-  generated formula. The workflow now fails early with the exact permission
-  requirement; `HOMEBREW_TAP_TOKEN` still needs Contents write access before
-  the next stable release.
+  generated formula. The workflow now authenticates to the tap with a GitHub
+  App token instead of `HOMEBREW_TAP_TOKEN`.
 
 ## Verify after publication
 

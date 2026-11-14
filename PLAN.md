@@ -270,7 +270,5 @@ checked-in runtime assets are separate from the current runtime sources.
 
 ## Backlog (ordered)
 
-- Restore automatic Homebrew promotion before the next stable release by giving
-  `HOMEBREW_TAP_TOKEN` Contents write access to `niklas-heer/homebrew-tap`.
 - Concurrency: `threading`, `queue` (PocketPy threading support TBD).
 - Database: expand the current bounded `sqlite3` subset only behind compatibility and artifact-size gates.

@@ -57,12 +57,6 @@ elif args[:2] == ['pr', 'create']:
     body = Path(args[args.index('--body-file') + 1]).read_text()
     assert '0.7.0' in body and 'only after this PR merges' in body
     print(os.environ['PR_URL'])
-elif args[:2] == ['pr', 'merge']:
-    assert '--admin' not in args
-    assert '--auto' in args and '--squash' in args and '--match-head-commit' in args
-    raise SystemExit(int(os.environ.get('MERGE_EXIT', '0')))
-elif args[:2] == ['pr', 'view']:
-    print(os.environ.get('PR_STATE', 'OPEN'))
 else:
     raise SystemExit(98)
 ''')
@@ -96,20 +90,16 @@ else:
     def gh_calls(self):
         return [json.loads(line) for line in self.calls.read_text().splitlines()]
 
-    def test_branch_push_and_blocked_merge_leave_truthful_pending_pr(self):
-        self.publish(MERGE_EXIT='1')
+    def test_branch_push_opens_pr_and_reports_it_pending_review(self):
+        self.publish()
         self.assertEqual(self.git('rev-parse', 'refs/heads/main', cwd=self.remote).strip(), self.main_head)
         self.assertIn('verified formula 0.7.0', self.git('show', 'refs/heads/codex/kipferl-0.7.0:Formula/kipferl.rb', cwd=self.remote))
         summary = self.summary.read_text()
-        self.assertIn('pending (OPEN)', summary)
+        self.assertIn('awaits review', summary)
         self.assertIn('not yet available', summary)
         self.assertIn(PR_URL, summary)
         self.assertTrue(any(call[:2] == ['pr', 'create'] for call in self.gh_calls()))
-
-    def test_merged_state_is_required_before_reporting_promotion(self):
-        self.publish(PR_STATE='MERGED')
-        self.assertIn('formula v0.7.0 merged:', self.summary.read_text())
-        self.assertNotIn('pending', self.summary.read_text())
+        self.assertFalse(any(call[:2] == ['pr', 'merge'] for call in self.gh_calls()))
 
     def test_rerun_reuses_remote_branch_and_open_pr_without_duplicate_commit(self):
         self.publish()
@@ -133,9 +123,17 @@ else:
             result = subprocess.run(['/bin/bash', '-n'], input=step_script(name), text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
         job = WORKFLOW.read_text().split('  update-homebrew:\n', 1)[1]
-        self.assertIn('GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}', job)
+        self.assertIn('environment: homebrew-tap', job)
+        self.assertIn('private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}', job)
+        self.assertIn('permission-contents: write', job)
+        self.assertIn('permission-pull-requests: write', job)
+        self.assertEqual(job.count('GH_TOKEN: ${{ steps.tap-token.outputs.token }}'), 2)
+        self.assertIn('    permissions:\n      contents: read\n', job)
+        self.assertIn('repositories: homebrew-tap', job)
+        self.assertNotIn('HOMEBREW_TAP_TOKEN', job)
         self.assertIn('Contents: write and Pull requests: write', job)
         self.assertNotIn('--admin', job)
+        self.assertNotIn('gh pr merge', job)
         self.assertNotIn('git push\n', job)
 
 
